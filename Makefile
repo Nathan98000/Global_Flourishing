@@ -1,36 +1,67 @@
 # Flourish Atlas — top-level developer entry points (docs/PROPOSAL.md §5.1)
+# Works with GNU make (Linux) and the make shipped with macOS dev tools.
 
-.PHONY: setup data api web test lint typecheck build deploy
+.DEFAULT_GOAL := help
 
-setup: ## Install Python and web dependencies
+.PHONY: help setup data api web lint format typecheck test build docker-build docker-run deploy clean
+
+help: ## List available targets
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
+
+setup: ## Install Python + web dependencies and the pre-commit hook
 	uv sync --all-packages
 	pnpm install
+	uv run pre-commit install
 
-data: ## Build catalog, Parquet, DuckDB from raw files in data/raw/ (Phase 1)
+data: ## Build catalog/Parquet/DuckDB from data/raw/ (fails until Phase 1)
 	uv run flourish-pipeline
 
-api: ## Run the API locally with reload
-	uv run uvicorn flourish_api.main:app --reload --port 8000
+api: ## Run the API dev server on :8080
+	uv run uvicorn flourish_api.main:app --reload --port 8080
 
-web: ## Run the web app dev server
+web: ## Run the Vite dev server
 	pnpm -C apps/web dev
 
-test: ## Run all tests (Python + web)
-	uv run pytest
-	pnpm -C apps/web test
-
-lint: ## Lint both sides
+lint: ## ruff + eslint + prettier --check
 	uv run ruff check .
 	uv run ruff format --check .
 	pnpm -C apps/web lint
 
-typecheck: ## Typecheck both sides
+format: ## ruff format + prettier --write
+	uv run ruff format .
+	pnpm -C apps/web format
+
+typecheck: ## pyright + tsc
 	uv run pyright
 	pnpm -C apps/web typecheck
 
-build: ## Production build of the web app and the API image
+test: ## pytest (both packages) + vitest
+	uv run pytest
+	pnpm -C apps/web test
+
+build: ## Production web build + API Docker image
 	pnpm -C apps/web build
+	$(MAKE) docker-build
+
+docker-build: ## Build the API image (repo root as context)
 	docker build -f infra/Dockerfile -t flourish-api .
 
-deploy: ## Deploys run from CI on tags (see .github/workflows/deploy.yml)
-	@echo "Deploys run from GitHub Actions on a v* tag; see infra/README.md."
+docker-run: ## Run the API image on :8080 and curl /healthz
+	docker run -d --rm -p 8080:8080 --name flourish-api flourish-api
+	@sleep 2 && curl -fsS localhost:8080/healthz && echo && docker stop flourish-api
+
+deploy: ## Tag a release: make deploy TAG=vX.Y.Z (tag push triggers .github/workflows/deploy.yml)
+	@test -n "$(TAG)" || { echo "Usage: make deploy TAG=vX.Y.Z"; exit 1; }
+	@branch=$$(git rev-parse --abbrev-ref HEAD); \
+	  test "$$branch" = "main" || { echo "Refusing: on '$$branch', deploy tags are cut from main"; exit 1; }
+	@git diff --quiet && git diff --cached --quiet || { echo "Refusing: working tree not clean"; exit 1; }
+	@git fetch origin main
+	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || \
+	  { echo "Refusing: local main is not in sync with origin/main"; exit 1; }
+	git tag -a "$(TAG)" -m "Release $(TAG)"
+	git push origin "$(TAG)"
+	@echo "Pushed $(TAG); watch https://github.com/Nathan98000/Global_Flourishing/actions"
+
+clean: ## Remove build artefacts and caches
+	rm -rf apps/web/dist .pytest_cache .ruff_cache coverage.xml .coverage
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
