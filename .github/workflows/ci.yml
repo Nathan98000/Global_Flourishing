@@ -59,10 +59,13 @@ jobs:
         run: docker build -f infra/Dockerfile -t flourish-api .
       - name: Smoke test /healthz
         run: |
-          docker run -d --rm -p 8080:8080 --name api flourish-api
+          docker run -d -p 8080:8080 --name api flourish-api
+          ok=0
           for i in $(seq 1 20); do
-            if curl -fsS localhost:8080/healthz; then ok=1; break; fi
+            if curl -fsS localhost:8080/healthz; then ok=1; echo; break; fi
             sleep 1
           done
-          docker stop api
+          echo "--- container logs ---"
+          docker logs api || true
+          docker rm -f api
           test "$ok" = 1

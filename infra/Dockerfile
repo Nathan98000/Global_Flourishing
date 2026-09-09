@@ -13,7 +13,9 @@ COPY pipeline/pyproject.toml pipeline/pyproject.toml
 RUN uv sync --frozen --no-install-workspace --no-dev --package flourish-api
 
 COPY services/api services/api
-RUN uv sync --frozen --no-dev --package flourish-api
+# --no-editable: only .venv is copied to the runtime stage, so workspace
+# packages must be installed into site-packages, not linked back to /app.
+RUN uv sync --frozen --no-dev --no-editable --package flourish-api
 
 FROM python:3.12-slim-bookworm
 
