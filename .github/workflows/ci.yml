@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python (lint · types · tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Pyright
+        run: uv run pyright
+      - name: Pytest
+        run: uv run pytest
+
+  web:
+    name: Web (lint · types · tests · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: ESLint
+        run: pnpm -C apps/web lint
+      - name: Typecheck
+        run: pnpm -C apps/web typecheck
+      - name: Vitest
+        run: pnpm -C apps/web test
+      - name: Build
+        run: pnpm -C apps/web build
+
+  docker:
+    name: API image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f infra/Dockerfile -t flourish-api .
+      - name: Smoke test /healthz
+        run: |
+          docker run -d --rm -p 8080:8080 --name api flourish-api
+          for i in $(seq 1 20); do
+            if curl -fsS localhost:8080/healthz; then ok=1; break; fi
+            sleep 1
+          done
+          docker stop api
+          test "$ok" = 1

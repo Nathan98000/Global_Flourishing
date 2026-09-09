@@ -1,0 +1,41 @@
+[project]
+name = "flourish-atlas"
+version = "0.1.0"
+description = "Flourish Atlas monorepo root — interactive explorer for the Global Flourishing Study"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pyright>=1.1.390",
+    "pytest>=8",
+    "httpx>=0.27",
+    "pre-commit>=4",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["services/api", "pipeline"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["services/api", "pipeline"]
+exclude = ["**/__pycache__", "**/.venv", "data"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["services/api/tests", "pipeline/tests"]
+addopts = "-q"

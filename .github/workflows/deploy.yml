@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  # Secrets are not readable from job-level `if`, so surface their presence here.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      has-gcp: ${{ steps.check.outputs.has-gcp }}
+      has-cloudflare: ${{ steps.check.outputs.has-cloudflare }}
+    steps:
+      - id: check
+        run: |
+          echo "has-gcp=${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' && secrets.GCP_REGION != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has-cloudflare=${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}" >> "$GITHUB_OUTPUT"
+
+  deploy-api:
+    name: API → Cloud Run
+    needs: preflight
+    if: needs.preflight.outputs.has-gcp == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build and push image
+        run: |
+          IMAGE="${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flourish/api:${{ github.ref_name }}"
+          gcloud auth configure-docker "${{ secrets.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker build -f infra/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: flourish-api
+          region: ${{ secrets.GCP_REGION }}
+          image: ${{ env.IMAGE }}
+          flags: --allow-unauthenticated --memory=512Mi --min-instances=0 --max-instances=2
+
+  deploy-web:
+    name: Web → Cloudflare Pages
+    needs: preflight
+    if: needs.preflight.outputs.has-cloudflare == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install and build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -C apps/web build
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/web/dist --project-name=flourish-atlas
