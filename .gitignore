@@ -23,10 +23,16 @@ data/*
 *.csv
 *.parquet
 *.duckdb
+*.pdf
 
 # Environment / editors
 .env
 .env.*
+!.env.example
 .DS_Store
 .idea/
 .vscode/
+
+# Coverage
+coverage.xml
+.coverage.*
