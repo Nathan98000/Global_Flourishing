@@ -1,6 +1,5 @@
 # Flourish Atlas API image for Cloud Run.
 # Build from the repo root: docker build -f infra/Dockerfile -t flourish-api .
-# From Phase 3 the DuckDB file is baked in alongside the code (proposal §5.4).
 
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS build
 
@@ -22,6 +21,17 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Phase 3: bake the data layer into the image next to the code, e.g.
+#   COPY data/flourish.duckdb /app/data/flourish.duckdb
+# (built by `make data`; see docs/SETUP.md and docs/PROPOSAL.md §5.4)
+
+# Set by the deploy workflow so /healthz reports the build.
+ARG GIT_SHA=""
+ENV FA_GIT_SHA=$GIT_SHA
+
+RUN useradd --create-home --uid 1000 app
+USER app
 
 # Cloud Run injects PORT; default to 8080 for local runs.
 ENV PORT=8080
