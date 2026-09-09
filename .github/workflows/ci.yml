@@ -19,15 +19,15 @@ jobs:
         with:
           enable-cache: true
       - name: Sync workspace
-        run: uv sync --all-packages
+        run: uv sync --frozen --all-packages
       - name: Ruff lint
         run: uv run ruff check .
       - name: Ruff format
         run: uv run ruff format --check .
       - name: Pyright
         run: uv run pyright
-      - name: Pytest
-        run: uv run pytest
+      - name: Pytest (with coverage)
+        run: uv run pytest --cov=flourish_api --cov=flourish_pipeline --cov-report=term-missing
 
   web:
     name: Web (lint · types · tests · build)
@@ -41,7 +41,7 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
-      - name: ESLint
+      - name: ESLint + Prettier
         run: pnpm -C apps/web lint
       - name: Typecheck
         run: pnpm -C apps/web typecheck
@@ -49,6 +49,11 @@ jobs:
         run: pnpm -C apps/web test
       - name: Build
         run: pnpm -C apps/web build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
 
   docker:
     name: API image builds
@@ -56,16 +61,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -f infra/Dockerfile -t flourish-api .
+        run: docker build -f infra/Dockerfile --build-arg GIT_SHA=${{ github.sha }} -t flourish-api .
       - name: Smoke test /healthz
         run: |
           docker run -d -p 8080:8080 --name api flourish-api
           ok=0
           for i in $(seq 1 20); do
-            if curl -fsS localhost:8080/healthz; then ok=1; echo; break; fi
+            if body=$(curl -fsS localhost:8080/healthz); then ok=1; break; fi
             sleep 1
           done
           echo "--- container logs ---"
           docker logs api || true
           docker rm -f api
           test "$ok" = 1
+          echo "$body"
+          echo "$body" | grep -q '"status":"ok"'
+          echo "$body" | grep -q '"git_sha":"${{ github.sha }}"'
+
+  pre-commit:
+    name: pre-commit (all files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: |
+          uv sync --frozen --all-packages
+          pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure
