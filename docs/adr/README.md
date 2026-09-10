@@ -10,3 +10,4 @@ it.
 | [ADR-0002](ADR-0002-duckdb-over-postgres.md) | DuckDB over Postgres | Accepted |
 | [ADR-0003](ADR-0003-pipeline-engine-and-storage.md) | Pipeline engine and storage layout | Accepted |
 | [ADR-0004](ADR-0004-codebook-parsed-not-transcribed.md) | Codebook as source of truth, parsed not transcribed | Accepted |
+| [ADR-0005](ADR-0005-stats-as-third-workspace-package.md) | Statistics engine as a third workspace package | Accepted |

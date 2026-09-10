@@ -9,9 +9,11 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 COPY pyproject.toml uv.lock ./
 COPY services/api/pyproject.toml services/api/pyproject.toml
 COPY pipeline/pyproject.toml pipeline/pyproject.toml
+COPY stats/pyproject.toml stats/pyproject.toml
 RUN uv sync --frozen --no-install-workspace --no-dev --package flourish-api
 
 COPY services/api services/api
+COPY stats stats
 # --no-editable: only .venv is copied to the runtime stage, so workspace
 # packages must be installed into site-packages, not linked back to /app.
 RUN uv sync --frozen --no-dev --no-editable --package flourish-api

@@ -12,6 +12,7 @@ midyear administration modes), and the phase plan.
 |---|---|
 | `apps/web/` | React 18 + TS + Vite, TanStack Router (code-based) + Query. `src/config.ts` is the only reader of `import.meta.env`. |
 | `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. |
+| `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table, suppression. `stats/verify/` holds the R `survey` parity harness. |
 | `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
 | `data/` | Pipeline outputs; git-ignored except `README.md` and `manifest.json`. |
 | `docs/` | `PROPOSAL.md`, `SETUP.md` (hand-off checklist), `adr/`. |

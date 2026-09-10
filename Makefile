@@ -38,7 +38,7 @@ typecheck: ## pyright + tsc
 	uv run pyright
 	pnpm -C apps/web typecheck
 
-test: ## pytest (both packages) + vitest
+test: ## pytest (api, pipeline, stats) + vitest
 	uv run pytest
 	pnpm -C apps/web test
 
