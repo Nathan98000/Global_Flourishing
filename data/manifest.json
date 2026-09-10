@@ -1,0 +1,126 @@
+{
+  "data_version": "gfs-w2my.0.1.0.23e22391",
+  "engine_versions": {
+    "duckdb": "1.5.5",
+    "pandera": "0.33.1",
+    "polars": "1.44.2",
+    "pyarrow": "25.0.1"
+  },
+  "generated_at_utc": "2026-09-10T18:12:19+00:00",
+  "git_sha": "d8d9c02cdf284af1f1f236bf99fc9c2c8d2e7661",
+  "inputs": [
+    {
+      "bytes": 137525983,
+      "path": "data/raw/gfs_all_countries_wave2_with_midyear.csv",
+      "rows": 207919,
+      "sha256": "23e2239158274b30a6b97dde7d104d35f0e8bb53d8d0005d1fcdc937897e3ed8"
+    },
+    {
+      "bytes": 32604664,
+      "path": "data/raw/gfs_us-state-weight_wave2_with-midyear.csv",
+      "rows": 38312,
+      "sha256": "bdc3d2fb0e10137ec900b55c2d5657ee4d4febfa71c3640030223abd36e9290a"
+    },
+    {
+      "bytes": 2120830,
+      "path": "data/raw/GFS_codebook_wave2.pdf",
+      "rows": null,
+      "sha256": "7e672dec9ed49a0b606f3429bf86069df8dfe1429cc702bc554bc988952d041f"
+    }
+  ],
+  "outputs": [
+    {
+      "bytes": 773403,
+      "path": "data/catalog.json",
+      "rows": null,
+      "sha256": "78040f1d74b1ac1d2adc9388e6b53326a46cbab4393669b827c49570a052c0e7"
+    },
+    {
+      "bytes": 7600,
+      "path": "data/catalog.schema.json",
+      "rows": null,
+      "sha256": "745db3d03a47a3baec80dbcc4043660db6322a047cb23b3f4ec55ae8e7b82669"
+    },
+    {
+      "bytes": 458,
+      "path": "data/catalog_coverage.md",
+      "rows": null,
+      "sha256": "4296249ddcd617fad6e8ec6f563d68df38572e1d3cb827d6f63b810bc806162c"
+    },
+    {
+      "bytes": 24767,
+      "path": "data/catalog/variables.parquet",
+      "rows": 182,
+      "sha256": "2cdb8056f910c35599b26172079389cc4e9736853925ed0d8f80082056c86a7f"
+    },
+    {
+      "bytes": 28224,
+      "path": "data/catalog/value_labels.parquet",
+      "rows": 3298,
+      "sha256": "dc7a222e574dd8554366baac5e344cf56d7a15ab0973b9fa7b9d6aeebef72f3f"
+    },
+    {
+      "bytes": 1518,
+      "path": "data/parquet/countries.parquet",
+      "rows": 23,
+      "sha256": "f15782026a849576e0ea9b20fea76e4c9dae954714a03e3c12b555a3e2ecb3d8"
+    },
+    {
+      "bytes": 29400,
+      "path": "data/parquet/coverage.parquet",
+      "rows": 4752,
+      "sha256": "d63b4e076c313bd842790368cfd52cee63887da2641b48081c74804c3ad2df9a"
+    },
+    {
+      "bytes": 2900094,
+      "path": "data/parquet/derived.parquet",
+      "rows": 468274,
+      "sha256": "113a2eeb1e4b7dc3104d03e5fe90ead64333462be23ad4ac1fda9287bdd9f2ff"
+    },
+    {
+      "bytes": 9193020,
+      "path": "data/parquet/respondents.parquet",
+      "rows": 207919,
+      "sha256": "771087c873175f88a8c5196770485b03678d9e4a01eeb54b0397acf4adc7f19b"
+    },
+    {
+      "bytes": 45869212,
+      "path": "data/parquet/responses_long.parquet",
+      "rows": 33295632,
+      "sha256": "68b511be613c1f118e9b42119490090881aef41bc388dc55fd941948f3da89b1"
+    },
+    {
+      "bytes": 28224,
+      "path": "data/parquet/value_labels.parquet",
+      "rows": 3298,
+      "sha256": "dc7a222e574dd8554366baac5e344cf56d7a15ab0973b9fa7b9d6aeebef72f3f"
+    },
+    {
+      "bytes": 24767,
+      "path": "data/parquet/variables.parquet",
+      "rows": 182,
+      "sha256": "2cdb8056f910c35599b26172079389cc4e9736853925ed0d8f80082056c86a7f"
+    },
+    {
+      "bytes": 6944,
+      "path": "data/validation_report.md",
+      "rows": null,
+      "sha256": "ebfc605ad9c30f8a532927c3aedeb45b4eb35036ca811bde8903ed86a5a6ed59"
+    },
+    {
+      "bytes": 149958656,
+      "path": "data/flourish.duckdb",
+      "rows": 33295632,
+      "sha256": "53d0ad1fd0d736f39a10c18b861304bcc36df3e65bdaf03592645b486117a617"
+    }
+  ],
+  "pipeline_version": "0.1.0",
+  "stage_seconds": {
+    "codebook": 2.58,
+    "derive": 2.38,
+    "ingest": 0.55,
+    "manifest": 0.26,
+    "reshape": 2.78,
+    "validate": 0.73
+  }
+}
