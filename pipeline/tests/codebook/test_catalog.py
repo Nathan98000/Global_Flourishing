@@ -321,7 +321,7 @@ def test_full_catalog_build_is_clean(raw_dir: Path) -> None:
     assert report.ok
     assert sum(1 for v in catalog.variables if not v.is_us_only) == 169
     assert sum(1 for v in catalog.variables if v.is_us_only) == 13
-    assert len(report.drafts) <= 10
+    assert report.drafts == []
     sfi = [v for v in catalog.variables if v.sfi_domain is not None]
     assert len(sfi) == 12
     assert all(v.direction == "higher_better" and v.scale_type == "scale_0_10" for v in sfi)

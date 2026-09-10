@@ -38,10 +38,13 @@ def test_sfi_membership_is_exactly_twelve() -> None:
     assert all(v.family == "sfi" for v in sfi.values())
 
 
-def test_drafts_stay_within_budget() -> None:
+def test_no_draft_variables_remain() -> None:
+    # All 169 + 13 variables were reviewed by hand (the last six on
+    # 2026-09-10); a new codebook entry starts as draft and must be
+    # resolved before it lands.
     overrides = load_overrides()
     drafts = [n for n, v in overrides.variables.items() if v.review_status == "draft"]
-    assert len(drafts) <= 10, f"too many drafts for review: {drafts}"
+    assert drafts == [], f"unreviewed variables: {drafts}"
 
 
 def test_countries_match_the_release() -> None:

@@ -156,10 +156,9 @@ variables:
     display_name: Feeling capable
     family: wellbeing
     direction: lower_better
-    review_status: draft
     notes: >-
-      1 = Always … 4 = Never feel capable, so lower is better. Family is
-      debatable (wellbeing vs character) — flagged for review.
+      Reviewed 2026-09-10: 1 = Always … 4 = Never feel capable, so lower
+      is better; family stays wellbeing.
   BELONGING:
     display_name: Sense of belonging
     family: social_civic
@@ -209,12 +208,12 @@ variables:
     display_name: Days exercised last week
     family: physical_health
     scale_type: count
+    direction: higher_better
     min: 0
     max: 7
-    review_status: draft
     notes: >-
-      Direction left as none (a behaviour, not an outcome) — flagged for
-      review since more exercise is plausibly higher_better.
+      Reviewed 2026-09-10: 0–7 days; more days is the better end for
+      chart labels.
   CIGARETTES:
     display_name: Cigarettes per day
     family: physical_health
@@ -224,10 +223,9 @@ variables:
   COVID_DEATH:
     display_name: Lost someone to COVID-19
     family: physical_health
-    review_status: draft
     notes: >-
-      A bereavement event; sits awkwardly in every family — flagged for
-      review (physical_health vs social_civic).
+      Reviewed 2026-09-10: kept in physical_health; direction none — a
+      life event, not a scale.
 
   # ------------------------------------------------------- Social & civic
   CLOSE_TO:
@@ -245,10 +243,9 @@ variables:
     display_name: Trust in people
     family: social_civic
     direction: lower_better
-    review_status: draft
     notes: >-
-      1 = All … 5 = None trust one another, so lower is better; ordinal
-      reading of the middle categories is loose — flagged for review.
+      Reviewed 2026-09-10: 1 = All … 5 = None trust one another, so lower
+      is better.
   DISCRIMINATED:
     display_name: Not feeling discriminated against
     family: social_civic
@@ -682,8 +679,9 @@ variables:
     display_name: Connected to nature
     family: midyear
     direction: higher_better
-    review_status: draft
-    notes: "Treated as a positive wellbeing measure — flagged for review."
+    notes: >-
+      Reviewed 2026-09-10: 0 = Strongly disagree … 10 = Strongly agree;
+      connectedness to nature is the positive end.
   BEAUTY:
     display_name: Regularly experiences beauty
     family: midyear
@@ -694,8 +692,9 @@ variables:
     display_name: Diligence
     family: midyear
     direction: higher_better
-    review_status: draft
-    notes: "Self-rated diligence read as positive — flagged for review."
+    notes: >-
+      Reviewed 2026-09-10: 0 = Strongly disagree … 10 = Strongly agree;
+      higher is better.
   MIND_FOCUSED:
     display_name: Mind focused on what you do
     family: midyear
