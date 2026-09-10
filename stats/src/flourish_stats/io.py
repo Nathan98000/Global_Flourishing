@@ -43,10 +43,15 @@ _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def _column_list(columns: tuple[str, ...]) -> str:
+    """Trailing SELECT-list fragment: empty for no extra columns.
+
+    (DuckDB happens to accept a trailing comma, but nothing here should
+    depend on that dialect nicety.)
+    """
     for column in columns:
         if not _IDENTIFIER.match(column):
             raise ValueError(f"invalid column name {column!r}")
-    return ", ".join(f"r.{column}" for column in columns)
+    return "".join(f", r.{column}" for column in columns)
 
 
 def analysis_frame(
@@ -66,7 +71,7 @@ def analysis_frame(
     """
     source = "responses_oriented" if oriented else "responses_long"
     query = (
-        f"SELECT s.id, s.value, s.nonresponse, {_column_list(columns)} "
+        f"SELECT s.id, s.value, s.nonresponse{_column_list(columns)} "
         f"FROM {source} s JOIN respondents r ON r.id = s.id "
         f"WHERE s.variable = ? AND s.wave = ?"
     )
@@ -91,7 +96,7 @@ def derived_frame(
     if not _IDENTIFIER.match(column):
         raise ValueError(f"invalid column name {column!r}")
     query = (
-        f"SELECT d.id, d.{column} AS value, {_column_list(columns)} "
+        f"SELECT d.id, d.{column} AS value{_column_list(columns)} "
         f"FROM derived d JOIN respondents r ON r.id = d.id "
         f"WHERE d.wave = ?"
     )
