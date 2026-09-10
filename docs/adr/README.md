@@ -8,3 +8,4 @@ it.
 |---|---|---|
 | [ADR-0001](ADR-0001-stack-and-hosting.md) | Stack and hosting | Accepted |
 | [ADR-0002](ADR-0002-duckdb-over-postgres.md) | DuckDB over Postgres | Accepted |
+| [ADR-0004](ADR-0004-codebook-parsed-not-transcribed.md) | Codebook as source of truth, parsed not transcribed | Accepted |

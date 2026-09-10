@@ -1,0 +1,75 @@
+# The 15 columns that exist only in the US state-weight file
+# (gfs_us-state-weight_wave2_with-midyear.csv, 38,312 × 257) and are NOT
+# documented in the Wave 2 codebook. Keyed by base name (13 bases: the two
+# geography variables have _Y1/_Y2 columns).
+#
+# Facts verified against the file on 2026-09-10:
+# - STATE_FOR_ANALYSIS_Y1/Y2 are strings with 41 non-blank levels: 37
+#   two-letter state codes plus 4 pooled small-state groups (ME_NH_RI_VT,
+#   DE_MS_WV, AK_HI_MT, ND_SD_WY). 157 rows are blank at Y1, 153 at Y2.
+# - FIPS_Y1/Y2 are 5-digit zero-padded county FIPS strings ("06037");
+#   they must be read as strings or the leading zeros are lost.
+#   ~39% blank at Y1, 289 distinct non-blank values.
+# - The state weights mirror the six global weights, calibrated to state
+#   populations, plus _ADJ_ variants; blank where the respondent has no
+#   state (so ANNUAL_STATE_WEIGHT_C1 has 157 blanks, not 0).
+variables:
+  STATE_FOR_ANALYSIS:
+    display_name: US state (analysis groups)
+    family: demographics
+    scale_type: string
+    notes: >-
+      37 states plus 4 pooled groups (ME_NH_RI_VT, DE_MS_WV, AK_HI_MT,
+      ND_SD_WY); small states are pooled so state estimates keep adequate n.
+      Blank for 157 respondents at Y1.
+  FIPS:
+    display_name: US county (FIPS)
+    family: demographics
+    scale_type: string
+    notes: >-
+      5-digit zero-padded county FIPS code; string, never numeric.
+      Blank for ~39% of US respondents at Y1.
+  ANNUAL_STATE_WEIGHT_C1:
+    display_name: US state weight — Wave 1 cross-sectional
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_C2:
+    display_name: US state weight — Wave 2 cross-sectional
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_L2:
+    display_name: US state weight — Wave 1→2 longitudinal
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_R2:
+    display_name: US state weight — rectangular panel
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_ADJ_C2:
+    display_name: US state weight — Wave 2 cross-sectional (adjusted)
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_ADJ_L2:
+    display_name: US state weight — Wave 1→2 longitudinal (adjusted)
+    family: design
+    scale_type: weight
+  ANNUAL_STATE_WEIGHT_ADJ_R2:
+    display_name: US state weight — rectangular panel (adjusted)
+    family: design
+    scale_type: weight
+  RETENTION_STATE_WEIGHT_L_1M:
+    display_name: US state weight — midyear cross-sectional
+    family: design
+    scale_type: weight
+  RETENTION_STATE_WEIGHT_L_1M2:
+    display_name: US state weight — three-point longitudinal
+    family: design
+    scale_type: weight
+  RETENTION_STATE_WEIGHT_ADJ_L_1M:
+    display_name: US state weight — midyear cross-sectional (adjusted)
+    family: design
+    scale_type: weight
+  RETENTION_STATE_WEIGHT_ADJ_L_1M2:
+    display_name: US state weight — three-point longitudinal (adjusted)
+    family: design
+    scale_type: weight

@@ -1,0 +1,27 @@
+# GFS country codes (COUNTRY value labels, Wave 2 codebook p. 43-44).
+# iso3 is for the Phase 4/5 maps. Codes 15 and 21 are unused in the release.
+countries:
+  - {code: 1, name: Argentina, iso3: ARG}
+  - {code: 2, name: Australia, iso3: AUS}
+  - {code: 3, name: Brazil, iso3: BRA}
+  - {code: 4, name: Egypt, iso3: EGY}
+  - {code: 5, name: Germany, iso3: DEU}
+  - {code: 6, name: India, iso3: IND}
+  - {code: 7, name: Indonesia, iso3: IDN}
+  - {code: 8, name: Israel, iso3: ISR}
+  - {code: 9, name: Japan, iso3: JPN}
+  - {code: 10, name: Kenya, iso3: KEN}
+  - {code: 11, name: Mexico, iso3: MEX}
+  - {code: 12, name: Nigeria, iso3: NGA}
+  - {code: 13, name: Philippines, iso3: PHL}
+  - {code: 14, name: Poland, iso3: POL}
+  - {code: 16, name: South Africa, iso3: ZAF}
+  - {code: 17, name: Spain, iso3: ESP}
+  - {code: 18, name: Tanzania, iso3: TZA}
+  - {code: 19, name: Türkiye, iso3: TUR}
+  - {code: 20, name: United Kingdom, iso3: GBR}
+  - {code: 22, name: United States, iso3: USA}
+  - {code: 23, name: Sweden, iso3: SWE}
+  - {code: 24, name: Hong Kong, iso3: HKG}
+  - {code: 25, name: China, iso3: CHN}
+unused_codes: [15, 21]
