@@ -16,10 +16,12 @@ apps/web/dist/
 .pnpm-store/
 *.tsbuildinfo
 
-# Raw data never enters git (see docs/PROPOSAL.md §3.7); manifests are the exception
+# Raw data never enters git (see docs/PROPOSAL.md §3.7); the manifest and
+# the aggregates-only validation report are the exceptions
 data/*
 !data/README.md
 !data/manifest.json
+!data/validation_report.md
 *.csv
 *.parquet
 *.duckdb
