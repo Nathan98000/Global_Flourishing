@@ -231,7 +231,7 @@ flourish-atlas/
 | `GET /v1/states` | US state-level aggregates with state weights |
 | `GET /v1/export.csv` | same parameters as `/aggregate`, CSV out |
 
-Implementation notes: DuckDB in-process, read-only, file baked into the container image (~50–80 MB) so there is no database to pay for; pydantic v2 request/response models generate the OpenAPI spec, from which the front end's TypeScript client is generated (`openapi-typescript`); responses carry `ETag` and `Cache-Control` so Cloudflare caches them at the edge; an in-process LRU for hot queries; per-IP rate limiting; structured JSON logs; `/healthz`. Cloud Run scales to zero (free tier: 2M requests, 180k vCPU-seconds per month); a cold start is ~2–4 s, which the static-first front end hides for common views.
+Implementation notes: DuckDB in-process, read-only, file baked into the container image (~50–80 MB) so there is no database to pay for; pydantic v2 request/response models generate the OpenAPI spec, from which the front end's TypeScript client is generated (`openapi-typescript`); responses carry `ETag` and `Cache-Control` so Cloudflare caches them at the edge; an in-process LRU for hot queries; per-IP rate limiting; structured JSON logs; `/health`. Cloud Run scales to zero (free tier: 2M requests, 180k vCPU-seconds per month); a cold start is ~2–4 s, which the static-first front end hides for common views.
 
 ### 5.5 Front end (React 18, TypeScript, Vite)
 
@@ -244,7 +244,7 @@ Implementation notes: DuckDB in-process, read-only, file baked into the containe
 ### 5.6 Delivery and operations
 
 - GitHub Actions: lint (ruff, eslint), types (pyright, tsc), unit tests, contract tests against the OpenAPI spec, Playwright smoke, Docker build, deploy on tag. Data pipeline runs on demand (`workflow_dispatch`) with the raw files fetched from a private bucket.
-- Sentry free tier for both API and web; UptimeRobot free tier for `/healthz`; Cloudflare analytics.
+- Sentry free tier for both API and web; UptimeRobot free tier for `/health`; Cloudflare analytics.
 - ADRs in `docs/adr/` for each significant decision (DuckDB vs Postgres, static-first tier, Plot vs Vega-Lite, Cloud Run vs Fly/Render).
 
 ## 6. Data model
@@ -293,7 +293,7 @@ Sixteen weeks part-time (roughly 8–10 hours per week). Each phase ends in some
 
 ### Phase 0 — Foundations (week 1)
 
-Set up the monorepo with `uv` (Python) and `pnpm` (web), pre-commit hooks, editorconfig, and a Makefile. Scaffold FastAPI with `/healthz` and a Vite React app with routing. Write GitHub Actions for lint/type/test on both sides and a deploy job to Cloud Run and Cloudflare Pages. Create the project board with this proposal's phases as milestones. Write ADR-0001 (stack and hosting) and ADR-0002 (DuckDB over Postgres). Add `CITATION.cff` and the data attribution. **Exit:** a green pipeline that deploys both apps from a tag.
+Set up the monorepo with `uv` (Python) and `pnpm` (web), pre-commit hooks, editorconfig, and a Makefile. Scaffold FastAPI with `/health` and a Vite React app with routing. Write GitHub Actions for lint/type/test on both sides and a deploy job to Cloud Run and Cloudflare Pages. Create the project board with this proposal's phases as milestones. Write ADR-0001 (stack and hosting) and ADR-0002 (DuckDB over Postgres). Add `CITATION.cff` and the data attribution. **Exit:** a green pipeline that deploys both apps from a tag.
 
 ### Phase 1 — Data pipeline and codebook (weeks 2–3)
 

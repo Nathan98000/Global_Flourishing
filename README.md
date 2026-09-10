@@ -30,7 +30,7 @@ flowchart TB
 | Path | Contents |
 |---|---|
 | `apps/web/` | React 18 + TypeScript + Vite, TanStack Router + Query |
-| `services/api/` | FastAPI service (Phase 0: `/healthz`; Phase 3: `/v1/*`) |
+| `services/api/` | FastAPI service (Phase 0: `/health`; Phase 3: `/v1/*`) |
 | `pipeline/` | Data pipeline (Phase 1: ingest → clean → reshape → derive → validate → aggregate) |
 | `data/` | Pipeline outputs; git-ignored except README and manifest |
 | `docs/` | Proposal, SETUP.md, ADRs; later METHODS.md, DATA.md, ARCHITECTURE.md |

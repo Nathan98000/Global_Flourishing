@@ -62,12 +62,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build image
         run: docker build -f infra/Dockerfile --build-arg GIT_SHA=${{ github.sha }} -t flourish-api .
-      - name: Smoke test /healthz
+      - name: Smoke test /health
         run: |
           docker run -d -p 8080:8080 --name api flourish-api
           ok=0
           for i in $(seq 1 20); do
-            if body=$(curl -fsS localhost:8080/healthz); then ok=1; break; fi
+            if body=$(curl -fsS localhost:8080/health); then ok=1; break; fi
             sleep 1
           done
           echo "--- container logs ---"

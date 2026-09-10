@@ -46,9 +46,9 @@ build: ## Production web build + API Docker image
 docker-build: ## Build the API image (repo root as context)
 	docker build -f infra/Dockerfile -t flourish-api .
 
-docker-run: ## Run the API image on :8080 and curl /healthz
+docker-run: ## Run the API image on :8080 and curl /health
 	docker run -d --rm -p 8080:8080 --name flourish-api flourish-api
-	@sleep 2 && curl -fsS localhost:8080/healthz && echo && docker stop flourish-api
+	@sleep 2 && curl -fsS localhost:8080/health && echo && docker stop flourish-api
 
 deploy: ## Tag a release: make deploy TAG=vX.Y.Z (tag push triggers .github/workflows/deploy.yml)
 	@test -n "$(TAG)" || { echo "Usage: make deploy TAG=vX.Y.Z"; exit 1; }

@@ -52,6 +52,8 @@ test('index shows the API status line when the API is up', async () => {
   mockFetchOk()
   await renderAt('/')
   expect(await screen.findByText('API: ok · v0.1.0 · sha abc1234')).toBeInTheDocument()
+  // Cloud Run reserves /healthz on *.run.app, so the hook must probe /health.
+  expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/health$/))
 })
 
 test('index shows "API unreachable" when the fetch fails', async () => {
