@@ -104,4 +104,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=${{ vars.CF_PAGES_PROJECT || 'flourish-atlas' }}
+          # --branch=main: the workflow runs on a tag checkout, which has no
+          # branch name, so without it Cloudflare files the upload as a
+          # preview deployment and the production host stays empty.
+          command: pages deploy apps/web/dist --project-name=${{ vars.CF_PAGES_PROJECT || 'flourish-atlas' }} --branch=main

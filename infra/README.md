@@ -12,6 +12,10 @@
 - **Cloudflare Pages** serves `apps/web/dist` (direct upload via wrangler;
   build command `pnpm install --frozen-lockfile && pnpm -C apps/web build`,
   output `apps/web/dist`).
+  The deploy passes `--branch=main` to `wrangler pages deploy`: the workflow
+  runs on a tag checkout, which has no branch name, so without it Cloudflare
+  files the upload as a preview deployment and `flourish-atlas.pages.dev`
+  stays empty.
 
 Deploys run from `.github/workflows/deploy.yml` on a `v*` tag
 (`make deploy TAG=vX.Y.Z`) and skip cleanly until the secrets and variables
