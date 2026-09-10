@@ -24,11 +24,11 @@ repos:
         name: block data files (csv/parquet/duckdb, data/)
         entry: >-
           Data files must never be committed (data-use terms; see
-          data/README.md). Only data/README.md and data/manifest.json
-          are allowed.
+          data/README.md). Only data/README.md, data/manifest.json and
+          data/validation_report.md (aggregates only) are allowed.
         language: fail
         files: (?i)(\.(csv|parquet|duckdb)$|^data/)
-        exclude: ^data/(README\.md|manifest\.json)$
+        exclude: ^data/(README\.md|manifest\.json|validation_report\.md)$
       - id: prettier
         name: prettier (apps/web)
         entry: bash -c 'cd apps/web && pnpm exec prettier --write --log-level warn .'

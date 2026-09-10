@@ -114,14 +114,22 @@ def draft_overrides_yaml(entries: list[RawEntry], overrides: Overrides) -> str:
     direction can be judged from evidence, and everything is marked draft.
     """
     known = set(overrides.variables)
+
+    def covered(heading: str) -> bool:
+        # Joint headings ("SELFID1 & SELFID2") are covered when every
+        # component is.
+        return all(
+            part in known or base_name(part) in known or part in overrides.aliases
+            for part in heading.split(" & ")
+        )
+
     blocks: list[str] = [
         "# DRAFT overrides — review every entry by hand, then merge into",
         "# variables.yaml (drop the endpoints comments, set review_status).",
         "variables:",
     ]
     for entry in entries:
-        base = base_name(entry.heading)
-        if base in known or entry.heading in known or entry.heading in overrides.aliases:
+        if covered(entry.heading):
             continue
         label = (entry.variable_label or entry.heading).replace("\n", " ")
         valid = [v for v in entry.value_labels if not v.label.startswith("(")]

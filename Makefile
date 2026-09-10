@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup data api web lint format typecheck test build docker-build docker-run deploy clean
+.PHONY: help setup data data-validate api web lint format typecheck test build docker-build docker-run deploy clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -13,8 +13,11 @@ setup: ## Install Python + web dependencies and the pre-commit hook
 	pnpm install
 	uv run pre-commit install
 
-data: ## Build catalog/Parquet/DuckDB from data/raw/ (fails until Phase 1)
-	uv run flourish-pipeline
+data: ## Build catalog/Parquet/DuckDB/report from data/raw/ (see data/README.md)
+	uv run flourish-pipeline run
+
+data-validate: ## Re-run validation + manifest on existing outputs
+	uv run flourish-pipeline run --from validate
 
 api: ## Run the API dev server on :8080
 	uv run uvicorn flourish_api.main:app --reload --port 8080

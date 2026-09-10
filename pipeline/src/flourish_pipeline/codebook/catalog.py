@@ -366,6 +366,10 @@ def build_catalog(
         for entry, wave in base_entries:
             for vl in entry.value_labels:
                 raw_labels.append((wave if tag_waves else None, vl))
+        for extra in override.extra_value_labels:
+            # A code the data contains but the codebook omits (e.g. Tanzania
+            # REGION1 1832 at Y2), documented in the overrides.
+            raw_labels.append((extra.wave, ValueLabelRaw(extra.code, extra.label)))
         records, nonresponse = _classify_labels(base, raw_labels, override, overrides.countries)
         valid = [r for r in records if not r.is_nonresponse]
         scale, lo, hi = _infer_scale(base, valid, override)
