@@ -255,6 +255,20 @@ def weight_table_json() -> str:
     return json.dumps(rows, indent=2, ensure_ascii=False) + "\n"
 
 
+def pooled_population_weights(
+    frame: pl.DataFrame | pa.Table, populations: dict[int, float]
+) -> pl.DataFrame:
+    """Rescale within-country weights by adult population for pooling.
+
+    Phase 5 (proposal §3.3, §7): every GFS weight has mean 1 within its
+    country, so pooling countries without rescaling counts Türkiye and the
+    US equally. This will multiply each row's weight by its country's adult
+    population share (``populations``: country_code → adult population) to
+    produce the explicitly-labelled "all countries" estimates.
+    """
+    raise NotImplementedError("Not implemented: Phase 5")
+
+
 def eligibility_expr(spec: WeightSpec) -> pl.Expr:
     """The polars predicate selecting exactly the rows ``spec`` applies to."""
     expr = pl.lit(True)
