@@ -6,8 +6,8 @@ from flourish_api.main import app, create_app
 client = TestClient(app)
 
 
-def test_healthz_shape() -> None:
-    resp = client.get("/healthz")
+def test_health_shape() -> None:
+    resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json() == {
         "status": "ok",
@@ -26,18 +26,18 @@ def test_root_redirects_to_docs() -> None:
 
 def test_git_sha_from_settings() -> None:
     sha_app = create_app(Settings(git_sha="abc1234"))
-    resp = TestClient(sha_app).get("/healthz")
+    resp = TestClient(sha_app).get("/health")
     assert resp.json()["git_sha"] == "abc1234"
 
 
 def test_cors_header_for_configured_origin() -> None:
     cors_app = create_app(Settings(cors_origins="https://flourish-atlas.pages.dev"))
     resp = TestClient(cors_app).get(
-        "/healthz", headers={"Origin": "https://flourish-atlas.pages.dev"}
+        "/health", headers={"Origin": "https://flourish-atlas.pages.dev"}
     )
     assert resp.headers["access-control-allow-origin"] == "https://flourish-atlas.pages.dev"
 
 
 def test_no_cors_header_without_configuration() -> None:
-    resp = client.get("/healthz", headers={"Origin": "https://evil.example"})
+    resp = client.get("/health", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in resp.headers

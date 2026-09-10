@@ -26,7 +26,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 #   COPY data/flourish.duckdb /app/data/flourish.duckdb
 # (built by `make data`; see docs/SETUP.md and docs/PROPOSAL.md §5.4)
 
-# Set by the deploy workflow so /healthz reports the build.
+# Set by the deploy workflow so /health reports the build.
 ARG GIT_SHA=""
 ENV FA_GIT_SHA=$GIT_SHA
 

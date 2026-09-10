@@ -25,7 +25,7 @@ fixed ~200k-row survey release updated at most annually.
   views ship as precomputed JSON next to the web app so the API's cold start
   (~2–4 s) is off the critical path.
 - **CI/CD:** GitHub Actions — lint/type/test on both sides per push, Docker
-  build with a /healthz smoke test, deploy on `v*` tags.
+  build with a /health smoke test, deploy on `v*` tags.
 
 ## Alternatives considered
 

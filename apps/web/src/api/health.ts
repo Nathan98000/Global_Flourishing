@@ -11,9 +11,9 @@ export interface ApiHealth {
 
 export function useApiHealth() {
   return useQuery<ApiHealth>({
-    queryKey: ['healthz'],
+    queryKey: ['health'],
     queryFn: async () => {
-      const resp = await fetch(`${API_BASE_URL}/healthz`)
+      const resp = await fetch(`${API_BASE_URL}/health`)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       return (await resp.json()) as ApiHealth
     },

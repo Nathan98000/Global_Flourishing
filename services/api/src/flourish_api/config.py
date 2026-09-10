@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     port: int = 8080
     # Comma-separated allowed origins, e.g. "https://flourish-atlas.pages.dev"
     cors_origins: str = ""
-    # Injected by the deploy workflow so /healthz can identify the build.
+    # Injected by the deploy workflow so /health can identify the build.
     git_sha: str | None = None
 
     @property

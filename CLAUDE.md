@@ -39,6 +39,9 @@ tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   GitHub secrets/variables named in `docs/SETUP.md`; deploy jobs skip
   cleanly when they are absent.
 - **Free tiers only.** Cloud Run: 512 MiB, 1 CPU, min 0, max 2 instances.
+- **Health endpoint is `/health`, never `/healthz`.** Cloud Run's front end
+  intercepts the exact path `/healthz` on `*.run.app` and returns its own 404
+  before the container sees the request.
 - Numbers shown to users always carry weight, unweighted n, and CI;
   associations, not causes (proposal §4.4).
 

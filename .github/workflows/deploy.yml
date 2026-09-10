@@ -64,10 +64,22 @@ jobs:
             FA_ENV=prod
             FA_GIT_SHA=${{ github.sha }}
             FA_CORS_ORIGINS=${{ vars.WEB_ORIGIN }}
-      - name: Smoke test deployed /healthz
+      - name: Smoke test deployed /health
         run: |
-          echo "Service URL: ${{ steps.deploy.outputs.url }}"
-          curl -fsS "${{ steps.deploy.outputs.url }}/healthz"
+          url="${{ steps.deploy.outputs.url }}"
+          echo "Service URL: $url"
+          # Note: Cloud Run's front end intercepts the exact path /healthz on
+          # *.run.app and returns its own 404, so the probe must be /health.
+          for i in $(seq 1 10); do
+            if body=$(curl -fsS "$url/health"); then
+              echo "$body"
+              exit 0
+            fi
+            echo "attempt $i/10 failed; retrying in 6s"
+            sleep 6
+          done
+          echo "::error::/health did not respond OK after 10 attempts"
+          exit 1
 
   deploy-web:
     name: Web → Cloudflare Pages

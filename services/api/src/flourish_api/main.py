@@ -1,6 +1,6 @@
 """FastAPI application factory.
 
-Phase 0 scaffolding: /healthz and a redirect to the OpenAPI docs. The /v1
+Phase 0 scaffolding: /health and a redirect to the OpenAPI docs. The /v1
 endpoints arrive in Phase 3 (docs/PROPOSAL.md §5.4), and Phase 3 generates
 the web app's TypeScript client from the OpenAPI schema served here.
 """
@@ -35,8 +35,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["*"],
         )
 
-    @app.get("/healthz")
-    def healthz() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction] — registered via decorator
+    @app.get("/health")
+    def health() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction] — registered via decorator
         """Liveness probe for Cloud Run and uptime monitoring."""
         return {
             "status": "ok",
