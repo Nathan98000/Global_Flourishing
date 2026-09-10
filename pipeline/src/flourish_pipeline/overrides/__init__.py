@@ -65,6 +65,15 @@ class OverridesError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class ExtraValueLabel:
+    """A code that appears in the data but not in the codebook."""
+
+    code: int
+    label: str
+    wave: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VariableOverride:
     name: str
     display_name: str
@@ -75,6 +84,7 @@ class VariableOverride:
     min: int | None = None
     max: int | None = None
     special_codes: dict[int, str] = field(default_factory=dict[int, str])
+    extra_value_labels: tuple[ExtraValueLabel, ...] = ()
     codebook_headings: tuple[str, ...] = ()
     notes: str | None = None
     review_status: str = "reviewed"
@@ -146,6 +156,18 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         if str(treatment) not in SPECIAL_TREATMENTS:
             raise OverridesError(f"{name}: special code {code}: unknown treatment {treatment!r}")
         special_codes[int(code)] = str(treatment)
+    extra_value_labels: list[ExtraValueLabel] = []
+    for raw_extra in list(entry.get("extra_value_labels") or []):
+        wave = raw_extra.get("wave")
+        if wave is not None and wave not in ("Y1", "MY", "Y2"):
+            raise OverridesError(f"{name}: extra value label wave {wave!r} is not a wave")
+        extra_value_labels.append(
+            ExtraValueLabel(
+                code=int(raw_extra["code"]),
+                label=_require_str(raw_extra.get("label"), f"{name}.extra_value_labels.label"),
+                wave=wave,
+            )
+        )
     return VariableOverride(
         name=name,
         display_name=_require_str(entry.get("display_name"), f"{name}.display_name"),
@@ -156,6 +178,7 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         min=None if entry.get("min") is None else int(entry["min"]),
         max=None if entry.get("max") is None else int(entry["max"]),
         special_codes=special_codes,
+        extra_value_labels=tuple(extra_value_labels),
         codebook_headings=tuple(str(h) for h in entry.get("codebook_headings", [])),
         notes=None if entry.get("notes") is None else str(entry["notes"]),
         review_status=review_status,

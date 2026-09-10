@@ -620,6 +620,12 @@ variables:
   REGION1:
     display_name: Region (level 1)
     family: demographics
+    extra_value_labels:
+      - code: 1832
+        label: "Tanzania: Undocumented region (in the Y2 data, not in the Wave 2 codebook)"
+    notes: >-
+      The codebook lists Tanzania regions 1801–1831, but 9 respondents
+      carry 1832 at Y2 — a region code the Wave 2 codebook omits.
   REGION2:
     display_name: Region (level 2)
     family: demographics
