@@ -26,6 +26,9 @@ data/*
 *.parquet
 *.duckdb
 *.pdf
+# The R-parity case-definition table (30 estimator specs, no microdata) is
+# the one committed .csv; pre-commit whitelists the same path.
+!stats/verify/cases.csv
 
 # Environment / editors
 .env
