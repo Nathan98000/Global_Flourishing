@@ -11,3 +11,4 @@ it.
 | [ADR-0003](ADR-0003-pipeline-engine-and-storage.md) | Pipeline engine and storage layout | Accepted |
 | [ADR-0004](ADR-0004-codebook-parsed-not-transcribed.md) | Codebook as source of truth, parsed not transcribed | Accepted |
 | [ADR-0005](ADR-0005-stats-as-third-workspace-package.md) | Statistics engine as a third workspace package | Accepted |
+| [ADR-0006](ADR-0006-estimator-design.md) | Estimator design — Taylor linearisation matching R `survey` | Accepted |
