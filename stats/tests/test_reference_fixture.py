@@ -20,6 +20,17 @@ def load() -> dict:
     return json.loads((VERIFY_DIR / "reference.json").read_text())
 
 
+def test_harness_files_are_present() -> None:
+    """CI checks out tracked files only, so existence here proves the
+    harness is committed — the repo-wide *.csv ignore once swallowed
+    cases.csv silently."""
+    for name in ("cases.csv", "extract.py", "reference.R", "reference.json", "test_parity.py"):
+        assert (VERIFY_DIR / name).exists(), name
+    header = (VERIFY_DIR / "cases.csv").read_text().splitlines()
+    assert header[0] == "id,stat,country,filter,weight,var1,var2,by,p"
+    assert len(header) == 31  # header + 30 cases
+
+
 def test_meta_records_the_provenance() -> None:
     meta = load()["meta"]
     assert meta["survey_lonely_psu"] == "adjust"
