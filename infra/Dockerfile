@@ -16,7 +16,7 @@ COPY services/api services/api
 # packages must be installed into site-packages, not linked back to /app.
 RUN uv sync --frozen --no-dev --no-editable --package flourish-api
 
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
