@@ -158,7 +158,7 @@ Weighted means of the 12-item Secure Flourishing Index; unweighted n.
 | File | Size |
 |---|---|
 | catalog.json | 0.7 MiB |
-| flourish.duckdb | 143.0 MiB |
+| flourish.duckdb | 144.0 MiB |
 | parquet/countries.parquet | 0.0 MiB |
 | parquet/coverage.parquet | 0.0 MiB |
 | parquet/derived.parquet | 2.8 MiB |
@@ -174,8 +174,8 @@ Weighted means of the 12-item Secure Flourishing Index; unweighted n.
 | codebook | 2.6 |
 | derive | 2.4 |
 | ingest | 0.6 |
-| manifest | 0.3 |
-| reshape | 2.8 |
-| validate | 0.7 |
+| manifest | 0.2 |
+| reshape | 2.9 |
+| validate | 0.8 |
 
 All figures above are aggregates; no raw microdata appears in this report.
