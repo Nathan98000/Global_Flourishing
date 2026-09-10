@@ -23,8 +23,9 @@ midyear administration modes), and the phase plan.
 
 `make help` lists everything. The ones that matter: `make setup`, `make lint`,
 `make typecheck`, `make test`, `make api` (:8080), `make web`, `make build`,
-`make data` (fails until Phase 1), `make deploy TAG=vX.Y.Z` (main only, clean
-tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
+`make data` (needs `data/raw/`), `make parity` (R `survey` parity; needs the
+built data + `Rscript`), `make deploy TAG=vX.Y.Z` (main only, clean tree;
+pushes the tag that triggers `.github/workflows/deploy.yml`).
 
 ## Conventions
 
@@ -43,7 +44,15 @@ tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   per-variable `nonresponse_codes` is the only source of truth.
 - **Tests needing raw data carry the `raw` pytest marker** and are
   auto-skipped when `data/raw/` is absent (pipeline/tests/conftest.py), so
-  CI never needs the data files.
+  CI never needs the data files. **Tests needing the built data carry the
+  `built` marker** (stats/conftest.py), auto-skipped when
+  `data/parquet/respondents.parquet` is absent — the R-parity test in
+  `stats/verify/` included.
+- **Weight and eligibility facts live only in `flourish_stats.weights`**
+  (the wave→weight→eligibility table): which weight goes with which wave
+  combination, the `w_r2` populated-for-everyone quirk, and the
+  `midyear_type = 1` restriction on MY→Y2 comparisons. Engine, API and
+  docs read from it; never restate those rules elsewhere.
 - **Never invent cloud identifiers.** Project IDs, regions, URLs come from
   GitHub secrets/variables named in `docs/SETUP.md`; deploy jobs skip
   cleanly when they are absent.
@@ -56,7 +65,7 @@ tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
 
 ## Phases (docs/PROPOSAL.md §7)
 
-0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine · 3 API ·
+0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine ✅ · 3 API ·
 4 Front-end MVP · 5 Panel/midyear/US views · 6 Correlates · 7 Hardening ·
 8 Launch. Scope work to the current phase; later-phase work gets a loud
 "Not implemented: Phase N" stub, not a partial implementation.

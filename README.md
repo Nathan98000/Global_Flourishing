@@ -9,11 +9,17 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 1 complete — data pipeline and codebook.** `make data`
-rebuilds the catalog, Parquet tables, and DuckDB file from the raw release
-in ~10 seconds, with 62 validation checks reproducing the published SFI
-country ranking ([data/validation_report.md](data/validation_report.md)).
-The full plan is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
+**Status: Phase 2 complete — statistics engine.** `flourish_stats`
+computes survey-weighted means, proportions, distributions, quantiles,
+panel change, transition matrices and correlations with Taylor-linearised
+design-based CIs, matching R's `survey` package on 30 committed reference
+estimates to 1e-9 (`make parity`,
+[stats/verify/](stats/verify/reference.json)); the plain-language account
+is [docs/METHODS.md](docs/METHODS.md). Phase 1's `make data` rebuilds the
+catalog, Parquet tables, and DuckDB file from the raw release in ~10
+seconds, with 62 validation checks reproducing the published SFI country
+ranking ([data/validation_report.md](data/validation_report.md)). The
+full plan is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
 
@@ -77,7 +83,7 @@ deploy jobs with a notice.
 |---|---|---|---|
 | 0 Foundations ✅ | 1 | Monorepo, tooling, CI skeleton, ADRs | Green pipeline that deploys both apps from a tag |
 | 1 Data pipeline ✅ | 2–3 | `make data` builds catalog, Parquet, DuckDB | Validation suite passes; reproduces published SFI ranking |
-| 2 Statistics engine | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
+| 2 Statistics engine ✅ | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
 | 3 API | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
 | 4 Front-end MVP | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
 | 5 Panel, midyear & US | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI |
@@ -95,8 +101,12 @@ survey was administered two ways — sometimes both in one country, income
 bands are country-specific and changed at Wave 2 in Argentina, Türkiye and
 Egypt, the US file is a subset missing 11 columns with 15 extras (string
 FIPS with leading zeros, pooled small states), the PHQ-2/GAD-2 items are
-coded in reverse of the standard direction, and the whole release contains
-exactly one fractional cell. The full tour with evidence:
+coded in reverse of the standard direction, the whole release contains
+exactly one fractional cell, and the "rectangular" panel weight
+`ANNUAL_WEIGHT_R2` is populated for **all** 207,919 rows — including the
+79,051 respondents with no Wave 2 interview — so row eligibility must
+always come from the flags, never from a weight being non-null. The full
+tour with evidence:
 [pipeline/notebooks/01_data_quirks.ipynb](pipeline/notebooks/01_data_quirks.ipynb);
 every number also appears in
 [data/validation_report.md](data/validation_report.md).

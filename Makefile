@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup data data-validate api web lint format typecheck test build docker-build docker-run deploy clean
+.PHONY: help setup data data-validate parity api web lint format typecheck test build docker-build docker-run deploy clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -18,6 +18,11 @@ data: ## Build catalog/Parquet/DuckDB/report from data/raw/ (see data/README.md)
 
 data-validate: ## Re-run validation + manifest on existing outputs
 	uv run flourish-pipeline run --from validate
+
+parity: ## R survey parity: extract → reference.R → parity test (needs built data + Rscript)
+	uv run python stats/verify/extract.py
+	Rscript stats/verify/reference.R
+	uv run pytest stats/verify/test_parity.py -q
 
 api: ## Run the API dev server on :8080
 	uv run uvicorn flourish_api.main:app --reload --port 8080
