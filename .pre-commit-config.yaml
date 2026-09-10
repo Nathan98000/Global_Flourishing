@@ -26,6 +26,8 @@ repos:
   - repo: local
     hooks:
       # The other line of defence: no data files, whatever their size.
+      # stats/verify/cases.csv is the R-parity *case definition* table
+      # (30 estimator specs, zero microdata) — the one .csv allowed in.
       - id: forbid-data-files
         name: block data files (csv/parquet/duckdb, data/)
         entry: >-
@@ -34,7 +36,7 @@ repos:
           data/validation_report.md (aggregates only) are allowed.
         language: fail
         files: (?i)(\.(csv|parquet|duckdb)$|^data/)
-        exclude: ^data/(README\.md|manifest\.json|validation_report\.md)$
+        exclude: ^(data/(README\.md|manifest\.json|validation_report\.md)|stats/verify/cases\.csv)$
       - id: prettier
         name: prettier (apps/web)
         entry: bash -c 'cd apps/web && pnpm exec prettier --write --log-level warn .'

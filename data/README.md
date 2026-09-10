@@ -31,7 +31,20 @@ bucket, place in `data/raw/`, and run `make data`:
 | `intermediate/` | Typed wide frames, ingest report, stage timings | 60 MB |
 
 Regenerate everything with `make data`; re-run only checks + manifest with
-`make data-validate`. Byte-reproducibility: every Parquet/JSON output is
+`make data-validate`.
+
+## R parity (`make parity`)
+
+`make parity` verifies the statistics engine against R's `survey` package:
+it writes a slim extract to `intermediate/verify_extract.csv` (design
+columns, weights, flags, and the ~10 items the 30 parity cases need — see
+`stats/verify/cases.csv`), has `Rscript stats/verify/reference.R` compute
+the reference estimates (base R + the `survey` package ≥ 4.2, nothing
+else), and runs `stats/verify/test_parity.py` comparing the engine to the
+committed `stats/verify/reference.json` (aggregates only — estimates, SEs
+and counts, no rows or ids). The reference records the extract's sha256
+and the `data_version` it was computed from, so the parity test refuses to
+compare against a different data build. Byte-reproducibility: every Parquet/JSON output is
 byte-identical across runs from the same inputs; `manifest.json` and
 `validation_report.md` carry run metadata (timestamp, timings), and
 `flourish.duckdb` is rebuilt each run (DuckDB's format is not

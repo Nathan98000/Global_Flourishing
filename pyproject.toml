@@ -51,5 +51,5 @@ venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["services/api/tests", "pipeline/tests", "stats/tests"]
+testpaths = ["services/api/tests", "pipeline/tests", "stats/tests", "stats/verify"]
 addopts = "-q"

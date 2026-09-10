@@ -1,9 +1,11 @@
-"""Shared pytest configuration for the stats package.
+"""Shared pytest configuration for stats/tests and stats/verify.
 
 Tests marked ``built`` need the Phase 1 outputs (``data/parquet/*.parquet``,
 ``data/flourish.duckdb``) and are skipped automatically when they are
 absent, so CI — which never has the data — stays green. This mirrors the
-``raw`` marker in ``pipeline/tests/conftest.py``.
+``raw`` marker in ``pipeline/tests/conftest.py``. It lives at ``stats/``
+(not ``stats/tests/``) so the R-parity test under ``stats/verify/`` shares
+the marker.
 
 Hypothesis runs the registered ``ci`` profile when ``CI`` is set: a fixed
 number of examples with ``derandomize=True`` so CI is reproducible and fast
@@ -16,7 +18,7 @@ from pathlib import Path
 import pytest
 from hypothesis import HealthCheck, settings
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = REPO_ROOT / "data"
 BUILT_SENTINEL = DATA_DIR / "parquet" / "respondents.parquet"
 
