@@ -17,6 +17,12 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      # Notebook outputs are never committed: cells print aggregates only,
+      # but stripped outputs make that reviewable and keep diffs readable.
+      - id: nbstripout
   - repo: local
     hooks:
       # The other line of defence: no data files, whatever their size.

@@ -12,7 +12,7 @@ midyear administration modes), and the phase plan.
 |---|---|
 | `apps/web/` | React 18 + TS + Vite, TanStack Router (code-based) + Query. `src/config.ts` is the only reader of `import.meta.env`. |
 | `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. |
-| `pipeline/` | `flourish_pipeline` — stub until Phase 1. |
+| `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
 | `data/` | Pipeline outputs; git-ignored except `README.md` and `manifest.json`. |
 | `docs/` | `PROPOSAL.md`, `SETUP.md` (hand-off checklist), `adr/`. |
 | `infra/` | `Dockerfile` (API image, repo root as build context). |
@@ -35,6 +35,14 @@ tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
 - **Never commit data.** No CSV/Parquet/DuckDB/PDF, no sample rows, ever
   (data-use terms). Guards: `.gitignore`, pre-commit `forbid-data-files` +
   large-file hooks. Raw files live outside git; see `data/README.md`.
+- **Sentinels are per-variable.** Never apply a global "98/99 → null"
+  rule: `AGE` uses −998/998/999 (98 and 99 are real ages), country-specific
+  variables use −9998/9998/9999, and some parenthesised codebook labels are
+  answers (`INCOME` 9900, `SELFID2` 9997, childhood 97). The catalog's
+  per-variable `nonresponse_codes` is the only source of truth.
+- **Tests needing raw data carry the `raw` pytest marker** and are
+  auto-skipped when `data/raw/` is absent (pipeline/tests/conftest.py), so
+  CI never needs the data files.
 - **Never invent cloud identifiers.** Project IDs, regions, URLs come from
   GitHub secrets/variables named in `docs/SETUP.md`; deploy jobs skip
   cleanly when they are absent.
@@ -47,7 +55,7 @@ tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
 
 ## Phases (docs/PROPOSAL.md §7)
 
-0 Foundations ✅ · 1 Data pipeline · 2 Statistics engine · 3 API ·
+0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine · 3 API ·
 4 Front-end MVP · 5 Panel/midyear/US views · 6 Correlates · 7 Hardening ·
 8 Launch. Scope work to the current phase; later-phase work gets a loud
 "Not implemented: Phase N" stub, not a partial implementation.

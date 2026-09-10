@@ -136,3 +136,13 @@ and topics. The final step creates the "Flourish Atlas" Projects v2 board;
 if your `gh` token lacks the `project` scope it prints the fix
 (`gh auth refresh -s project`) and exits successfully — re-run after
 refreshing to create the board.
+
+## Phase 1 — nothing required
+
+The data pipeline needs no cloud resources: raw files live locally in
+`data/raw/` and `make data` builds everything on a laptop.
+
+Deferred to **Phase 3** (when the DuckDB file must reach the container
+image): a private GCS bucket for the raw CSVs plus a `workflow_dispatch`
+data-build job that fetches them in CI. Do not create these yet — the
+Phase 3 PR will add the exact commands here.
