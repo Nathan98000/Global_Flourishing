@@ -9,8 +9,11 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 0 — foundations.** The full plan is
-[docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
+**Status: Phase 1 complete — data pipeline and codebook.** `make data`
+rebuilds the catalog, Parquet tables, and DuckDB file from the raw release
+in ~10 seconds, with 62 validation checks reproducing the published SFI
+country ranking ([data/validation_report.md](data/validation_report.md)).
+The full plan is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
 
@@ -48,9 +51,15 @@ make lint        # ruff + eslint + prettier --check
 make typecheck   # pyright (strict on src/) + tsc
 make api         # FastAPI on :8080 (docs at /docs)
 make web         # Vite dev server (reads apps/web/.env, see .env.example)
-make data        # fails until Phase 1
+make data        # rebuild catalog/Parquet/DuckDB from data/raw/ (see data/README.md)
 make help        # everything else
 ```
+
+To build the data, place the three raw GFS files in `data/raw/`
+([data/README.md](data/README.md) says where to get them — they are never
+committed) and run `make data`. It finishes in seconds and writes
+[data/validation_report.md](data/validation_report.md); tests marked `raw`
+run against the outputs and skip automatically when the data is absent.
 
 ## Deployment
 
@@ -66,7 +75,7 @@ deploy jobs with a notice.
 | Phase | Weeks | Deliverable | Exit criterion |
 |---|---|---|---|
 | 0 Foundations ✅ | 1 | Monorepo, tooling, CI skeleton, ADRs | Green pipeline that deploys both apps from a tag |
-| 1 Data pipeline | 2–3 | `make data` builds catalog, Parquet, DuckDB | Validation suite passes; reproduces published SFI ranking |
+| 1 Data pipeline ✅ | 2–3 | `make data` builds catalog, Parquet, DuckDB | Validation suite passes; reproduces published SFI ranking |
 | 2 Statistics engine | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
 | 3 API | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
 | 4 Front-end MVP | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
@@ -76,6 +85,20 @@ deploy jobs with a notice.
 | 8 Launch & packaging | 16 | v1.0 tag, case study, demo video, README | Published and linked from portfolio |
 
 ## Data
+
+**Quirks.** The GFS release has sharp edges the pipeline encodes so nobody
+rediscovers them: missing values are a single **space**, the wave flags
+don't match the codebook (`WAVE_Y2 = 2`, `WAVE_MY = 11`), sentinel codes
+are **per-variable** (for `AGE`, 98 and 99 are real ages), the midyear
+survey was administered two ways — sometimes both in one country, income
+bands are country-specific and changed at Wave 2 in Argentina, Türkiye and
+Egypt, the US file is a subset missing 11 columns with 15 extras (string
+FIPS with leading zeros, pooled small states), the PHQ-2/GAD-2 items are
+coded in reverse of the standard direction, and the whole release contains
+exactly one fractional cell. The full tour with evidence:
+[pipeline/notebooks/01_data_quirks.ipynb](pipeline/notebooks/01_data_quirks.ipynb);
+every number also appears in
+[data/validation_report.md](data/validation_report.md).
 
 **Citation.** Global Flourishing Study, Waves 1–2 (2023–2024). Center for
 Open Science / Gallup / Harvard Human Flourishing Program / Baylor Institute
