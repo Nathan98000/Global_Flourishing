@@ -12,6 +12,8 @@ dev = [
     "pytest>=8",
     "pytest-cov>=6",
     "httpx>=0.27",
+    "hypothesis>=6.115",
+    "pyarrow-stubs>=20",
     "pre-commit>=4",
     "nbstripout>=0.9.1",
     "ipykernel>=7.3.0",
@@ -21,7 +23,7 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["services/api", "pipeline"]
+members = ["services/api", "pipeline", "stats"]
 
 [tool.ruff]
 line-length = 100
@@ -35,16 +37,19 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 # The GFS codebook itself uses en dashes and × in its text; the pipeline
 # quotes it verbatim in strings, docstrings and comments.
 "pipeline/**" = ["RUF001", "RUF002", "RUF003"]
+# The stats docstrings and comments write estimator maths (−, ȳ, Σ, ×)
+# exactly as METHODS.md and the survey literature do.
+"stats/**" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
-include = ["services/api", "pipeline"]
+include = ["services/api", "pipeline", "stats"]
 exclude = ["**/__pycache__", "**/.venv", "data"]
-strict = ["services/api/src", "pipeline/src"]
+strict = ["services/api/src", "pipeline/src", "stats/src"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["services/api/tests", "pipeline/tests"]
+testpaths = ["services/api/tests", "pipeline/tests", "stats/tests"]
 addopts = "-q"

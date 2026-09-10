@@ -27,7 +27,7 @@ jobs:
       - name: Pyright
         run: uv run pyright
       - name: Pytest (with coverage)
-        run: uv run pytest --cov=flourish_api --cov=flourish_pipeline --cov-report=term-missing
+        run: uv run pytest --cov=flourish_api --cov=flourish_pipeline --cov=flourish_stats --cov-report=term-missing
 
   web:
     name: Web (lint · types · tests · build)
