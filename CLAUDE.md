@@ -1,0 +1,55 @@
+# CLAUDE.md — Flourish Atlas
+
+Interactive explorer for the Global Flourishing Study (GFS): survey-weighted
+estimates with design-based CIs across 23 countries, Waves 1–2 (2023–2024)
+plus a midyear survey. Read `docs/PROPOSAL.md` before non-trivial work — it is
+the source of truth for scope, data semantics (weights, sentinel codes,
+midyear administration modes), and the phase plan.
+
+## Repo map
+
+| Path | Contents |
+|---|---|
+| `apps/web/` | React 18 + TS + Vite, TanStack Router (code-based) + Query. `src/config.ts` is the only reader of `import.meta.env`. |
+| `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. |
+| `pipeline/` | `flourish_pipeline` — stub until Phase 1. |
+| `data/` | Pipeline outputs; git-ignored except `README.md` and `manifest.json`. |
+| `docs/` | `PROPOSAL.md`, `SETUP.md` (hand-off checklist), `adr/`. |
+| `infra/` | `Dockerfile` (API image, repo root as build context). |
+| `scripts/` | `github-setup.sh` (idempotent milestones/labels/issues/project). |
+
+## Commands
+
+`make help` lists everything. The ones that matter: `make setup`, `make lint`,
+`make typecheck`, `make test`, `make api` (:8080), `make web`, `make build`,
+`make data` (fails until Phase 1), `make deploy TAG=vX.Y.Z` (main only, clean
+tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
+
+## Conventions
+
+- **Conventional commits** (`feat(api): …`, `ci: …`, `docs(adr): …`).
+- **Every significant decision gets an ADR** in `docs/adr/` (MADR format,
+  see `docs/adr/template.md`).
+- **Tests accompany code.** Python: pytest under each package's `tests/`;
+  web: vitest next to `src/`. Pyright runs strict on `src/`.
+- **Never commit data.** No CSV/Parquet/DuckDB/PDF, no sample rows, ever
+  (data-use terms). Guards: `.gitignore`, pre-commit `forbid-data-files` +
+  large-file hooks. Raw files live outside git; see `data/README.md`.
+- **Never invent cloud identifiers.** Project IDs, regions, URLs come from
+  GitHub secrets/variables named in `docs/SETUP.md`; deploy jobs skip
+  cleanly when they are absent.
+- **Free tiers only.** Cloud Run: 512 MiB, 1 CPU, min 0, max 2 instances.
+- Numbers shown to users always carry weight, unweighted n, and CI;
+  associations, not causes (proposal §4.4).
+
+## Phases (docs/PROPOSAL.md §7)
+
+0 Foundations ✅ · 1 Data pipeline · 2 Statistics engine · 3 API ·
+4 Front-end MVP · 5 Panel/midyear/US views · 6 Correlates · 7 Hardening ·
+8 Launch. Scope work to the current phase; later-phase work gets a loud
+"Not implemented: Phase N" stub, not a partial implementation.
+
+## Hand-off
+
+Anything only the repo owner can do (cloud accounts, secrets, GitHub scopes)
+goes into `docs/SETUP.md` as exact copy-pasteable commands — don't block on it.

@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: >-
+  If you use Flourish Atlas, cite the software via this file, and cite the
+  underlying dataset and study profile listed under references, as the
+  Global Flourishing Study data-use terms require.
+type: software
+title: Flourish Atlas
+abstract: >-
+  An interactive explorer for the Global Flourishing Study: survey-weighted
+  estimates with design-based confidence intervals across 23 countries and
+  territories, Waves 1-2 (2023-2024) plus the midyear survey.
+authors:
+  - given-names: Nathan
+    email: nathan98000@gmail.com
+repository-code: https://github.com/nathan98000/global_flourishing
+license: MIT
+version: 0.1.0
+date-released: "2026-09-09"
+references:
+  - type: dataset
+    title: Global Flourishing Study, Waves 1-2 (2023-2024)
+    authors:
+      - name: Center for Open Science
+      - name: Gallup
+      - name: Harvard Human Flourishing Program
+      - name: Baylor Institute for Studies of Religion
+    doi: 10.17605/OSF.IO/3JTZ8
+    url: https://doi.org/10.17605/OSF.IO/3JTZ8
+  - type: article
+    title: "The Global Flourishing Study: Study Profile and Initial Results on Flourishing"
+    authors:
+      - family-names: VanderWeele
+        given-names: Tyler J.
+    journal: Nature Mental Health
+    year: 2025
