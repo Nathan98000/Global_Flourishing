@@ -27,9 +27,13 @@ def test_no_command_is_an_error(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 @pytest.mark.parametrize("stage", ["ingest", "reshape", "derive", "validate", "manifest"])
-def test_phase_1_stages_pending_pipeline_pr(stage: str, capsys: pytest.CaptureFixture[str]) -> None:
-    assert main([stage]) == 1
-    assert "Not implemented: Phase 1" in capsys.readouterr().err
+def test_stages_fail_cleanly_without_inputs(
+    stage: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert main([stage, "--raw-dir", str(empty), "--out-dir", str(empty)]) == 1
+    assert "missing" in capsys.readouterr().err
 
 
 def test_aggregate_is_a_phase_3_stub(capsys: pytest.CaptureFixture[str]) -> None:
@@ -37,12 +41,15 @@ def test_aggregate_is_a_phase_3_stub(capsys: pytest.CaptureFixture[str]) -> None
     assert "Not implemented: Phase 3" in capsys.readouterr().err
 
 
-def test_run_skips_aggregate_and_fails_at_first_unimplemented_stage(
+def test_run_fails_at_first_stage_missing_inputs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(["run", "--from", "ingest", "--raw-dir", str(tmp_path)]) == 1
+    assert (
+        main(["run", "--from", "ingest", "--raw-dir", str(tmp_path), "--out-dir", str(tmp_path)])
+        == 1
+    )
     captured = capsys.readouterr()
-    assert "Not implemented: Phase 1" in captured.err
+    assert "missing" in captured.err
     assert "[ingest] FAILED" in captured.out
 
 

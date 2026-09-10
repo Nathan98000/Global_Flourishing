@@ -16,9 +16,6 @@ from pathlib import Path
 
 STAGES = ("codebook", "ingest", "reshape", "derive", "validate", "aggregate", "manifest")
 
-_NOT_IMPLEMENTED_PHASE_1 = (
-    "Not implemented: Phase 1 (docs/PROPOSAL.md §5.2) — arrives with the pipeline PR"
-)
 _NOT_IMPLEMENTED_PHASE_3 = (
     "Not implemented: Phase 3 — `aggregate` precomputes view aggregates with "
     "confidence intervals, which need the Phase 2 estimators (docs/PROPOSAL.md §5.2)"
@@ -36,22 +33,49 @@ def _stage_codebook(args: argparse.Namespace) -> int:
     )
 
 
-def _not_implemented(message: str) -> Callable[[argparse.Namespace], int]:
-    def stage(_args: argparse.Namespace) -> int:
-        print(message, file=sys.stderr)
-        return 1
+def _stage_ingest(args: argparse.Namespace) -> int:
+    from .ingest import run_ingest
 
-    return stage
+    return run_ingest(args.raw_dir, args.out_dir)
+
+
+def _stage_reshape(args: argparse.Namespace) -> int:
+    from .reshape import run_reshape
+
+    return run_reshape(args.out_dir)
+
+
+def _stage_derive(args: argparse.Namespace) -> int:
+    from .derive import run_derive
+
+    return run_derive(args.out_dir)
+
+
+def _stage_validate(args: argparse.Namespace) -> int:
+    from .validate import run_validate
+
+    return run_validate(args.out_dir)
+
+
+def _stage_aggregate(_args: argparse.Namespace) -> int:
+    print(_NOT_IMPLEMENTED_PHASE_3, file=sys.stderr)
+    return 1
+
+
+def _stage_manifest(args: argparse.Namespace) -> int:
+    from .manifest import run_manifest
+
+    return run_manifest(args.raw_dir, args.out_dir)
 
 
 STAGE_RUNNERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "codebook": _stage_codebook,
-    "ingest": _not_implemented(_NOT_IMPLEMENTED_PHASE_1),
-    "reshape": _not_implemented(_NOT_IMPLEMENTED_PHASE_1),
-    "derive": _not_implemented(_NOT_IMPLEMENTED_PHASE_1),
-    "validate": _not_implemented(_NOT_IMPLEMENTED_PHASE_1),
-    "aggregate": _not_implemented(_NOT_IMPLEMENTED_PHASE_3),
-    "manifest": _not_implemented(_NOT_IMPLEMENTED_PHASE_1),
+    "ingest": _stage_ingest,
+    "reshape": _stage_reshape,
+    "derive": _stage_derive,
+    "validate": _stage_validate,
+    "aggregate": _stage_aggregate,
+    "manifest": _stage_manifest,
 }
 
 
@@ -102,6 +126,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _run_all(args: argparse.Namespace) -> int:
+    from .util import record_timing
+
     start_index = STAGES.index(args.from_stage)
     end_index = STAGES.index(args.to_stage)
     if start_index > end_index:
@@ -115,6 +141,8 @@ def _run_all(args: argparse.Namespace) -> int:
         stage_start = time.perf_counter()
         code = STAGE_RUNNERS[stage](args)
         elapsed = time.perf_counter() - stage_start
+        if code == 0:
+            record_timing(args.out_dir, stage, elapsed)
         print(f"[{stage}] {'ok' if code == 0 else f'FAILED ({code})'} in {elapsed:.1f}s")
         if code != 0:
             return code
@@ -123,10 +151,16 @@ def _run_all(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    from .util import record_timing
+
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return _run_all(args)
-    return STAGE_RUNNERS[args.command](args)
+    stage_start = time.perf_counter()
+    code = STAGE_RUNNERS[args.command](args)
+    if code == 0 and args.command != "aggregate":
+        record_timing(args.out_dir, args.command, time.perf_counter() - stage_start)
+    return code
 
 
 if __name__ == "__main__":
