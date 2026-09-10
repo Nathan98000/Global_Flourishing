@@ -136,6 +136,67 @@ def test_oriented_view_flips_lower_better(data_dir: Path) -> None:
     assert joined.filter(pl.col("value") + pl.col("value_o") != 6).height == 0
 
 
+# The Wave 1 SFI table from data/validation_report.md ("Wave 1 SFI by
+# country (ANNUAL_WEIGHT_C1)"), in the report's (descending) order.
+SFI_REPORT = [
+    ("Indonesia", 8.10, 6_965),
+    ("Israel", 7.87, 3_667),
+    ("Philippines", 7.71, 5_288),
+    ("Mexico", 7.64, 5_766),
+    ("Poland", 7.55, 10_348),
+    ("Nigeria", 7.37, 6_817),
+    ("Egypt", 7.31, 4_709),
+    ("Kenya", 7.28, 11_384),
+    ("Tanzania", 7.19, 9_056),
+    ("Argentina", 7.14, 6_719),
+    ("China", 7.13, 5_020),
+    ("Hong Kong", 7.12, 2_999),
+    ("United States", 7.11, 38_299),
+    ("Sweden", 7.10, 15_036),
+    ("South Africa", 7.07, 2_647),
+    ("Brazil", 7.02, 13_184),
+    ("Australia", 7.01, 3_840),
+    ("Germany", 7.01, 9_497),
+    ("Spain", 6.90, 6_285),
+    ("India", 6.87, 12_713),
+    ("United Kingdom", 6.79, 5_360),
+    ("Türkiye", 6.32, 1_473),
+    ("Japan", 5.89, 20_500),
+]
+
+
+def test_engine_reproduces_the_validation_report_sfi_table(data_dir: Path) -> None:
+    """The engine's weighted means reproduce the committed Wave 1 SFI
+    table: every mean within ±0.005 of the report's rounded value, same
+    country ordering, identical unweighted n."""
+    duckdb = pytest.importorskip("duckdb")
+    from flourish_stats.io import derived_frame
+
+    con = duckdb.connect(str(data_dir / "flourish.duckdb"), read_only=True)
+    try:
+        frame = derived_frame(
+            con,
+            "sfi",
+            "Y1",
+            columns=("country_name", "strata", "psu", "w_c1"),
+        )
+    finally:
+        con.close()
+    design = Design(weight="w_c1", strata="strata", psu="psu")
+    rows = weighted_mean(frame, "value", design, by=["country_name"]).to_pylist()
+    by_country = {r["country_name"]: r for r in rows}
+    assert len(by_country) == 23
+
+    for name, reported_mean, reported_n in SFI_REPORT:
+        row = by_country[name]
+        assert row["estimate"] == pytest.approx(reported_mean, abs=0.005), name
+        assert row["n"] == reported_n, name
+        assert row["se"] is not None and 0 < row["se"] < 0.1, name
+
+    engine_order = [r["country_name"] for r in sorted(rows, key=lambda r: -r["estimate"])]
+    assert engine_order == [name for name, _, _ in SFI_REPORT]
+
+
 def test_invalid_identifiers_rejected(data_dir: Path) -> None:
     duckdb = pytest.importorskip("duckdb")
     from flourish_stats.io import analysis_frame

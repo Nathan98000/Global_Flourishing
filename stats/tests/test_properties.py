@@ -127,3 +127,85 @@ def test_kish_n_eff_at_most_n_with_equality_iff_equal_weights(sample) -> None:
         assert n_eff == pytest.approx(len(weights), rel=1e-12)
     else:
         assert n_eff < len(weights) - 1e-9
+
+
+@st.composite
+def paired_frames(draw):
+    """A designed frame with two complete waves of the same 0–10 item."""
+    frame = draw(designed_frames())
+    n = frame.height
+    return frame.with_columns(
+        pl.Series("later", draw(st.lists(VALUES, min_size=n, max_size=n)))
+    ).rename({"y": "earlier"})
+
+
+@given(frame=paired_frames())
+def test_paired_change_equals_difference_of_means(frame: pl.DataFrame) -> None:
+    from flourish_stats import paired_change
+
+    change = the_row(paired_change(frame, "earlier", "later", TAYLOR, policy=NO_SUPPRESSION))
+    m_earlier = the_row(weighted_mean(frame, "earlier", TAYLOR, policy=NO_SUPPRESSION))
+    m_later = the_row(weighted_mean(frame, "later", TAYLOR, policy=NO_SUPPRESSION))
+    assert change["estimate"] == pytest.approx(
+        m_later["estimate"] - m_earlier["estimate"], rel=1e-9, abs=1e-12
+    )
+    assert change["n"] == frame.height
+
+
+@given(frame=paired_frames())
+def test_transition_matrix_rows_sum_to_one(frame: pl.DataFrame) -> None:
+    from flourish_stats import transition_matrix
+
+    rows = transition_matrix(frame, "earlier", "later", TAYLOR, policy=NO_SUPPRESSION).to_pylist()
+    joint = [r for r in rows if r["measure"] == "transition_joint"]
+    assert sum(r["estimate"] for r in joint) == pytest.approx(1.0, abs=1e-9)
+    conditional = [r for r in rows if r["measure"] == "transition_conditional"]
+    from_levels = {r["from_level"] for r in conditional if r["n"] > 0}
+    for level in from_levels:
+        row_total = sum(r["estimate"] for r in conditional if r["from_level"] == level)
+        assert row_total == pytest.approx(1.0, abs=1e-9)
+
+
+@given(
+    sample=simple_samples(min_rows=3),
+    ys=st.lists(VALUES, min_size=3, max_size=30),
+    scale=st.sampled_from([-3.0, -0.5, 0.25, 2.0, 10.0]),
+    shift=st.sampled_from([-5.0, 0.0, 3.5]),
+)
+def test_pearson_affine_invariance(sample, ys: list[int], scale: float, shift: float) -> None:
+    from flourish_stats import weighted_correlation
+
+    xs, weights = sample
+    n = min(len(xs), len(ys))
+    frame = pl.DataFrame({"w": weights[:n], "x": xs[:n], "y": ys[:n]})
+    transformed = frame.with_columns((pl.col("x") * scale + shift).alias("x"))
+    base = the_row(weighted_correlation(frame, "x", "y", KISH, policy=NO_SUPPRESSION))
+    after = the_row(weighted_correlation(transformed, "x", "y", KISH, policy=NO_SUPPRESSION))
+    if base["estimate"] is None:
+        assert after["estimate"] is None
+    else:
+        sign = 1.0 if scale > 0 else -1.0
+        assert after["estimate"] == pytest.approx(sign * base["estimate"], rel=1e-9, abs=1e-12)
+
+
+@given(sample=simple_samples(min_rows=3), ys=st.lists(VALUES, min_size=3, max_size=30))
+def test_spearman_invariant_under_monotone_transforms(sample, ys: list[int]) -> None:
+    from flourish_stats import weighted_correlation
+
+    xs, weights = sample
+    n = min(len(xs), len(ys))
+    frame = pl.DataFrame({"w": weights[:n], "x": xs[:n], "y": ys[:n]})
+    # x → x³ and y → 2^y are strictly increasing, so ranks are unchanged.
+    transformed = frame.with_columns(
+        pl.col("x").pow(3).alias("x"), pl.lit(2.0).pow(pl.col("y")).alias("y")
+    )
+    base = the_row(
+        weighted_correlation(frame, "x", "y", KISH, method="spearman", policy=NO_SUPPRESSION)
+    )
+    after = the_row(
+        weighted_correlation(transformed, "x", "y", KISH, method="spearman", policy=NO_SUPPRESSION)
+    )
+    if base["estimate"] is None:
+        assert after["estimate"] is None
+    else:
+        assert after["estimate"] == pytest.approx(base["estimate"], rel=1e-9, abs=1e-12)
