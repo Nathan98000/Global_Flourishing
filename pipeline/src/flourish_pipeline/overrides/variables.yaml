@@ -1,0 +1,781 @@
+# Hand-curated metadata for every global-file variable (169 base names),
+# generated as a draft from the parsed codebook and then reviewed by hand
+# against each entry's value labels (ADR-0004). Precedence:
+# overrides > CSV header > PDF.
+#
+# Defaults (omitted keys): direction: none, review_status: reviewed,
+# scale_type inferred from the value labels, min/max inferred.
+#
+# direction says which end of the CODED scale is the better outcome, read
+# from the labelled endpoints, not from the variable name:
+#   - LONELY is coded 0 = Always … 10 = Never, so HIGHER is better as coded.
+#   - EXPENSES / WORRY_SAFETY are coded 0 = Worry all of the time …
+#     10 = Do not ever worry, so HIGHER is better as coded.
+#   - The PHQ-2/GAD-2 items are coded 1 = Nearly every day … 4 = Not at
+#     all — the reverse of the usual PHQ direction — so HIGHER (fewer
+#     symptoms) is better as coded; the derive stage scores them 4 − code.
+#   - "none" marks behaviours and attitudes with no defensible
+#     better/worse end (religious attendance, political approval, …).
+#
+# scale_type overrides mark consecutive 1..k codes that are NOT ordered
+# ("Agree / Disagree / Not relevant / Unsure" and similar), which the
+# inference would otherwise call ordinal.
+
+aliases:
+  # Codebook heading -> CSV base name, where mechanical suffix stripping
+  # does not already match.
+  ANNUAL_WEIGHT_1: ANNUAL_WEIGHT_C1
+
+heading_fixes:
+  # The codebook prints DOI_ANNUAL_Y2 twice; the second occurrence (label
+  # "End Date of Interview – Midyear Survey") is really DOI_MY.
+  - heading: DOI_ANNUAL_Y2
+    when_label_contains: Midyear
+    use: DOI_MY
+
+allow_unmatched_headings: []
+allow_undocumented_columns: []
+
+variables:
+  # ---------------------------------------------------------------- SFI —
+  # the 12 Secure Flourishing Index items (proposal §3.5). All twelve are
+  # 0–10 and higher-is-better AS CODED (verified against the endpoint
+  # labels), so the SFI is a plain mean with no re-orientation.
+  HAPPY:
+    display_name: Happiness
+    family: sfi
+    sfi_domain: happiness
+    direction: higher_better
+  LIFE_SAT:
+    display_name: Life satisfaction
+    family: sfi
+    sfi_domain: happiness
+    direction: higher_better
+  PHYSICAL_HLTH:
+    display_name: Physical health
+    family: sfi
+    sfi_domain: health
+    direction: higher_better
+  MENTAL_HEALTH:
+    display_name: Mental health
+    family: sfi
+    sfi_domain: health
+    direction: higher_better
+  WORTHWHILE:
+    display_name: Doing worthwhile things
+    family: sfi
+    sfi_domain: meaning
+    direction: higher_better
+  LIFE_PURPOSE:
+    display_name: Understanding life's purpose
+    family: sfi
+    sfi_domain: meaning
+    direction: higher_better
+  PROMOTE_GOOD:
+    display_name: Acting to promote good
+    family: sfi
+    sfi_domain: character
+    direction: higher_better
+  GIVE_UP:
+    display_name: Delaying happiness for later gain
+    family: sfi
+    sfi_domain: character
+    direction: higher_better
+    notes: >-
+      "Able to give up some happiness now for greater happiness later" —
+      delayed gratification, a positive trait; NOT "tendency to give up".
+  CONTENT:
+    display_name: Content with relationships
+    family: sfi
+    sfi_domain: relationships
+    direction: higher_better
+  SAT_RELATNSHP:
+    display_name: Satisfying relationships
+    family: sfi
+    sfi_domain: relationships
+    direction: higher_better
+  EXPENSES:
+    display_name: Not worrying about expenses
+    family: sfi
+    sfi_domain: financial
+    direction: higher_better
+    notes: "Coded 0 = Worry all of the time … 10 = Do not ever worry."
+  WORRY_SAFETY:
+    display_name: Not worrying about safety
+    family: sfi
+    sfi_domain: financial
+    direction: higher_better
+    notes: "Coded 0 = Worry all of the time … 10 = Do not ever worry."
+
+  # ------------------------------------------------------- Wellbeing extras
+  WB_TODAY:
+    display_name: Life evaluation today
+    family: wellbeing
+    direction: higher_better
+  WB_FIVEYRS:
+    display_name: Life evaluation in five years
+    family: wellbeing
+    direction: higher_better
+  PEACE:
+    display_name: Feeling at peace
+    family: wellbeing
+    direction: lower_better
+    notes: "1 = Always … 4 = Never at peace, so lower is better."
+  LIFE_BALANCE:
+    display_name: Life in balance
+    family: wellbeing
+    direction: lower_better
+    notes: "1 = Always … 4 = Never in balance."
+  HOPE_FUTURE:
+    display_name: Hopeful about the future
+    family: wellbeing
+    direction: higher_better
+  EXPECT_GOOD:
+    display_name: Expecting good things
+    family: wellbeing
+    direction: higher_better
+  GRATEFUL:
+    display_name: Gratitude
+    family: wellbeing
+    direction: higher_better
+  LONELY:
+    display_name: Not feeling lonely
+    family: wellbeing
+    direction: higher_better
+    notes: "Coded 0 = Always … 10 = Never lonely — higher is better as coded."
+  SUFFERING:
+    display_name: Absence of suffering
+    family: wellbeing
+    direction: higher_better
+    notes: "1 = A lot … 4 = Not at all — higher is better as coded."
+  FREEDOM:
+    display_name: Freedom to pursue what matters
+    family: wellbeing
+    direction: higher_better
+  CAPABLE:
+    display_name: Feeling capable
+    family: wellbeing
+    direction: lower_better
+    review_status: draft
+    notes: >-
+      1 = Always … 4 = Never feel capable, so lower is better. Family is
+      debatable (wellbeing vs character) — flagged for review.
+  BELONGING:
+    display_name: Sense of belonging
+    family: social_civic
+    direction: higher_better
+
+  # ------------------------------------------- Mental health screeners
+  # PHQ-2 (DEPRESSED, INTEREST) and GAD-2 (FEEL_ANXIOUS, CONTROL_WORRY).
+  # All four are coded 1 = Nearly every day … 4 = Not at all — the REVERSE
+  # of the usual PHQ item direction. The derive stage scores 4 − code
+  # (0–3 per item) before summing.
+  DEPRESSED:
+    display_name: Feeling down or depressed
+    family: mental_health
+    direction: higher_better
+    notes: "1 = Nearly every day … 4 = Not at all; PHQ-2 item, scored 4 − code."
+  INTEREST:
+    display_name: Little interest or pleasure
+    family: mental_health
+    direction: higher_better
+    notes: "1 = Nearly every day … 4 = Not at all; PHQ-2 item, scored 4 − code."
+  FEEL_ANXIOUS:
+    display_name: Feeling nervous or anxious
+    family: mental_health
+    direction: higher_better
+    notes: "1 = Nearly every day … 4 = Not at all; GAD-2 item, scored 4 − code."
+  CONTROL_WORRY:
+    display_name: Unable to stop worrying
+    family: mental_health
+    direction: higher_better
+    notes: "1 = Nearly every day … 4 = Not at all; GAD-2 item, scored 4 − code."
+  THREAT_LIFE:
+    display_name: Bothered by a life-threatening experience
+    family: mental_health
+    direction: higher_better
+    notes: "1 = A lot … 4 = Not at all bothered."
+
+  # ------------------------------------------- Physical health & behaviour
+  BODILY_PAIN:
+    display_name: Freedom from bodily pain
+    family: physical_health
+    direction: higher_better
+    notes: "1 = A lot … 4 = None at all — higher is better as coded."
+  HEALTH_PROB:
+    display_name: Limiting health problems
+    family: physical_health
+  DAYS_EXERCISE:
+    display_name: Days exercised last week
+    family: physical_health
+    scale_type: count
+    min: 0
+    max: 7
+    review_status: draft
+    notes: >-
+      Direction left as none (a behaviour, not an outcome) — flagged for
+      review since more exercise is plausibly higher_better.
+  CIGARETTES:
+    display_name: Cigarettes per day
+    family: physical_health
+  DRINKS:
+    display_name: Alcoholic drinks last week
+    family: physical_health
+  COVID_DEATH:
+    display_name: Lost someone to COVID-19
+    family: physical_health
+    review_status: draft
+    notes: >-
+      A bereavement event; sits awkwardly in every family — flagged for
+      review (physical_health vs social_civic).
+
+  # ------------------------------------------------------- Social & civic
+  CLOSE_TO:
+    display_name: Has someone to confide in
+    family: social_civic
+  PEOPLE_HELP:
+    display_name: Can count on people for help
+    family: social_civic
+    direction: higher_better
+  SHOW_LOVE:
+    display_name: Showing love and care
+    family: social_civic
+    direction: higher_better
+  TRUST_PEOPLE:
+    display_name: Trust in people
+    family: social_civic
+    direction: lower_better
+    review_status: draft
+    notes: >-
+      1 = All … 5 = None trust one another, so lower is better; ordinal
+      reading of the middle categories is loose — flagged for review.
+  DISCRIMINATED:
+    display_name: Not feeling discriminated against
+    family: social_civic
+    direction: higher_better
+    notes: "1 = Always … 4 = Never discriminated — higher is better as coded."
+  VOLUNTEERED:
+    display_name: Volunteered last month
+    family: social_civic
+  DONATED:
+    display_name: Donated to charity last month
+    family: social_civic
+  HELP_STRANGER:
+    display_name: Helped a stranger last month
+    family: social_civic
+  GROUP_NOT_REL:
+    display_name: Non-religious group participation
+    family: social_civic
+  SAT_LIVE:
+    display_name: Satisfied with where you live
+    family: social_civic
+    scale_type: nominal
+    notes: "1 = Satisfied, 2 = Dissatisfied, 3 = Unsure — not ordered."
+
+  # ------------------------------------------------- Character & personality
+  FORGIVE:
+    display_name: Forgiving those who hurt you
+    family: character
+    direction: lower_better
+    notes: "1 = Always … 4 = Never forgive."
+  TRAITS1:
+    display_name: "TIPI: extroverted, enthusiastic"
+    family: character
+  TRAITS2:
+    display_name: "TIPI: critical, quarrelsome"
+    family: character
+  TRAITS3:
+    display_name: "TIPI: dependable, self-disciplined"
+    family: character
+  TRAITS4:
+    display_name: "TIPI: anxious, easily upset"
+    family: character
+  TRAITS5:
+    display_name: "TIPI: open to new experiences"
+    family: character
+  TRAITS6:
+    display_name: "TIPI: reserved, quiet"
+    family: character
+  TRAITS7:
+    display_name: "TIPI: sympathetic, warm"
+    family: character
+  TRAITS8:
+    display_name: "TIPI: disorganized, careless"
+    family: character
+  TRAITS9:
+    display_name: "TIPI: calm, emotionally stable"
+    family: character
+  TRAITS10:
+    display_name: "TIPI: conventional, uncreative"
+    family: character
+
+  # ------------------------------------------------- Religion & spirituality
+  ATTEND_SVCS:
+    display_name: Religious service attendance
+    family: religion
+    notes: "1 = More than once a week … 5 = Never; direction none (a practice)."
+  PRAY_MEDITATE:
+    display_name: Prayer or meditation
+    family: religion
+  SACRED_TEXTS:
+    display_name: Reading sacred texts
+    family: religion
+  REL_IMPORTANT:
+    display_name: Religion important in daily life
+    family: religion
+  REL_EXPERIENC:
+    display_name: Had a spiritual awakening
+    family: religion
+  BELIEVE_GOD:
+    display_name: Belief in God
+    family: religion
+    scale_type: nominal
+  AFTER_DEATH:
+    display_name: Belief in life after death
+    family: religion
+    scale_type: nominal
+    notes: "1 = Yes, 2 = No, 3 = Unsure — not ordered."
+  COMFORT_REL:
+    display_name: Comfort from religion
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  CONNECTED_REL:
+    display_name: Feeling connected to religion
+    family: religion
+    direction: lower_better
+    notes: "1 = Always … 4 = Never connected."
+  CRITICAL:
+    display_name: Religious community is critical of you
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  GOD_PUNISH:
+    display_name: Feeling punished by God
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  LOVED_BY_GOD:
+    display_name: Feeling loved by God
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  LIFE_APPROACH:
+    display_name: Faith behind whole approach to life
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  TELL_BELIEFS:
+    display_name: Telling others about your faith
+    family: religion
+    scale_type: nominal
+    notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
+  REL1:
+    display_name: Religion at age 12
+    family: religion
+  REL2:
+    display_name: Current religion
+    family: religion
+  REL3:
+    display_name: Christian denomination
+    family: religion
+  REL4:
+    display_name: Islamic sect
+    family: religion
+  REL5:
+    display_name: Hindu denomination
+    family: religion
+  REL6:
+    display_name: Jewish denomination
+    family: religion
+  REL7:
+    display_name: Atheist, agnostic, or neither
+    family: religion
+    scale_type: nominal
+  REL8:
+    display_name: Spiritual, religious, both, or neither
+    family: religion
+    scale_type: nominal
+  REL9:
+    display_name: Buddhist sect
+    family: religion
+  TEACHINGS_1:
+    display_name: Christian teachings important
+    family: religion
+  TEACHINGS_2:
+    display_name: Islamic teachings important
+    family: religion
+  TEACHINGS_3:
+    display_name: Hindu teachings important
+    family: religion
+  TEACHINGS_4:
+    display_name: Buddhist teachings important
+    family: religion
+  TEACHINGS_5:
+    display_name: Jewish teachings important
+    family: religion
+  TEACHINGS_6:
+    display_name: Sikh teachings important
+    family: religion
+  TEACHINGS_7:
+    display_name: Bahá'í teachings important
+    family: religion
+  TEACHINGS_8:
+    display_name: Jain teachings important
+    family: religion
+  TEACHINGS_9:
+    display_name: Shinto teachings important
+    family: religion
+  TEACHINGS_10:
+    display_name: Taoist teachings important
+    family: religion
+  TEACHINGS_11:
+    display_name: Confucian teachings important
+    family: religion
+  TEACHINGS_12:
+    display_name: Primal/animist teachings important
+    family: religion
+  TEACHINGS_13:
+    display_name: Spiritist teachings important
+    family: religion
+  TEACHINGS_14:
+    display_name: African-derived teachings important
+    family: religion
+  TEACHINGS_15:
+    display_name: Chinese folk teachings important
+    family: religion
+  CNTRY_REL_CHR:
+    display_name: Christian teachings important (country religion)
+    family: religion
+    notes: >-
+      Asked where Christianity is the country's most common religion but
+      not the respondent's own; Y1 only.
+  CNTRY_REL_ISL:
+    display_name: Islamic teachings important (country religion)
+    family: religion
+  CNTRY_REL_HIN:
+    display_name: Hindu teachings important (country religion)
+    family: religion
+  CNTRY_REL_BUD:
+    display_name: Buddhist teachings important (country religion)
+    family: religion
+  CNTRY_REL_JUD:
+    display_name: Jewish teachings important (country religion)
+    family: religion
+  CNTRY_REL_SHI:
+    display_name: Shinto teachings important (country religion)
+    family: religion
+  CNTRY_REL_CHI:
+    display_name: Chinese folk teachings important (country religion)
+    family: religion
+
+  # ------------------------------------------------- Politics & government
+  APPROVE_GOVT:
+    display_name: Approval of national government
+    family: politics
+    notes: "1 = Strongly approve … 5 = Strongly disapprove; an attitude, direction none."
+  SAY_IN_GOVT:
+    display_name: Having a say in government
+    family: politics
+    scale_type: nominal
+    notes: "1 = Agree, 2 = Disagree, 3 = Unsure — not ordered."
+  OBEY_LAW:
+    display_name: The law should always be obeyed
+    family: politics
+  INCOME_DIFF:
+    display_name: Government should reduce income differences
+    family: politics
+  POLITICAL_ID:
+    display_name: Political party
+    family: politics
+    notes: >-
+      Country-specific codes (country × 100 + party). 9996 = Other and
+      9997 = Do not feel close to any party are valid global codes.
+
+  # ------------------------------------------------- Childhood (Y1 only)
+  ABUSED:
+    display_name: Abused when growing up
+    family: childhood
+  OUTSIDER:
+    display_name: Felt like an outsider growing up
+    family: childhood
+    special_codes:
+      97: valid
+  MOTHER_RELATN:
+    display_name: Relationship with mother growing up
+    family: childhood
+    special_codes:
+      97: valid
+    direction: lower_better
+    notes: "1 = Very good … 4 = Very bad."
+  FATHER_RELATN:
+    display_name: Relationship with father growing up
+    family: childhood
+    special_codes:
+      97: valid
+    direction: lower_better
+    notes: "1 = Very good … 4 = Very bad."
+  MOTHER_LOVED:
+    display_name: Felt loved by mother
+    family: childhood
+    special_codes:
+      97: valid
+  FATHER_LOVED:
+    display_name: Felt loved by father
+    family: childhood
+    special_codes:
+      97: valid
+  PARENTS_12YRS:
+    display_name: Parents' marital status at age 12
+    family: childhood
+    scale_type: nominal
+  INCOME_12YRS:
+    display_name: Family income feelings growing up
+    family: childhood
+    direction: lower_better
+    notes: "1 = Lived comfortably … 4 = Found it very difficult."
+  HEALTH_GROWUP:
+    display_name: Health when growing up
+    family: childhood
+    direction: lower_better
+    notes: "1 = Excellent … 5 = Poor."
+  SVCS_12YRS:
+    display_name: Service attendance at age 12
+    family: childhood
+  SVCS_MOTHER:
+    display_name: Mother's service attendance
+    family: childhood
+    special_codes:
+      97: valid
+  SVCS_FATHER:
+    display_name: Father's service attendance
+    family: childhood
+    special_codes:
+      97: valid
+
+  # ------------------------------------------------------- Demographics
+  AGE:
+    display_name: Age
+    family: demographics
+    scale_type: count
+    min: 18
+    max: 99
+    notes: >-
+      99 is a valid top-code (99+, 28 respondents) and 98 is a real age
+      (4 respondents); the sentinels are -998/998/999, NOT the usual
+      -98/98/99. Adults only, so min is 18.
+  GENDER:
+    display_name: Gender
+    family: demographics
+    scale_type: nominal
+    notes: >-
+      No wave suffix. 3 = Other and 4 = Prefer not to answer are
+      substantive codes; 98/99 are DK/Refused.
+  EDUCATION_3:
+    display_name: Education (three levels)
+    family: demographics
+    notes: "Refused is printed as (RF) here, not (Refused)."
+  EMPLOYMENT:
+    display_name: Employment status
+    family: demographics
+    scale_type: nominal
+  MARITAL_STATUS:
+    display_name: Marital status
+    family: demographics
+    scale_type: nominal
+  URBAN_RURAL:
+    display_name: Urban or rural
+    family: demographics
+    scale_type: nominal
+    notes: "1 rural / 2 small town / 3 large city / 4 suburb — not ordered."
+  INCOME:
+    display_name: Household income band
+    family: demographics
+    special_codes:
+      9900: valid
+    notes: >-
+      Country-specific bands (country × 100 + band); band counts differ by
+      country. Bands changed between Y1 and Y2 in Argentina and Türkiye
+      (inflation) and Egypt used finer brackets at Y2, so value labels are
+      per wave; the Y2 entry lists only those three countries and Türkiye's
+      Y2 bands skip 1914/1915. 9900 = (None/No household income) is an
+      ANSWER, not a non-response, despite the parentheses.
+  INCOME_FEELINGS:
+    display_name: Feelings about household income
+    family: demographics
+    direction: lower_better
+    notes: "1 = Living comfortably … 4 = Finding it very difficult."
+  NUM_CHILDREN:
+    display_name: Children under 18 in household
+    family: demographics
+  NUM_HOUSEHOLD:
+    display_name: Adults in household
+    family: demographics
+    min: 1
+    notes: "Counts the respondent, so the minimum is 1; top-coded at 96+."
+  OWN_RENT_HOME:
+    display_name: Home owned or rented
+    family: demographics
+    scale_type: nominal
+  BORN_COUNTRY:
+    display_name: Born in this country
+    family: demographics
+  REGION1:
+    display_name: Region (level 1)
+    family: demographics
+  REGION2:
+    display_name: Region (level 2)
+    family: demographics
+  REGION3:
+    display_name: Region (level 3)
+    family: demographics
+  SELFID1:
+    display_name: Race/ethnicity (first)
+    family: demographics
+    special_codes:
+      9997: valid
+    notes: >-
+      Country-specific codes. 9995 = Prefer not to answer and 9996 = Other
+      are valid; 9997 = (No other response) is parenthesised in the
+      codebook but is an answer (no further identity given).
+  SELFID2:
+    display_name: Race/ethnicity (second)
+    family: demographics
+    special_codes:
+      9997: valid
+    notes: >-
+      9997 = (No other response) means no second identity — given by
+      124,590 respondents; treating it as non-response would be wrong.
+
+  # ------------------------------------------------- Midyear survey items
+  MONEY:
+    display_name: "Importance: money"
+    family: midyear
+  GOOD_RELATION:
+    display_name: "Importance: good relationships"
+    family: midyear
+  MEANINGFUL:
+    display_name: "Importance: a meaningful life"
+    family: midyear
+  HEALTHY:
+    display_name: "Importance: being healthy"
+    family: midyear
+  REL_LIFE:
+    display_name: "Importance: religious or spiritual life"
+    family: midyear
+  HAPPY_IMPORT:
+    display_name: "Importance: being happy"
+    family: midyear
+  GOOD_PERSON:
+    display_name: "Importance: being a good person"
+    family: midyear
+  TIME_MEDIA:
+    display_name: Daily social media time
+    family: midyear
+    notes: "1 = None … 5 = More than 2 hours; ordered bands."
+  FOOD_INSECURE:
+    display_name: Household ran out of food
+    family: midyear
+    direction: higher_better
+    notes: "1 = Often, 2 = Sometimes, 3 = Never — higher is better as coded."
+  NATURE:
+    display_name: Connected to nature
+    family: midyear
+    direction: higher_better
+    review_status: draft
+    notes: "Treated as a positive wellbeing measure — flagged for review."
+  BEAUTY:
+    display_name: Regularly experiences beauty
+    family: midyear
+  ENGAGE_ARTS:
+    display_name: Arts and cultural activities
+    family: midyear
+  DILIGENT:
+    display_name: Diligence
+    family: midyear
+    direction: higher_better
+    review_status: draft
+    notes: "Self-rated diligence read as positive — flagged for review."
+  MIND_FOCUSED:
+    display_name: Mind focused on what you do
+    family: midyear
+    direction: higher_better
+    notes: "Coded 0 = Never … 10 = Always (endpoints printed in reverse order)."
+  ACHIEVING:
+    display_name: Happy with what you're achieving
+    family: midyear
+
+  # ------------------------------------------------- System & design
+  ID:
+    display_name: Respondent ID
+    family: design
+    notes: >-
+      11- or 12-digit integer; the leading 1–2 digits are the country code,
+      so IDs for countries 1–9 have 11 digits.
+  COUNTRY:
+    display_name: Country
+    family: design
+  WAVE:
+    display_name: Wave flags
+    family: design
+    notes: >-
+      The codebook says 1 for every wave flag, but the data code WAVE_Y2 as
+      2 and WAVE_MY as 11 when present. The pipeline treats non-blank as
+      present and never reads the literal code.
+  MODE_RECRUIT:
+    display_name: Recruitment survey mode
+    family: design
+  MODE_ANNUAL:
+    display_name: Annual survey mode
+    family: design
+  RECRUIT_TYPE:
+    display_name: Recruitment type
+    family: design
+  MIDYEAR_TYPE:
+    display_name: Midyear administration type
+    family: design
+    notes: >-
+      1 = standalone midyear interview; 2 = midyear items appended to the
+      Wave 2 interview (same-day answers, so midyear→Y2 change is only
+      meaningful for type 1).
+  DOI_RECRUIT:
+    display_name: Interview date — recruitment
+    family: design
+  DOI_ANNUAL:
+    display_name: Interview date — annual survey
+    family: design
+  DOI:
+    display_name: Interview date — midyear
+    family: design
+    notes: >-
+      The column is DOI_MY; the base name collapses to DOI by suffix
+      stripping. In the codebook it appears as the second, mislabelled
+      DOI_ANNUAL_Y2 entry (see heading_fixes).
+  FULL_PARTIAL:
+    display_name: Interview completion status
+    family: design
+  ANNUAL_WEIGHT_C1:
+    display_name: Weight — Wave 1 cross-sectional
+    family: design
+    notes: "Codebook heading is ANNUAL_WEIGHT_1 (see aliases)."
+  ANNUAL_WEIGHT_C2:
+    display_name: Weight — Wave 2 cross-sectional
+    family: design
+  ANNUAL_WEIGHT_L2:
+    display_name: Weight — Wave 1→2 longitudinal
+    family: design
+  ANNUAL_WEIGHT_R2:
+    display_name: Weight — rectangular panel
+    family: design
+  RETENTION_WEIGHT_L_1M:
+    display_name: Weight — midyear cross-sectional
+    family: design
+  RETENTION_WEIGHT_L_1M2:
+    display_name: Weight — three-point longitudinal
+    family: design
+  STRATA:
+    display_name: Sampling stratum
+    family: design
+  PSU:
+    display_name: Primary sampling unit
+    family: design
