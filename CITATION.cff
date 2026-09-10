@@ -11,13 +11,14 @@ abstract: >-
   territories, Waves 1-2 (2023-2024) plus the midyear survey.
 authors:
   - given-names: Nathan
+    family-names: Nathan
     email: nathan98000@gmail.com
-repository-code: https://github.com/nathan98000/global_flourishing
+repository-code: https://github.com/Nathan98000/Global_Flourishing
 license: MIT
 version: 0.1.0
 date-released: "2026-09-09"
 references:
-  - type: dataset
+  - type: data
     title: Global Flourishing Study, Waves 1-2 (2023-2024)
     authors:
       - name: Center for Open Science
@@ -33,3 +34,9 @@ references:
         given-names: Tyler J.
     journal: Nature Mental Health
     year: 2025
+    volume: 3
+    issue: 6
+    start: 636
+    end: 653
+    doi: 10.1038/s44220-025-00423-5
+    url: https://doi.org/10.1038/s44220-025-00423-5
