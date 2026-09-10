@@ -3,7 +3,12 @@ name = "flourish-pipeline"
 version = "0.1.0"
 description = "Flourish Atlas data pipeline — ingest, clean, reshape, derive, validate, aggregate"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pdfplumber>=0.11.10",
+    "polars>=1.44.2",
+    "pyarrow>=25.0.1",
+    "pyyaml>=6.0.3",
+]
 
 [project.scripts]
 flourish-pipeline = "flourish_pipeline.cli:main"
