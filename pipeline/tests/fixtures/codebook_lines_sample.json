@@ -1,0 +1,835 @@
+{
+  "source": "GFS_codebook_wave2.pdf",
+  "regenerate_with": "flourish-pipeline codebook --dump-lines <path>",
+  "note": "Ten real codebook entries covering the layout quirks; INCOME_Y1 and SELFID1 & SELFID2 truncated to two countries.",
+  "lines": [
+    [
+      3,
+      183.7,
+      "section",
+      "Main Survey Questions"
+    ],
+    [
+      4,
+      43.5,
+      "heading",
+      "ABUSED"
+    ],
+    [
+      4,
+      67.0,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      4,
+      67.0,
+      "content",
+      "Physically or Sexually Abused When Growing Up"
+    ],
+    [
+      4,
+      90.8,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      4,
+      90.8,
+      "content",
+      "Were you ever physically or sexually abused when you were growing up?"
+    ],
+    [
+      4,
+      114.6,
+      "content",
+      "-98 = (Saw, skipped)"
+    ],
+    [
+      4,
+      128.0,
+      "content",
+      "1 = Yes"
+    ],
+    [
+      4,
+      141.4,
+      "content",
+      "2 = No"
+    ],
+    [
+      4,
+      145.0,
+      "label",
+      "Value labels:"
+    ],
+    [
+      4,
+      155.0,
+      "content",
+      "98 = (DK)"
+    ],
+    [
+      4,
+      168.4,
+      "content",
+      "99 = (Refused)"
+    ],
+    [
+      6,
+      367.6,
+      "heading",
+      "CNTRY_REL_BUD"
+    ],
+    [
+      6,
+      391.1,
+      "content",
+      "The Teachings of Buddhism Are Very Important in Your Life (Buddhism is Common"
+    ],
+    [
+      6,
+      396.8,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      6,
+      402.6,
+      "content",
+      "Religion in Country Yet Not Identified as Current Religion)"
+    ],
+    [
+      6,
+      426.2,
+      "content",
+      "Buddhism is the most common religion in this country. To what extent do you agree"
+    ],
+    [
+      6,
+      437.8,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      6,
+      437.8,
+      "content",
+      "or disagree with the following statement: The teachings of Buddhism are very"
+    ],
+    [
+      6,
+      449.3,
+      "content",
+      "important in my life."
+    ],
+    [
+      6,
+      473.0,
+      "content",
+      "-98 = (Saw, skipped)"
+    ],
+    [
+      6,
+      486.5,
+      "content",
+      "0 = Strongly disagree"
+    ],
+    [
+      6,
+      500.1,
+      "content",
+      "10 = Strongly agree"
+    ],
+    [
+      6,
+      503.6,
+      "label",
+      "Value labels:"
+    ],
+    [
+      6,
+      513.5,
+      "content",
+      "98 = (DK)"
+    ],
+    [
+      6,
+      527.1,
+      "content",
+      "99 = (Refused)"
+    ],
+    [
+      14,
+      163.8,
+      "heading",
+      "HAPPY"
+    ],
+    [
+      14,
+      187.3,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      14,
+      187.3,
+      "content",
+      "How Happy You Usually Feel"
+    ],
+    [
+      14,
+      211.1,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      14,
+      211.1,
+      "content",
+      "In general, how happy or unhappy do you usually feel?"
+    ],
+    [
+      14,
+      234.8,
+      "content",
+      "-98 = (Saw, skipped)"
+    ],
+    [
+      14,
+      248.3,
+      "content",
+      "0 = Extremely unhappy"
+    ],
+    [
+      14,
+      261.7,
+      "content",
+      "10 = Extremely happy"
+    ],
+    [
+      14,
+      265.3,
+      "label",
+      "Value labels:"
+    ],
+    [
+      14,
+      275.3,
+      "content",
+      "98 = (DK)"
+    ],
+    [
+      14,
+      288.7,
+      "content",
+      "99 = (Refused)"
+    ],
+    [
+      42,
+      167.8,
+      "section",
+      "System Variables"
+    ],
+    [
+      44,
+      199.8,
+      "heading",
+      "DOI_ANNUAL_Y2"
+    ],
+    [
+      44,
+      223.5,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      44,
+      223.5,
+      "content",
+      "End Date of Interview – Annual Year 2 Survey"
+    ],
+    [
+      44,
+      247.3,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      44,
+      271.3,
+      "label",
+      "Value labels:"
+    ],
+    [
+      44,
+      295.2,
+      "heading",
+      "DOI_ANNUAL_Y2"
+    ],
+    [
+      44,
+      318.9,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      44,
+      318.9,
+      "content",
+      "End Date of Interview – Midyear Survey"
+    ],
+    [
+      44,
+      342.8,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      44,
+      366.8,
+      "label",
+      "Value labels:"
+    ],
+    [
+      44,
+      593.3,
+      "heading",
+      "ID"
+    ],
+    [
+      44,
+      616.8,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      44,
+      640.9,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      44,
+      664.9,
+      "label",
+      "Value labels:"
+    ],
+    [
+      45,
+      286.8,
+      "heading",
+      "MODE_ANNUAL"
+    ],
+    [
+      45,
+      310.4,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      45,
+      310.4,
+      "content",
+      "Annual Survey Mode"
+    ],
+    [
+      45,
+      334.2,
+      "content",
+      "1 – CAPI"
+    ],
+    [
+      45,
+      351.7,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      45,
+      351.7,
+      "content",
+      "2 – CATI"
+    ],
+    [
+      45,
+      369.2,
+      "content",
+      "3 – CAWI"
+    ],
+    [
+      45,
+      393.1,
+      "label",
+      "Value labels:"
+    ],
+    [
+      46,
+      240.7,
+      "heading",
+      "WAVE_MY"
+    ],
+    [
+      46,
+      264.2,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      46,
+      264.2,
+      "content",
+      "Wave – Midyear"
+    ],
+    [
+      46,
+      288.1,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      46,
+      311.9,
+      "label",
+      "Value labels:"
+    ],
+    [
+      46,
+      311.9,
+      "content",
+      "1= Midyear"
+    ],
+    [
+      51,
+      153.7,
+      "section",
+      "Country Specific"
+    ],
+    [
+      51,
+      183.6,
+      "section",
+      "Demographic Variables"
+    ],
+    [
+      52,
+      43.5,
+      "heading",
+      "INCOME_Y1"
+    ],
+    [
+      52,
+      67.0,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      52,
+      67.0,
+      "content",
+      "Monthly Household Income (Annual Household Income in U.S. and Australia)"
+    ],
+    [
+      52,
+      90.9,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      52,
+      114.8,
+      "content",
+      "-9998 = (Saw, skipped)"
+    ],
+    [
+      52,
+      128.2,
+      "content",
+      "101 = Argentina: 1,000 pesos or less"
+    ],
+    [
+      52,
+      141.7,
+      "content",
+      "102 = Argentina: 1,001 – 5,000 pesos"
+    ],
+    [
+      52,
+      155.2,
+      "content",
+      "103 = Argentina: 5,001 – 10,000 pesos"
+    ],
+    [
+      52,
+      168.7,
+      "content",
+      "104 = Argentina: 10,001 – 20,000 pesos"
+    ],
+    [
+      52,
+      182.2,
+      "content",
+      "105 = Argentina: 20,001 – 30,000 pesos"
+    ],
+    [
+      52,
+      195.7,
+      "content",
+      "106 = Argentina: 30,001 – 40,000 pesos"
+    ],
+    [
+      52,
+      209.3,
+      "content",
+      "107 = Argentina: 40,001 – 50,000 pesos"
+    ],
+    [
+      52,
+      222.7,
+      "content",
+      "108 = Argentina: 50,001 – 60,000 pesos"
+    ],
+    [
+      52,
+      236.3,
+      "content",
+      "109 = Argentina: 60,001 – 70,000 pesos"
+    ],
+    [
+      52,
+      249.7,
+      "content",
+      "110 = Argentina: 70,001 – 80,000 pesos"
+    ],
+    [
+      52,
+      263.3,
+      "content",
+      "111 = Argentina: 80,001 – 90,000 pesos"
+    ],
+    [
+      52,
+      276.7,
+      "content",
+      "112 = Argentina: 90,001 – 100,000 pesos"
+    ],
+    [
+      52,
+      290.3,
+      "content",
+      "113 = Argentina: 100,001 – 120,000 pesos"
+    ],
+    [
+      52,
+      303.7,
+      "content",
+      "114 = Argentina: 120,001 – 150,000 pesos"
+    ],
+    [
+      52,
+      317.3,
+      "content",
+      "115 = Argentina: 150,001 – 200,000 pesos"
+    ],
+    [
+      52,
+      330.7,
+      "content",
+      "116 = Argentina: More than 200,000 pesos"
+    ],
+    [
+      52,
+      344.3,
+      "content",
+      "201 = Australia: 20,000 dollars or less"
+    ],
+    [
+      52,
+      357.7,
+      "content",
+      "202 = Australia: 20,001 – 30,000 dollars"
+    ],
+    [
+      52,
+      371.3,
+      "content",
+      "203 = Australia: 30,001 – 40,000 dollars"
+    ],
+    [
+      52,
+      384.7,
+      "content",
+      "204 = Australia: 40,001 – 50,000 dollars"
+    ],
+    [
+      52,
+      398.3,
+      "content",
+      "205 = Australia: 50,001 – 60,000 dollars"
+    ],
+    [
+      52,
+      411.7,
+      "content",
+      "206 = Australia: 60,001 – 75,000 dollars"
+    ],
+    [
+      52,
+      425.2,
+      "label",
+      "Value labels:"
+    ],
+    [
+      52,
+      425.2,
+      "content",
+      "207 = Australia: 75,001 – 100,000 dollars"
+    ],
+    [
+      52,
+      438.7,
+      "content",
+      "208 = Australia: 100,001 – 150,000 dollars"
+    ],
+    [
+      52,
+      452.2,
+      "content",
+      "209 = Australia: 150,001 – 250,000 dollars"
+    ],
+    [
+      52,
+      465.7,
+      "content",
+      "210 = Australia: More than 250,000 dollars"
+    ],
+    [
+      58,
+      92.5,
+      "content",
+      "9900 = (None/No household income)"
+    ],
+    [
+      58,
+      105.9,
+      "content",
+      "9998 = (Does NOT know household income)"
+    ],
+    [
+      58,
+      119.5,
+      "content",
+      "9999 = (Refused to give household income)"
+    ],
+    [
+      81,
+      538.8,
+      "heading",
+      "SELFID1 & SELFID2"
+    ],
+    [
+      81,
+      562.2,
+      "content",
+      "First Identified Race/Ethnicity/Nationality of Respondent"
+    ],
+    [
+      81,
+      571.0,
+      "label",
+      "Variable Label:"
+    ],
+    [
+      81,
+      579.8,
+      "content",
+      "Second Identified Race/Ethnicity/Nationality of Respondent"
+    ],
+    [
+      81,
+      603.6,
+      "label",
+      "Question Wording:"
+    ],
+    [
+      81,
+      627.5,
+      "content",
+      "-9998 = (Saw, skipped)"
+    ],
+    [
+      81,
+      641.0,
+      "content",
+      "101 = Argentina: Asian"
+    ],
+    [
+      81,
+      654.5,
+      "content",
+      "102 = Argentina: Black"
+    ],
+    [
+      81,
+      668.0,
+      "content",
+      "103 = Argentina: Indigenous"
+    ],
+    [
+      81,
+      681.5,
+      "label",
+      "Value labels:"
+    ],
+    [
+      81,
+      681.5,
+      "content",
+      "104 = Argentina: Mestizo(a)"
+    ],
+    [
+      81,
+      695.0,
+      "content",
+      "105 = Argentina: Mullato(a)"
+    ],
+    [
+      81,
+      708.5,
+      "content",
+      "106 = Argentina: White"
+    ],
+    [
+      81,
+      722.0,
+      "content",
+      "201 = Australia: Aboriginal"
+    ],
+    [
+      81,
+      735.5,
+      "content",
+      "202 = Australia: Australian"
+    ],
+    [
+      82,
+      38.5,
+      "content",
+      "203 = Australia: Australian British/European"
+    ],
+    [
+      82,
+      51.9,
+      "content",
+      "204 = Australia: Chinese"
+    ],
+    [
+      82,
+      65.5,
+      "content",
+      "205 = Australia: Indian"
+    ],
+    [
+      82,
+      78.9,
+      "content",
+      "206 = Australia: Japanese"
+    ],
+    [
+      82,
+      92.5,
+      "content",
+      "207 = Australia: Malay"
+    ],
+    [
+      82,
+      105.9,
+      "content",
+      "208 = Australia: Sinhalese"
+    ],
+    [
+      82,
+      119.5,
+      "content",
+      "209 = Australia: Spanish"
+    ],
+    [
+      82,
+      132.9,
+      "content",
+      "210 = Australia: Sri Lankan Moor"
+    ],
+    [
+      82,
+      146.5,
+      "content",
+      "211 = Australia: Sri Lankan Tamil"
+    ],
+    [
+      82,
+      159.9,
+      "content",
+      "212 = Australia: Vietnamese"
+    ],
+    [
+      82,
+      173.5,
+      "content",
+      "213 = Australia: Taiwanese/Holo"
+    ],
+    [
+      82,
+      186.9,
+      "content",
+      "214 = Australia: Russian"
+    ],
+    [
+      82,
+      200.5,
+      "content",
+      "215 = Australia: Samoan"
+    ],
+    [
+      82,
+      213.9,
+      "content",
+      "216 = Australia: New Zealander"
+    ],
+    [
+      82,
+      227.5,
+      "content",
+      "217 = Australia: Other European"
+    ],
+    [
+      84,
+      551.6,
+      "content",
+      "9995 = Prefer not to answer"
+    ],
+    [
+      84,
+      565.0,
+      "content",
+      "9996 = Other"
+    ],
+    [
+      84,
+      578.6,
+      "content",
+      "9997 = (No other response)"
+    ],
+    [
+      84,
+      592.0,
+      "content",
+      "9998 = (DK)"
+    ],
+    [
+      84,
+      605.6,
+      "content",
+      "9999 = (Refused)"
+    ]
+  ]
+}
