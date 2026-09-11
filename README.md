@@ -9,19 +9,34 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 2 complete — statistics engine.** `flourish_stats`
-computes survey-weighted means, proportions, distributions, quantiles,
-panel change, transition matrices and correlations with Taylor-linearised
-design-based CIs, matching R's `survey` package on 30 committed reference
-estimates to 1e-9 (`make parity`,
-[stats/verify/](stats/verify/reference.json)); the plain-language account
-is [docs/METHODS.md](docs/METHODS.md). Phase 1's `make data` rebuilds the
-catalog, Parquet tables, and DuckDB file from the raw release in ~10
-seconds, with 62 validation checks reproducing the published SFI country
-ranking ([data/validation_report.md](data/validation_report.md)). The
-full plan is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
+**Status: Phase 3 complete — API.** `make api` serves the typed `/v1`
+endpoints over the baked DuckDB file: aggregates, breakdowns, panel
+change with transition matrices, US states, CSV export — every number
+with its survey weight, design-based CI, unweighted n and suppression
+flags, weights resolved only through the engine's
+wave→weight→eligibility table. Warm p95 on hot queries is ~90 ms
+uncached and ~3 ms from the LRU (target < 300 ms;
+[ADR-0007](docs/adr/ADR-0007-api-data-tier.md)); the static-aggregate
+tier (`make data` exports 1,994 precomputed views) shares the exact
+response envelope
+([ADR-0008](docs/adr/ADR-0008-one-envelope-two-tiers.md)), and the web
+app's TypeScript client is generated from the committed OpenAPI schema.
+Phase 2's engine matches R's `survey` package on 30 committed reference
+estimates (`make parity`); Phase 1's `make data` reproduces the
+published SFI ranking in ~10 s + ~70 s of static export
+([data/validation_report.md](data/validation_report.md)). The full plan
+is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
+
+Try it locally (with the built data present):
+
+```bash
+make api
+```
+
+then e.g. `curl 'localhost:8080/v1/aggregate?outcome=sfi&wave=Y1&by=country_code'`
+— or open <http://localhost:8080/docs>.
 
 ## Architecture
 
@@ -84,7 +99,7 @@ deploy jobs with a notice.
 | 0 Foundations ✅ | 1 | Monorepo, tooling, CI skeleton, ADRs | Green pipeline that deploys both apps from a tag |
 | 1 Data pipeline ✅ | 2–3 | `make data` builds catalog, Parquet, DuckDB | Validation suite passes; reproduces published SFI ranking |
 | 2 Statistics engine ✅ | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
-| 3 API | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
+| 3 API ✅ | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
 | 4 Front-end MVP | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
 | 5 Panel, midyear & US | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI |
 | 6 Correlates | 12–14 | Correlates view, adjusted models, model cards | Methods page updated; caveats shown in-product |

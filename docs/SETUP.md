@@ -142,7 +142,57 @@ refreshing to create the board.
 The data pipeline needs no cloud resources: raw files live locally in
 `data/raw/` and `make data` builds everything on a laptop.
 
-Deferred to **Phase 3** (when the DuckDB file must reach the container
-image): a private GCS bucket for the raw CSVs plus a `workflow_dispatch`
-data-build job that fetches them in CI. Do not create these yet — the
-Phase 3 PR will add the exact commands here.
+## 7. Phase 3 — private data bucket (raw files in, built artefacts out)
+
+The deploy workflow bakes `flourish.duckdb` into the API image and ships
+`data/static/` to Pages, but neither ever enters git — they come from a
+private GCS bucket. One-time setup (uses `$PROJECT_ID`/`$REGION`/`$SA_EMAIL`
+from steps 0–1):
+
+```sh
+export BUCKET="$PROJECT_ID-flourish-data"   # any globally-unique name
+
+gcloud storage buckets create "gs://$BUCKET" \
+  --location="$REGION" --uniform-bucket-level-access \
+  --public-access-prevention=enforced
+
+# The deploy service account reads builds and writes them from CI
+gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
+  --member="serviceAccount:$SA_EMAIL" --role="roles/storage.objectAdmin"
+
+# Upload the three raw files (from wherever you keep them locally)
+gcloud storage cp \
+  data/raw/gfs_all_countries_wave2_with_midyear.csv \
+  "data/raw/gfs_us-state-weight_wave2_with-midyear.csv" \
+  data/raw/GFS_codebook_wave2.pdf \
+  "gs://$BUCKET/raw/"
+
+gh variable set GCS_DATA_BUCKET --body "$BUCKET"
+```
+
+Then run the data build once (and after any future raw-release change):
+
+```sh
+gh workflow run data-build.yml && gh run watch
+```
+
+It runs `make data` in CI (all stages including the static export), runs
+the full test suite against the built data (R parity stays a local-only
+gate — CI has no R), and uploads everything under
+`gs://$BUCKET/builds/<data_version>/` with `builds/latest.txt` pointing at
+it. The next `make deploy TAG=…` bakes that build into the image and the
+Pages assets; until the bucket variable exists, deploys stay green and
+ship a data-less API that says so at `/health`.
+
+## 8. Optional: Sentry (API error reporting)
+
+Create a (free-tier) Sentry project for Python/FastAPI, copy its DSN, then:
+
+```sh
+gh secret set SENTRY_DSN    # paste the DSN when prompted
+```
+
+and add `FA_SENTRY_DSN=${{ secrets.SENTRY_DSN }}` to the `env_vars` block
+of the `deploy-api` job in `.github/workflows/deploy.yml` (left out by
+default so the workflow stays secret-free for forks). The API initialises
+Sentry only when `FA_SENTRY_DSN` is set.

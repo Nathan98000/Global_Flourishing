@@ -5,12 +5,16 @@ description = "Flourish Atlas data pipeline — ingest, clean, reshape, derive, 
 requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.5.5",
+    "flourish-stats",
     "pandera[polars]>=0.33.1",
     "pdfplumber>=0.11.10",
     "polars>=1.44.2",
     "pyarrow>=25.0.1",
     "pyyaml>=6.0.3",
 ]
+
+[tool.uv.sources]
+flourish-stats = { workspace = true }
 
 [project.scripts]
 flourish-pipeline = "flourish_pipeline.cli:main"

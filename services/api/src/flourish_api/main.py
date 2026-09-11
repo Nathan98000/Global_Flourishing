@@ -9,7 +9,6 @@ app's TypeScript client from the OpenAPI schema served here.
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +19,7 @@ from flourish_api.config import Settings
 from flourish_api.data import DataStore
 from flourish_api.ops import init_sentry, install_middleware
 from flourish_api.routes import v1
+from flourish_api.schemas import HealthResponse
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -59,20 +59,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v1)
 
     @app.get("/health")
-    def health() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction] — registered via decorator
+    def health() -> HealthResponse:  # pyright: ignore[reportUnusedFunction] — registered via decorator
         """Liveness probe for Cloud Run and uptime monitoring.
 
         ``status`` reports the process; ``data`` is honest about whether a
         DuckDB file is baked into this deployment (CI images have none).
         """
-        return {
-            "status": "ok",
-            "service": "flourish-atlas-api",
-            "version": __version__,
-            "git_sha": settings.git_sha,
-            "data": "ok" if store.present else "absent",
-            "data_version": store.data_version,
-        }
+        return HealthResponse(
+            status="ok",
+            service="flourish-atlas-api",
+            version=__version__,
+            git_sha=settings.git_sha,
+            data="ok" if store.present else "absent",
+            data_version=store.data_version,
+        )
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:  # pyright: ignore[reportUnusedFunction] — registered via decorator

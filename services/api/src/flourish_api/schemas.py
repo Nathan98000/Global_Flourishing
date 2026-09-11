@@ -13,6 +13,17 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
+class HealthResponse(BaseModel):
+    """Liveness + build + data identity (`data` is honest: absent in CI images)."""
+
+    status: str
+    service: str
+    version: str
+    git_sha: str | None
+    data: str
+    data_version: str | None
+
+
 class CountryModel(BaseModel):
     code: int
     name: str

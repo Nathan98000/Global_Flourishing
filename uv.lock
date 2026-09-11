@@ -642,6 +642,7 @@ version = "0.1.0"
 source = { editable = "pipeline" }
 dependencies = [
     { name = "duckdb" },
+    { name = "flourish-stats" },
     { name = "pandera", extra = ["polars"] },
     { name = "pdfplumber" },
     { name = "polars" },
@@ -652,6 +653,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "flourish-stats", editable = "stats" },
     { name = "pandera", extras = ["polars"], specifier = ">=0.33.1" },
     { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "polars", specifier = ">=1.44.2" },

@@ -63,6 +63,16 @@ def _file_entry(base: Path, path: Path, rows: int | None) -> dict[str, Any]:
     }
 
 
+def data_version_for(raw_dir: Path) -> str | None:
+    """`gfs-w2my.<pipeline version>.<raw sha prefix>` — shared with the
+    aggregate stage, which runs before this one and stamps its static
+    files with the same version the manifest will record."""
+    global_csv = raw_dir / GLOBAL_CSV
+    if not global_csv.exists():
+        return None
+    return f"gfs-w2my.{__version__}.{sha256_file(global_csv)[:8]}"
+
+
 def run_manifest(raw_dir: Path, out_dir: Path) -> int:
     global_csv = raw_dir / GLOBAL_CSV
     if not global_csv.exists():
@@ -105,6 +115,9 @@ def run_manifest(raw_dir: Path, out_dir: Path) -> int:
         out_dir / "catalog" / "value_labels.parquet",
         *sorted((out_dir / "parquet").glob("*.parquet")),
         out_dir / "validation_report.md",
+        # The static exporter's index; the ~2,000 view files it lists are
+        # hashed transitively through it (each entry carries row counts).
+        out_dir / "static" / "index.json",
     ]:
         rows = _parquet_rows(path) if path.suffix == ".parquet" else None
         outputs.append(_file_entry(repo_root, path, rows))

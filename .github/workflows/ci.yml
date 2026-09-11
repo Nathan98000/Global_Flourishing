@@ -32,6 +32,8 @@ jobs:
         run: uv run coverage report --include='stats/src/*' --fail-under=90
       - name: Coverage gate (services/api/src ≥ 90%)
         run: uv run coverage report --include='services/api/src/*' --fail-under=90
+      - name: OpenAPI schema in sync (regenerate with `uv run python -m flourish_api.openapi > apps/web/openapi.json`)
+        run: uv run python -m flourish_api.openapi | diff -u apps/web/openapi.json -
 
   web:
     name: Web (lint · types · tests · build)
@@ -51,6 +53,10 @@ jobs:
         run: pnpm -C apps/web typecheck
       - name: Vitest
         run: pnpm -C apps/web test
+      - name: TS client in sync (regenerate with `pnpm -C apps/web gen:api`)
+        run: |
+          pnpm -C apps/web gen:api
+          git diff --exit-code apps/web/src/api/schema.d.ts
       - name: Build
         run: pnpm -C apps/web build
       - uses: actions/upload-artifact@v7

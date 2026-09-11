@@ -14,8 +14,9 @@ from typing import Annotated
 
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException, Query
+from flourish_stats.outcomes import DERIVED_OUTCOMES
 
-from flourish_api.data import DERIVED_OUTCOMES, DataStore, require_data
+from flourish_api.data import DataStore, require_data
 from flourish_api.schemas import (
     MissingnessRow,
     ValueLabelModel,

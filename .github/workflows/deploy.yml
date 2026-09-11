@@ -14,11 +14,13 @@ jobs:
     outputs:
       has-gcp: ${{ steps.check.outputs.has-gcp }}
       has-cloudflare: ${{ steps.check.outputs.has-cloudflare }}
+      has-data: ${{ steps.check.outputs.has-data }}
     steps:
       - id: check
         run: |
           echo "has-gcp=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && vars.GCP_PROJECT_ID != '' && vars.GCP_REGION != '' }}" >> "$GITHUB_OUTPUT"
           echo "has-cloudflare=${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}" >> "$GITHUB_OUTPUT"
+          echo "has-data=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && vars.GCS_DATA_BUCKET != '' }}" >> "$GITHUB_OUTPUT"
       - name: Report
         run: |
           if [ "${{ steps.check.outputs.has-gcp }}" != "true" ]; then
@@ -26,6 +28,9 @@ jobs:
           fi
           if [ "${{ steps.check.outputs.has-cloudflare }}" != "true" ]; then
             echo "::notice::Web deploy skipped — set the Cloudflare secrets from docs/SETUP.md"
+          fi
+          if [ "${{ steps.check.outputs.has-data }}" != "true" ]; then
+            echo "::notice::No GCS_DATA_BUCKET — deploying without data (API will report data=absent; run the Data build workflow after docs/SETUP.md §7)"
           fi
 
   deploy-api:
@@ -43,6 +48,15 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v3
+      - name: Stage the data layer from the bucket
+        if: needs.preflight.outputs.has-data == 'true'
+        run: |
+          DV=$(gsutil cat "gs://${{ vars.GCS_DATA_BUCKET }}/builds/latest.txt")
+          echo "Baking data build $DV into the image"
+          gsutil -m cp \
+            "gs://${{ vars.GCS_DATA_BUCKET }}/builds/$DV/flourish.duckdb" \
+            "gs://${{ vars.GCS_DATA_BUCKET }}/builds/$DV/manifest.json" \
+            infra/data-stage/
       - name: Build and push image
         run: |
           IMAGE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/flourish/api"
@@ -73,6 +87,14 @@ jobs:
           for i in $(seq 1 10); do
             if body=$(curl -fsS "$url/health"); then
               echo "$body"
+              # A deploy that staged data must actually serve it (ADR-0007:
+              # the degraded mode is for CI, not for a configured production).
+              if [ "${{ needs.preflight.outputs.has-data }}" = "true" ]; then
+                echo "$body" | grep -q '"data":"ok"' || {
+                  echo "::error::data was staged but /health reports it absent"
+                  exit 1
+                }
+              fi
               exit 0
             fi
             echo "attempt $i/10 failed; retrying in 6s"
@@ -86,8 +108,25 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.has-cloudflare == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # WIF, for reading the static tier from the bucket
     steps:
       - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        if: needs.preflight.outputs.has-data == 'true'
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+        if: needs.preflight.outputs.has-data == 'true'
+      - name: Stage the static aggregate tier
+        if: needs.preflight.outputs.has-data == 'true'
+        run: |
+          DV=$(gsutil cat "gs://${{ vars.GCS_DATA_BUCKET }}/builds/latest.txt")
+          echo "Shipping static tier from data build $DV"
+          mkdir -p apps/web/public/data
+          gsutil -m rsync -r "gs://${{ vars.GCS_DATA_BUCKET }}/builds/$DV/static" apps/web/public/data
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:

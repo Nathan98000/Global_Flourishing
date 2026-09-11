@@ -10,6 +10,7 @@ const okHealth: ApiHealth = {
   service: 'flourish-atlas-api',
   version: '0.1.0',
   git_sha: 'abc1234def',
+  data: 'ok',
   data_version: null,
 }
 

@@ -1,16 +1,15 @@
+# The build context is the repo root (infra/Dockerfile). Keep it small
+# and keep data out: the ONLY data path into the image is the staging
+# directory infra/data-stage/, which the deploy workflow populates from
+# the private bucket (ADR-0007). A local `make data` output must never
+# ride in implicitly.
 .git
-.github
 .venv
 node_modules
+apps/web/node_modules
 apps/web/dist
 data
-docs
-scripts
+.pytest_cache
+.ruff_cache
+htmlcov
 **/__pycache__
-**/.pytest_cache
-**/.ruff_cache
-*.csv
-*.parquet
-*.duckdb
-.env
-.env.*
