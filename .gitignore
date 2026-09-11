@@ -41,3 +41,6 @@ data/*
 # Coverage
 coverage.xml
 .coverage.*
+infra/data-stage/*
+!infra/data-stage/README.md
+apps/web/public/data/

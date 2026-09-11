@@ -1,9 +1,8 @@
 """Pipeline command-line entry point.
 
 ``flourish-pipeline run`` executes the stages in order; each stage is also
-its own subcommand. ``aggregate`` is a loud Phase 3 stub (its precomputed
-views need the Phase 2 estimators), so ``run`` skips it with a notice
-rather than failing ``make data``.
+its own subcommand. ``aggregate`` (Phase 3) exports the static views
+through the Phase 2 estimators; see aggregate.py.
 """
 
 from __future__ import annotations
@@ -15,11 +14,6 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 STAGES = ("codebook", "ingest", "reshape", "derive", "validate", "aggregate", "manifest")
-
-_NOT_IMPLEMENTED_PHASE_3 = (
-    "Not implemented: Phase 3 — `aggregate` precomputes view aggregates with "
-    "confidence intervals, which need the Phase 2 estimators (docs/PROPOSAL.md §5.2)"
-)
 
 
 def _stage_codebook(args: argparse.Namespace) -> int:
@@ -57,9 +51,10 @@ def _stage_validate(args: argparse.Namespace) -> int:
     return run_validate(args.out_dir)
 
 
-def _stage_aggregate(_args: argparse.Namespace) -> int:
-    print(_NOT_IMPLEMENTED_PHASE_3, file=sys.stderr)
-    return 1
+def _stage_aggregate(args: argparse.Namespace) -> int:
+    from .aggregate import run_aggregate
+
+    return run_aggregate(args.raw_dir, args.out_dir)
 
 
 def _stage_manifest(args: argparse.Namespace) -> int:
@@ -135,9 +130,6 @@ def _run_all(args: argparse.Namespace) -> int:
         return 2
     total_start = time.perf_counter()
     for stage in STAGES[start_index : end_index + 1]:
-        if stage == "aggregate" and args.to_stage != "aggregate":
-            print("[aggregate] skipped (Not implemented: Phase 3)")
-            continue
         stage_start = time.perf_counter()
         code = STAGE_RUNNERS[stage](args)
         elapsed = time.perf_counter() - stage_start
@@ -158,7 +150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_all(args)
     stage_start = time.perf_counter()
     code = STAGE_RUNNERS[args.command](args)
-    if code == 0 and args.command != "aggregate":
+    if code == 0:
         record_timing(args.out_dir, args.command, time.perf_counter() - stage_start)
     return code
 

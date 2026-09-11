@@ -1,0 +1,71 @@
+name: Data build
+
+# Builds the data artefacts in CI from the raw files in the private GCS
+# bucket (docs/SETUP.md §7) and uploads them under their data_version, so
+# the Deploy workflow can bake them into the API image and the web assets.
+# Manual only: the raw release changes at most annually.
+#
+# R `survey` parity (`make parity`) is NOT run here — R plus the survey
+# package stay a local gate (stats/verify/); the built-data pytest markers
+# do run, which includes reproducing the validation report through the
+# engine and the API.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        run: |
+          echo "ready=${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && secrets.GCP_SERVICE_ACCOUNT != '' && vars.GCS_DATA_BUCKET != '' }}" >> "$GITHUB_OUTPUT"
+      - name: Report
+        run: |
+          if [ "${{ steps.check.outputs.ready }}" != "true" ]; then
+            echo "::notice::Data build skipped — set the GCP secrets and GCS_DATA_BUCKET from docs/SETUP.md §7"
+          fi
+
+  build:
+    name: make data → bucket
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v7
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --frozen --all-packages
+      - name: Fetch raw files
+        run: |
+          mkdir -p data/raw
+          gsutil -m cp \
+            "gs://${{ vars.GCS_DATA_BUCKET }}/raw/gfs_all_countries_wave2_with_midyear.csv" \
+            "gs://${{ vars.GCS_DATA_BUCKET }}/raw/gfs_us-state-weight_wave2_with-midyear.csv" \
+            "gs://${{ vars.GCS_DATA_BUCKET }}/raw/GFS_codebook_wave2.pdf" \
+            data/raw/
+      - name: Build the data (all pipeline stages incl. static export)
+        run: uv run flourish-pipeline run
+      - name: Test against the built data (raw + built markers active)
+        run: uv run pytest
+      - name: Upload build under its data_version
+        run: |
+          DV=$(uv run python -c "import json; print(json.load(open('data/manifest.json'))['data_version'])")
+          echo "Uploading build $DV"
+          DEST="gs://${{ vars.GCS_DATA_BUCKET }}/builds/$DV"
+          gsutil -m cp data/flourish.duckdb data/manifest.json data/validation_report.md "$DEST/"
+          gsutil -m rsync -r -d data/static "$DEST/static"
+          printf '%s' "$DV" | gsutil cp - "gs://${{ vars.GCS_DATA_BUCKET }}/builds/latest.txt"
+          echo "::notice::Build $DV uploaded; the next Deploy will bake it"

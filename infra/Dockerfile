@@ -24,9 +24,13 @@ WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Phase 3: bake the data layer into the image next to the code, e.g.
-#   COPY data/flourish.duckdb /app/data/flourish.duckdb
-# (built by `make data`; see docs/SETUP.md and docs/PROPOSAL.md §5.4)
+# The data layer rides in via the staging directory: the deploy workflow
+# downloads flourish.duckdb + manifest.json from the private bucket into
+# infra/data-stage/ before building (docs/SETUP.md). CI builds with the
+# directory empty — the app boots, /health reports data=absent, and /v1
+# endpoints 503 honestly (ADR-0007).
+COPY infra/data-stage/ /app/data/
+ENV FA_DATA_PATH=/app/data/flourish.duckdb
 
 # Set by the deploy workflow so /health reports the build.
 ARG GIT_SHA=""

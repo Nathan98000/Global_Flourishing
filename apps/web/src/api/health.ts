@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { API_BASE_URL } from '../config'
+import type { paths } from './schema'
 
-export interface ApiHealth {
-  status: string
-  service: string
-  version: string
-  git_sha: string | null
-  data_version: string | null
-}
+// The response type comes from the generated OpenAPI client (schema.d.ts,
+// `pnpm gen:api`) — the server's HealthResponse model, not a hand copy.
+export type ApiHealth = paths['/health']['get']['responses']['200']['content']['application/json']
 
 export function useApiHealth() {
   return useQuery<ApiHealth>({

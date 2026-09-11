@@ -1,0 +1,1681 @@
+{
+  "components": {
+    "schemas": {
+      "CountryModel": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "iso3": {
+            "title": "Iso3",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "iso3"
+        ],
+        "title": "CountryModel",
+        "type": "object"
+      },
+      "EstimateResponse": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "rows"
+        ],
+        "title": "EstimateResponse",
+        "type": "object"
+      },
+      "EstimateRow": {
+        "description": "One estimator record, verbatim from the engine's common record.\n\nEvery number ships with its weight, ``se_method``, unweighted ``n``,\nCI bounds and suppression flags; suppressed rows keep ``n``/``sum_w``\nand null the estimates. The optional key fields identify sub-rows:\n``level`` (proportions/distributions), ``p`` (quantiles), ``leg``\n(three-point panels), ``from_level``/``to_level``/``measure``\n(transition matrices).",
+        "properties": {
+          "ci_hi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Hi"
+          },
+          "ci_level": {
+            "title": "Ci Level",
+            "type": "number"
+          },
+          "ci_lo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Lo"
+          },
+          "ci_method": {
+            "title": "Ci Method",
+            "type": "string"
+          },
+          "df": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Df"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "from_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Level"
+          },
+          "group": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Group",
+            "type": "object"
+          },
+          "leg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "measure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measure"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "n_psu": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Psu"
+          },
+          "n_strata": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Strata"
+          },
+          "p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P"
+          },
+          "se": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Se"
+          },
+          "se_method": {
+            "title": "Se Method",
+            "type": "string"
+          },
+          "stat": {
+            "title": "Stat",
+            "type": "string"
+          },
+          "sum_w": {
+            "title": "Sum W",
+            "type": "number"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "to_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Level"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "stat",
+          "estimate",
+          "se",
+          "ci_lo",
+          "ci_hi",
+          "ci_level",
+          "ci_method",
+          "n",
+          "sum_w",
+          "n_psu",
+          "n_strata",
+          "df",
+          "se_method",
+          "weight",
+          "suppressed",
+          "flagged"
+        ],
+        "title": "EstimateRow",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "description": "Liveness + build + data identity (`data` is honest: absent in CI images).",
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "string"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "version",
+          "git_sha",
+          "data",
+          "data_version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "MetaResponse": {
+        "properties": {
+          "breakdowns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Breakdowns",
+            "type": "array"
+          },
+          "ci_level": {
+            "title": "Ci Level",
+            "type": "number"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryModel"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "families": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Families",
+            "type": "array"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "suppression": {
+            "$ref": "#/components/schemas/SuppressionModel"
+          },
+          "waves": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waves",
+            "type": "array"
+          },
+          "weight_table": {
+            "items": {
+              "$ref": "#/components/schemas/WeightSpecModel"
+            },
+            "title": "Weight Table",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data_version",
+          "git_sha",
+          "countries",
+          "waves",
+          "weight_table",
+          "suppression",
+          "ci_level",
+          "breakdowns",
+          "families"
+        ],
+        "title": "MetaResponse",
+        "type": "object"
+      },
+      "MissingnessRow": {
+        "description": "Response coverage per wave × country (from the pipeline's `coverage`).",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "integer"
+          },
+          "n_dk": {
+            "title": "N Dk",
+            "type": "integer"
+          },
+          "n_present": {
+            "title": "N Present",
+            "type": "integer"
+          },
+          "n_refused": {
+            "title": "N Refused",
+            "type": "integer"
+          },
+          "n_skipped": {
+            "title": "N Skipped",
+            "type": "integer"
+          },
+          "n_valid": {
+            "title": "N Valid",
+            "type": "integer"
+          },
+          "wave": {
+            "title": "Wave",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wave",
+          "country_code",
+          "n_present",
+          "n_valid",
+          "n_skipped",
+          "n_dk",
+          "n_refused"
+        ],
+        "title": "MissingnessRow",
+        "type": "object"
+      },
+      "ResponseMeta": {
+        "description": "What every estimate response says about itself (ADR-0008: the same\nenvelope is emitted by the static exporter, so the front end never\ncares which tier answered).",
+        "properties": {
+          "by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "array"
+          },
+          "ci_level": {
+            "title": "Ci Level",
+            "type": "number"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "filters": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Filters",
+            "type": "object"
+          },
+          "n_frame": {
+            "title": "N Frame",
+            "type": "integer"
+          },
+          "n_valid": {
+            "title": "N Valid",
+            "type": "integer"
+          },
+          "oriented": {
+            "title": "Oriented",
+            "type": "boolean"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "scale_type": {
+            "title": "Scale Type",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "se_method": {
+            "title": "Se Method",
+            "type": "string"
+          },
+          "stat": {
+            "title": "Stat",
+            "type": "string"
+          },
+          "suppression": {
+            "$ref": "#/components/schemas/SuppressionModel"
+          },
+          "waves": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waves",
+            "type": "array"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          },
+          "weight_key": {
+            "title": "Weight Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_version",
+          "outcome",
+          "scale_type",
+          "direction",
+          "stat",
+          "waves",
+          "scope",
+          "oriented",
+          "weight_key",
+          "weight",
+          "se_method",
+          "ci_level",
+          "suppression",
+          "n_frame",
+          "n_valid",
+          "by",
+          "filters"
+        ],
+        "title": "ResponseMeta",
+        "type": "object"
+      },
+      "SuppressionModel": {
+        "properties": {
+          "flag_below": {
+            "title": "Flag Below",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threshold",
+          "flag_below"
+        ],
+        "title": "SuppressionModel",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "ValueLabelModel": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "is_nonresponse": {
+            "title": "Is Nonresponse",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "wave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wave"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "wave",
+          "country_code",
+          "is_nonresponse"
+        ],
+        "title": "ValueLabelModel",
+        "type": "object"
+      },
+      "VariableDetail": {
+        "properties": {
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "is_country_specific": {
+            "title": "Is Country Specific",
+            "type": "boolean"
+          },
+          "is_derived": {
+            "title": "Is Derived",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "missingness": {
+            "items": {
+              "$ref": "#/components/schemas/MissingnessRow"
+            },
+            "title": "Missingness",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scale_type": {
+            "title": "Scale Type",
+            "type": "string"
+          },
+          "servable": {
+            "title": "Servable",
+            "type": "boolean"
+          },
+          "value_labels": {
+            "items": {
+              "$ref": "#/components/schemas/ValueLabelModel"
+            },
+            "title": "Value Labels",
+            "type": "array"
+          },
+          "waves_available": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waves Available",
+            "type": "array"
+          },
+          "wording": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wording"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "label",
+          "family",
+          "scale_type",
+          "direction",
+          "min",
+          "max",
+          "waves_available",
+          "is_country_specific",
+          "is_derived",
+          "servable",
+          "wording",
+          "value_labels",
+          "missingness"
+        ],
+        "title": "VariableDetail",
+        "type": "object"
+      },
+      "VariableList": {
+        "properties": {
+          "variables": {
+            "items": {
+              "$ref": "#/components/schemas/VariableSummary"
+            },
+            "title": "Variables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "variables"
+        ],
+        "title": "VariableList",
+        "type": "object"
+      },
+      "VariableSummary": {
+        "properties": {
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "is_country_specific": {
+            "title": "Is Country Specific",
+            "type": "boolean"
+          },
+          "is_derived": {
+            "title": "Is Derived",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scale_type": {
+            "title": "Scale Type",
+            "type": "string"
+          },
+          "servable": {
+            "title": "Servable",
+            "type": "boolean"
+          },
+          "waves_available": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waves Available",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "label",
+          "family",
+          "scale_type",
+          "direction",
+          "min",
+          "max",
+          "waves_available",
+          "is_country_specific",
+          "is_derived",
+          "servable"
+        ],
+        "title": "VariableSummary",
+        "type": "object"
+      },
+      "WeightSpecModel": {
+        "description": "One row of the wave→weight→eligibility table, verbatim.",
+        "properties": {
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requires_has_midyear": {
+            "title": "Requires Has Midyear",
+            "type": "boolean"
+          },
+          "requires_midyear_type_1": {
+            "title": "Requires Midyear Type 1",
+            "type": "boolean"
+          },
+          "requires_retained_y2": {
+            "title": "Requires Retained Y2",
+            "type": "boolean"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "waves": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Waves",
+            "type": "array"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "scope",
+          "waves",
+          "weight",
+          "kind",
+          "requires_retained_y2",
+          "requires_has_midyear",
+          "requires_midyear_type_1",
+          "is_default",
+          "rationale"
+        ],
+        "title": "WeightSpecModel",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Aggregate statistics from the Global Flourishing Study, Waves 1-2. Every estimate carries its survey weight, design-based CI, unweighted n and suppression flags. Data: https://doi.org/10.17605/OSF.IO/3JTZ8",
+    "title": "Flourish Atlas API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "Liveness probe for Cloud Run and uptime monitoring.\n\n``status`` reports the process; ``data`` is honest about whether a\nDuckDB file is baked into this deployment (CI images have none).",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/v1/aggregate": {
+      "get": {
+        "description": "One outcome at one wave, grouped and filtered. Every row carries\nthe weight, SE method, unweighted n, CI and suppression flags; the\nweight itself is resolved from the wave→weight→eligibility table,\nnever chosen here.",
+        "operationId": "aggregate_v1_aggregate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": true,
+            "schema": {
+              "title": "Outcome",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stat",
+            "required": false,
+            "schema": {
+              "default": "mean",
+              "title": "Stat",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "global",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oriented",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oriented",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "p",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "P"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Survey-weighted estimates with design-based CIs"
+      }
+    },
+    "/v1/change": {
+      "get": {
+        "description": "Mean within-person change with a design-based CI, plus (for\ninteger-coded items) the distribution of individual change and (for\ncategorical items) the transition matrix. ``from=Y1&via=MY&to=Y2``\nreturns the three panel legs under the three-point weight.",
+        "operationId": "change_v1_change_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": true,
+            "schema": {
+              "title": "Outcome",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "via",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Via"
+            }
+          },
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "global",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rect",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Rect",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "default": "Y1",
+              "title": "From",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Within-person change across waves"
+      }
+    },
+    "/v1/correlates": {
+      "get": {
+        "description": "Ranked weighted associations ship in Phase 6 together with the\nadjusted models and the Correlates view (docs/PROPOSAL.md §7); the\nengine's `weighted_correlation` exists but is deliberately not served\nuntil its caveats ship with it.",
+        "operationId": "correlates_v1_correlates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Not implemented: Phase 6"
+      }
+    },
+    "/v1/export.csv": {
+      "get": {
+        "description": "Same query model as /v1/aggregate; the response meta rides along\nas `#`-comment header lines, so a downloaded file still names its\nweight, data version and suppression rules.",
+        "operationId": "export_csv_v1_export_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": true,
+            "schema": {
+              "title": "Outcome",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stat",
+            "required": false,
+            "schema": {
+              "default": "mean",
+              "title": "Stat",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "global",
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oriented",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oriented",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "p",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "P"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Aggregate estimates as CSV"
+      }
+    },
+    "/v1/meta": {
+      "get": {
+        "description": "Everything static a client needs: the data version behind every\nnumber, the countries, and the wave → weight → eligibility table\nverbatim from the engine (the only home of those rules).",
+        "operationId": "meta_v1_meta_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Data version, countries, waves, weight table"
+      }
+    },
+    "/v1/states": {
+      "get": {
+        "description": "State-by-state estimates for US respondents with a state (157 US\nrows have none). ``adj=true`` uses the ``_ADJ_`` weight variants\n(unavailable for Wave 1, which needed no adjustment).",
+        "operationId": "states_v1_states_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": true,
+            "schema": {
+              "title": "Outcome",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stat",
+            "required": false,
+            "schema": {
+              "default": "mean",
+              "title": "Stat",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "adj",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Adj",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oriented",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oriented",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "US state-level aggregates with state weights"
+      }
+    },
+    "/v1/variables": {
+      "get": {
+        "operationId": "list_variables_v1_variables_get",
+        "parameters": [
+          {
+            "description": "substring of name/display name/wording",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "substring of name/display name/wording",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "filter to one family",
+            "in": "query",
+            "name": "family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter to one family",
+              "title": "Family"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search the variable catalog"
+      }
+    },
+    "/v1/variables/{name}": {
+      "get": {
+        "operationId": "variable_detail_v1_variables__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One variable: wording, labels, missingness"
+      }
+    }
+  }
+}

@@ -41,10 +41,35 @@ fresh Phase 1 rebuild is smaller than first measured).
 
 ## Measured performance
 
-*To be recorded by the Phase 3 ship PR (k6 profile):* per-endpoint p95
-warm (LRU on/off), cold start with the baked file, image size. Interim
-engine-side numbers from ADR-0006: full hot path (slice + Taylor mean by
-country over 207,919 rows) ≈ 31 ms median on a laptop.
+k6 profile (`infra/k6/hot-queries.js`, 4 VUs × 30 s against the real
+data on an M-series laptop; target p95 < 300 ms warm):
+
+| Query | p95, LRU off | p95, LRU on |
+|---|---|---|
+| `/v1/meta` | 4.9 ms | ~3 ms |
+| `/v1/aggregate` sfi mean by country | 86 ms | ~3 ms |
+| `/v1/aggregate` HAPPY by country × age band | 112 ms | ~3 ms |
+| `/v1/aggregate` ATTEND_SVCS proportions (India) | 42 ms | ~3 ms |
+| `/v1/change` HAPPY Y1→Y2 (Hong Kong) | 74 ms | ~3 ms |
+| overall | 90 ms | 3.3 ms |
+
+Zero failed requests in either mode — after fixing a real bug this
+profile caught: FastAPI serves sync endpoints from a thread pool, and
+interleaving `execute()`/`.arrow()` on **one shared DuckDB connection**
+races ("There is no query result"). Each frame load now runs on its own
+cursor (a cheap duplicate connection), pinned by a threaded regression
+test.
+
+Container measurements at the Cloud Run shape (`--memory=512m --cpus=1`,
+data baked): start → `/health` ready **1.18 s**; first `/v1/aggregate`
+(cold file cache) **356 ms**; second, different aggregate **142 ms**.
+Image size **1.06 GB**, of which the data file is 144 MB — the rest is
+the numeric stack (pyarrow, polars, numpy, duckdb) that flourish-stats
+carries by design (ADR-0005); acceptable for Cloud Run (layers are
+cached), revisit only if image pull ever dominates cold start. DuckDB
+pragmas stay at the defaults (`FA_DUCKDB_THREADS=2`,
+`FA_DUCKDB_MEMORY_LIMIT=256MB`) — the measured margins left no tuning
+worth doing.
 
 ## Alternatives considered
 

@@ -25,7 +25,8 @@ bucket, place in `data/raw/`, and run `make data`:
 | `parquet/derived.parquet` | SFI + domains, PHQ-2/GAD-2, midyear priorities per (id, wave) | 3 MB |
 | `parquet/coverage.parquet` | Missingness by variable × wave × country | 0.1 MB |
 | `parquet/{variables,value_labels,countries}.parquet` | Catalog tables alongside the data | 0.1 MB |
-| `flourish.duckdb` | All tables in one queryable file + the `responses_oriented` view | 210 MB |
+| `flourish.duckdb` | All tables in one queryable file + the `responses_oriented` view | 144 MB |
+| `static/` | 1,994 precomputed views (`v1/<outcome>/<wave>/<view>.json` + `index.json`), envelope-identical to the API (ADR-0008) | 216 MB |
 | `validation_report.md` | 62 checks incl. the published SFI ranking — **committed** | — |
 | `manifest.json` | data_version, sha256/rows for every input and output — **committed** | — |
 | `intermediate/` | Typed wide frames, ingest report, stage timings | 60 MB |

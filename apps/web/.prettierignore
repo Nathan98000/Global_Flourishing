@@ -1,2 +1,6 @@
 dist/
 node_modules/
+# Generated API client artifacts — canonical bytes come from
+# `uv run python -m flourish_api.openapi` and `pnpm gen:api`.
+openapi.json
+src/api/schema.d.ts

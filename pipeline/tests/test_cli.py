@@ -36,9 +36,11 @@ def test_stages_fail_cleanly_without_inputs(
     assert "missing" in capsys.readouterr().err
 
 
-def test_aggregate_is_a_phase_3_stub(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["aggregate"]) == 1
-    assert "Not implemented: Phase 3" in capsys.readouterr().err
+def test_aggregate_fails_cleanly_without_the_duckdb(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["aggregate", "--raw-dir", str(tmp_path), "--out-dir", str(tmp_path)]) == 1
+    assert "missing" in capsys.readouterr().err
 
 
 def test_run_fails_at_first_stage_missing_inputs(

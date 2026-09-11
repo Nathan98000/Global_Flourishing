@@ -154,6 +154,22 @@ things travel together. Adjusted associations (Phase 6) will control for
 a fixed set of demographics, which narrows, but does not close, that gap.
 The app says "associated with", and means exactly that.
 
+## How the API applies all of this
+
+Every `/v1` response says what it did: the `meta` block names the data
+version, the weight rule it resolved (by its key in the table above) and
+the weight column, the SE method, the suppression thresholds, and the
+unweighted counts behind the estimate — and each row repeats the weight,
+n, CI and suppression flags, so a number can never be quoted without its
+context. The API never chooses a weight itself; it looks the rule up in
+the table, which is also served verbatim at `/v1/meta`. Subgroup filters
+are applied as domains (the design is kept whole), and requests that
+don't make sense — a question not asked at that wave, a statistic that
+doesn't fit the scale, pooling countries without saying so — are refused
+with an explanation rather than answered wrongly. The precomputed files
+behind the app's common views carry the identical structure, produced by
+the same engine at build time.
+
 ## Verified against R
 
 The engine is cross-checked against R's `survey` package on **30

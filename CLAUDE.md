@@ -11,7 +11,7 @@ midyear administration modes), and the phase plan.
 | Path | Contents |
 |---|---|
 | `apps/web/` | React 18 + TS + Vite, TanStack Router (code-based) + Query. `src/config.ts` is the only reader of `import.meta.env`. |
-| `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. |
+| `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. `/v1` endpoints over a read-only DuckDB (`data.py`; absent data → honest 503s), catalog-validated queries (`queries.py`), frame assembly with filters-as-domains (`frames.py`), ETag/LRU/rate-limit middleware (`ops.py`). Tests run against a synthetic DuckDB (`tests/synthetic_db.py`); `built` marker for real-data tests. |
 | `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table, suppression. `stats/verify/` holds the R `survey` parity harness. |
 | `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
 | `data/` | Pipeline outputs; git-ignored except `README.md` and `manifest.json`. |
@@ -52,7 +52,21 @@ pushes the tag that triggers `.github/workflows/deploy.yml`).
   (the wave→weight→eligibility table): which weight goes with which wave
   combination, the `w_r2` populated-for-everyone quirk, and the
   `midyear_type = 1` restriction on MY→Y2 comparisons. Engine, API and
-  docs read from it; never restate those rules elsewhere.
+  docs read from it; never restate those rules elsewhere. Likewise the
+  servable-outcome allow-list and derived-score registry live only in
+  `flourish_stats.outcomes` (API + static exporter both read it).
+- **The API and the static exporter share one response envelope**
+  (ADR-0008): `flourish_api.schemas.EstimateResponse` is the contract,
+  and `services/api/tests/test_static_contract.py` validates the
+  exporter's files against it in CI. Change the envelope in both places
+  or that test fails.
+- **API frames: filters are domains.** Only country filters may subset
+  rows (strata nest within countries); every other filter must null the
+  outcome outside the domain (`flourish_api.frames`) or SEs silently
+  diverge from R's domain semantics.
+- **The generated client is committed and drift-checked**: after any
+  API schema change run `uv run python -m flourish_api.openapi >
+  apps/web/openapi.json && pnpm -C apps/web gen:api` and commit both.
 - **Never invent cloud identifiers.** Project IDs, regions, URLs come from
   GitHub secrets/variables named in `docs/SETUP.md`; deploy jobs skip
   cleanly when they are absent.
@@ -65,7 +79,7 @@ pushes the tag that triggers `.github/workflows/deploy.yml`).
 
 ## Phases (docs/PROPOSAL.md §7)
 
-0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine ✅ · 3 API ·
+0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine ✅ · 3 API ✅ ·
 4 Front-end MVP · 5 Panel/midyear/US views · 6 Correlates · 7 Hardening ·
 8 Launch. Scope work to the current phase; later-phase work gets a loud
 "Not implemented: Phase N" stub, not a partial implementation.
