@@ -14,6 +14,32 @@ from fastapi.testclient import TestClient
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
+
+def assert_json_close(actual: object, expected: object, where: str = "$") -> None:
+    """Structural equality with float tolerance.
+
+    Goldens are generated on one machine and checked on another; ARM and
+    x86-64 differ in the last ULP of `estimate ± z·se` arithmetic, so
+    floats compare at rel 1e-12 while every other value — keys, ints,
+    bools, strings, null — stays exact.
+    """
+    if isinstance(expected, bool) or isinstance(actual, bool):
+        assert actual == expected, where
+    elif isinstance(expected, float) or isinstance(actual, float):
+        assert actual == pytest.approx(expected, rel=1e-12, abs=1e-12), where
+    elif isinstance(expected, dict):
+        assert isinstance(actual, dict), where
+        assert actual.keys() == expected.keys(), where
+        for key, value in expected.items():
+            assert_json_close(actual[key], value, f"{where}.{key}")
+    elif isinstance(expected, list):
+        assert isinstance(actual, list) and len(actual) == len(expected), where
+        for i, value in enumerate(expected):
+            assert_json_close(actual[i], value, f"{where}[{i}]")
+    else:
+        assert actual == expected, where
+
+
 CASES: dict[str, dict] = {
     "aggregate_mean_by_country": {
         "path": "/v1/aggregate",
@@ -46,7 +72,7 @@ def test_golden_response(name: str, client: TestClient) -> None:
         GOLDEN_DIR.mkdir(exist_ok=True)
         path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n")
     assert path.exists(), f"golden file missing — run with UPDATE_GOLDEN=1 to create {path}"
-    assert body == json.loads(path.read_text())
+    assert_json_close(body, json.loads(path.read_text()))
 
 
 def test_openapi_estimate_row_promises_the_record(client: TestClient) -> None:
