@@ -25,9 +25,13 @@ import polars as pl
 from flourish_stats import Design, WeightSpec, eligibility_expr, resolve, validate_frame
 
 from flourish_api.data import DataStore
-from flourish_api.queries import AggregateQuery, DomainFilter
+from flourish_api.queries import AggregateQuery, ChangeQuery, DomainFilter
 
 VALUE_COLUMN = "value"
+
+
+def wave_column(wave: str) -> str:
+    return f"value_{wave.lower()}"
 
 
 @dataclass(frozen=True)
@@ -94,4 +98,47 @@ def assemble_aggregate_frame(store: DataStore, query: AggregateQuery) -> Assembl
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
         value=VALUE_COLUMN,
         groups=query.group_columns,
+    )
+
+
+def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFrame:
+    """One row per respondent with a value column per requested wave.
+
+    The eligible rows for the longitudinal spec are the design; incomplete
+    pairs stay in it (the engine treats them as domain exclusions), and
+    non-country filters null **every** wave column so a filtered-out
+    respondent contributes no pair anywhere.
+    """
+    spec = query.spec
+    extra: list[str] = [c for c in query.by if c != "country_code"]
+    extra.extend(item.column for item in query.filters)
+    extra.append(spec.weight)
+    if query.scope != "global":
+        extra.append("state")
+
+    first, *rest = query.waves
+    frame = store.outcome_frame(
+        query.outcome, first, extra_columns=tuple(dict.fromkeys(extra))
+    ).rename({VALUE_COLUMN: wave_column(first)})
+    if "nonresponse" in frame.columns:
+        frame = frame.drop("nonresponse")
+    for wave in rest:
+        piece = store.outcome_frame(query.outcome, wave, extra_columns=()).select(
+            "id", pl.col(VALUE_COLUMN).alias(wave_column(wave))
+        )
+        frame = frame.join(piece, on="id", how="left")
+
+    frame = frame.filter(eligibility_expr(spec))
+    if query.countries:
+        frame = frame.filter(pl.col("country_code").is_in(list(query.countries)))
+    for wave in query.waves:
+        frame = apply_domain_filters(frame, wave_column(wave), query.filters)
+
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=wave_column(query.waves[-1]),
+        groups=query.by,
     )

@@ -95,3 +95,73 @@ class VariableDetail(VariableSummary):
 
 class VariableList(BaseModel):
     variables: list[VariableSummary]
+
+
+GroupValue = str | int | float | bool | None
+
+
+class EstimateRow(BaseModel):
+    """One estimator record, verbatim from the engine's common record.
+
+    Every number ships with its weight, ``se_method``, unweighted ``n``,
+    CI bounds and suppression flags; suppressed rows keep ``n``/``sum_w``
+    and null the estimates. The optional key fields identify sub-rows:
+    ``level`` (proportions/distributions), ``p`` (quantiles), ``leg``
+    (three-point panels), ``from_level``/``to_level``/``measure``
+    (transition matrices).
+    """
+
+    group: dict[str, GroupValue]
+    level: int | None = None
+    p: float | None = None
+    leg: str | None = None
+    from_level: int | None = None
+    to_level: int | None = None
+    measure: str | None = None
+
+    stat: str
+    estimate: float | None
+    se: float | None
+    ci_lo: float | None
+    ci_hi: float | None
+    ci_level: float
+    ci_method: str
+    n: int
+    sum_w: float
+    n_psu: int | None
+    n_strata: int | None
+    df: int | None
+    se_method: str
+    weight: str
+    suppressed: bool
+    flagged: bool
+
+
+class ResponseMeta(BaseModel):
+    """What every estimate response says about itself (ADR-0008: the same
+    envelope is emitted by the static exporter, so the front end never
+    cares which tier answered)."""
+
+    data_version: str | None
+    outcome: str
+    scale_type: str
+    direction: str
+    stat: str
+    waves: list[str]
+    scope: str
+    oriented: bool
+    weight_key: str
+    weight: str
+    se_method: str
+    ci_level: float
+    suppression: SuppressionModel
+    #: respondents in the eligible design frame / with a valid outcome
+    n_frame: int
+    n_valid: int
+    by: list[str]
+    filters: dict[str, list[GroupValue]]
+
+
+class EstimateResponse(BaseModel):
+    meta: ResponseMeta
+    rows: list[EstimateRow]

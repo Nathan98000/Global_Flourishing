@@ -18,6 +18,7 @@ from fastapi.responses import RedirectResponse
 from flourish_api import __version__
 from flourish_api.config import Settings
 from flourish_api.data import DataStore
+from flourish_api.ops import init_sentry, install_middleware
 from flourish_api.routes import v1
 
 
@@ -43,6 +44,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.store = store
+
+    init_sentry(settings)
+    install_middleware(app, settings)
 
     if settings.cors_origin_list:
         app.add_middleware(

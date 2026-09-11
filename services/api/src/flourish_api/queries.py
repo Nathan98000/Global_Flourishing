@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from fastapi import HTTPException
+from flourish_stats import WeightSpec, get, resolve
 
 from flourish_api.data import Catalog, VariableInfo
 
@@ -151,6 +152,14 @@ def parse_aggregate_query(
     if scope not in SCOPES:
         problems.add(f"scope must be one of {list(SCOPES)}, got {scope!r}")
         problems.raise_if_any()
+    if wave in WAVES:
+        try:
+            resolve((wave,), scope)
+        except KeyError:
+            problems.add(
+                f"no weight exists for wave {wave} in scope {scope!r} (the release "
+                f"has no _ADJ_ variant of the Wave 1 state weight; see /v1/meta)"
+            )
 
     if oriented and info.is_derived:
         problems.add(
@@ -260,4 +269,148 @@ def parse_aggregate_query(
         scope=scope,
         oriented=oriented,
         p=p_values,
+    )
+
+
+@dataclass(frozen=True)
+class ChangeQuery:
+    """A validated /v1/change request: the same people at two (or three)
+    waves, weight resolved from the table — never chosen by the caller."""
+
+    outcome: VariableInfo
+    waves: tuple[str, ...]  # chronological: (from, to) or (from, via, to)
+    spec: WeightSpec
+    by: tuple[str, ...]
+    countries: tuple[int, ...]
+    filters: tuple[DomainFilter, ...]
+    scope: str
+    rect: bool
+
+    @property
+    def is_three_point(self) -> bool:
+        return len(self.waves) == 3
+
+
+def parse_change_query(
+    catalog: Catalog,
+    *,
+    outcome: str,
+    from_wave: str,
+    to_wave: str,
+    via: str | None,
+    by: list[str],
+    filters: list[str],
+    scope: str,
+    rect: bool,
+) -> ChangeQuery:
+    """Validate a change request. The outcome must be asked at every
+    requested wave; the weight comes from ``resolve``/``get`` only, and the
+    midyear-mode restriction rides in on the spec (`my_y2` rows)."""
+    problems = _Problems()
+
+    info = catalog.outcome(outcome)
+    if info is None:
+        problems.add(f"unknown or non-servable outcome {outcome!r} — see /v1/variables")
+        problems.raise_if_any()
+        raise AssertionError("unreachable")
+    if scope not in SCOPES:
+        problems.add(f"scope must be one of {list(SCOPES)}, got {scope!r}")
+        problems.raise_if_any()
+
+    chronological: tuple[str, ...] = (from_wave, via, to_wave) if via else (from_wave, to_wave)
+    for wave in chronological:
+        if wave not in WAVES:
+            problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    problems.raise_if_any()
+    order = [WAVES.index(w) for w in chronological]
+    if len(set(order)) != len(order) or order != sorted(order):
+        problems.add(
+            f"waves must be distinct and chronological (Y1 → MY → Y2), got {chronological}"
+        )
+    for wave in chronological:
+        if wave not in info.waves:
+            problems.add(
+                f"{info.name} is not asked at {wave}; change needs the same item "
+                f"at every requested wave (available: {', '.join(info.waves)})"
+            )
+    problems.raise_if_any()
+
+    if rect and chronological != ("Y1", "Y2"):
+        problems.add("rect=true (the rectangular w_r2 weight) only applies to from=Y1&to=Y2")
+    try:
+        if rect and chronological == ("Y1", "Y2"):
+            spec = get("y1_y2_rect" if scope == "global" else f"{scope}:y1_y2_rect")
+        else:
+            spec = resolve(chronological, scope)
+    except KeyError:
+        supported = "Y1→Y2, Y1→MY, MY→Y2, Y1→MY→Y2"
+        problems.add(
+            f"no longitudinal weight exists for waves {chronological} in scope "
+            f"{scope!r}; supported: {supported} (see /v1/meta weight_table)"
+        )
+        problems.raise_if_any()
+        raise AssertionError("unreachable") from None
+
+    # Breakdowns: demographics only for change (a variable-valued breakdown
+    # would need its own wave choice; not offered).
+    allowed_columns = set(BREAKDOWNS)
+    if scope != "global":
+        allowed_columns.add(STATE_COLUMN)
+    seen: list[str] = []
+    for name in by:
+        if name in seen:
+            problems.add(f"duplicate by={name!r}")
+        elif name not in allowed_columns:
+            problems.add(
+                f"by={name!r}: change breakdowns are the demographic columns "
+                f"only ({sorted(allowed_columns)})"
+            )
+        else:
+            seen.append(name)
+
+    countries: list[int] = []
+    domain_filters: dict[str, list[str | int]] = {}
+    for item in filters:
+        column, sep, raw = item.partition(":")
+        if not sep or not raw:
+            problems.add(f"filter {item!r} must look like column:value")
+            continue
+        if column == "country_code":
+            try:
+                code = int(raw)
+            except ValueError:
+                problems.add(f"filter country_code: {raw!r} is not an integer code")
+                continue
+            if code not in catalog.country_codes():
+                problems.add(f"filter country_code: unknown country {code}")
+            elif code not in countries:
+                countries.append(code)
+            continue
+        if column not in allowed_columns:
+            problems.add(f"filter column {column!r} is not filterable")
+            continue
+        value = _parse_filter_value(column, raw, problems)
+        if value is not None:
+            domain_filters.setdefault(column, []).append(value)
+
+    if scope == "global" and "country_code" not in seen and not countries:
+        problems.add(
+            "global-scope change must group by country (by=country_code) or "
+            "filter to countries (filter=country_code:N)"
+        )
+    if scope != "global" and countries and countries != [22]:
+        problems.add(f"scope {scope!r} is US-only; drop the country filter {countries}")
+
+    problems.raise_if_any()
+    return ChangeQuery(
+        outcome=info,
+        waves=chronological,
+        spec=spec,
+        by=tuple(seen),
+        countries=tuple(countries),
+        filters=tuple(
+            DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
+        ),
+        scope=scope,
+        rect=rect,
     )

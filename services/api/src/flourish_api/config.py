@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     duckdb_threads: int = 2
     duckdb_memory_limit: str = "256MB"
 
+    # In-process LRU over /v1 GET responses (entries, not bytes; responses
+    # are small aggregates). 0 disables.
+    cache_size: int = 256
+    # Per-IP token bucket on /v1, enforced only in prod (Cloud Run sets
+    # X-Forwarded-For; per-instance limiting is acceptable at max 2
+    # instances, ADR-0008). 0 disables.
+    rate_limit_per_minute: int = 60
+    # Sentry is initialised only when a DSN is provided (docs/SETUP.md).
+    sentry_dsn: str | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
