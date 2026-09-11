@@ -44,6 +44,19 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
         ["MY"],
         False,
     ),
+    # Spans all three waves (no real item does, but the change endpoint's
+    # three-point path deserves an end-to-end test).
+    (
+        "BALANCE",
+        "Life balance",
+        "wellbeing",
+        "scale_0_10",
+        "higher_better",
+        0,
+        10,
+        ["Y1", "MY", "Y2"],
+        False,
+    ),
     ("CHILD_MEM", "Childhood memory", "childhood", "ordinal", "none", 1, 4, ["Y1"], False),
     ("INCOME", "Household income", "demographics", "nominal", "none", 101, 999, ["Y1"], True),
     ("WAVE", "Wave flag", "design", "design", "none", 0, 0, ["Y1", "MY", "Y2"], False),
@@ -130,14 +143,17 @@ def _responses(respondents: pl.DataFrame) -> pl.DataFrame:
         add(person, "Y1", "ATTEND_SVCS", 1 + i % 3, None)
         add(person, "Y1", "CHILD_MEM", 1 + i % 4, None)
         add(person, "Y1", "INCOME", 101 + i % 3, None)
+        add(person, "Y1", "BALANCE", (i * 2) % 11, None)
         if person["retained_y2"]:
             if i % 9 == 0:
                 add(person, "Y2", "HAPPY", None, "refused")
             else:
                 add(person, "Y2", "HAPPY", (i * 3 + 1) % 11, None)
             add(person, "Y2", "ATTEND_SVCS", 1 + (i + 1) % 3, None)
+            add(person, "Y2", "BALANCE", (i * 2 + 3) % 11, None)
         if person["has_midyear"]:
             add(person, "MY", "MONEY", (i * 5) % 11, None)
+            add(person, "MY", "BALANCE", (i * 2 + 1) % 11, None)
     return pl.DataFrame(rows).sort("variable", "wave", "id")
 
 

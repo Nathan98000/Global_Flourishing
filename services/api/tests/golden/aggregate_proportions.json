@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "by": [],
+    "ci_level": 0.95,
+    "data_version": "synthetic.0.0.1",
+    "direction": "none",
+    "filters": {
+      "country_code": [
+        1
+      ]
+    },
+    "n_frame": 60,
+    "n_valid": 60,
+    "oriented": false,
+    "outcome": "ATTEND_SVCS",
+    "scale_type": "ordinal",
+    "scope": "global",
+    "se_method": "taylor",
+    "stat": "proportion",
+    "suppression": {
+      "flag_below": 100,
+      "threshold": 50
+    },
+    "waves": [
+      "Y1"
+    ],
+    "weight": "w_c1",
+    "weight_key": "y1"
+  },
+  "rows": [
+    {
+      "ci_hi": null,
+      "ci_level": 0.95,
+      "ci_lo": null,
+      "ci_method": "normal",
+      "df": 4,
+      "estimate": null,
+      "flagged": false,
+      "from_level": null,
+      "group": {},
+      "leg": null,
+      "level": 1,
+      "measure": null,
+      "n": 20,
+      "n_psu": 6,
+      "n_strata": 2,
+      "p": null,
+      "se": null,
+      "se_method": "taylor",
+      "stat": "proportion",
+      "sum_w": 74.5,
+      "suppressed": true,
+      "to_level": null,
+      "weight": "w_c1"
+    },
+    {
+      "ci_hi": null,
+      "ci_level": 0.95,
+      "ci_lo": null,
+      "ci_method": "normal",
+      "df": 4,
+      "estimate": null,
+      "flagged": false,
+      "from_level": null,
+      "group": {},
+      "leg": null,
+      "level": 2,
+      "measure": null,
+      "n": 20,
+      "n_psu": 6,
+      "n_strata": 2,
+      "p": null,
+      "se": null,
+      "se_method": "taylor",
+      "stat": "proportion",
+      "sum_w": 74.5,
+      "suppressed": true,
+      "to_level": null,
+      "weight": "w_c1"
+    },
+    {
+      "ci_hi": null,
+      "ci_level": 0.95,
+      "ci_lo": null,
+      "ci_method": "normal",
+      "df": 4,
+      "estimate": null,
+      "flagged": false,
+      "from_level": null,
+      "group": {},
+      "leg": null,
+      "level": 3,
+      "measure": null,
+      "n": 20,
+      "n_psu": 6,
+      "n_strata": 2,
+      "p": null,
+      "se": null,
+      "se_method": "taylor",
+      "stat": "proportion",
+      "sum_w": 74.5,
+      "suppressed": true,
+      "to_level": null,
+      "weight": "w_c1"
+    }
+  ]
+}

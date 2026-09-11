@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
     "flourish-stats[duckdb]",
+    "sentry-sdk>=2",
 ]
 
 [tool.uv.sources]

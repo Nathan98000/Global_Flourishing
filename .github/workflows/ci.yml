@@ -30,6 +30,8 @@ jobs:
         run: uv run pytest --cov=flourish_api --cov=flourish_pipeline --cov=flourish_stats --cov-report=term-missing
       - name: Coverage gate (stats/src ≥ 90%)
         run: uv run coverage report --include='stats/src/*' --fail-under=90
+      - name: Coverage gate (services/api/src ≥ 90%)
+        run: uv run coverage report --include='services/api/src/*' --fail-under=90
 
   web:
     name: Web (lint · types · tests · build)
