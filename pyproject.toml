@@ -40,6 +40,9 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 # The stats docstrings and comments write estimator maths (−, ȳ, Σ, ×)
 # exactly as METHODS.md and the survey literature do.
 "stats/**" = ["RUF001", "RUF002", "RUF003"]
+# The API's served descriptions (OpenAPI, derived-outcome labels) quote
+# scale text ("0–10") the way the codebook and METHODS.md write it.
+"services/api/**" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pyright]
 include = ["services/api", "pipeline", "stats"]
