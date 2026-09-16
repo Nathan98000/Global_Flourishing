@@ -9,6 +9,11 @@
       content="Explore the Global Flourishing Study: wellbeing across 23 countries, 2023-2024."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Boot data races the JS parse instead of waiting behind it: the
+         static tier's catalog files plus the default Atlas view. -->
+    <link rel="preload" href="/data/meta.json" as="fetch" />
+    <link rel="preload" href="/data/variables.json" as="fetch" />
+    <link rel="preload" href="/data/v1/sfi/Y1/mean_by-country_code.json" as="fetch" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Flourish Atlas" />
     <meta

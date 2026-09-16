@@ -47,6 +47,11 @@ export function usePlot(build: () => Element, deps: readonly unknown[]) {
       ? [rendered]
       : rendered.querySelectorAll('svg')) {
       ensureSuppressedHatch(svg as SVGSVGElement)
+      // The ChartFigure container carries role="img" + the summary; the
+      // SVG internals (Plot labels its mark groups with aria-label on
+      // plain <g>, which ARIA prohibits) stay out of the a11y tree —
+      // the data table is the accessible path.
+      svg.setAttribute('aria-hidden', 'true')
     }
     host.replaceChildren(rendered)
     return () => {
