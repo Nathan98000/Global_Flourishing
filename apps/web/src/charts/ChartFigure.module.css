@@ -1,0 +1,81 @@
+.figure {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.titles {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-weight: 600;
+  font-size: var(--text-md);
+}
+
+.subtitle {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.action {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 1.6;
+}
+
+.exportNote {
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+.chart {
+  overflow-x: auto;
+}
+
+.chart[data-refreshing] {
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.details {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.details summary {
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.provenance {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
