@@ -12,7 +12,7 @@ from flourish_stats import (
     weighted_mean,
     weighted_proportion,
 )
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 NO_SUPPRESSION = SuppressionPolicy(threshold=0, flag_below=0)
@@ -69,6 +69,15 @@ def test_unit_weights_reproduce_unweighted_mean_and_classical_se(values: list[in
 
 
 @given(sample=simple_samples(), constant=st.sampled_from([0.1, 0.5, 2.0, 7.5, 100.0]))
+# All-equal values: the unscaled SE is exactly 0, but scaling the weights
+# perturbs the weighted mean by ~1 ulp, and that cancellation noise passes
+# through a square root — √ε·|ȳ|-scale, up to ~1e-6 here. The absolute
+# tolerance below admits exactly that (any real SE from these strategies
+# is ≥ ~0.02, and a genuine scaling bug moves SEs by factors, not 1e-6).
+# Hypothesis found these; keep them pinned.
+@example(sample=([3, 3], [1.5, 3.0]), constant=0.1)
+@example(sample=([5, 5], [0.25, 4.0]), constant=0.1)
+@example(sample=([10, 10], [0.25, 4.0]), constant=0.1)
 def test_weight_scaling_leaves_estimates_and_ses_unchanged(sample, constant: float) -> None:
     values, weights = sample
     n = len(values)
@@ -78,7 +87,7 @@ def test_weight_scaling_leaves_estimates_and_ses_unchanged(sample, constant: flo
         base = the_row(weighted_mean(frame, "y", design, policy=NO_SUPPRESSION))
         after = the_row(weighted_mean(scaled, "y", design, policy=NO_SUPPRESSION))
         assert after["estimate"] == pytest.approx(base["estimate"], rel=1e-12)
-        assert after["se"] == pytest.approx(base["se"], rel=1e-9, abs=1e-15)
+        assert after["se"] == pytest.approx(base["se"], rel=1e-9, abs=1e-6)
     base_p = weighted_proportion(frame, "y", TAYLOR, policy=NO_SUPPRESSION).to_pylist()
     after_p = weighted_proportion(scaled, "y", TAYLOR, policy=NO_SUPPRESSION).to_pylist()
     for b, a in zip(base_p, after_p, strict=True):
