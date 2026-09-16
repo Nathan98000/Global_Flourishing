@@ -72,6 +72,74 @@ jobs:
           path: apps/web/dist
           retention-days: 7
 
+  e2e:
+    name: Playwright journeys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: |
+          uv sync --frozen --all-packages
+          pnpm install --frozen-lockfile
+      - name: Synthetic fixture tier
+        run: make web-fixtures
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Chromium
+        run: pnpm -C apps/web exec playwright install --with-deps chromium
+      - name: Six journeys (incl. API blocked → static-first)
+        run: pnpm -C apps/web e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+
+  lighthouse:
+    name: Lighthouse + bundle budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: |
+          uv sync --frozen --all-packages
+          pnpm install --frozen-lockfile
+      - name: Synthetic fixture tier
+        run: make web-fixtures
+      - name: Build
+        run: pnpm -C apps/web build
+      - name: Bundle budget (initial route ≤ 250 kB gzipped)
+        run: pnpm -C apps/web budget
+      - name: Lighthouse (performance ≥ 90, accessibility ≥ 95)
+        run: pnpm -C apps/web exec lhci autorun
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: lhci-report
+          path: apps/web/lhci-report
+          retention-days: 7
+
   docker:
     name: API image builds
     runs-on: ubuntu-latest
