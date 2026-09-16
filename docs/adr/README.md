@@ -14,3 +14,4 @@ it.
 | [ADR-0006](ADR-0006-estimator-design.md) | Estimator design — Taylor linearisation matching R `survey` | Accepted |
 | [ADR-0007](ADR-0007-api-data-tier.md) | API data tier — baked read-only DuckDB, absent-data mode | Accepted |
 | [ADR-0008](ADR-0008-one-envelope-two-tiers.md) | One response envelope for two tiers; request-keyed caching | Accepted |
+| [ADR-0009](ADR-0009-static-first-fetch-layer.md) | Static-first fetch layer | Proposed |
