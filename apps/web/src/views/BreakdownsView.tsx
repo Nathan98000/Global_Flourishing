@@ -1,31 +1,319 @@
-// Placeholder while the chart library lands in the next PR of this
-// stack; the URL state (outcome, wave, by, sort) is already live.
+// Breakdowns (§2.6): outcome × one demographic as small multiples by
+// country, sortable, suppressed cells shown with their n. A second
+// breakdown — another demographic, or one categorical survey variable —
+// is API-only by design; the tier badge says which tier answered.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { EmptyState } from '../components/EmptyState'
+import { useMemo } from 'react'
+import { exportCsvUrl, useEstimates } from '../api/estimates'
+import { useHealth, useMeta } from '../api/meta'
+import type { Stat, VariableDetail } from '../api/types'
+import { useVariable, useVariables } from '../api/variables'
+import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import type { LevelLabeler } from '../charts/DotPlot'
+import { SmallMultiples } from '../charts/SmallMultiples'
+import { outcomeColor } from '../charts/theme'
+import { CoverageBanner } from '../components/CoverageBanner'
+import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
-import { breakdownsSearchParams } from '../state/search'
+import { Skeleton } from '../components/Skeleton'
+import { WordingPanel } from '../components/WordingPanel'
+import { CountryFilter } from '../components/controls/CountryFilter'
+import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
+import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { columnLabel, highestLevel, outcomeLevels } from '../labels'
+import {
+  BREAKDOWNS_DEFAULTS,
+  breakdownsRequest,
+  breakdownsSearchParams,
+  type BreakdownsSearch,
+} from '../state/search'
+import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/breakdowns')
+
+/** Level display order for a breakdown column, from meta's labels. */
+export function levelDomain(
+  column: string,
+  meta: {
+    breakdown_labels: Record<string, { levels: { value: number | string; label: string }[] }>
+  },
+  detail?: VariableDetail,
+): string[] {
+  const labels = meta.breakdown_labels[column]
+  if (labels) return labels.levels.map((level) => level.label)
+  if (detail) return outcomeLevels(detail).map((level) => level.label)
+  return []
+}
 
 export function BreakdownsView() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
+  const meta = useMeta()
+  const health = useHealth()
+  const variables = useVariables()
+  const variable = variables.data?.byName[search.outcome]
+  const detailQuery = useVariable(variables.isSuccess ? search.outcome : null)
+  const detail = detailQuery.data?.detail
+
+  const primary = search.by[0] ?? BREAKDOWNS_DEFAULTS.by[0] ?? 'age_band'
+  const secondary = search.by[1]
+  const secondaryIsVariable = Boolean(secondary && variables.data?.byName[secondary] !== undefined)
+  const secondaryDetailQuery = useVariable(secondaryIsVariable ? (secondary as string) : null)
+  const secondaryDetail = secondaryDetailQuery.data?.detail
+
+  const setSearch = (patch: Partial<BreakdownsSearch>) => {
+    void navigate({ search: breakdownsSearchParams({ ...search, ...patch }) as never })
+  }
+
+  const isCategorical = variable?.default_stat === 'proportion'
+  const outcomeLevelOptions = useMemo(() => outcomeLevels(detail), [detail])
+  const activeLevel = search.level ?? outcomeLevelOptions[0]?.value
+  const levelLabel = outcomeLevelOptions.find((entry) => entry.value === activeLevel)?.label
+
+  const request = variables.isSuccess ? breakdownsRequest(search, variable) : null
+  const estimates = useEstimates(request)
+  const response = estimates.data?.response
+
+  // Level labels for a variable-valued second dimension come from that
+  // variable's own value labels (server truth, fetched once).
+  const labeler: LevelLabeler | undefined = useMemo(() => {
+    if (!secondaryIsVariable || !secondaryDetail) return undefined
+    const levels = new Map(
+      outcomeLevels(secondaryDetail).map((level) => [level.value, level.label]),
+    )
+    return (column, value) =>
+      column === secondaryDetail.name && typeof value === 'number' ? levels.get(value) : undefined
+  }, [secondaryIsVariable, secondaryDetail])
+
+  const displayRows = useMemo(() => {
+    if (!response) return []
+    let rows = response.rows
+    if (isCategorical) {
+      const level = activeLevel ?? highestLevel(rows)
+      if (level !== undefined) rows = rows.filter((row) => row.level === level)
+    }
+    if (search.countries.length) {
+      rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
+    }
+    return rows
+  }, [response, isCategorical, activeLevel, search.countries])
+
+  if (meta.isPending || variables.isPending) {
+    return (
+      <section>
+        <h2>Breakdowns</h2>
+        <Skeleton height={420} label="Loading breakdowns" />
+      </section>
+    )
+  }
+  if (meta.isError || variables.isError || !meta.data || !variables.data) {
+    return (
+      <section>
+        <h2>Breakdowns</h2>
+        <ErrorState error={meta.error ?? variables.error} />
+      </section>
+    )
+  }
+
+  const demographics = meta.data.meta.breakdowns.filter((column) => column !== 'country_code')
+  const demographicOptions: RadioOption<string>[] = demographics.map((column) => ({
+    value: column,
+    label: columnLabel(column, meta.data.meta),
+  }))
+  const categoricalVariables = variables.data.list.filter(
+    (candidate) =>
+      candidate.servable &&
+      !candidate.is_derived &&
+      candidate.default_stat === 'proportion' &&
+      candidate.name !== search.outcome,
+  )
+
+  const waveOptions: RadioOption<BreakdownsSearch['wave']>[] = meta.data.meta.waves.map((wave) => ({
+    value: wave as BreakdownsSearch['wave'],
+    label: wave,
+    disabled: variable ? !variable.waves_available.includes(wave) : false,
+  }))
+
+  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)} — ${search.wave}`
+  const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
+
+  const csv: CsvExport | undefined =
+    request === null
+      ? undefined
+      : health.isSuccess && health.data.data === 'ok'
+        ? { kind: 'server', href: exportCsvUrl(request) }
+        : response && estimates.data?.source === 'static'
+          ? {
+              kind: 'client',
+              onDownload: () =>
+                downloadTextFile(
+                  csvFilename(request.outcome, request.wave, stat, response.meta.data_version),
+                  responseToCsv(response),
+                ),
+            }
+          : undefined
+
   return (
     <section>
-      <h2>Breakdowns</h2>
+      <h2 className="visually-hidden">Breakdowns</h2>
       <InvalidParamsNotice
         invalid={search.invalid}
-        onDismiss={() => {
+        onDismiss={() =>
           void navigate({ search: breakdownsSearchParams(search) as never, replace: true })
-        }}
+        }
       />
-      <EmptyState title="Small multiples land with the chart library">
-        <p>
-          This view will show {search.outcome} × {search.by.join(' × ')} by country. It arrives in
-          the next PR of the Phase 4 stack.
-        </p>
-      </EmptyState>
+      <div className={styles.controls}>
+        <OutcomePicker
+          variables={variables.data.list}
+          value={search.outcome}
+          onChange={(outcome) => {
+            const target = variables.data.byName[outcome]
+            const wave =
+              target && !target.waves_available.includes(search.wave)
+                ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
+                : search.wave
+            setSearch({ outcome, wave: wave ?? search.wave })
+          }}
+        />
+        <RadioRow
+          legend="Wave"
+          name="wave"
+          options={waveOptions}
+          value={search.wave}
+          onChange={(wave) => setSearch({ wave })}
+        />
+        <RadioRow
+          legend="Break down by"
+          name="by"
+          options={demographicOptions}
+          value={primary}
+          onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
+        />
+        <label className={styles.oriented}>
+          Second breakdown (live query){' '}
+          <select
+            value={secondary ?? ''}
+            onChange={(event) =>
+              setSearch({
+                by: event.target.value ? [primary, event.target.value] : [primary],
+              })
+            }
+          >
+            <option value="">—</option>
+            <optgroup label="demographics">
+              {demographics
+                .filter((column) => column !== primary)
+                .map((column) => (
+                  <option key={column} value={column}>
+                    {columnLabel(column, meta.data.meta)}
+                  </option>
+                ))}
+            </optgroup>
+            <optgroup label="survey variables">
+              {categoricalVariables.map((candidate) => (
+                <option key={candidate.name} value={candidate.name}>
+                  {candidate.display_name} ({candidate.name})
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+        <RadioRow
+          legend="Sort countries"
+          name="sort"
+          options={[
+            { value: 'estimate', label: 'By value' },
+            { value: 'name', label: 'By name' },
+            { value: 'gap', label: 'By gap' },
+          ]}
+          value={search.sort}
+          onChange={(sort) => setSearch({ sort })}
+        />
+        <CountryFilter
+          countries={meta.data.meta.countries}
+          selected={search.countries}
+          onChange={(countries) => setSearch({ countries })}
+        />
+        {isCategorical && outcomeLevelOptions.length > 0 && (
+          <RadioRow
+            legend="Answer level"
+            name="outcome-level"
+            options={outcomeLevelOptions.map((entry) => ({
+              value: String(entry.value),
+              label: entry.label,
+            }))}
+            value={String(activeLevel)}
+            onChange={(value) => setSearch({ level: Number(value) })}
+          />
+        )}
+      </div>
+
+      {search.wave !== 'Y1' && detail && (
+        <div className={styles.banner}>
+          <CoverageBanner
+            wave={search.wave}
+            missingness={detail.missingness}
+            countries={meta.data.meta.countries}
+          />
+        </div>
+      )}
+
+      {estimates.isPending ? (
+        <Skeleton height={420} label="Loading estimates" />
+      ) : estimates.isError ? (
+        <ErrorState error={estimates.error} />
+      ) : response && variable ? (
+        <>
+          <p role="status" className="visually-hidden">
+            Updated: {title}, {displayRows.length} cells.
+          </p>
+          <ChartFigure
+            title={title}
+            subtitle={
+              [
+                isCategorical && levelLabel ? `share answering “${levelLabel}”` : null,
+                secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || undefined
+            }
+            ariaLabel={
+              `${title}: one panel per country, ` +
+              `${levelDomain(primary, meta.data.meta).length} levels each; suppressed cells say ` +
+              `“withheld” with their n. The data table below carries every number.`
+            }
+            tier={estimates.data.source}
+            response={{ ...response, rows: displayRows }}
+            meta={meta.data.meta}
+            csv={csv}
+            isRefreshing={estimates.isPlaceholderData}
+          >
+            <SmallMultiples
+              rows={displayRows}
+              meta={meta.data.meta}
+              responseMeta={response.meta}
+              variable={variable}
+              color={outcomeColor(variable.name)}
+              levelColumn={primary}
+              levelDomain={levelDomain(primary, meta.data.meta)}
+              seriesColumn={secondary}
+              seriesDomain={
+                secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
+              }
+              sort={search.sort}
+              labeler={labeler}
+            />
+          </ChartFigure>
+        </>
+      ) : null}
+
+      {detail && (
+        <div className={styles.wording}>
+          <WordingPanel detail={detail} />
+        </div>
+      )}
     </section>
   )
 }
