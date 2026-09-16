@@ -9,6 +9,10 @@ html {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
+  /* Classic (non-overlay) scrollbars would otherwise re-center the
+     layout when content grows past the fold — a whole-page horizontal
+     shift on Windows/Linux (CLS 0.4 in CI, invisible on macOS). */
+  scrollbar-gutter: stable;
 }
 
 body {
