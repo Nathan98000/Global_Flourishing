@@ -14,6 +14,22 @@ export REPO="Nathan98000/Global_Flourishing"
 export SA_NAME="flourish-deploy"
 ```
 
+**Already set up?** Steps 1–4 have been done for this repo, so a fresh shell
+should *recover* the real identifiers rather than re-type the defaults above —
+the project id you actually got may differ (project ids are globally unique),
+and `$SA_EMAIL` built from the wrong one fails later with "Service account …
+does not exist".
+
+```sh
+gh variable list                      # GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE, …
+export PROJECT_ID="<the GCP_PROJECT_ID value>"
+export REGION="<the GCP_REGION value>"
+gcloud config set project "$PROJECT_ID"
+
+gcloud iam service-accounts list      # copy the deploy account's email
+export SA_EMAIL="<that email>"
+```
+
 ## 1. Google Cloud (API on Cloud Run)
 
 Requires the [gcloud CLI](https://cloud.google.com/sdk/docs/install), logged
@@ -152,9 +168,14 @@ from steps 0–1):
 ```sh
 export BUCKET="$PROJECT_ID-flourish-data"   # any globally-unique name
 
+# --public-access-prevention is a boolean flag in `gcloud storage` (it *means*
+# "enforced"); passing `=enforced` fails with "ignored explicit argument".
 gcloud storage buckets create "gs://$BUCKET" \
   --location="$REGION" --uniform-bucket-level-access \
-  --public-access-prevention=enforced
+  --public-access-prevention
+
+# Confirm both settings took (publicAccessPrevention: enforced, uniform: true)
+gcloud storage buckets describe "gs://$BUCKET" --format="yaml(public_access_prevention, uniform_bucket_level_access)"
 
 # The deploy service account reads builds and writes them from CI
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" \
@@ -196,3 +217,47 @@ and add `FA_SENTRY_DSN=${{ secrets.SENTRY_DSN }}` to the `env_vars` block
 of the `deploy-api` job in `.github/workflows/deploy.yml` (left out by
 default so the workflow stays secret-free for forks). The API initialises
 Sentry only when `FA_SENTRY_DSN` is set.
+
+## 9. Routine: shipping a phase
+
+Steps 1–4 are one-time and are done — `flourish-atlas.pages.dev` is live and
+the Cloud Run service answers `/health`. Everything after that is two moves.
+
+First, see what is actually configured:
+
+```sh
+gh secret list
+gh variable list   # expect GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE,
+                   # CF_PAGES_PROJECT, API_BASE_URL, WEB_ORIGIN — and, once
+                   # §7 is done, GCS_DATA_BUCKET
+```
+
+1. **Data.** If `GCS_DATA_BUCKET` is absent, do §7 once (create the bucket,
+   grant the deploy service account, upload the three raw files, set the
+   variable), then build once:
+
+   ```sh
+   gh workflow run data-build.yml && gh run watch
+   ```
+
+   Re-run it whenever the pipeline output changes (a new `data_version`);
+   deploys always bake whatever `builds/latest.txt` points at.
+
+2. **Release.** From a clean, up-to-date `main`:
+
+   ```sh
+   make deploy TAG=vX.Y.Z
+   ```
+
+   The preflight job prints a notice for anything missing; `deploy-api`
+   fails loudly if data was staged but `/health` reports it absent;
+   `deploy-web` ships `data/static/` alongside the front end.
+
+3. **Verify.** `curl -s https://<cloud-run-url>/health` shows the new
+   `git_sha` and `"data":"ok"`, and the Pages URL serves the new build with
+   the data version in its footer.
+
+Until step 1 is done the deploy still succeeds: the API ships without data
+and says so at `/health`, `/v1/*` returns 503, and the front end has no
+precomputed tier to read — a state the app is required to handle honestly
+rather than a failure to work around.

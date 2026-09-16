@@ -6,8 +6,8 @@
     "polars": "1.44.2",
     "pyarrow": "25.0.1"
   },
-  "generated_at_utc": "2026-09-10T18:34:51+00:00",
-  "git_sha": "2f3e9a6755db8250f7b16e0740dc9f71a67aa541",
+  "generated_at_utc": "2026-09-10T19:06:44+00:00",
+  "git_sha": "8e5f059fb58d60160b69caeca25740b62e6047d7",
   "inputs": [
     {
       "bytes": 137525983,
@@ -105,22 +105,22 @@
       "bytes": 6944,
       "path": "data/validation_report.md",
       "rows": null,
-      "sha256": "f5d688e1af9f656670abd853d7284f620ddd20942fec550498ca726f452669d4"
+      "sha256": "0d982ef45e2f91d46a8283347c91efec8a312d637d108020eef6a0e15ab5294b"
     },
     {
-      "bytes": 151007232,
+      "bytes": 150745088,
       "path": "data/flourish.duckdb",
       "rows": 33295632,
-      "sha256": "c29f75b03c2c8c828b8c9acf3c2d8626872ee9854428ad8a82c695575b11b209"
+      "sha256": "a29799f5b214b178e4f3e4ee825c333cabdb46ac9a36abebbceb31eb14438a8d"
     }
   ],
   "pipeline_version": "0.1.0",
   "stage_seconds": {
-    "codebook": 2.56,
-    "derive": 2.35,
-    "ingest": 0.64,
-    "manifest": 0.25,
-    "reshape": 2.85,
-    "validate": 0.84
+    "codebook": 2.62,
+    "derive": 2.32,
+    "ingest": 0.73,
+    "manifest": 0.27,
+    "reshape": 2.91,
+    "validate": 0.7
   }
 }
