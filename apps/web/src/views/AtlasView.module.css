@@ -1,0 +1,26 @@
+.figure {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.caption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-weight: 600;
+  font-size: var(--text-md);
+}
+
+.provenance {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}

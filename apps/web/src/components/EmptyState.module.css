@@ -1,0 +1,13 @@
+.panel {
+  padding: var(--space-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+.title {
+  color: var(--ink);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}

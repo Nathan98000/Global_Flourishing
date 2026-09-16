@@ -8,6 +8,13 @@
       name="description"
       content="Explore the Global Flourishing Study: wellbeing across 23 countries, 2023-2024."
     />
+    <script>
+      // Apply the persisted theme before first paint (see src/theme.ts).
+      try {
+        var t = localStorage.getItem('flourish-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

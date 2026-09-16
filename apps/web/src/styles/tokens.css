@@ -1,0 +1,199 @@
+/**
+ * Design tokens — the only place colors, spacing, radii and type sizes are
+ * defined. Both themes live here; components read roles, never hex.
+ *
+ * The six SFI domain hues are fixed across every view (proposal §4.4) and
+ * validated as a categorical set with the dataviz six-check validator in
+ * both modes (ADR-0010 records the numbers): light worst adjacent CVD
+ * ΔE 9.1 / normal 19.6, dark 8.4 / 19.3. Three light-mode hues sit below
+ * 3:1 against the surface — the relief rule applies, and every chart ships
+ * direct labels and a data table, so hue never carries meaning alone.
+ *
+ * Theme resolution: the OS preference applies unless the visitor stamped
+ * <html data-theme="...">; an explicit stamp wins both ways.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.625rem;
+
+  /* Spacing and shape */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Surfaces and ink (light) */
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  /* Hairline-only (axis ticks, decorations): below AA for body text — never
+     use for sentences; captions wear --ink-secondary. */
+  --ink-muted: #898781;
+  --border: rgba(11, 11, 11, 0.1);
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+
+  /* Interactive */
+  --accent: #256abf;
+  --accent-ink: #ffffff;
+  --focus-ring: #2a78d6;
+
+  /* The six SFI domain hues (fixed, every view — proposal §4.4) */
+  --sfi-happiness: #eda100;
+  --sfi-health: #1baf7a;
+  --sfi-meaning: #4a3aa7;
+  --sfi-character: #2a78d6;
+  --sfi-relationships: #e87ba4;
+  --sfi-financial: #eb6834;
+
+  /* General chart series (non-domain outcomes) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+
+  /* Uncertainty, suppression, flags */
+  --ci-band: rgba(42, 120, 214, 0.16);
+  --whisker: #52514e;
+  --suppressed-fill: rgba(11, 11, 11, 0.06);
+  --suppressed-hatch: #898781;
+  --warn-text: #8a5a00;
+  --error-text: #b3261e;
+  --ok-text: #006300;
+
+  /* Sequential ramp (map): one hue, light→dark */
+  --seq-100: #cde2fb;
+  --seq-200: #9ec5f4;
+  --seq-300: #6da7ec;
+  --seq-400: #3987e5;
+  --seq-500: #256abf;
+  --seq-600: #184f95;
+  --seq-700: #0d366b;
+  --map-empty: #e1e0d9;
+
+  /* Banners */
+  --notice-bg: #eef4fc;
+  --notice-border: #b7d3f6;
+  --warning-bg: #fdf3e1;
+  --warning-border: #f0d49a;
+}
+
+/* Dark theme: selected steps for the dark surface, not an automatic flip.
+   The OS preference applies unless the visitor stamped a theme… */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #242423;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #898781;
+    --border: rgba(255, 255, 255, 0.1);
+    --grid: #2c2c2a;
+    --axis: #383835;
+
+    --accent: #86b6ef;
+    --accent-ink: #0d0d0d;
+    --focus-ring: #86b6ef;
+
+    --sfi-happiness: #c98500;
+    --sfi-health: #199e70;
+    --sfi-meaning: #9085e9;
+    --sfi-character: #3987e5;
+    --sfi-relationships: #d55181;
+    --sfi-financial: #d95926;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+
+    --ci-band: rgba(57, 135, 229, 0.24);
+    --whisker: #c3c2b7;
+    --suppressed-fill: rgba(255, 255, 255, 0.07);
+    --suppressed-hatch: #898781;
+    --warn-text: #fab219;
+    --error-text: #ffb4ab;
+    --ok-text: #0ca30c;
+
+    --seq-100: #10315a;
+    --seq-200: #184f95;
+    --seq-300: #1c5cab;
+    --seq-400: #2a78d6;
+    --seq-500: #3987e5;
+    --seq-600: #6da7ec;
+    --seq-700: #b7d3f6;
+    --map-empty: #2c2c2a;
+
+    --notice-bg: #10233c;
+    --notice-border: #1c5cab;
+    --warning-bg: #33260c;
+    --warning-border: #8a5a00;
+  }
+}
+
+/* …and an explicit dark stamp wins over an OS light preference. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-raised: #242423;
+  --ink: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+  --border: rgba(255, 255, 255, 0.1);
+  --grid: #2c2c2a;
+  --axis: #383835;
+
+  --accent: #86b6ef;
+  --accent-ink: #0d0d0d;
+  --focus-ring: #86b6ef;
+
+  --sfi-happiness: #c98500;
+  --sfi-health: #199e70;
+  --sfi-meaning: #9085e9;
+  --sfi-character: #3987e5;
+  --sfi-relationships: #d55181;
+  --sfi-financial: #d95926;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+
+  --ci-band: rgba(57, 135, 229, 0.24);
+  --whisker: #c3c2b7;
+  --suppressed-fill: rgba(255, 255, 255, 0.07);
+  --suppressed-hatch: #898781;
+  --warn-text: #fab219;
+  --error-text: #ffb4ab;
+  --ok-text: #0ca30c;
+
+  --seq-100: #10315a;
+  --seq-200: #184f95;
+  --seq-300: #1c5cab;
+  --seq-400: #2a78d6;
+  --seq-500: #3987e5;
+  --seq-600: #6da7ec;
+  --seq-700: #b7d3f6;
+  --map-empty: #2c2c2a;
+
+  --notice-bg: #10233c;
+  --notice-border: #1c5cab;
+  --warning-bg: #33260c;
+  --warning-border: #8a5a00;
+}
