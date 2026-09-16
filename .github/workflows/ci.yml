@@ -131,6 +131,16 @@ jobs:
         run: pnpm -C apps/web build
       - name: Bundle budget (initial route ≤ 250 kB gzipped)
         run: pnpm -C apps/web budget
+      - name: Synthetic API (audit the healthy state, not the outage banner)
+        run: |
+          uv run python -c "
+          import sys
+          sys.path.insert(0, 'services/api/tests')
+          from pathlib import Path
+          from synthetic_db import build_synthetic_db
+          build_synthetic_db(Path('/tmp/lh-db'))"
+          FA_DATA_PATH=/tmp/lh-db/flourish.duckdb nohup uv run uvicorn flourish_api.main:app --port 8080 > /tmp/lh-api.log 2>&1 &
+          curl --retry 20 --retry-delay 1 --retry-connrefused -fsS localhost:8080/health
       - name: Lighthouse (performance ≥ 90, accessibility ≥ 95)
         run: pnpm -C apps/web exec lhci autorun
       - uses: actions/upload-artifact@v7

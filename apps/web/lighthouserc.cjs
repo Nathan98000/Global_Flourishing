@@ -10,6 +10,12 @@
 // scores are measured by hand on the real build and recorded in
 // ADR-0010 (Atlas 0.98 / Codebook 0.97); the ≥ 0.90 target itself is
 // unchanged.
+//
+// CI also runs a synthetic-data API next to the preview so the audit
+// sees the app's *healthy* state: without one, the outage banner's
+// insertion after boot registers as a layout shift of the whole page
+// (CLS 0.44 on a runner) — a degraded-mode artifact that journey 6
+// covers deliberately, not the page production serves.
 
 module.exports = {
     ci: {
