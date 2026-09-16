@@ -21,7 +21,7 @@ export function parseSearchString(searchStr: string): RawSearch {
 export function stringifySearch(search: Record<string, unknown>): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(search)) {
-    if (value === undefined || value === null || value === false) continue
+    if (value === undefined || value === null || value === false || value === '') continue
     if (Array.isArray(value)) {
       for (const item of value) params.append(key, String(item))
       continue
