@@ -10,7 +10,7 @@ midyear administration modes), and the phase plan.
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TS + Vite, TanStack Router (code-based) + Query. `src/config.ts` is the only reader of `import.meta.env`. |
+| `apps/web/` | React 18 + TS + Vite. Views (`src/views/`: Atlas, Breakdowns, Codebook, Methods) over a static-first fetch layer (`src/api/` — ADR-0009), Observable Plot charts (`src/charts/`, colors are `var(--token)` strings only), design tokens (`src/styles/tokens.css`, both themes, contrast-tested), typed URL state (`src/state/`, API param names, defaults omitted). Tests: vitest (`src/__tests__/`, needs `make web-fixtures`), Playwright journeys (`e2e/`), Lighthouse (`lighthouserc.cjs`) + bundle budget (`scripts/check-budget.mjs`). `src/config.ts` is the only reader of `import.meta.env`. |
 | `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. `/v1` endpoints over a read-only DuckDB (`data.py`; absent data → honest 503s), catalog-validated queries (`queries.py`), frame assembly with filters-as-domains (`frames.py`), ETag/LRU/rate-limit middleware (`ops.py`). Tests run against a synthetic DuckDB (`tests/synthetic_db.py`); `built` marker for real-data tests. |
 | `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table, suppression. `stats/verify/` holds the R `survey` parity harness. |
 | `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
@@ -22,10 +22,12 @@ midyear administration modes), and the phase plan.
 ## Commands
 
 `make help` lists everything. The ones that matter: `make setup`, `make lint`,
-`make typecheck`, `make test`, `make api` (:8080), `make web`, `make build`,
-`make data` (needs `data/raw/`), `make parity` (R `survey` parity; needs the
-built data + `Rscript`), `make deploy TAG=vX.Y.Z` (main only, clean tree;
-pushes the tag that triggers `.github/workflows/deploy.yml`).
+`make typecheck`, `make test`, `make api` (:8080), `make web`,
+`make web-fixtures` (synthetic static tier into `apps/web/public/data` —
+vitest/Playwright/Lighthouse run against it; CI never sees real data),
+`make build`, `make data` (needs `data/raw/`), `make parity` (R `survey`
+parity; needs the built data + `Rscript`), `make deploy TAG=vX.Y.Z` (main
+only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
 
 ## Conventions
 
@@ -64,6 +66,14 @@ pushes the tag that triggers `.github/workflows/deploy.yml`).
   rows (strata nest within countries); every other filter must null the
   outcome outside the domain (`flourish_api.frames`) or SEs silently
   diverge from R's domain semantics.
+- **The front end computes no statistics and owns no labels.** Every
+  label, wording, value label, direction, country name, suppression
+  threshold and CI level comes from the server (`/v1/meta`,
+  `/v1/variables`, or their static-tier mirrors); `default_stat` rides
+  on every variable summary. The one client-side rule is the static
+  path computation (mirrors the exporter's naming; a miss falls back to
+  the API — ADR-0009). Chart colors are `var(--token)` strings from
+  `tokens.css`, never hex in chart code (ADR-0010).
 - **The generated client is committed and drift-checked**: after any
   API schema change run `uv run python -m flourish_api.openapi >
   apps/web/openapi.json && pnpm -C apps/web gen:api` and commit both.
@@ -80,9 +90,10 @@ pushes the tag that triggers `.github/workflows/deploy.yml`).
 ## Phases (docs/PROPOSAL.md §7)
 
 0 Foundations ✅ · 1 Data pipeline ✅ · 2 Statistics engine ✅ · 3 API ✅ ·
-4 Front-end MVP · 5 Panel/midyear/US views · 6 Correlates · 7 Hardening ·
-8 Launch. Scope work to the current phase; later-phase work gets a loud
-"Not implemented: Phase N" stub, not a partial implementation.
+4 Front-end MVP ✅ · 5 Panel/midyear/US views · 6 Correlates ·
+7 Hardening · 8 Launch. Scope work to the current phase; later-phase
+work gets a loud "Not implemented: Phase N" stub, not a partial
+implementation (in the web app: omitted from the nav, not dead links).
 
 ## Hand-off
 

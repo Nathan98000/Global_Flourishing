@@ -1,6 +1,6 @@
 # ADR-0009: Static-first fetch layer
 
-**Status:** Proposed (measurements land with the phase's final PR) · **Date:** 2026-09-16 · **Phase:** 4
+**Status:** Accepted · **Date:** 2026-09-16 · **Phase:** 4
 
 ## Context
 
@@ -76,3 +76,16 @@ shows the version the app booted with).
 Revisit when the static tier grows past what a bucket rsync ships
 comfortably, or if Phase 5's change/state views need precomputation
 (neither `/v1/change` nor `/v1/states` is in the tier today).
+
+## Measured (real release build)
+
+| Number | Value |
+|---|---|
+| Static tier | 2,158 JSON files, 221 MB raw (1,994 estimate views + 161 variable details + meta/variables/index) |
+| meta.json / variables.json | 13.9 kB / 53.9 kB raw |
+| Full-tier export time | 66.7 s on the dev machine |
+| Atlas view, static tier | same-origin file — no API round-trip, no cold start; edge-cached on Pages |
+| Atlas view, API (local, warm) | 38 ms uncached · 0.5 ms from the LRU (k6 p95 from ADR-0008: 90 ms / 3.3 ms) |
+| Cold Cloud Run start the tier hides | 2–4 s (ADR-0007) |
+| Exporter-mirror test | every estimate file in the fixture tier's index is computed byte-identically by `staticPathFor` (vitest) |
+| API-blocked journey | Playwright blocks the API origin; the Atlas renders from the tier and banners honestly |
