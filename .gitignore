@@ -44,3 +44,8 @@ coverage.xml
 infra/data-stage/*
 !infra/data-stage/README.md
 apps/web/public/data/
+
+# Web test/report output
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/lhci-report/
