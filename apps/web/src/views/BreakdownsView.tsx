@@ -161,7 +161,10 @@ export function BreakdownsView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({ search: breakdownsSearchParams(search) as never, replace: true })
+          void navigate({
+            search: breakdownsSearchParams({ ...search, invalid: undefined }) as never,
+            replace: true,
+          })
         }
       />
       <div className={styles.controls}>

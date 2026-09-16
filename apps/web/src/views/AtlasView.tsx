@@ -160,7 +160,10 @@ export function AtlasView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({ search: atlasSearchParams(search) as never, replace: true })
+          void navigate({
+            search: atlasSearchParams({ ...search, invalid: undefined }) as never,
+            replace: true,
+          })
         }
       />
       <div className={styles.controls}>
