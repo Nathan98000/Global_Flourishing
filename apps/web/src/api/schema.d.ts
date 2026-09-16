@@ -505,6 +505,8 @@ export interface components {
             servable: boolean;
             /** Waves Available */
             waves_available: string[];
+            /** Wording */
+            wording: string | null;
         };
         /**
          * WeightSpecModel

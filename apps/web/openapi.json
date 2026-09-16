@@ -858,6 +858,7 @@
           "name",
           "display_name",
           "label",
+          "wording",
           "family",
           "scale_type",
           "direction",
@@ -868,7 +869,6 @@
           "is_derived",
           "servable",
           "default_stat",
-          "wording",
           "value_labels",
           "missingness"
         ],
@@ -968,12 +968,24 @@
             },
             "title": "Waves Available",
             "type": "array"
+          },
+          "wording": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wording"
           }
         },
         "required": [
           "name",
           "display_name",
           "label",
+          "wording",
           "family",
           "scale_type",
           "direction",
