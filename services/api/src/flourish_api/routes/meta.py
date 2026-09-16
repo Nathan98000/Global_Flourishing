@@ -7,10 +7,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from flourish_stats import DEFAULT_POLICY, weight_table_json
+from flourish_stats.breakdowns import breakdown_labels
 
 from flourish_api.data import DataStore, require_data
 from flourish_api.queries import BREAKDOWNS, WAVES
 from flourish_api.schemas import (
+    BreakdownLabelsModel,
     CountryModel,
     MetaResponse,
     SuppressionModel,
@@ -42,5 +44,11 @@ def meta(request: Request, store: Annotated[DataStore, Depends(require_data)]) -
         ),
         ci_level=0.95,
         breakdowns=sorted(BREAKDOWNS),
+        breakdown_labels={
+            column: BreakdownLabelsModel.model_validate(entry)
+            for column, entry in breakdown_labels(
+                store.catalog.variables, store.catalog.value_labels
+            ).items()
+        },
         families=store.catalog.families,
     )

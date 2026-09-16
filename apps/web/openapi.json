@@ -1,6 +1,53 @@
 {
   "components": {
     "schemas": {
+      "BreakdownLabelsModel": {
+        "description": "Display name + ordered levels for one demographic breakdown column\n(from ``flourish_stats.breakdowns`` — the front end owns no copy).",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownLevelModel"
+            },
+            "title": "Levels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "display_name",
+          "levels"
+        ],
+        "title": "BreakdownLabelsModel",
+        "type": "object"
+      },
+      "BreakdownLevelModel": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "BreakdownLevelModel",
+        "type": "object"
+      },
       "CountryModel": {
         "properties": {
           "code": {
@@ -340,6 +387,13 @@
       },
       "MetaResponse": {
         "properties": {
+          "breakdown_labels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BreakdownLabelsModel"
+            },
+            "title": "Breakdown Labels",
+            "type": "object"
+          },
           "breakdowns": {
             "items": {
               "type": "string"
@@ -407,13 +461,13 @@
         },
         "required": [
           "data_version",
-          "git_sha",
           "countries",
           "waves",
           "weight_table",
           "suppression",
           "ci_level",
           "breakdowns",
+          "breakdown_labels",
           "families"
         ],
         "title": "MetaResponse",
@@ -698,6 +752,10 @@
       },
       "VariableDetail": {
         "properties": {
+          "default_stat": {
+            "title": "Default Stat",
+            "type": "string"
+          },
           "direction": {
             "title": "Direction",
             "type": "string"
@@ -809,6 +867,7 @@
           "is_country_specific",
           "is_derived",
           "servable",
+          "default_stat",
           "wording",
           "value_labels",
           "missingness"
@@ -834,6 +893,10 @@
       },
       "VariableSummary": {
         "properties": {
+          "default_stat": {
+            "title": "Default Stat",
+            "type": "string"
+          },
           "direction": {
             "title": "Direction",
             "type": "string"
@@ -919,7 +982,8 @@
           "waves_available",
           "is_country_specific",
           "is_derived",
-          "servable"
+          "servable",
+          "default_stat"
         ],
         "title": "VariableSummary",
         "type": "object"

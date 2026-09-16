@@ -60,7 +60,51 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
     ("CHILD_MEM", "Childhood memory", "childhood", "ordinal", "none", 1, 4, ["Y1"], False),
     ("INCOME", "Household income", "demographics", "nominal", "none", 101, 999, ["Y1"], True),
     ("WAVE", "Wave flag", "design", "design", "none", 0, 0, ["Y1", "MY", "Y2"], False),
+    # The uppercase sources of the respondent recode columns, as in the
+    # real catalog — flourish_stats.breakdowns reads their value labels
+    # for /v1/meta's breakdown_labels (and the static meta.json).
+    ("GENDER", "Gender", "demographics", "nominal", "none", 1, 4, ["Y1"], False),
+    (
+        "EDUCATION_3",
+        "Education (three levels)",
+        "demographics",
+        "ordinal",
+        "none",
+        1,
+        3,
+        ["Y1"],
+        False,
+    ),
+    ("EMPLOYMENT", "Employment status", "demographics", "nominal", "none", 1, 8, ["Y1"], False),
+    ("MARITAL_STATUS", "Marital status", "demographics", "nominal", "none", 1, 6, ["Y1"], False),
+    ("URBAN_RURAL", "Urban or rural", "demographics", "nominal", "none", 1, 4, ["Y1"], False),
 )
+
+#: Value labels for the demographic sources (mirrors the real release's
+#: codes; labels shortened).
+DEMOGRAPHIC_LABELS: dict[str, tuple[str, ...]] = {
+    "GENDER": ("Male", "Female", "Other", "Prefer not to answer"),
+    "EDUCATION_3": ("Elementary or less", "Secondary", "Tertiary"),
+    "EMPLOYMENT": (
+        "Employed for an employer",
+        "Self-employed",
+        "Retired",
+        "Student",
+        "Homemaker",
+        "Unemployed, looking",
+        "None of these/Other",
+        "Out of work (reserve duty)",
+    ),
+    "MARITAL_STATUS": (
+        "Single/Never been married",
+        "Married",
+        "Separated",
+        "Divorced",
+        "Widowed",
+        "Domestic partner",
+    ),
+    "URBAN_RURAL": ("Rural area or farm", "Small town or village", "Large city", "Suburb"),
+}
 
 
 def _respondents() -> pl.DataFrame:
@@ -252,6 +296,28 @@ def _value_labels() -> pl.DataFrame:
             "is_nonresponse": False,
         }
     )
+    for variable, labels in DEMOGRAPHIC_LABELS.items():
+        rows.extend(
+            {
+                "variable": variable,
+                "wave": None,
+                "country_code": None,
+                "code": code,
+                "label": label,
+                "is_nonresponse": False,
+            }
+            for code, label in enumerate(labels, start=1)
+        )
+        rows.append(
+            {
+                "variable": variable,
+                "wave": None,
+                "country_code": None,
+                "code": 99,
+                "label": "(Refused)",
+                "is_nonresponse": True,
+            }
+        )
     return pl.DataFrame(rows)
 
 

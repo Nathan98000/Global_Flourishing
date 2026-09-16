@@ -13,22 +13,16 @@ from dataclasses import dataclass, field
 
 from fastapi import HTTPException
 from flourish_stats import WeightSpec, get, resolve
+from flourish_stats.breakdowns import BREAKDOWN_LEVELS
 
 from flourish_api.data import Catalog, VariableInfo
 
-#: Respondent columns a request may group or filter by. The value sets
-#: mirror pipeline/src/flourish_pipeline/schemas.py (asserted against the
-#: built data in the `built`-marked tests).
-BREAKDOWNS: dict[str, tuple[str | int, ...]] = {
-    "country_code": (),  # validated against the catalog's countries table
-    "age_band": ("18-24", "25-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+"),
-    "gender": (1, 2, 3, 4),
-    "education_3": (1, 2, 3),
-    "employment": (1, 2, 3, 4, 5, 6, 7, 8),
-    "marital_status": (1, 2, 3, 4, 5, 6),
-    "urban_rural": (1, 2, 3, 4),
-    "income_quintile": (1, 2, 3, 4, 5),
-}
+#: Respondent columns a request may group or filter by, with their level
+#: sets. Lives in flourish_stats.breakdowns (one home, shared with the
+#: static exporter's labels); the sets mirror
+#: pipeline/src/flourish_pipeline/schemas.py and are asserted against the
+#: built data in the `built`-marked tests.
+BREAKDOWNS: dict[str, tuple[str | int, ...]] = BREAKDOWN_LEVELS
 #: `state` joins the list under the US scopes only.
 STATE_COLUMN = "state"
 

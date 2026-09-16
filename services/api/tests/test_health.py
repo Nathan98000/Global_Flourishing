@@ -49,3 +49,16 @@ def test_cors_header_for_configured_origin(tmp_path) -> None:
 def test_no_cors_header_without_configuration(absent_client: TestClient) -> None:
     resp = absent_client.get("/health", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in resp.headers
+
+
+def test_dev_allows_the_vite_servers_by_default(absent_client: TestClient) -> None:
+    """`make api` + `make web` must exercise the static→API fallback
+    without exporting FA_CORS_ORIGINS (dev only; prod stays explicit)."""
+    resp = absent_client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_prod_has_no_default_origins(tmp_path) -> None:
+    prod_app = create_app(Settings(env="prod", data_path=tmp_path / "no.duckdb"))
+    resp = TestClient(prod_app).get("/health", headers={"Origin": "http://localhost:5173"})
+    assert "access-control-allow-origin" not in resp.headers

@@ -50,15 +50,31 @@ class SuppressionModel(BaseModel):
     flag_below: int
 
 
+class BreakdownLevelModel(BaseModel):
+    value: int | str
+    label: str
+
+
+class BreakdownLabelsModel(BaseModel):
+    """Display name + ordered levels for one demographic breakdown column
+    (from ``flourish_stats.breakdowns`` — the front end owns no copy)."""
+
+    display_name: str
+    levels: list[BreakdownLevelModel]
+
+
 class MetaResponse(BaseModel):
     data_version: str | None
-    git_sha: str | None
+    #: Absent from the static tier's meta.json (a build artefact has no
+    #: single serving process to identify).
+    git_sha: str | None = None
     countries: list[CountryModel]
     waves: list[str]
     weight_table: list[WeightSpecModel]
     suppression: SuppressionModel
     ci_level: float
     breakdowns: list[str]
+    breakdown_labels: dict[str, BreakdownLabelsModel]
     families: list[str]
 
 
@@ -76,6 +92,8 @@ class VariableSummary(BaseModel):
     is_derived: bool
     #: whether /v1/aggregate accepts it as an outcome
     servable: bool
+    #: the stat a view shows unprompted (``flourish_stats.outcomes.default_stat``)
+    default_stat: str
 
 
 class ValueLabelModel(BaseModel):
