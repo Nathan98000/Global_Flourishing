@@ -40,13 +40,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: |
+          uv sync --frozen --all-packages
+          pnpm install --frozen-lockfile
+      - name: Synthetic fixture tier (vitest reads apps/web/public/data)
+        run: make web-fixtures
       - name: ESLint + Prettier
         run: pnpm -C apps/web lint
       - name: Typecheck
