@@ -238,6 +238,7 @@ def _summary_payload(row: dict[str, Any], servable: bool) -> dict[str, Any]:
         "name": str(row["name"]),
         "display_name": str(row["display_name"]),
         "label": None if row["label"] is None else str(row["label"]),
+        "wording": None if row["wording"] is None else str(row["wording"]),
         "family": str(row["family"]),
         "scale_type": str(row["scale_type"]),
         "direction": str(row["direction"]),
@@ -257,6 +258,7 @@ def _derived_summary_payload(name: str) -> dict[str, Any]:
         "name": name,
         "display_name": derived.display_name,
         "label": derived.description,
+        "wording": None,
         "family": "derived",
         "scale_type": derived.scale_type,
         "direction": derived.direction,
@@ -331,12 +333,10 @@ def export_catalog(
         name = str(summary["name"])
         detail: dict[str, Any]
         if summary["is_derived"]:
-            detail = {**summary, "wording": None, "value_labels": [], "missingness": []}
+            detail = {**summary, "value_labels": [], "missingness": []}
         else:
-            row = substantive.filter(pl.col("name") == name).row(0, named=True)
             detail = {
                 **summary,
-                "wording": None if row["wording"] is None else str(row["wording"]),
                 "value_labels": [
                     {
                         "code": int(label["code"]),

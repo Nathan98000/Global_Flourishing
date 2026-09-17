@@ -81,9 +81,9 @@ export function SmallMultiples({
       : { fy: 'facet' }
     return Plot.plot({
       height: 60 + facets.length * panelHeight,
-      width: seriesColumn ? 780 : 660,
+      width: seriesColumn ? 820 : 700,
       marginLeft: 150,
-      marginRight: 40,
+      marginRight: 110,
       style: {
         fontFamily: FONT_FAMILY,
         fontSize: '12px',

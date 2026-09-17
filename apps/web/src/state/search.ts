@@ -119,16 +119,17 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
 }
 
 /** Only the non-default params — what a shared URL should contain. */
-export function atlasSearchParams(search: AtlasSearch): Record<string, unknown> {
+export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, unknown> {
   return {
     outcome: search.outcome === ATLAS_DEFAULTS.outcome ? undefined : search.outcome,
     wave: search.wave === ATLAS_DEFAULTS.wave ? undefined : search.wave,
     stat: search.stat,
     view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
     sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
-    countries: search.countries.length ? search.countries.join(',') : undefined,
+    countries: search.countries?.length ? search.countries.join(',') : undefined,
     level: search.level,
     oriented: search.oriented ? true : undefined,
+    invalid: search.invalid?.length ? search.invalid : undefined,
   }
 }
 
@@ -196,17 +197,19 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
   return collect.finish(search)
 }
 
-export function breakdownsSearchParams(search: BreakdownsSearch): Record<string, unknown> {
+export function breakdownsSearchParams(search: Partial<BreakdownsSearch>): Record<string, unknown> {
   const byIsDefault =
-    search.by.length === BREAKDOWNS_DEFAULTS.by.length &&
-    search.by.every((value, index) => value === BREAKDOWNS_DEFAULTS.by[index])
+    search.by === undefined ||
+    (search.by.length === BREAKDOWNS_DEFAULTS.by.length &&
+      search.by.every((value, index) => value === BREAKDOWNS_DEFAULTS.by[index]))
   return {
     outcome: search.outcome === BREAKDOWNS_DEFAULTS.outcome ? undefined : search.outcome,
     wave: search.wave === BREAKDOWNS_DEFAULTS.wave ? undefined : search.wave,
     by: byIsDefault ? undefined : search.by,
     sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
-    countries: search.countries.length ? search.countries.join(',') : undefined,
+    countries: search.countries?.length ? search.countries.join(',') : undefined,
     level: search.level,
+    invalid: search.invalid?.length ? search.invalid : undefined,
   }
 }
 
@@ -251,11 +254,12 @@ export function parseCodebookSearch(raw: Raw): CodebookSearch {
   return collect.finish(search)
 }
 
-export function codebookSearchParams(search: CodebookSearch): Record<string, unknown> {
+export function codebookSearchParams(search: Partial<CodebookSearch>): Record<string, unknown> {
   return {
     q: search.q || undefined,
     family: search.family,
     wave: search.wave,
     scale: search.scale,
+    invalid: search.invalid?.length ? search.invalid : undefined,
   }
 }

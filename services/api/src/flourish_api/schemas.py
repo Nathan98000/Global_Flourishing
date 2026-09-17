@@ -82,6 +82,9 @@ class VariableSummary(BaseModel):
     name: str
     display_name: str
     label: str | None
+    #: exact question wording (None for derived scores) — in the summary
+    #: so the codebook searches it over one fetch, offline included
+    wording: str | None
     family: str
     scale_type: str
     direction: str
@@ -117,7 +120,6 @@ class MissingnessRow(BaseModel):
 
 
 class VariableDetail(VariableSummary):
-    wording: str | None
     value_labels: list[ValueLabelModel]
     missingness: list[MissingnessRow]
 

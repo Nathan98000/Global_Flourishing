@@ -46,6 +46,7 @@ def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummar
         name=name,
         display_name=str(row["display_name"]),
         label=None if row["label"] is None else str(row["label"]),
+        wording=None if row["wording"] is None else str(row["wording"]),
         family=str(row["family"]),
         scale_type=str(row["scale_type"]),
         direction=str(row["direction"]),
@@ -65,6 +66,7 @@ def _derived_summary(name: str) -> VariableSummary:
         name=name,
         display_name=derived.display_name,
         label=derived.description,
+        wording=None,
         family="derived",
         scale_type=derived.scale_type,
         direction=derived.direction,
@@ -122,7 +124,7 @@ def variable_detail(
     assert store.catalog is not None
     if name in DERIVED_OUTCOMES:
         summary = _derived_summary(name)
-        return VariableDetail(**summary.model_dump(), wording=None, value_labels=[], missingness=[])
+        return VariableDetail(**summary.model_dump(), value_labels=[], missingness=[])
     rows = _substantive(store).filter(pl.col("name") == name)
     if rows.height == 0:
         raise HTTPException(404, detail=f"no variable named {name!r} — see /v1/variables")
@@ -148,7 +150,6 @@ def variable_detail(
     ]
     return VariableDetail(
         **_catalog_summary(store, row).model_dump(),
-        wording=None if row["wording"] is None else str(row["wording"]),
         value_labels=labels,
         missingness=missingness,
     )

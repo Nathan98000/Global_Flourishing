@@ -6,3 +6,5 @@ openapi.json
 src/api/schema.d.ts
 # Generated data tiers (fixture or real) — never formatted.
 public/data/
+.lighthouseci/
+lhci-report/

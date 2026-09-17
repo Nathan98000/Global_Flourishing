@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The six SFI domain hues around a globe-ish ring (literal hex: a
+       favicon renders outside the app's token cascade). -->
+  <circle cx="16" cy="16" r="14.5" fill="none" stroke="#52514e" stroke-width="1.6" opacity="0.55"/>
+  <circle cx="16" cy="4.6" r="3.4" fill="#eda100"/>
+  <circle cx="25.9" cy="10.3" r="3.4" fill="#1baf7a"/>
+  <circle cx="25.9" cy="21.7" r="3.4" fill="#4a3aa7"/>
+  <circle cx="16" cy="27.4" r="3.4" fill="#2a78d6"/>
+  <circle cx="6.1" cy="21.7" r="3.4" fill="#e87ba4"/>
+  <circle cx="6.1" cy="10.3" r="3.4" fill="#eb6834"/>
+</svg>

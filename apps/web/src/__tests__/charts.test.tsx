@@ -64,10 +64,12 @@ describe('RankedBar', () => {
     expect(text).toContain('†') // the flagged marker
     expect(text).toContain('7.40') // top value directly labelled
     expect(text).toContain('higher is better') // direction on the axis
-    // Marks wear tokens, not hex; the hatch pattern is injected.
+    // Marks wear tokens, not hex; the hatch pattern is injected; the
+    // SVG stays out of the a11y tree (the figure + table carry it).
     expect(svg?.innerHTML).toContain('var(--sfi-happiness)')
     expect(svg?.querySelector('#suppressed-hatch')).not.toBeNull()
     expect(svg?.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
+    expect(svg?.getAttribute('aria-hidden')).toBe('true')
   })
 
   test('quantile rows render without whiskers (no CIs yet, per METHODS)', () => {

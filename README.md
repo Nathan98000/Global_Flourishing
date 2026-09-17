@@ -9,25 +9,29 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 3 complete — API.** `make api` serves the typed `/v1`
-endpoints over the baked DuckDB file: aggregates, breakdowns, panel
-change with transition matrices, US states, CSV export — every number
-with its survey weight, design-based CI, unweighted n and suppression
-flags, weights resolved only through the engine's
-wave→weight→eligibility table. Warm p95 on hot queries is ~90 ms
-uncached and ~3 ms from the LRU (target < 300 ms;
-[ADR-0007](docs/adr/ADR-0007-api-data-tier.md)); the static-aggregate
-tier (`make data` exports 1,994 precomputed views) shares the exact
-response envelope
-([ADR-0008](docs/adr/ADR-0008-one-envelope-two-tiers.md)), and the web
-app's TypeScript client is generated from the committed OpenAPI schema.
-Phase 2's engine matches R's `survey` package on 30 committed reference
-estimates (`make parity`); Phase 1's `make data` reproduces the
-published SFI ranking in ~10 s + ~70 s of static export
-([data/validation_report.md](data/validation_report.md)). The full plan
-is [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
+**Status: Phase 4 complete — front-end MVP.** Atlas (ranked bars, a
+world choropleth, distributions, medians), Breakdowns (small multiples
+by country × demographic), a searchable Codebook with exact question
+wording, and a Methods page rendered from
+[docs/METHODS.md](docs/METHODS.md). The URL is the state — every view
+survives reload and pastes into another browser — with CSV/PNG export,
+dark mode, and suppression rendered in place, never dropped. The app is
+**static-first** ([ADR-0009](docs/adr/ADR-0009-static-first-fetch-layer.md)):
+the common views load from 2,158 precomputed JSON files on the app's own
+origin and the Atlas renders with the API cold, down or data-less;
+custom cuts (filters, second breakdowns, medians, `oriented`) fall back
+to the live `/v1` API, which stays envelope-identical by CI contract
+([ADR-0008](docs/adr/ADR-0008-one-envelope-two-tiers.md)). Measured:
+initial route 187.5 kB gzipped (budget 250), Lighthouse 0.98/1.00
+(Atlas) and 0.97/1.00 (Codebook) for performance/accessibility, six
+Playwright journeys in CI — including one with the API blocked at the
+network level ([ADR-0010](docs/adr/ADR-0010-frontend-rendering-stack.md)
+has the stack and the Hong Kong map story). The full plan is
+[docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
+
+![The Atlas: Secure Flourishing Index by country, with CIs, a tier badge and export buttons](docs/atlas-screenshot.png)
 
 Try it locally (with the built data present):
 
@@ -35,8 +39,15 @@ Try it locally (with the built data present):
 make api
 ```
 
-then e.g. `curl 'localhost:8080/v1/aggregate?outcome=sfi&wave=Y1&by=country_code'`
-— or open <http://localhost:8080/docs>.
+```bash
+make web
+```
+
+then open <http://localhost:5173> — or curl the API directly, e.g.
+`curl 'localhost:8080/v1/aggregate?outcome=sfi&wave=Y1&by=country_code'`
+(docs at <http://localhost:8080/docs>). The production URL is
+`https://flourish-atlas.pages.dev` once the Phase 4 release tag ships
+through the deploy workflow.
 
 ## Architecture
 
@@ -53,7 +64,7 @@ flowchart TB
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TypeScript + Vite, TanStack Router + Query |
+| `apps/web/` | React 18 + TS + Vite: Atlas/Breakdowns/Codebook/Methods, Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
 | `services/api/` | FastAPI service (Phase 0: `/health`; Phase 3: `/v1/*`) |
 | `stats/` | Statistics engine: survey-weighted estimators with design-based CIs, verified against R `survey` (`stats/verify/`) |
 | `pipeline/` | Data pipeline (Phase 1: ingest → clean → reshape → derive → validate → aggregate) |
@@ -67,15 +78,23 @@ flowchart TB
 Prerequisites: [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/) ≥ 10, make.
 
 ```sh
-make setup       # install Python + web deps, install the pre-commit hook
-make test        # pytest + vitest
-make lint        # ruff + eslint + prettier --check
-make typecheck   # pyright (strict on src/) + tsc
-make api         # FastAPI on :8080 (docs at /docs)
-make web         # Vite dev server (reads apps/web/.env, see .env.example)
-make data        # rebuild catalog/Parquet/DuckDB from data/raw/ (see data/README.md)
-make help        # everything else
+make setup        # install Python + web deps, install the pre-commit hook
+make test         # web-fixtures + pytest + vitest
+make lint         # ruff + eslint + prettier --check
+make typecheck    # pyright (strict on src/) + tsc
+make api          # FastAPI on :8080 (docs at /docs)
+make web          # Vite dev server (reads apps/web/.env, see .env.example)
+make web-fixtures # synthetic static tier into apps/web/public/data (tests need it)
+make data         # rebuild catalog/Parquet/DuckDB from data/raw/ (see data/README.md)
+make help         # everything else
 ```
+
+The web test pyramid runs entirely against that synthetic fixture tier —
+vitest (97 tests), six Playwright journeys and Lighthouse CI never touch
+real data. To browse the app over the real build locally, stage the real
+tier instead: `rsync -a --delete data/static/ apps/web/public/data/`
+(both paths stay git-ignored; `make web-fixtures` restores the synthetic
+tier).
 
 To build the data, place the three raw GFS files in `data/raw/`
 ([data/README.md](data/README.md) says where to get them — they are never
@@ -100,7 +119,7 @@ deploy jobs with a notice.
 | 1 Data pipeline ✅ | 2–3 | `make data` builds catalog, Parquet, DuckDB | Validation suite passes; reproduces published SFI ranking |
 | 2 Statistics engine ✅ | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
 | 3 API ✅ | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
-| 4 Front-end MVP | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
+| 4 Front-end MVP ✅ | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
 | 5 Panel, midyear & US | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI |
 | 6 Correlates | 12–14 | Correlates view, adjusted models, model cards | Methods page updated; caveats shown in-product |
 | 7 Hardening | 14–15 | E2E, load test, monitoring, docs | Launch checklists complete |
@@ -133,8 +152,9 @@ profile: VanderWeele et al., *Nature Mental Health* (2025).
 
 Raw microdata is **not** in this repository and never will be; the app serves
 aggregates only, with small cells suppressed. Everything shown is an
-**association, not a cause** — the methods page (Phase 4) explains why. This
-project is not affiliated with the study.
+**association, not a cause** — the in-app Methods page (rendered from
+[docs/METHODS.md](docs/METHODS.md)) explains why. This project is not
+affiliated with the study.
 
 ## License
 

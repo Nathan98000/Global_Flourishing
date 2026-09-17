@@ -53,9 +53,14 @@ describe('atlas search', () => {
     expect(search.view).toBe('bars')
     expect(search.countries).toEqual([])
     expect(search.invalid).toEqual(['wave', 'view', 'countries'])
-    // The notice never round-trips: serialization drops it…
-    expect(stringifySearch(atlasSearchParams(search))).toBe('')
-    // …and a forged ?invalid=wave cannot conjure one.
+    // The notice survives the serialization middleware while active…
+    expect(stringifySearch(atlasSearchParams(search))).toBe(
+      '?invalid=wave&invalid=view&invalid=countries',
+    )
+    // …dismissing strips it…
+    expect(stringifySearch(atlasSearchParams({ ...search, invalid: undefined }))).toBe('')
+    // …and a forged or reloaded ?invalid=wave cannot conjure one (the
+    // parser recomputes it from the actual params).
     expect(parseAtlasSearch({ invalid: 'wave' }).invalid).toBeUndefined()
   })
 
