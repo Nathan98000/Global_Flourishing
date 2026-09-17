@@ -69,7 +69,7 @@ test('3 — a small cell renders with its n and no flag, not a gap', async ({ pa
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
 
-  await page.getByText('Data table').click()
+  await page.getByText('Data table', { exact: true }).click()
   const table = page.getByRole('table')
   await expect(table.getByText(/withheld|†/)).toHaveCount(0)
   // Every row carries an estimate and its n (the small cells included).

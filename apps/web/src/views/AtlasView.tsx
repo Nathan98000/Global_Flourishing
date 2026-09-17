@@ -19,7 +19,6 @@ import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
-import { OutcomeCoverage } from '../components/OutcomeCoverage'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
@@ -28,6 +27,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { formatCount } from '../format'
 import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { defaultDir, sortAtlasRows } from '../sortRows'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import styles from './AtlasView.module.css'
 
@@ -66,6 +66,8 @@ export function AtlasView() {
     })
   }
 
+  const metaForSort = meta.data?.meta
+  const dir = search.dir ?? defaultDir(search.sort)
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -91,8 +93,10 @@ export function AtlasView() {
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
-    return rows
-  }, [response, stat, activeLevel, search.countries])
+    // One ordering for the chart and the data table (items 5/13).
+    if (!metaForSort) return rows
+    return sortAtlasRows(rows, metaForSort, search.sort, dir)
+  }, [response, stat, activeLevel, search.countries, metaForSort, search.sort, dir])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -262,16 +266,35 @@ export function AtlasView() {
           />
         )}
         {search.view === 'bars' && stat !== 'distribution' && (
-          <RadioRow
-            legend="Sort"
-            name="sort"
-            options={[
-              { value: 'estimate', label: 'By value' },
-              { value: 'name', label: 'By country' },
-            ]}
-            value={search.sort}
-            onChange={(sort) => setSearch({ sort })}
-          />
+          <>
+            <RadioRow
+              legend="Sort"
+              name="sort"
+              options={[
+                { value: 'estimate', label: 'By value' },
+                { value: 'name', label: 'A–Z' },
+              ]}
+              value={search.sort}
+              onChange={(sort) => setSearch({ sort, dir: undefined })}
+            />
+            <RadioRow
+              legend="Order"
+              name="dir"
+              options={
+                search.sort === 'name'
+                  ? [
+                      { value: 'asc', label: 'A→Z' },
+                      { value: 'desc', label: 'Z→A' },
+                    ]
+                  : [
+                      { value: 'desc', label: 'High→low' },
+                      { value: 'asc', label: 'Low→high' },
+                    ]
+              }
+              value={dir}
+              onChange={(value) => setSearch({ dir: value })}
+            />
+          </>
         )}
         <CountryFilter
           countries={meta.data.meta.countries}
@@ -313,17 +336,6 @@ export function AtlasView() {
         </EmptyState>
       ) : (
         <>
-          {search.wave !== 'Y1' && variable && detail && (
-            <div className={styles.banner}>
-              <OutcomeCoverage
-                wave={search.wave}
-                variable={variable}
-                detail={detail}
-                countries={meta.data.meta.countries}
-              />
-            </div>
-          )}
-
           {stat === 'distribution' && search.countries.length === 0 ? (
             <EmptyState title="Choose countries to compare">
               <p>
@@ -405,7 +417,6 @@ export function AtlasView() {
                     responseMeta={response.meta}
                     variable={variable}
                     color={outcomeColor(variable.name)}
-                    sort={search.sort}
                     levelLabel={levelLabel}
                   />
                 )}

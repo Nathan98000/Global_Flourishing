@@ -133,9 +133,14 @@ original Wave 1 population. That matters because attrition is far from
 random: retention ranges from 90% in China to 23% in Hong Kong. A
 difference of two cross-sectional estimates would mix real change with
 changes in who answered; the longitudinal weights are the only defensible
-basis for "how did the same people move". Where Wave 2 and midyear
-coverage differ by country, the app shows coverage alongside the
-estimate.
+basis for "how did the same people move".
+
+The app **does not display follow-up rates next to Wave 2 estimates** —
+a deliberate owner decision (September 2026) departing from the
+proposal's §3.4. Follow-up varies widely, from 23% of the Wave 1 sample
+in Hong Kong to 90% in China, so treat cross-country Wave 2 comparisons
+with that in mind; the per-variable, per-country figures remain in the
+Codebook, in each variable's "Answered, by country and wave" table.
 
 Mean change is estimated on complete pairs (both waves answered), with
 the same design-based CI machinery; distributions of individual change

@@ -12,19 +12,19 @@ import type { Stat, VariableDetail } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import type { LevelLabeler } from '../charts/DotPlot'
-import { SmallMultiples } from '../charts/SmallMultiples'
+import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
-import { OutcomeCoverage } from '../components/OutcomeCoverage'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { columnLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { defaultDir, sortBreakdownRows } from '../sortRows'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
@@ -80,6 +80,8 @@ export function BreakdownsView() {
   const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
+  const dir = search.dir ?? defaultDir(search.sort)
+  const metaForSort = meta.data?.meta
 
   // Level labels for a variable-valued second dimension come from that
   // variable's own value labels (server truth, fetched once).
@@ -102,8 +104,29 @@ export function BreakdownsView() {
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
-    return rows
-  }, [response, isCategorical, activeLevel, search.countries])
+    // One ordering for the panels and the data table (items 5/13): the
+    // same facetOrder call the chart makes, then the served level order.
+    if (!metaForSort) return rows
+    const served = metaForSort
+    return sortBreakdownRows(
+      rows,
+      served,
+      (input) => facetOrder(input, served, 'country_code', search.sort, dir),
+      (row) => groupValueLabel(primary, row.group[primary] ?? null, served, labeler),
+      levelDomain(primary, served, detail),
+    )
+  }, [
+    response,
+    isCategorical,
+    activeLevel,
+    search.countries,
+    metaForSort,
+    search.sort,
+    dir,
+    primary,
+    labeler,
+    detail,
+  ])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -267,11 +290,28 @@ export function BreakdownsView() {
           name="sort"
           options={[
             { value: 'estimate', label: 'By value' },
-            { value: 'name', label: 'By name' },
+            { value: 'name', label: 'A–Z' },
             { value: 'gap', label: 'By gap' },
           ]}
           value={search.sort}
-          onChange={(sort) => setSearch({ sort })}
+          onChange={(sort) => setSearch({ sort, dir: undefined })}
+        />
+        <RadioRow
+          legend="Order"
+          name="dir"
+          options={
+            search.sort === 'name'
+              ? [
+                  { value: 'asc', label: 'A→Z' },
+                  { value: 'desc', label: 'Z→A' },
+                ]
+              : [
+                  { value: 'desc', label: 'High→low' },
+                  { value: 'asc', label: 'Low→high' },
+                ]
+          }
+          value={dir}
+          onChange={(value) => setSearch({ dir: value })}
         />
         <CountryFilter
           countries={meta.data.meta.countries}
@@ -304,17 +344,6 @@ export function BreakdownsView() {
         </EmptyState>
       ) : (
         <>
-          {search.wave !== 'Y1' && variable && detail && (
-            <div className={styles.banner}>
-              <OutcomeCoverage
-                wave={search.wave}
-                variable={variable}
-                detail={detail}
-                countries={meta.data.meta.countries}
-              />
-            </div>
-          )}
-
           {estimates.isPending ? (
             <Skeleton height={420} label="Loading estimates" />
           ) : estimates.isError ? (
@@ -365,6 +394,7 @@ export function BreakdownsView() {
                     secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
                   }
                   sort={search.sort}
+                  dir={dir}
                   labeler={labeler}
                 />
               </ChartFigure>

@@ -1,7 +1,8 @@
 // The numbers behind a view, as a real table: the screen-reader path and
 // the copy-paste path for every chart, and a view in its own right.
-// Every cell is shown (ADR-0011); a missing interval reads "—" and the
-// n rides on every row.
+// Columns: the row's identity, Estimate, the CI, and n (§6 — the weight
+// is named once in the caption). Every cell is shown (ADR-0011); a
+// missing interval reads "—" and the n rides on every row.
 
 import type { EstimateResponse } from '../api/types'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
@@ -23,7 +24,10 @@ export function EstimateTable({
   const hasP = response.rows.some((row) => row.p !== null && row.p !== undefined)
   return (
     <table className={styles.table}>
-      {caption && <caption className={styles.caption}>{caption}</caption>}
+      {/* The weight is named once here, not repeated on every row (§6). */}
+      <caption className={styles.caption}>
+        {caption ? `${caption} · ` : ''}Weighted estimates ({response.meta.weight}).
+      </caption>
       <thead>
         <tr>
           {by.map((column) => (
@@ -36,7 +40,6 @@ export function EstimateTable({
           <th scope="col">Estimate</th>
           <th scope="col">{ciLabel(response.meta.ci_level)}</th>
           <th scope="col">n</th>
-          <th scope="col">Weight</th>
         </tr>
       </thead>
       <tbody>
@@ -50,7 +53,6 @@ export function EstimateTable({
             <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
             <td className={styles.number}>{formatCI(row)}</td>
             <td className={styles.number}>{formatCount(row.n)}</td>
-            <td>{row.weight}</td>
           </tr>
         ))}
       </tbody>

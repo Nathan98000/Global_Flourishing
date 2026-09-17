@@ -7,6 +7,7 @@
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
+import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
 import { FONT_FAMILY, INK_SECONDARY, plotValue } from './theme'
@@ -14,12 +15,14 @@ import { chartWidth, usePlot } from './usePlot'
 
 export type PanelSort = 'estimate' | 'name' | 'gap'
 
-/** Facet (country) order under each sort rule. */
+/** Facet (country) order under each sort rule and direction — the one
+ * ordering the panels and the data table both consume. */
 export function facetOrder(
   rows: EstimateRow[],
   meta: Meta,
   facetColumn: string,
   sort: PanelSort,
+  dir: SortDir = sort === 'name' ? 'asc' : 'desc',
 ): string[] {
   const byFacet = new Map<string, number[]>()
   for (const row of rows) {
@@ -30,14 +33,18 @@ export function facetOrder(
     byFacet.set(label, bucket)
   }
   const labels = [...byFacet.keys()]
-  if (sort === 'name') return labels.sort((a, b) => a.localeCompare(b))
+  if (sort === 'name') {
+    const sign = dir === 'asc' ? 1 : -1
+    return labels.sort((a, b) => sign * a.localeCompare(b))
+  }
   const score = (label: string): number => {
     const values = byFacet.get(label) ?? []
     if (values.length === 0) return -Infinity
     if (sort === 'gap') return Math.max(...values) - Math.min(...values)
     return values.reduce((sum, value) => sum + value, 0) / values.length
   }
-  return labels.sort((a, b) => score(b) - score(a) || a.localeCompare(b))
+  const sign = dir === 'desc' ? 1 : -1
+  return labels.sort((a, b) => sign * (score(b) - score(a)) || a.localeCompare(b))
 }
 
 export function SmallMultiples({
@@ -51,6 +58,7 @@ export function SmallMultiples({
   seriesColumn,
   seriesDomain,
   sort,
+  dir,
   labeler,
 }: {
   rows: EstimateRow[]
@@ -65,6 +73,7 @@ export function SmallMultiples({
   seriesColumn?: string
   seriesDomain?: string[]
   sort: PanelSort
+  dir?: SortDir
   labeler?: LevelLabeler
 }) {
   const container = usePlot(
@@ -75,7 +84,7 @@ export function SmallMultiples({
           ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
           : '',
       }))
-      const facets = facetOrder(rows, meta, 'country_code', sort)
+      const facets = facetOrder(rows, meta, 'country_code', sort, dir)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       // One shared, data-fitted window across every panel (F1): shared so
       // panels stay comparable, fitted so the variation is visible — and
@@ -142,6 +151,7 @@ export function SmallMultiples({
       seriesColumn,
       seriesDomain,
       sort,
+      dir,
       labeler,
     ],
   )
