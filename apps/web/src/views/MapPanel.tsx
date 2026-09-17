@@ -6,8 +6,6 @@ import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/ty
 import { Choropleth, MapLegend, mapDomain } from '../charts/Choropleth'
 import { loadWorldFeatures, type WorldFeature } from '../charts/worldTopology'
 import { Skeleton } from '../components/Skeleton'
-import { formatCount } from '../format'
-import { groupValueLabel } from '../labels'
 
 export default function MapPanel({
   rows,
@@ -51,12 +49,6 @@ export default function MapPanel({
     return <Skeleton height={400} label="Loading the world map" />
   }
 
-  const withheld = rows
-    .filter((row) => row.suppressed)
-    .map(
-      (row) =>
-        `${groupValueLabel('country_code', row.group['country_code'] ?? null, meta)} (n = ${formatCount(row.n)})`,
-    )
   const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
 
   return (
@@ -78,12 +70,6 @@ export default function MapPanel({
             : variable.display_name
         }
       />
-      {withheld.length > 0 && (
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-secondary)' }}>
-          Withheld (below the suppression threshold): {withheld.join(', ')} — shown in the empty
-          fill, never dropped.
-        </p>
-      )}
     </div>
   )
 }

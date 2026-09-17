@@ -17,7 +17,6 @@ export const GRID = 'var(--grid)'
 export const AXIS = 'var(--axis)'
 export const SURFACE = 'var(--surface)'
 export const WHISKER = 'var(--whisker)'
-export const SUPPRESSED_HATCH_FILL = 'url(#suppressed-hatch)'
 export const MAP_EMPTY = 'var(--map-empty)'
 
 /** The six fixed SFI domain hues (proposal §4.4 — same hue, every view). */
@@ -80,18 +79,18 @@ export function axisLabel(
   return `${stat}${range}${note ? ` · ${note}` : ''}`
 }
 
-/** Tooltip text: value leads, context follows; suppression stays honest. */
-export function tipText(row: EstimateRow, label: string, threshold: number): string {
-  if (row.suppressed) {
-    return `${label}\nwithheld (n = ${formatCount(row.n)}, below ${threshold})`
-  }
+/** Tooltip text: value leads, context follows. A missing interval says
+ * so (no computable SE — read the n). */
+export function tipText(row: EstimateRow, label: string): string {
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
   if (hasCI(row)) {
     lines.push(
       `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
     )
+  } else {
+    lines.push('no interval (single sampling unit)')
   }
-  lines.push(`n = ${formatCount(row.n)} · ${row.weight}${row.flagged ? ' · small cell' : ''}`)
+  lines.push(`n = ${formatCount(row.n)} · ${row.weight}`)
   return lines.join('\n')
 }
 

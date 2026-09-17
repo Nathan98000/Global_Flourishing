@@ -3,8 +3,10 @@
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
+from flourish_api.config import Settings
 from flourish_api.data import DataStore
 from flourish_api.frames import assemble_aggregate_frame
+from flourish_api.main import create_app
 from flourish_api.queries import parse_aggregate_query
 from flourish_stats import Design, weighted_mean
 
@@ -74,18 +76,40 @@ def test_every_row_carries_the_full_record(client: TestClient) -> None:
         assert row["weight"] == "w_c1" and row["se_method"] == "taylor"
 
 
-def test_small_cells_are_suppressed_but_visible(client: TestClient) -> None:
+def test_small_cells_appear_with_their_n_and_no_flag(client: TestClient) -> None:
+    """ADR-0011: every cell is shown. The 15-ish-person cells that the old
+    50/100 rule withheld now carry their estimate, with n visible so a
+    reader can see what the number rests on."""
     _, rows = get_rows(client, outcome="HAPPY", wave="Y1", by=["country_code", "age_band"])
     assert len(rows) == 8  # 2 countries × 4 bands
-    assert all(r["suppressed"] for r in rows)  # 15-ish per cell < 50
-    assert all(r["estimate"] is None and r["n"] > 0 for r in rows)
+    assert all(not r["suppressed"] and not r["flagged"] for r in rows)
+    assert all(r["estimate"] is not None and r["n"] > 0 for r in rows)
 
 
-def test_whole_country_cells_are_flagged_not_suppressed(client: TestClient) -> None:
+def test_whole_country_cells_are_clean(client: TestClient) -> None:
     _, rows = get_rows(client, outcome="HAPPY", wave="Y1", by="country_code")
-    # 54 valid of 60 respondents per country: above threshold, below 100.
-    assert all(not r["suppressed"] and r["flagged"] for r in rows)
+    # 54 valid respondents per country — and no flag at any size (ADR-0011).
+    assert all(not r["suppressed"] and not r["flagged"] for r in rows)
     assert all(r["estimate"] is not None for r in rows)
+
+
+def test_env_thresholds_restore_the_old_rule(
+    synthetic_data_dir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FA_SUPPRESSION_THRESHOLD=50 brings the 50/100 policy back — the
+    machinery is intact, ADR-0011 only changed the default."""
+    monkeypatch.setenv("FA_SUPPRESSION_THRESHOLD", "50")
+    monkeypatch.setenv("FA_SUPPRESSION_FLAG_BELOW", "100")
+    settings = Settings(data_path=synthetic_data_dir / "flourish.duckdb")
+    with TestClient(create_app(settings)) as old_rule:
+        meta = old_rule.get("/v1/meta").json()
+        assert meta["suppression"] == {"threshold": 50, "flag_below": 100}
+        body = old_rule.get(
+            "/v1/aggregate",
+            params={"outcome": "HAPPY", "wave": "Y1", "by": ["country_code", "age_band"]},
+        ).json()
+        rows = body["rows"]
+        assert all(r["suppressed"] and r["estimate"] is None and r["n"] > 0 for r in rows)
 
 
 def test_proportion_ships_catalog_levels(client: TestClient) -> None:
@@ -94,12 +118,11 @@ def test_proportion_ships_catalog_levels(client: TestClient) -> None:
     )
     levels = {(r["group"]["country_code"], r["level"]) for r in rows}
     assert levels == {(c, level) for c in (1, 22) for level in (1, 2, 3)}
-    # 20 respondents per level per country: under the fixed threshold, so
-    # the shares are suppressed — but the per-level counts stay visible
-    # and sum to the country's respondents.
+    # 20 respondents per level per country: shown (ADR-0011), with the
+    # per-level counts visible and summing to the country's respondents.
     for country in (1, 22):
         country_rows = [r for r in rows if r["group"]["country_code"] == country]
-        assert all(r["suppressed"] and r["estimate"] is None for r in country_rows)
+        assert all(not r["suppressed"] and r["estimate"] is not None for r in country_rows)
         assert sum(r["n"] for r in country_rows) == 60
         assert all(r["sum_w"] > 0 for r in country_rows)  # denominator survives
 

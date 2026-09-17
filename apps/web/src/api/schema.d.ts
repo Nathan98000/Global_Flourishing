@@ -218,6 +218,21 @@ export interface components {
             /** Value */
             value: number | string;
         };
+        /**
+         * ComponentModel
+         * @description One question a derived score is computed from (its own catalog
+         *     entry, sliced to what the Codebook renders under the score).
+         */
+        ComponentModel: {
+            /** Display Name */
+            display_name: string;
+            /** Name */
+            name: string;
+            /** Value Labels */
+            value_labels: components["schemas"]["ValueLabelModel"][];
+            /** Wording */
+            wording: string | null;
+        };
         /** CountryModel */
         CountryModel: {
             /** Code */
@@ -439,6 +454,11 @@ export interface components {
         };
         /** VariableDetail */
         VariableDetail: {
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ComponentModel"][];
             /** Default Stat */
             default_stat: string;
             /** Direction */
@@ -463,6 +483,8 @@ export interface components {
             name: string;
             /** Scale Type */
             scale_type: string;
+            /** Scoring */
+            scoring?: string | null;
             /** Servable */
             servable: boolean;
             /** Value Labels */

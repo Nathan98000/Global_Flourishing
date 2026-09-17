@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from flourish_stats import SuppressionPolicy
 
 from flourish_api import __version__
 from flourish_api.config import Settings
@@ -36,14 +37,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         description=(
             "Aggregate statistics from the Global Flourishing Study, Waves 1-2. "
-            "Every estimate carries its survey weight, design-based CI, "
-            "unweighted n and suppression flags. "
+            "Every estimate carries its survey weight, design-based CI "
+            "and unweighted n. "
             "Data: https://doi.org/10.17605/OSF.IO/3JTZ8"
         ),
         lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.store = store
+    # The serving policy, built once (ADR-0011: zeros by default — every
+    # cell is shown; FA_SUPPRESSION_* restores the old rule).
+    app.state.suppression_policy = SuppressionPolicy(
+        threshold=settings.suppression_threshold,
+        flag_below=settings.suppression_flag_below,
+    )
 
     init_sentry(settings)
     install_middleware(app, settings)

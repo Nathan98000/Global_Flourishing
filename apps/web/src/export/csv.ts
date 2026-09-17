@@ -72,10 +72,15 @@ export function responseToCsv(response: EstimateResponse): string {
     const rendered = Array.isArray(value) ? value.map(String).join(',') : pythonStr(value)
     lines.push(`# ${field}: ${rendered}`)
   }
-  lines.push(
-    `# suppression: n<${meta.suppression.threshold} suppressed, ` +
-      `n<${meta.suppression.flag_below} flagged`,
-  )
+  if (meta.suppression.threshold === 0 && meta.suppression.flag_below === 0) {
+    // ADR-0011 default: every cell is shown (byte-identical to the API).
+    lines.push('# suppression: none (all cells shown)')
+  } else {
+    lines.push(
+      `# suppression: n<${meta.suppression.threshold} suppressed, ` +
+        `n<${meta.suppression.flag_below} flagged`,
+    )
+  }
   for (const [column, values] of Object.entries(meta.filters)) {
     lines.push(`# filter ${column}: ${values.map(String).join(',')}`)
   }

@@ -7,14 +7,14 @@ from typing import Annotated
 import pyarrow as pa
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import (
-    DEFAULT_POLICY,
+    SuppressionPolicy,
     weighted_distribution,
     weighted_mean,
     weighted_proportion,
     weighted_quantile,
 )
 
-from flourish_api.data import DataStore, VariableInfo, require_data
+from flourish_api.data import DataStore, VariableInfo, require_data, suppression_policy
 from flourish_api.frames import AssembledFrame, assemble_aggregate_frame
 from flourish_api.queries import AggregateQuery, parse_aggregate_query
 from flourish_api.schemas import EstimateResponse, ResponseMeta, SuppressionModel
@@ -37,24 +37,40 @@ def catalog_levels(outcome: VariableInfo) -> list[int] | None:
     return list(range(outcome.min, outcome.max + 1))
 
 
-def estimate_table(assembled: AssembledFrame, query: AggregateQuery) -> pa.Table:
+def estimate_table(
+    assembled: AssembledFrame, query: AggregateQuery, policy: SuppressionPolicy
+) -> pa.Table:
     frame, design, groups = assembled.frame, assembled.design, list(assembled.groups)
     if query.stat == "mean":
-        return weighted_mean(frame, assembled.value, design, by=groups)
+        return weighted_mean(frame, assembled.value, design, by=groups, policy=policy)
     if query.stat == "proportion":
         return weighted_proportion(
-            frame, assembled.value, design, by=groups, levels=catalog_levels(query.outcome)
+            frame,
+            assembled.value,
+            design,
+            by=groups,
+            levels=catalog_levels(query.outcome),
+            policy=policy,
         )
     if query.stat == "distribution":
         return weighted_distribution(
-            frame, assembled.value, design, by=groups, levels=catalog_levels(query.outcome)
+            frame,
+            assembled.value,
+            design,
+            by=groups,
+            levels=catalog_levels(query.outcome),
+            policy=policy,
         )
     assert query.stat == "quantile"
-    return weighted_quantile(frame, assembled.value, design, by=groups, p=query.p)
+    return weighted_quantile(frame, assembled.value, design, by=groups, p=query.p, policy=policy)
 
 
 def build_meta(
-    store: DataStore, query: AggregateQuery, assembled: AssembledFrame, stat: str
+    store: DataStore,
+    query: AggregateQuery,
+    assembled: AssembledFrame,
+    stat: str,
+    policy: SuppressionPolicy,
 ) -> ResponseMeta:
     return ResponseMeta(
         data_version=store.data_version,
@@ -69,9 +85,7 @@ def build_meta(
         weight=assembled.spec.weight,
         se_method=assembled.design.se_method,
         ci_level=0.95,
-        suppression=SuppressionModel(
-            threshold=DEFAULT_POLICY.threshold, flag_below=DEFAULT_POLICY.flag_below
-        ),
+        suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
         n_frame=assembled.frame.height,
         n_valid=assembled.frame[assembled.value].drop_nulls().len(),
         by=list(assembled.groups),
@@ -84,11 +98,13 @@ def build_meta(
     )
 
 
-def run_aggregate(store: DataStore, query: AggregateQuery) -> EstimateResponse:
+def run_aggregate(
+    store: DataStore, query: AggregateQuery, policy: SuppressionPolicy
+) -> EstimateResponse:
     assembled = assemble_aggregate_frame(store, query)
-    table = estimate_table(assembled, query)
+    table = estimate_table(assembled, query, policy)
     return EstimateResponse(
-        meta=build_meta(store, query, assembled, query.stat),
+        meta=build_meta(store, query, assembled, query.stat, policy),
         rows=rows_from_table(table, assembled.groups),
     )
 
@@ -122,9 +138,10 @@ def aggregate_query_dependency(
 def aggregate(
     store: Annotated[DataStore, Depends(require_data)],
     query: Annotated[AggregateQuery, Depends(aggregate_query_dependency)],
+    policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
 ) -> EstimateResponse:
     """One outcome at one wave, grouped and filtered. Every row carries
     the weight, SE method, unweighted n, CI and suppression flags; the
     weight itself is resolved from the wave→weight→eligibility table,
     never chosen here."""
-    return run_aggregate(store, query)
+    return run_aggregate(store, query, policy)

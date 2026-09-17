@@ -54,7 +54,11 @@ def response_to_csv(response: EstimateResponse) -> str:
             rendered = str(value)
         buffer.write(f"# {key}: {rendered}\n")
     threshold, flag_below = suppression["threshold"], suppression["flag_below"]
-    buffer.write(f"# suppression: n<{threshold} suppressed, n<{flag_below} flagged\n")
+    if threshold == 0 and flag_below == 0:
+        # ADR-0011 default: every cell is shown.
+        buffer.write("# suppression: none (all cells shown)\n")
+    else:
+        buffer.write(f"# suppression: n<{threshold} suppressed, n<{flag_below} flagged\n")
     for column, values in filters.items():
         buffer.write(f"# filter {column}: {','.join(map(str, values))}\n")
 

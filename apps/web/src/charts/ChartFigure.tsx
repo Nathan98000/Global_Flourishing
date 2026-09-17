@@ -10,7 +10,7 @@ import { useRef, useState } from 'react'
 import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { downloadChartPng } from '../export/png'
-import { formatCount, isShareStat } from '../format'
+import { isShareStat } from '../format'
 import styles from './ChartFigure.module.css'
 
 export type CsvExport =
@@ -34,11 +34,7 @@ export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks): string {
         : marks === 'bars'
           ? `Each bar is the weighted share answering this way; the line through its end shows how precise that share is — intervals drawn this way contain the true value ${outOf} times out of 100.`
           : `Each dot is a weighted ${quantity}; the line through it shows how precise that ${quantity} is — intervals drawn this way contain the true value ${outOf} times out of 100.`
-  return (
-    `${lead} Weighted so each country's sample stands for its adult population. ` +
-    `Groups with fewer than ${formatCount(meta.suppression.threshold)} answers are withheld; ` +
-    `groups under ${formatCount(meta.suppression.flag_below)} are marked †.`
-  )
+  return `${lead} Weighted so each country's sample stands for its adult population.`
 }
 
 export function ChartFigure({

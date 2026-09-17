@@ -40,6 +40,30 @@ def default_stat(scale_type: str) -> str:
 #: rows carry only the midyear priorities, which ship in Phase 5).
 DERIVED_WAVES: tuple[str, ...] = ("Y1", "Y2")
 
+# --- What each score is built from -----------------------------------------
+# These facts live HERE (the registry is the one home of derived-score
+# semantics, like the weight table in .weights); the pipeline's derive
+# stage imports them to compute the columns, and the API/exporter serve
+# them as each score's `components` and scoring rule.
+
+#: The six SFI domains and their item pairs, in index order.
+SFI_DOMAINS: dict[str, tuple[str, str]] = {
+    "happiness": ("HAPPY", "LIFE_SAT"),
+    "health": ("PHYSICAL_HLTH", "MENTAL_HEALTH"),
+    "meaning": ("WORTHWHILE", "LIFE_PURPOSE"),
+    "character": ("PROMOTE_GOOD", "GIVE_UP"),
+    "relationships": ("CONTENT", "SAT_RELATNSHP"),
+    "financial": ("EXPENSES", "WORRY_SAFETY"),
+}
+SFI_ITEMS: tuple[str, ...] = tuple(item for pair in SFI_DOMAINS.values() for item in pair)
+#: The SFI is computed only when at least this many of the 12 items answered.
+SFI_MIN_ITEMS = 10
+
+PHQ2_ITEMS: tuple[str, str] = ("DEPRESSED", "INTEREST")
+GAD2_ITEMS: tuple[str, str] = ("FEEL_ANXIOUS", "CONTROL_WORRY")
+#: A screener is positive at a summed score of this or more (0–6 scale).
+SCREEN_POSITIVE_AT = 3
+
 
 @dataclass(frozen=True)
 class DerivedOutcome:
@@ -52,6 +76,40 @@ class DerivedOutcome:
     direction: str
     display_name: str
     description: str
+    #: the catalog items the score is computed from, in scoring order
+    components: tuple[str, ...]
+    #: the scoring rule in words (numbers from the constants above)
+    scoring: str
+
+
+_DOMAIN_NAMES: dict[str, str] = {
+    "happiness": "SFI: happiness & life satisfaction",
+    "health": "SFI: mental & physical health",
+    "meaning": "SFI: meaning & purpose",
+    "character": "SFI: character & virtue",
+    "relationships": "SFI: close social relationships",
+    "financial": "SFI: financial & material stability",
+}
+
+_SCREENER_SCORING = (
+    f"Each answer rescored 0–3 (4 − code), the two summed to 0–6; "
+    f"positive at {SCREEN_POSITIVE_AT} or more."
+)
+
+
+def _sfi_domain(domain: str, items: tuple[str, str]) -> DerivedOutcome:
+    first, second = items
+    return DerivedOutcome(
+        f"sfi_{domain}",
+        "scale_0_10",
+        0,
+        10,
+        "higher_better",
+        _DOMAIN_NAMES[domain],
+        f"Mean of {first} and {second}, 0–10.",
+        components=items,
+        scoring="The mean of the two questions below; 0–10.",
+    )
 
 
 #: Derived outcomes served from the `derived` table (proposal §5.2 step 4).
@@ -65,61 +123,13 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         "higher_better",
         "Secure Flourishing Index",
         "Mean of the 12 SFI items (≥ 10 answered), 0–10.",
+        components=SFI_ITEMS,
+        scoring=(
+            f"The mean of the 12 questions below, computed when at least "
+            f"{SFI_MIN_ITEMS} are answered; 0–10."
+        ),
     ),
-    "sfi_happiness": DerivedOutcome(
-        "sfi_happiness",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: happiness & life satisfaction",
-        "Mean of HAPPY and LIFE_SAT, 0–10.",
-    ),
-    "sfi_health": DerivedOutcome(
-        "sfi_health",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: mental & physical health",
-        "Mean of PHYSICAL_HLTH and MENTAL_HEALTH, 0–10.",
-    ),
-    "sfi_meaning": DerivedOutcome(
-        "sfi_meaning",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: meaning & purpose",
-        "Mean of WORTHWHILE and LIFE_PURPOSE, 0–10.",
-    ),
-    "sfi_character": DerivedOutcome(
-        "sfi_character",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: character & virtue",
-        "Mean of PROMOTE_GOOD and GIVE_UP, 0–10.",
-    ),
-    "sfi_relationships": DerivedOutcome(
-        "sfi_relationships",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: close social relationships",
-        "Mean of CONTENT and SAT_RELATNSHP, 0–10.",
-    ),
-    "sfi_financial": DerivedOutcome(
-        "sfi_financial",
-        "scale_0_10",
-        0,
-        10,
-        "higher_better",
-        "SFI: financial & material stability",
-        "Mean of EXPENSES and WORRY_SAFETY, 0–10.",
-    ),
+    **{f"sfi_{domain}": _sfi_domain(domain, items) for domain, items in SFI_DOMAINS.items()},
     "phq2_score": DerivedOutcome(
         "phq2_score",
         "count",
@@ -128,6 +138,8 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         "lower_better",
         "PHQ-2 depression score",
         "Sum of the two PHQ-2 items rescored 0–3 each; 0–6.",
+        components=PHQ2_ITEMS,
+        scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
     ),
     "phq2_positive": DerivedOutcome(
         "phq2_positive",
@@ -137,6 +149,8 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         "lower_better",
         "PHQ-2 screen positive",
         "PHQ-2 score ≥ 3; served as the weighted share screening positive.",
+        components=PHQ2_ITEMS,
+        scoring=_SCREENER_SCORING,
     ),
     "gad2_score": DerivedOutcome(
         "gad2_score",
@@ -146,6 +160,8 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         "lower_better",
         "GAD-2 anxiety score",
         "Sum of the two GAD-2 items rescored 0–3 each; 0–6.",
+        components=GAD2_ITEMS,
+        scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
     ),
     "gad2_positive": DerivedOutcome(
         "gad2_positive",
@@ -155,5 +171,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         "lower_better",
         "GAD-2 screen positive",
         "GAD-2 score ≥ 3; served as the weighted share screening positive.",
+        components=GAD2_ITEMS,
+        scoring=_SCREENER_SCORING,
     ),
 }

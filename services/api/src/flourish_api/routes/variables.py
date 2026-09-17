@@ -22,6 +22,7 @@ from flourish_stats.outcomes import (
 
 from flourish_api.data import DataStore, require_data
 from flourish_api.schemas import (
+    ComponentModel,
     MissingnessRow,
     ValueLabelModel,
     VariableDetail,
@@ -117,19 +118,9 @@ def list_variables(
     return VariableList(variables=summaries)
 
 
-@router.get("/variables/{name}", summary="One variable: wording, labels, missingness")
-def variable_detail(
-    name: str, store: Annotated[DataStore, Depends(require_data)]
-) -> VariableDetail:
+def _value_labels(store: DataStore, name: str) -> list[ValueLabelModel]:
     assert store.catalog is not None
-    if name in DERIVED_OUTCOMES:
-        summary = _derived_summary(name)
-        return VariableDetail(**summary.model_dump(), value_labels=[], missingness=[])
-    rows = _substantive(store).filter(pl.col("name") == name)
-    if rows.height == 0:
-        raise HTTPException(404, detail=f"no variable named {name!r} — see /v1/variables")
-    row = rows.row(0, named=True)
-    labels = [
+    return [
         ValueLabelModel(
             code=int(label["code"]),
             label=str(label["label"]),
@@ -141,6 +132,45 @@ def variable_detail(
         .sort("code", "country_code", "wave", nulls_last=True)
         .iter_rows(named=True)
     ]
+
+
+def _component(store: DataStore, name: str) -> ComponentModel:
+    """One question a derived score is built from. A component missing
+    from this build's catalog (synthetic databases carry a subset) still
+    appears by name, so the score's structure is always complete."""
+    assert store.catalog is not None
+    rows = store.catalog.variables.filter(pl.col("name") == name)
+    if rows.height == 0:
+        return ComponentModel(name=name, display_name=name, wording=None, value_labels=[])
+    row = rows.row(0, named=True)
+    return ComponentModel(
+        name=name,
+        display_name=str(row["display_name"]),
+        wording=None if row["wording"] is None else str(row["wording"]),
+        value_labels=_value_labels(store, name),
+    )
+
+
+@router.get("/variables/{name}", summary="One variable: wording, labels, missingness")
+def variable_detail(
+    name: str, store: Annotated[DataStore, Depends(require_data)]
+) -> VariableDetail:
+    assert store.catalog is not None
+    if name in DERIVED_OUTCOMES:
+        summary = _derived_summary(name)
+        derived = DERIVED_OUTCOMES[name]
+        return VariableDetail(
+            **summary.model_dump(),
+            value_labels=[],
+            missingness=[],
+            scoring=derived.scoring,
+            components=[_component(store, item) for item in derived.components],
+        )
+    rows = _substantive(store).filter(pl.col("name") == name)
+    if rows.height == 0:
+        raise HTTPException(404, detail=f"no variable named {name!r} — see /v1/variables")
+    row = rows.row(0, named=True)
+    labels = _value_labels(store, name)
     missingness = [
         MissingnessRow(**coverage)
         for coverage in store.catalog.coverage.filter(pl.col("variable") == name)

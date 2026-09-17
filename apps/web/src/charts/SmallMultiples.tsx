@@ -2,6 +2,7 @@
 // plots with shared scales, sortable by estimate, name, or the gap
 // between levels. A second breakdown becomes a facet-column grid — one
 // hue everywhere, so identity never rides on color for 4+ levels.
+// Every cell is shown (ADR-0011).
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
@@ -23,7 +24,7 @@ export function facetOrder(
   const byFacet = new Map<string, number[]>()
   for (const row of rows) {
     const label = groupValueLabel(facetColumn, row.group[facetColumn] ?? null, meta)
-    const value = row.suppressed ? null : plotValue(row)
+    const value = plotValue(row)
     const bucket = byFacet.get(label) ?? []
     if (value !== null) bucket.push(value)
     byFacet.set(label, bucket)
@@ -126,13 +127,7 @@ export function SmallMultiples({
             fill: INK_SECONDARY,
             fontSize: 10,
           }),
-          ...dotMarks(
-            entries,
-            color,
-            responseMeta.suppression.threshold,
-            facetChannel,
-            scale.domain[0],
-          ),
+          ...dotMarks(entries, color, facetChannel, scale.domain[0]),
         ],
       })
     },

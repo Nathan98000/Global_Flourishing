@@ -38,12 +38,29 @@ const sfiByCountryY2 = testResponse(
 )
 
 // A derived score ships no missingness rows — coverage must still appear.
-const sfiDetail: VariableDetail = { ...sfiVariable, value_labels: [], missingness: [] }
+const sfiDetail: VariableDetail = {
+  ...sfiVariable,
+  value_labels: [],
+  missingness: [],
+  scoring: 'The mean of the 12 questions below, computed when at least 10 are answered; 0–10.',
+  components: [
+    {
+      name: 'HAPPY',
+      display_name: 'Happiness',
+      wording: 'How would you rate: happiness?',
+      value_labels: [
+        { code: 0, label: 'Worst', wave: null, country_code: null, is_nonresponse: false },
+      ],
+    },
+  ],
+}
 
 const happyDetail: VariableDetail = {
   ...happyVariable,
   value_labels: [],
   missingness: [],
+  scoring: null,
+  components: [],
 }
 
 type Routes = Record<string, unknown | Response>
@@ -136,7 +153,7 @@ test('the Atlas renders from the static tier, question on the page, plain footno
   // The footnote glosses the interval correctly (decision 6) and names
   // the served withholding rule.
   expect(screen.getByText(/contain the true value 95 times out of 100/)).toBeInTheDocument()
-  expect(screen.getByText(/fewer than 50 answers are withheld/)).toBeInTheDocument()
+  expect(screen.queryByText(/withheld|flagged/)).toBeNull()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
 })
 
@@ -231,6 +248,19 @@ test('the notice lists every rejected parameter and dismiss clears the URL (F5)'
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
   await waitFor(() => expect(screen.queryByText(/reset to defaults/)).toBeNull())
   expect(router.state.location.searchStr).toBe('')
+})
+
+test('a derived score explains itself in the Codebook (item 11)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/codebook/sfi')
+  expect(await screen.findByText('How it is scored')).toBeInTheDocument()
+  expect(
+    screen.getByText(/mean of the 12 questions below, computed when at least 10 are answered/),
+  ).toBeInTheDocument()
+  expect(screen.getByText('The questions behind it')).toBeInTheDocument()
+  // Each component question renders with its exact wording and options.
+  expect(screen.getByText('How would you rate: happiness?')).toBeInTheDocument()
+  expect(screen.getByText('Worst')).toBeInTheDocument()
 })
 
 test('unknown routes render the not-found page', async () => {

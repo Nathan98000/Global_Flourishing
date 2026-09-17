@@ -19,7 +19,7 @@ export const testMeta: Meta = {
   ],
   waves: ['Y1', 'MY', 'Y2'],
   weight_table: [],
-  suppression: { threshold: 50, flag_below: 100 },
+  suppression: { threshold: 0, flag_below: 0 },
   ci_level: 0.95,
   breakdowns: [
     'age_band',
@@ -133,7 +133,7 @@ export function testResponseMeta(overrides: Partial<ResponseMeta> = {}): Respons
     weight: 'w_c1',
     se_method: 'taylor',
     ci_level: 0.95,
-    suppression: { threshold: 50, flag_below: 100 },
+    suppression: { threshold: 0, flag_below: 0 },
     n_frame: 2400,
     n_valid: 2361,
     by: ['country_code'],

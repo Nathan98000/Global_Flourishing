@@ -5,16 +5,13 @@ from collections.abc import Mapping
 import polars as pl
 import pytest
 from flourish_pipeline.derive import (
-    GAD2_ITEMS,
-    PHQ2_ITEMS,
-    SFI_DOMAINS,
-    SFI_ITEMS,
     age_band_expr,
     income_quintiles,
     midyear_priorities,
     screener_scores,
     sfi_scores,
 )
+from flourish_stats.outcomes import GAD2_ITEMS, PHQ2_ITEMS, SFI_DOMAINS, SFI_ITEMS
 
 
 def test_sfi_domains_cover_the_twelve_items() -> None:

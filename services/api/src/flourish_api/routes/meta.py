@@ -6,7 +6,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from flourish_stats import DEFAULT_POLICY, weight_table_json
+from flourish_stats import weight_table_json
 from flourish_stats.breakdowns import breakdown_labels
 
 from flourish_api.data import DataStore, require_data
@@ -40,7 +40,8 @@ def meta(request: Request, store: Annotated[DataStore, Depends(require_data)]) -
         waves=list(WAVES),
         weight_table=weight_table,
         suppression=SuppressionModel(
-            threshold=DEFAULT_POLICY.threshold, flag_below=DEFAULT_POLICY.flag_below
+            threshold=request.app.state.suppression_policy.threshold,
+            flag_below=request.app.state.suppression_policy.flag_below,
         ),
         ci_level=0.95,
         breakdowns=sorted(BREAKDOWNS),

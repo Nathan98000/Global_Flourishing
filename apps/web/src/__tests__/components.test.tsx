@@ -15,21 +15,17 @@ import type { MissingnessRow } from '../api/types'
 
 describe('Stat', () => {
   test('an estimate never appears without CI, n and weight', () => {
-    render(<Stat row={testRow()} threshold={50} />)
+    render(<Stat row={testRow()} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
     expect(screen.getByText(/\[7\.10, 7\.32\]/)).toBeInTheDocument()
     expect(screen.getByText(/n = 1,204 · w_c1/)).toBeInTheDocument()
   })
 
-  test('suppressed shows the withheld state with its n', () => {
-    render(<Stat row={testRow({ suppressed: true, estimate: null, n: 12 })} threshold={50} />)
-    expect(screen.getByText(/withheld \(n = 12, below 50\)/)).toBeInTheDocument()
-    expect(screen.queryByText('7.21')).not.toBeInTheDocument()
-  })
-
-  test('flagged cells carry the small-cell marker', () => {
-    render(<Stat row={testRow({ flagged: true, n: 73 })} threshold={50} />)
-    expect(screen.getByText(/small cell, n = 73/)).toBeInTheDocument()
+  test('a small cell appears with its n and no flag (ADR-0011)', () => {
+    render(<Stat row={testRow({ n: 12 })} />)
+    expect(screen.getByText('7.21')).toBeInTheDocument()
+    expect(screen.getByText(/n = 12/)).toBeInTheDocument()
+    expect(screen.queryByText(/withheld|small cell/)).toBeNull()
   })
 })
 
@@ -54,11 +50,20 @@ describe('ErrorState', () => {
 })
 
 describe('EstimateTable', () => {
-  test('labels come from meta and suppressed rows stay in the table', () => {
+  test('labels come from meta; a small cell keeps its estimate and n', () => {
     const response = testResponse(
       [
         testRow({ group: { country_code: 22 } }),
-        testRow({ group: { country_code: 1 }, suppressed: true, estimate: null, n: 31 }),
+        // A 31-person cell with no computable interval (lone PSU): shown,
+        // with its n, the interval as an em dash — never a gap (ADR-0011).
+        testRow({
+          group: { country_code: 1 },
+          estimate: 6.4,
+          se: null,
+          ci_lo: null,
+          ci_hi: null,
+          n: 31,
+        }),
       ],
       { by: ['country_code'] },
     )
@@ -67,7 +72,10 @@ describe('EstimateTable', () => {
     expect(screen.getByRole('columnheader', { name: '95% CI' })).toBeInTheDocument()
     expect(screen.getByText('United States')).toBeInTheDocument()
     expect(screen.getByText('Testland')).toBeInTheDocument()
-    expect(screen.getByText(/withheld \(n = 31/)).toBeInTheDocument()
+    expect(screen.getByText('6.40')).toBeInTheDocument()
+    expect(screen.getByText('31')).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument() // the missing interval
+    expect(screen.queryByText(/withheld/)).toBeNull()
   })
 
   test('breakdown levels use the served labels', () => {
