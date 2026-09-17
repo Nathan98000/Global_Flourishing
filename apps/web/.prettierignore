@@ -4,3 +4,5 @@ node_modules/
 # `uv run python -m flourish_api.openapi` and `pnpm gen:api`.
 openapi.json
 src/api/schema.d.ts
+# Generated data tiers (fixture or real) — never formatted.
+public/data/

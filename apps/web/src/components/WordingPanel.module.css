@@ -1,0 +1,47 @@
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.summary {
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+
+.panel[open] .summary {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.body {
+  padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wording {
+  margin: 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--accent);
+  font-style: italic;
+}
+
+.note {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.labels th,
+.labels td {
+  text-align: left;
+  padding: 2px var(--space-3) 2px 0;
+}
+
+.labels thead th {
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}

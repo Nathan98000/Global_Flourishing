@@ -1,0 +1,50 @@
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.legend {
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.row {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.option {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.option:last-child {
+  border-right: 0;
+}
+
+.option[data-checked] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.option[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.option:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}

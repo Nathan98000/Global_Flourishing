@@ -6,7 +6,7 @@
 // tier answered. Misses are cached per (data_version, path) so they cost
 // one round trip, not one per render.
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL, STATIC_BASE_URL } from '../config'
 import { STATIC_MISS, fetchApiJson, fetchStaticJson } from './http'
 import { type Tier, useMeta } from './meta'
@@ -139,6 +139,9 @@ export function useEstimates(request: AggregateRequest | null) {
   return useQuery({
     queryKey: ['estimates', dataVersion, request === null ? 'none' : canonicalKey(request)],
     enabled: request !== null && meta.isSuccess && variables.isSuccess,
+    // Refetch keeps the frame: the previous render holds (dimmed by the
+    // view) instead of a skeleton flash.
+    placeholderData: keepPreviousData,
     queryFn: () => {
       if (request === null || meta.data === undefined || variables.data === undefined)
         throw new Error('estimates query ran before its inputs')

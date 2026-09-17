@@ -95,8 +95,9 @@ test('the shell renders nav, DOI citation and the live data version', async () =
 test('the Atlas renders from the static tier and says so', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
-  expect(await screen.findByText('United States')).toBeInTheDocument()
-  expect(screen.getByText('served from precomputed files')).toBeInTheDocument()
+  expect(await screen.findByText('served from precomputed files')).toBeInTheDocument()
+  // In the chart/table as well as the country filter.
+  expect(screen.getAllByText('United States').length).toBeGreaterThan(1)
   expect(screen.getByText(/weighted \(w_c1\)/)).toBeInTheDocument()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
 })
@@ -104,7 +105,7 @@ test('the Atlas renders from the static tier and says so', async () => {
 test('with the API down the Atlas still renders, with an honest banner', async () => {
   mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/')
-  expect(await screen.findByText('United States')).toBeInTheDocument()
+  expect(await screen.findByText('served from precomputed files')).toBeInTheDocument()
   expect(screen.getByText(/showing precomputed views/)).toBeInTheDocument()
   expect(screen.getByText(/API unreachable/)).toBeInTheDocument()
 })
@@ -112,7 +113,7 @@ test('with the API down the Atlas still renders, with an honest banner', async (
 test('an API without a data build is its own banner', async () => {
   mockFetch({ ...staticTier, '/health': { ...okHealth, data: 'absent', data_version: null } })
   await renderAt('/')
-  expect(await screen.findByText('United States')).toBeInTheDocument()
+  expect(await screen.findByText('served from precomputed files')).toBeInTheDocument()
   expect(screen.getByText(/precomputed views work/)).toBeInTheDocument()
 })
 
@@ -130,7 +131,7 @@ test('invalid search params degrade to defaults with a visible notice', async ()
     await screen.findByText(/invalid and were reset to defaults: wave, view/),
   ).toBeInTheDocument()
   // The view still renders the default query, not a crash.
-  expect(await screen.findByText('United States')).toBeInTheDocument()
+  expect(await screen.findByText('served from precomputed files')).toBeInTheDocument()
 })
 
 test('unknown routes render the not-found page', async () => {

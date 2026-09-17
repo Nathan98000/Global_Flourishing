@@ -59,6 +59,11 @@ const parseEnum =
 const parseTrue = (value: unknown): boolean | undefined =>
   value === true || value === 'true' ? true : undefined
 
+const parseIntCode = (value: unknown): number | undefined => {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
+}
+
 /** `countries=1,22` (or repeated) → sorted unique positive ints. */
 function parseCountries(raw: Raw): number[] | undefined {
   const pieces = all(raw, 'countries').flatMap((value) =>
@@ -82,6 +87,8 @@ export interface AtlasSearch {
   view: 'bars' | 'map'
   sort: 'estimate' | 'name'
   countries: number[]
+  /** Categorical outcomes: which answer level is ranked/mapped. */
+  level?: number
   oriented?: boolean
   invalid?: string[]
 }
@@ -105,6 +112,8 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
   }
   const stat = collect.take('stat', raw, parseStat, undefined)
   if (stat !== undefined) search.stat = stat
+  const level = collect.take('level', raw, parseIntCode, undefined)
+  if (level !== undefined) search.level = level
   if (collect.take('oriented', raw, parseTrue, undefined)) search.oriented = true
   return collect.finish(search)
 }
@@ -118,6 +127,7 @@ export function atlasSearchParams(search: AtlasSearch): Record<string, unknown> 
     view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
     sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
     countries: search.countries.length ? search.countries.join(',') : undefined,
+    level: search.level,
     oriented: search.oriented ? true : undefined,
   }
 }
@@ -145,6 +155,8 @@ export interface BreakdownsSearch {
   by: string[]
   sort: 'estimate' | 'name' | 'gap'
   countries: number[]
+  /** Categorical outcomes: which answer level the cells show. */
+  level?: number
   invalid?: string[]
 }
 
@@ -179,6 +191,8 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
       BREAKDOWNS_DEFAULTS.countries,
     ),
   }
+  const level = collect.take('level', raw, parseIntCode, undefined)
+  if (level !== undefined) search.level = level
   return collect.finish(search)
 }
 
@@ -192,6 +206,7 @@ export function breakdownsSearchParams(search: BreakdownsSearch): Record<string,
     by: byIsDefault ? undefined : search.by,
     sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
     countries: search.countries.length ? search.countries.join(',') : undefined,
+    level: search.level,
   }
 }
 
