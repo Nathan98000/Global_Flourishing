@@ -7,6 +7,7 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
+import { ciExtents, fittedScale } from './domain'
 import { FONT_FAMILY, INK_SECONDARY, axisLabel, plotValue } from './theme'
 import { usePlot } from './usePlot'
 
@@ -74,16 +75,25 @@ export function SmallMultiples({
     }))
     const facets = facetOrder(rows, meta, 'country_code', sort)
     const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-    const maxX = Math.max(10, ...entries.map((entry) => entry.ci?.[1] ?? entry.value ?? 0)) * 1.05
-    const panelHeight = levelDomain.length * 22 + 34
+    // One shared, data-fitted window across every panel (F1): shared so
+    // panels stay comparable, fitted so the variation is visible — and
+    // its ticks repeat inside each panel, so no panel is read against an
+    // axis 23 rows away.
+    const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
+      // Fewer ticks when a second breakdown splits the width into columns.
+      targetTicks: seriesColumn ? 4 : 5,
+    })
+    const tickLabel = (tick: number) => (isShare ? `${scale.format(tick)}%` : scale.format(tick))
+    const panelHeight = levelDomain.length * 22 + 48
     const facetChannel: Record<string, string> = seriesColumn
       ? { fy: 'facet', fx: 'series' }
       : { fy: 'facet' }
     return Plot.plot({
-      height: 60 + facets.length * panelHeight,
+      height: 76 + facets.length * panelHeight,
       width: seriesColumn ? 820 : 700,
       marginLeft: 150,
       marginRight: 110,
+      marginTop: 60,
       style: {
         fontFamily: FONT_FAMILY,
         fontSize: '12px',
@@ -91,18 +101,36 @@ export function SmallMultiples({
         color: INK_SECONDARY,
       },
       x: {
+        domain: scale.domain,
+        ticks: scale.ticks,
+        tickFormat: tickLabel,
+        axis: 'top',
         label: axisLabel(variable, responseMeta),
         labelAnchor: 'center',
         grid: true,
-        tickFormat: isShare ? (d: number) => `${d}%` : undefined,
-        ...(isShare ? { domain: [0, maxX] } : {}),
       },
       y: { domain: levelDomain, label: null, tickSize: 0 },
-      fy: { domain: facets, label: null },
+      fy: { domain: facets, label: null, paddingInner: 0.12 },
       ...(seriesColumn ? { fx: { domain: seriesDomain, label: null } } : {}),
       marks: [
         Plot.frame({ stroke: 'var(--grid)' }),
-        ...dotMarks(entries, color, responseMeta.suppression.threshold, facetChannel),
+        // No facet channel → drawn in every panel, like Plot.frame: the
+        // shared axis, labelled under each panel.
+        Plot.text(scale.ticks, {
+          x: (tick: number) => tick,
+          text: tickLabel,
+          frameAnchor: 'bottom',
+          dy: -3,
+          fill: INK_SECONDARY,
+          fontSize: 10,
+        }),
+        ...dotMarks(
+          entries,
+          color,
+          responseMeta.suppression.threshold,
+          facetChannel,
+          scale.domain[0],
+        ),
       ],
     })
   }, [

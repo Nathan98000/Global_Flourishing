@@ -8,14 +8,20 @@ import { join } from 'node:path'
 import { render } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import type { Meta } from '../api/types'
-import { Choropleth, joinCountries, mapDomain, quantizeColor } from '../charts/Choropleth'
+import {
+  Choropleth,
+  MapLegend,
+  joinCountries,
+  mapDomain,
+  quantizeColor,
+} from '../charts/Choropleth'
 import {
   ISO3_TO_NUMERIC,
   SMALL_TERRITORY_SQ_DEG,
   bboxAreaSqDeg,
   featuresFromTopology,
 } from '../charts/worldTopology'
-import { happyVariable, testMeta, testResponseMeta, testRow } from '../test-utils/fixtures'
+import { testMeta, testResponseMeta, testRow } from '../test-utils/fixtures'
 
 const topology = JSON.parse(
   readFileSync(join(process.cwd(), 'node_modules', 'world-atlas', 'countries-50m.json'), 'utf8'),
@@ -104,9 +110,37 @@ describe('quantized token colors', () => {
     expect(color(5)).toBe('var(--seq-400)')
   })
 
-  test('share stats anchor at zero', () => {
-    const rows = [testRow({ stat: 'proportion', estimate: 0.4 })]
-    expect(mapDomain(rows, testResponseMeta({ stat: 'proportion' }), happyVariable)[0]).toBe(0)
+  test('the ramp anchors to the observed range, not the item scale (F1)', () => {
+    const rows = [
+      testRow({ group: { country_code: 1 }, estimate: 5.89, ci_lo: null, ci_hi: null }),
+      testRow({ group: { country_code: 22 }, estimate: 8.1, ci_lo: null, ci_hi: null }),
+      testRow({ group: { country_code: 24 }, suppressed: true, estimate: null }),
+    ]
+    expect(mapDomain(rows, testResponseMeta())).toEqual([5.89, 8.1])
+    const shares = [
+      testRow({ stat: 'proportion', estimate: 0.22 }),
+      testRow({ group: { country_code: 22 }, stat: 'proportion', estimate: 0.61 }),
+    ]
+    expect(mapDomain(shares, testResponseMeta({ stat: 'proportion' }))).toEqual([22, 61])
+  })
+
+  test('a single observed value still yields a non-degenerate window', () => {
+    const rows = [testRow({ estimate: 7 })]
+    const [lo, hi] = mapDomain(rows, testResponseMeta())
+    expect(hi).toBeGreaterThan(lo)
+  })
+})
+
+describe('MapLegend', () => {
+  test('names the measure, labels both ends, and shows the no-data swatch', () => {
+    const { container } = render(
+      <MapLegend domain={[5.89, 8.1]} isShare={false} title="Secure Flourishing Index" />,
+    )
+    const text = container.textContent ?? ''
+    expect(text).toContain('Secure Flourishing Index')
+    expect(text).toContain('5.89')
+    expect(text).toContain('8.1')
+    expect(text).toContain('no estimate')
   })
 })
 
@@ -129,7 +163,6 @@ describe('Choropleth', () => {
         rows={rows}
         meta={worldMeta}
         responseMeta={testResponseMeta()}
-        variable={happyVariable}
         features={features}
         selected={[22]}
       />,

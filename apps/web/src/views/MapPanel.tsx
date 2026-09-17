@@ -65,12 +65,19 @@ export default function MapPanel({
         rows={rows}
         meta={meta}
         responseMeta={responseMeta}
-        variable={variable}
         features={features}
         selected={selected}
         levelLabel={levelLabel}
       />
-      <MapLegend domain={mapDomain(rows, responseMeta, variable)} isShare={isShare} />
+      <MapLegend
+        domain={mapDomain(rows, responseMeta)}
+        isShare={isShare}
+        title={
+          isShare && levelLabel
+            ? `${variable.display_name} — share answering “${levelLabel}”`
+            : variable.display_name
+        }
+      />
       {withheld.length > 0 && (
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-secondary)' }}>
           Withheld (below the suppression threshold): {withheld.join(', ')} — shown in the empty

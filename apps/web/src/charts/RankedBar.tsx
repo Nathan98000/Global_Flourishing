@@ -1,13 +1,16 @@
-// Ranked country bars with CI whiskers: one series, one hue (no legend —
-// the title names it), thin bars rounded at the data end, suppression
-// rendered in place as a hatched stub + "withheld (n = …)", the small-
-// cell dagger on flagged bars, and a hover tip carrying estimate, CI,
-// n and weight. Never fetches.
+// Ranked countries, one series, one hue (no legend — the title names
+// it), suppression rendered in place, the small-cell dagger, a hover tip
+// carrying estimate, CI, n and weight, and a direct value label on every
+// row (F16). Two marks by scale (F1 / ADR-0010 revised): shares keep
+// zero-based bars; 0–10 location stats (means, medians) render as dot +
+// CI on a data-fitted window whose edges are always labelled ticks, with
+// the axis on top so the window is stated before the rows. Never fetches.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { formatCount, formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
+import { ciExtents, fittedScale } from './domain'
 import {
   BAR_RADIUS,
   FONT_FAMILY,
@@ -69,29 +72,102 @@ export function RankedBar({
     const valid = entries.filter((entry) => entry.value !== null)
     const suppressed = entries.filter((entry) => entry.row.suppressed)
     const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-    const xMax = isShare
-      ? Math.max(10, ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05))
-      : (variable.max ?? Math.max(...valid.map((entry) => entry.value ?? 0)))
-    const top = sort === 'estimate' ? valid[0] : null
     const threshold = responseMeta.suppression.threshold
+    const style = {
+      fontFamily: FONT_FAMILY,
+      fontSize: '12px',
+      background: 'transparent',
+      color: INK_SECONDARY,
+    }
+    const height = 44 + entries.length * ROW_HEIGHT
+    const valueOf = (entry: Entry) =>
+      formatEstimate(entry.row.estimate, entry.row.stat) + (entry.row.flagged ? ' †' : '')
 
+    if (!isShare) {
+      // Location stats on a bounded scale: dot + CI on a fitted window.
+      const scale = fittedScale(ciExtents(valid), { targetTicks: 7 })
+      const [lo, hi] = scale.domain
+      return Plot.plot({
+        height: height + 16,
+        width: 660,
+        marginLeft: 128,
+        marginRight: 64,
+        marginTop: 60,
+        style,
+        x: {
+          domain: scale.domain,
+          ticks: scale.ticks,
+          tickFormat: scale.format,
+          axis: 'top',
+          label: axisLabel(variable, responseMeta, levelLabel),
+          labelAnchor: 'center',
+          grid: true,
+        },
+        y: { domain, label: null, tickSize: 0 },
+        marks: [
+          Plot.ruleY(
+            valid.filter((entry) => entry.ci !== null),
+            {
+              y: 'label',
+              x1: (entry: Entry) => entry.ci?.[0],
+              x2: (entry: Entry) => entry.ci?.[1],
+              stroke: WHISKER,
+              strokeWidth: 1.5,
+            },
+          ),
+          Plot.dot(valid, {
+            y: 'label',
+            x: 'value',
+            fill: color,
+            r: 4.5,
+            stroke: 'var(--surface)',
+            strokeWidth: 2,
+          }),
+          Plot.text(suppressed, {
+            y: 'label',
+            x: lo,
+            text: (entry: Entry) => `withheld (n = ${formatCount(entry.row.n)})`,
+            textAnchor: 'start',
+            fill: INK_SECONDARY,
+            fontSize: 11,
+          }),
+          Plot.text(valid, {
+            y: 'label',
+            x: hi,
+            text: valueOf,
+            dx: 8,
+            textAnchor: 'start',
+            fill: INK,
+            fontSize: 12,
+            fontWeight: 600,
+          }),
+          Plot.tip(
+            entries,
+            Plot.pointerY({
+              y: 'label',
+              x: (entry: Entry) => entry.value ?? lo,
+              title: (entry: Entry) => tipText(entry.row, entry.label, threshold),
+              fontFamily: FONT_FAMILY,
+            }),
+          ),
+        ],
+      })
+    }
+
+    // Shares: zero-based bars (a length encoding needs its baseline).
+    const xMax = Math.max(10, ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05))
     return Plot.plot({
-      height: 44 + entries.length * ROW_HEIGHT,
+      height,
       width: 660,
       marginLeft: 128,
-      marginRight: 56,
-      style: {
-        fontFamily: FONT_FAMILY,
-        fontSize: '12px',
-        background: 'transparent',
-        color: INK_SECONDARY,
-      },
+      marginRight: 64,
+      style,
       x: {
         domain: [0, xMax],
         label: axisLabel(variable, responseMeta, levelLabel),
         labelAnchor: 'center',
         grid: true,
-        tickFormat: isShare ? (d: number) => `${d}%` : undefined,
+        tickFormat: (d: number) => `${d}%`,
       },
       y: { domain, label: null, tickSize: 0 },
       marks: [
@@ -130,31 +206,16 @@ export function RankedBar({
           fill: INK_SECONDARY,
           fontSize: 11,
         }),
-        Plot.text(
-          valid.filter((entry) => entry.row.flagged),
-          {
-            y: 'label',
-            x: (entry: Entry) => entry.ci?.[1] ?? entry.value,
-            text: () => '†',
-            dx: 10,
-            fill: 'var(--warn-text)',
-            fontSize: 12,
-          },
-        ),
-        ...(top
-          ? [
-              Plot.text([top], {
-                y: 'label',
-                x: (entry: Entry) => entry.ci?.[1] ?? entry.value,
-                text: (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat),
-                dx: top.row.flagged ? 22 : 8,
-                textAnchor: 'start',
-                fill: INK,
-                fontSize: 12,
-                fontWeight: 600,
-              }),
-            ]
-          : []),
+        Plot.text(valid, {
+          y: 'label',
+          x: xMax,
+          text: valueOf,
+          dx: 8,
+          textAnchor: 'start',
+          fill: INK,
+          fontSize: 12,
+          fontWeight: 600,
+        }),
         Plot.tip(
           entries,
           Plot.pointerY({

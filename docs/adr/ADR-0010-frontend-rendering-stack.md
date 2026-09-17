@@ -121,3 +121,30 @@ different approach (fine so far; tips cover it). Revisit the map bytes
 if a lighter topology gains an HKG feature, and the facet-grid choice
 if a Phase 5 view genuinely needs ≥ 4 colored series (the answer will
 still probably be facets).
+
+## Revised (design review, September 2026)
+
+The review's F1 finding — every scale spanned the item's full range
+while the data occupied a sliver, so charts showed rank but not
+magnitude — changed the domain rule. So the next person does not
+re-litigate it:
+
+- **Bars keep their zero baseline.** A length encoding without its
+  baseline lies; shares stay zero-based bars, and the histogram's bars
+  keep zero on the y axis.
+- **Position and color encodings fit the data.** Location stats
+  (means, medians — `count` scales included, for the same reason) render
+  as dot + CI on a window fitted to the observed CI extents; the map's
+  quantized ramp anchors to the observed range; the histogram's y-top
+  fits the tallest bin. The shared window in small multiples is one
+  window across all panels — shared so panels stay comparable, fitted
+  so the variation is visible.
+- **A fitted window always states its own edges.** `charts/domain.ts`
+  rounds the padded extent outward to a nice step and emits every tick
+  explicitly, so the first and last tick *are* the window's edges —
+  tested per chart. The caption/subtitle names the full item scale
+  ("0–10") once; no prose gloss about the visible window (owner
+  decision 2: the ticks already say it).
+- **Every ranked row carries its value** (F16) in a right-hand label
+  column, with the small-cell dagger riding the label; the axis sits on
+  top so the window is stated before the rows.
