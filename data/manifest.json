@@ -6,8 +6,8 @@
     "polars": "1.44.2",
     "pyarrow": "25.0.1"
   },
-  "generated_at_utc": "2026-09-10T19:06:44+00:00",
-  "git_sha": "8e5f059fb58d60160b69caeca25740b62e6047d7",
+  "generated_at_utc": "2026-09-17T20:44:30+00:00",
+  "git_sha": "0693a1e381ae6f38465fab4f4cf5d671428b14a9",
   "inputs": [
     {
       "bytes": 137525983,
@@ -84,10 +84,10 @@
       "sha256": "771087c873175f88a8c5196770485b03678d9e4a01eeb54b0397acf4adc7f19b"
     },
     {
-      "bytes": 45869212,
+      "bytes": 46196927,
       "path": "data/parquet/responses_long.parquet",
       "rows": 33295632,
-      "sha256": "68b511be613c1f118e9b42119490090881aef41bc388dc55fd941948f3da89b1"
+      "sha256": "987506b37758c9773fd1efdfc99cea5cfab4e305efedfedcdcf30f76dcec02d6"
     },
     {
       "bytes": 28224,
@@ -102,25 +102,31 @@
       "sha256": "8b3065b0a9b3951f4635f849b93f09a2729e39750131e2b990648d652e98aa49"
     },
     {
-      "bytes": 6944,
+      "bytes": 6909,
       "path": "data/validation_report.md",
       "rows": null,
-      "sha256": "0d982ef45e2f91d46a8283347c91efec8a312d637d108020eef6a0e15ab5294b"
+      "sha256": "ed5c5ff70ac50bc0369b93bfdddd03a5557a0e04aa18301af67d08d7773f41b5"
     },
     {
-      "bytes": 150745088,
+      "bytes": 340479,
+      "path": "data/static/index.json",
+      "rows": null,
+      "sha256": "457b1913cff2edf13995ce67fb24e0fef8523e882bca3f38b3abfd9da650d672"
+    },
+    {
+      "bytes": 131870720,
       "path": "data/flourish.duckdb",
       "rows": 33295632,
-      "sha256": "a29799f5b214b178e4f3e4ee825c333cabdb46ac9a36abebbceb31eb14438a8d"
+      "sha256": "27850cf9d330e9bfc2c3b6007cfb06e0f7a8832059c6ad42aa33bf16ee9fe556"
     }
   ],
   "pipeline_version": "0.1.0",
   "stage_seconds": {
-    "codebook": 2.62,
-    "derive": 2.32,
-    "ingest": 0.73,
-    "manifest": 0.27,
-    "reshape": 2.91,
-    "validate": 0.7
+    "aggregate": 232.8,
+    "codebook": 10.05,
+    "derive": 10.97,
+    "ingest": 2.46,
+    "reshape": 10.2,
+    "validate": 3.92
   }
 }
