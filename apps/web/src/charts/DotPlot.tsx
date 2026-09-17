@@ -1,10 +1,10 @@
 // Dots with CI whiskers for compact comparisons (breakdown levels within
-// one panel). One hue; the level axis carries identity. Suppressed
-// levels render as text with their n, in place.
+// one panel). One hue; the level axis carries identity. Every cell is
+// shown (ADR-0011): a level with no computable interval draws its dot
+// without a whisker; the tip and table carry its n.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
-import { formatCount } from '../format'
 import { groupValueLabel } from '../labels'
 import { ciExtents, fittedScale } from './domain'
 import {
@@ -43,22 +43,20 @@ export function dotEntries(
     facet: facetColumn
       ? groupValueLabel(facetColumn, row.group[facetColumn] ?? null, meta, labeler)
       : '',
-    value: row.suppressed ? null : plotValue(row),
-    ci: row.suppressed ? null : plotCI(row),
+    value: plotValue(row),
+    ci: plotCI(row),
   }))
 }
 
 export function dotMarks(
   entries: DotEntry[],
   color: string,
-  threshold: number,
   facetChannel: Record<string, string> = {},
-  /** Where "withheld" text anchors — the domain's left edge, not 0,
-   * when the window is data-fitted (F1). */
-  suppressedX = 0,
+  /** Where the pointer anchors for a valueless row — the fitted
+   * domain's left edge, not 0 (F1). */
+  anchorX = 0,
 ) {
   const valid = entries.filter((entry) => entry.value !== null)
-  const suppressed = entries.filter((entry) => entry.row.suppressed)
   return [
     Plot.ruleY(
       valid.filter((entry) => entry.ci !== null),
@@ -80,40 +78,14 @@ export function dotMarks(
       stroke: 'var(--surface)',
       strokeWidth: 2,
     }),
-    Plot.text(suppressed, {
-      ...facetChannel,
-      y: 'level',
-      x: suppressedX,
-      dx: 4,
-      text: (entry: DotEntry) => `withheld (n = ${formatCount(entry.row.n)})`,
-      textAnchor: 'start',
-      fill: INK_SECONDARY,
-      fontSize: 11,
-    }),
-    Plot.text(
-      valid.filter((entry) => entry.row.flagged),
-      {
-        ...facetChannel,
-        y: 'level',
-        x: (entry: DotEntry) => entry.ci?.[1] ?? entry.value,
-        text: () => '†',
-        dx: 10,
-        fill: 'var(--warn-text)',
-        fontSize: 12,
-      },
-    ),
     Plot.tip(
       entries,
       Plot.pointerY({
         ...facetChannel,
         y: 'level',
-        x: (entry: DotEntry) => entry.value ?? suppressedX,
+        x: (entry: DotEntry) => entry.value ?? anchorX,
         title: (entry: DotEntry) =>
-          tipText(
-            entry.row,
-            entry.facet ? `${entry.facet} · ${entry.level}` : entry.level,
-            threshold,
-          ),
+          tipText(entry.row, entry.facet ? `${entry.facet} · ${entry.level}` : entry.level),
         fontFamily: FONT_FAMILY,
       }),
     ),
@@ -166,7 +138,7 @@ export function DotPlot({
           tickFormat: isShare ? (d: number) => `${scale.format(d)}%` : scale.format,
         },
         y: { domain: levelDomain, label: null, tickSize: 0 },
-        marks: dotMarks(entries, color, responseMeta.suppression.threshold, {}, scale.domain[0]),
+        marks: dotMarks(entries, color, {}, scale.domain[0]),
       })
     },
     [rows, meta, responseMeta, variable, color, levelColumn, levelDomain, labeler],

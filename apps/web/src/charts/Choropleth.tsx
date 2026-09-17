@@ -1,9 +1,9 @@
 // World choropleth: equal-earth projection, sequential scale *quantized*
 // onto the seven discrete ramp tokens (no color interpolation — the SVG
-// stays var()-themed) and anchored to the item's [min, max]. Countries
-// with withheld or missing values wear the empty fill and say so in the
-// tip; sub-pixel territories (Hong Kong) get a labelled centroid marker
-// so no country silently disappears from a map of 23 (ADR-0010).
+// stays var()-themed), anchored to the observed range. Countries with no
+// value wear the empty fill and say so in the tip; sub-pixel territories
+// (Hong Kong) get a labelled centroid marker so no country silently
+// disappears from a map of 23 (ADR-0010).
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
@@ -66,7 +66,7 @@ export function joinCountries(
       feature,
       row,
       label: country.name,
-      value: row && !row.suppressed ? plotValue(row) : null,
+      value: row ? plotValue(row) : null,
       small: bboxAreaSqDeg(feature.geometry) < SMALL_TERRITORY_SQ_DEG,
     })
   }
@@ -105,13 +105,10 @@ export function Choropleth({
       const domain = mapDomain(rows, responseMeta)
       const width = chartWidth(720, available)
       const color = quantizeColor(domain)
-      const threshold = responseMeta.suppression.threshold
       const fillOf = (entry: MapEntry): string =>
         entry.value === null ? MAP_EMPTY : color(entry.value)
       const tipOf = (entry: MapEntry): string =>
-        entry.row
-          ? tipText(entry.row, entry.label, threshold)
-          : `${entry.label}\nno estimate at this wave`
+        entry.row ? tipText(entry.row, entry.label) : `${entry.label}\nno estimate at this wave`
       const small = entries.filter((entry) => entry.small)
       const selectedSet = new Set(selected ?? [])
       const highlighted = entries.filter((entry) =>
@@ -227,12 +224,10 @@ export function MapLegend({
 
 /** The ramp anchors to the observed range (F1): the map's job is to
  * separate the 23 countries, and the legend's labelled ends say exactly
- * what the window is. Withheld and absent countries wear the empty fill. */
+ * what the window is. Countries without a value wear the empty fill. */
 export function mapDomain(rows: EstimateRow[], responseMeta: ResponseMeta): [number, number] {
   const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-  const values = rows
-    .map((row) => (row.suppressed ? null : plotValue(row)))
-    .filter((v): v is number => v !== null)
+  const values = rows.map((row) => plotValue(row)).filter((v): v is number => v !== null)
   if (values.length === 0) return [0, 1]
   let lo = Math.min(...values)
   let hi = Math.max(...values)

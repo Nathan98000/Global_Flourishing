@@ -60,7 +60,7 @@ describe('CSV helpers', () => {
     response.meta.by = ['country_code']
     const csv = responseToCsv(response)
     expect(csv).toContain('# outcome: HAPPY')
-    expect(csv).toContain('# suppression: n<50 suppressed, n<100 flagged')
+    expect(csv).toContain('# suppression: none (all cells shown)')
     expect(csv.split('\n').find((line) => !line.startsWith('#'))).toContain(
       'country_code,stat,estimate',
     )

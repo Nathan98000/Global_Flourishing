@@ -119,9 +119,24 @@ class MissingnessRow(BaseModel):
     n_refused: int
 
 
+class ComponentModel(BaseModel):
+    """One question a derived score is computed from (its own catalog
+    entry, sliced to what the Codebook renders under the score)."""
+
+    name: str
+    display_name: str
+    wording: str | None
+    value_labels: list[ValueLabelModel]
+
+
 class VariableDetail(VariableSummary):
     value_labels: list[ValueLabelModel]
     missingness: list[MissingnessRow]
+    #: derived scores: the rule in words (from the registry); None otherwise
+    scoring: str | None = None
+    #: derived scores: the questions the score is computed from, in
+    #: scoring order; empty for ordinary catalog items
+    components: list[ComponentModel] = []
 
 
 class VariableList(BaseModel):

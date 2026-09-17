@@ -71,7 +71,7 @@ def test_states_serves_the_us_states(built_client: TestClient) -> None:
     assert "CA" in states
 
 
-def test_mean_by_age_band_shows_suppression_machinery_live(built_client: TestClient) -> None:
+def test_mean_by_age_band_shows_every_cell_live(built_client: TestClient) -> None:
     resp = built_client.get(
         "/v1/aggregate",
         params={
@@ -83,5 +83,7 @@ def test_mean_by_age_band_shows_suppression_machinery_live(built_client: TestCli
     )
     body = resp.json()
     rows = [r for r in body["rows"] if r["group"]["age_band"] is not None]
-    assert any(r["flagged"] or r["suppressed"] for r in rows)
-    assert all(r["n"] > 0 for r in rows)
+    # ADR-0011: nothing withheld or flagged, even the smallest band; the
+    # n rides on every row so a reader can see what a number rests on.
+    assert all(not r["flagged"] and not r["suppressed"] for r in rows)
+    assert all(r["n"] > 0 and r["estimate"] is not None for r in rows)

@@ -34,7 +34,13 @@ describe('filterVariables', () => {
 })
 
 describe('whyNotChartable', () => {
-  const base: VariableDetail = { ...happyVariable, value_labels: [], missingness: [] }
+  const base: VariableDetail = {
+    ...happyVariable,
+    value_labels: [],
+    missingness: [],
+    scoring: null,
+    components: [],
+  }
 
   test('country-specific items say why they wait', () => {
     const detail = { ...base, servable: false, is_country_specific: true }
@@ -79,8 +85,9 @@ describe('Methods view', () => {
     for (const heading of sourceHeadings) {
       expect(await screen.findByRole('heading', { name: heading }), heading).toBeInTheDocument()
     }
-    // The live thresholds come from meta, not hard-coded copy.
-    expect(await screen.findByText(/n below 50 are withheld/)).toBeInTheDocument()
+    // The serving policy comes from meta, not hard-coded copy: with the
+    // ADR-0011 zeros, the page says every cell is shown.
+    expect(await screen.findByText(/Every cell is shown, however small/)).toBeInTheDocument()
     expect(screen.getByText(/Associations, not causes\./)).toBeInTheDocument()
   })
 })

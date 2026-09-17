@@ -36,12 +36,17 @@ export function MethodsView() {
           Every number in this app is a <strong>survey-weighted estimate</strong> carrying its
           weight, its unweighted n, and a design-based
           {ciLevel !== undefined ? ` ${Math.round(ciLevel * 100)}%` : ''} confidence interval.
-          {suppression && (
+          {suppression && suppression.threshold > 0 ? (
             <>
               {' '}
               Cells with n below {formatCount(suppression.threshold)} are withheld (the n stays
               visible); cells with n below {formatCount(suppression.flag_below)} are flagged as
               small.
+            </>
+          ) : (
+            <>
+              {' '}
+              Every cell is shown, however small — read the n behind a number before leaning on it.
             </>
           )}
         </p>

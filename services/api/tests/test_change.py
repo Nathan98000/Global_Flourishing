@@ -19,15 +19,16 @@ def test_pair_change_uses_the_longitudinal_weight(client: TestClient) -> None:
     assert all(r["weight"] == "w_l2" for r in rows)
 
 
-def test_change_distribution_bins_are_suppressed_but_countable(client: TestClient) -> None:
-    """Per-bin n in the synthetic data sits under the fixed threshold (50),
-    so the API rightly suppresses every bin — while keeping n visible."""
+def test_change_distribution_bins_are_shown_and_countable(client: TestClient) -> None:
+    """Small per-bin n no longer withholds anything (ADR-0011): every bin
+    ships its share, with n visible."""
     _, rows = get_change(
         client, outcome="HAPPY", **{"from": "Y1"}, to="Y2", filter="country_code:1"
     )
     dist = [r for r in rows if r["stat"] == "change_distribution"]
     assert [r["level"] for r in dist] == list(range(-10, 11))
-    assert all(r["suppressed"] and r["estimate"] is None for r in dist)
+    assert all(not r["suppressed"] and not r["flagged"] for r in dist)
+    assert all(r["estimate"] is not None for r in dist if r["n"] > 0)
     # every complete pair lands in exactly one bin
     change_row = next(r for r in rows if r["stat"] == "change")
     assert sum(r["n"] for r in dist) == change_row["n"]
@@ -44,12 +45,12 @@ def test_ordinal_outcome_gets_a_transition_matrix(client: TestClient) -> None:
         (i, j) for i in (1, 2, 3) for j in (1, 2, 3)
     }
     # The synthetic patterns make retention exclude from-level 1: the 40
-    # pairs split over (2,3) and (3,1), every cell below the suppression
-    # threshold — estimates withheld, n honest.
+    # pairs split over (2,3) and (3,1) — every cell shown (ADR-0011),
+    # n honest.
     counts = {(r["from_level"], r["to_level"]): r["n"] for r in joint}
     assert counts[(2, 3)] == 20 and counts[(3, 1)] == 20
     assert sum(counts.values()) == 40
-    assert all(r["suppressed"] for r in joint)
+    assert all(not r["suppressed"] for r in joint)
     conditional = [r for r in rows if r["measure"] == "transition_conditional"]
     assert len(conditional) == 9
 

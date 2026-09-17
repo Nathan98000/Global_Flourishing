@@ -17,21 +17,16 @@ import {
 
 const rows = [
   testRow({ group: { country_code: 22 }, estimate: 7.4, ci_lo: 7.3, ci_hi: 7.5 }),
-  testRow({
-    group: { country_code: 1 },
-    estimate: 6.9,
-    ci_lo: 6.8,
-    ci_hi: 7.0,
-    flagged: true,
-    n: 73,
-  }),
+  testRow({ group: { country_code: 1 }, estimate: 6.9, ci_lo: 6.8, ci_hi: 7.0, n: 73 }),
+  // A 3-person cell: shown like any other (ADR-0011), but a lone PSU
+  // yields no computable interval — the dot draws without a whisker.
   testRow({
     group: { country_code: 24 },
-    suppressed: true,
-    estimate: null,
+    estimate: 6.2,
+    se: null,
     ci_lo: null,
     ci_hi: null,
-    n: 31,
+    n: 3,
   }),
 ]
 
@@ -41,7 +36,7 @@ const metaWithHK = {
 }
 
 describe('rankEntries', () => {
-  test('ranks by estimate with suppressed last, or by name', () => {
+  test('ranks by estimate, or by name', () => {
     const ranked = rankEntries(rows, metaWithHK, 'estimate')
     expect(ranked.map((entry) => entry.label)).toEqual(['United States', 'Testland', 'Hong Kong'])
     const byName = rankEntries(rows, metaWithHK, 'name')
@@ -66,21 +61,27 @@ describe('RankedBar', () => {
     const text = svg?.textContent ?? ''
     expect(text).toContain('United States')
     expect(text).toContain('Hong Kong')
-    expect(text).toContain('withheld (n = 31)')
-    expect(text).toContain('†') // the flagged marker rides the value label
-    // Direct value label on every row (F16), not just the leader.
+    // Every cell appears, small ones included, with no flag or
+    // withheld state (ADR-0011); every row carries its value (F16).
     expect(text).toContain('7.40')
     expect(text).toContain('6.90')
-    // The mark is a dot, not a zero-based bar (F1)…
-    expect(svg?.querySelectorAll('circle')).toHaveLength(2)
+    expect(text).toContain('6.20')
+    expect(text).not.toMatch(/withheld|†/)
+    // The mark is a dot, not a zero-based bar (F1) — all three rows,
+    // the interval-less one included…
+    expect(svg?.querySelectorAll('circle')).toHaveLength(3)
+    // …but only the two computable intervals draw whiskers.
+    expect(
+      [...(svg?.querySelectorAll('[aria-label="rule"] line') ?? [])].length,
+    ).toBeLessThanOrEqual(2)
     // …on a window fitted to the data (CIs 6.8–7.5), whose first and
     // last ticks are the window's edges: the axis says where the chart
     // starts and ends, and never reaches back to zero.
     const ticks = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
       (node) => node.textContent,
     )
-    expect(ticks[0]).toBe('6.6')
-    expect(ticks[ticks.length - 1]).toBe('7.6')
+    expect(ticks[0]).toBe('6.00')
+    expect(ticks[ticks.length - 1]).toBe('7.75')
     expect(ticks).not.toContain('0')
     // Marks wear tokens, not hex; the SVG stays out of the a11y tree
     // (the figure + table carry it).
@@ -119,11 +120,11 @@ describe('RankedBar', () => {
     )
     const svg = container.querySelector('svg')
     const text = svg?.textContent ?? ''
-    expect(svg?.querySelectorAll('rect').length).toBeGreaterThan(0) // bars stay bars
+    // Rounded bars render as paths in the "bar" mark group.
+    expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(2) // bars stay bars
     expect(text).toContain('0%') // and keep their zero baseline
     expect(text).toContain('61.0%')
     expect(text).toContain('22.0%')
-    expect(svg?.querySelector('#suppressed-hatch')).not.toBeNull()
   })
 
   test('quantile rows render without whiskers (no CIs yet, per METHODS)', () => {
@@ -147,16 +148,15 @@ describe('RankedBar', () => {
 })
 
 describe('Histogram', () => {
-  test('renders every bin including suppressed ones, on a y-domain fitted to the tallest bin', () => {
+  test('renders every bin, small ones included, on a y-domain fitted to the tallest bin', () => {
     const bins = Array.from({ length: 11 }, (_, level) =>
       testRow({
         group: { country_code: 1 },
         stat: 'distribution',
         level,
-        estimate: level === 4 ? null : 0.005 + level * 0.002,
-        ci_lo: level === 4 ? null : 0.003 + level * 0.002,
-        ci_hi: level === 4 ? null : 0.008 + level * 0.002,
-        suppressed: level === 4,
+        estimate: 0.005 + level * 0.002,
+        ci_lo: 0.003 + level * 0.002,
+        ci_hi: 0.008 + level * 0.002,
         n: level === 4 ? 12 : 220,
       }),
     )
@@ -172,9 +172,10 @@ describe('Histogram', () => {
     const svg = container.querySelector('svg')
     expect(svg?.textContent).toContain('Weighted share (%)')
     expect(svg?.textContent).toContain('Answer (0–10)')
-    // 10 value bars + 1 hatched stub for the suppressed bin.
-    expect(svg?.innerHTML).toContain('url(#suppressed-hatch)')
+    // Eleven bars, the 12-person bin drawn like any other (ADR-0011).
+    expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(11)
     expect(svg?.innerHTML).toContain('var(--series-1)')
+    expect(container.textContent).not.toMatch(/withheld|hatched/)
     // The y-domain fits the tallest bin (max CI 2.8%), keeps its zero
     // baseline, and labels both edges — no 10% floor (F1).
     const ticks = [...(svg?.querySelectorAll('[aria-label="y-axis tick label"] text') ?? [])].map(
@@ -182,24 +183,6 @@ describe('Histogram', () => {
     )
     expect(ticks).toContain('0%')
     expect(ticks).not.toContain('10%')
-    // The hatch is named, with the served rule (F10).
-    expect(container.textContent).toContain('hatched = withheld, n < 50')
-  })
-
-  test('the hatch legend appears only when something is withheld', () => {
-    const bins = [0, 1].map((level) =>
-      testRow({ group: { country_code: 1 }, stat: 'distribution', level, estimate: 0.02 }),
-    )
-    const { container } = render(
-      <Histogram
-        rows={bins}
-        meta={testMeta}
-        responseMeta={testResponseMeta({ stat: 'distribution' })}
-        variable={happyVariable}
-        color="var(--series-1)"
-      />,
-    )
-    expect(container.textContent).not.toContain('hatched')
   })
 })
 
@@ -211,7 +194,6 @@ describe('SmallMultiples', () => {
         estimate: code === 22 ? 7 + gender * 0.2 : 6 + gender * 0.1,
         ci_lo: 5.9,
         ci_hi: 7.5,
-        suppressed: code === 1 && gender === 2,
         n: code === 1 && gender === 2 ? 22 : 400,
       }),
     ),
@@ -246,7 +228,9 @@ describe('SmallMultiples', () => {
     expect(text).toContain('United States')
     expect(text).toContain('Male')
     expect(text).toContain('Female')
-    expect(text).toContain('withheld (n = 22)')
+    // The 22-person cell renders a dot like every other (ADR-0011).
+    expect(svg?.querySelectorAll('circle')).toHaveLength(4)
+    expect(text).not.toContain('withheld')
   })
 
   test('one shared, data-fitted window; its ticks repeat inside every panel', () => {

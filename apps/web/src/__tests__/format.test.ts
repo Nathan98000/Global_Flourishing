@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { summarizeCoverage } from '../coverage'
-import { ciLabel, formatCI, formatCount, formatEstimate, provenanceLine } from '../format'
+import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel } from '../labels'
-import { testMeta, testResponseMeta, testRow } from '../test-utils/fixtures'
+import { testMeta, testRow } from '../test-utils/fixtures'
 import type { MissingnessRow } from '../api/types'
 
 describe('formatting', () => {
@@ -18,22 +18,14 @@ describe('formatting', () => {
     expect(formatCI(testRow({ stat: 'proportion', ci_lo: 0.41, ci_hi: 0.5 }))).toBe(
       '[41.0%, 50.0%]',
     )
-    expect(formatCI(testRow({ ci_lo: null }))).toBe('')
+    // A missing interval is data to show (ADR-0011), never an empty cell.
+    expect(formatCI(testRow({ ci_lo: null }))).toBe('—')
   })
 
   test('counts get separators; the CI label follows meta', () => {
     expect(formatCount(207919)).toBe('207,919')
     expect(ciLabel(0.95)).toBe('95% CI')
     expect(ciLabel(0.9)).toBe('90% CI')
-  })
-
-  test('the provenance line names weight, SE method and suppression', () => {
-    const line = provenanceLine(testResponseMeta())
-    expect(line).toContain('weighted (w_c1)')
-    expect(line).toContain('design-based (Taylor) SEs')
-    expect(line).toContain('95% CI')
-    expect(line).toContain('withheld below n = 50')
-    expect(line).toContain('flagged below n = 100')
   })
 })
 

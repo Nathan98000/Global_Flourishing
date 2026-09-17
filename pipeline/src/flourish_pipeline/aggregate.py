@@ -21,8 +21,10 @@ the app boots — countries, labels, wording, breakdown labels and all —
 without the API ever answering.
 
 Everything runs through ``flourish_stats`` with the weight resolved from
-the wave→weight→eligibility table; suppression is the engine default.
-Output bytes are deterministic (sorted keys, index sorted by path).
+the wave→weight→eligibility table; the serving policy is
+``NO_SUPPRESSION`` (ADR-0011: every cell is shown — pass a policy to
+bake the 50/100 rule back in). Output bytes are deterministic (sorted
+keys, index sorted by path).
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -42,8 +44,9 @@ import duckdb
 import polars as pl
 import pyarrow as pa
 from flourish_stats import (
-    DEFAULT_POLICY,
+    NO_SUPPRESSION,
     Design,
+    SuppressionPolicy,
     WeightSpec,
     eligibility_expr,
     resolve,
@@ -192,6 +195,7 @@ def _envelope(
     frame: pl.DataFrame,
     groups: list[str],
     rows: list[dict[str, Any]],
+    policy: SuppressionPolicy,
 ) -> dict[str, Any]:
     return {
         "meta": {
@@ -208,8 +212,8 @@ def _envelope(
             "se_method": "taylor",
             "ci_level": 0.95,
             "suppression": {
-                "threshold": DEFAULT_POLICY.threshold,
-                "flag_below": DEFAULT_POLICY.flag_below,
+                "threshold": policy.threshold,
+                "flag_below": policy.flag_below,
             },
             "n_frame": frame.height,
             "n_valid": frame["value"].drop_nulls().len(),
@@ -229,6 +233,35 @@ def _catalog_table(con: duckdb.DuckDBPyConnection, name: str) -> pl.DataFrame:
     frame = pl.from_arrow(con.execute(f"FROM {name}").arrow())
     assert isinstance(frame, pl.DataFrame)
     return frame
+
+
+def _component_payload(
+    name: str, variables: pl.DataFrame, value_labels: pl.DataFrame
+) -> dict[str, Any]:
+    """One question a derived score is built from — field for field the
+    API's ComponentModel (a component missing from this build's catalog
+    still appears by name, exactly as the route behaves)."""
+    rows = variables.filter(pl.col("name") == name)
+    if rows.height == 0:
+        return {"name": name, "display_name": name, "wording": None, "value_labels": []}
+    row = rows.row(0, named=True)
+    return {
+        "name": name,
+        "display_name": str(row["display_name"]),
+        "wording": None if row["wording"] is None else str(row["wording"]),
+        "value_labels": [
+            {
+                "code": int(label["code"]),
+                "label": str(label["label"]),
+                "wave": label["wave"],
+                "country_code": label["country_code"],
+                "is_nonresponse": bool(label["is_nonresponse"]),
+            }
+            for label in value_labels.filter(pl.col("variable") == name)
+            .sort("code", "country_code", "wave", nulls_last=True)
+            .iter_rows(named=True)
+        ],
+    }
 
 
 def _summary_payload(row: dict[str, Any], servable: bool) -> dict[str, Any]:
@@ -277,6 +310,7 @@ def export_catalog(
     static_dir: Path,
     data_version: str | None,
     files: list[dict[str, Any]],
+    policy: SuppressionPolicy = NO_SUPPRESSION,
 ) -> None:
     """Write meta.json, variables.json and every v1/<name>/variable.json.
 
@@ -312,8 +346,8 @@ def export_catalog(
             "waves": list(WAVES),
             "weight_table": json.loads(weight_table_json()),
             "suppression": {
-                "threshold": DEFAULT_POLICY.threshold,
-                "flag_below": DEFAULT_POLICY.flag_below,
+                "threshold": policy.threshold,
+                "flag_below": policy.flag_below,
             },
             "ci_level": 0.95,
             "breakdowns": sorted(BREAKDOWN_LEVELS),
@@ -333,10 +367,21 @@ def export_catalog(
         name = str(summary["name"])
         detail: dict[str, Any]
         if summary["is_derived"]:
-            detail = {**summary, "value_labels": [], "missingness": []}
+            derived = DERIVED_OUTCOMES[name]
+            detail = {
+                **summary,
+                "value_labels": [],
+                "missingness": [],
+                "scoring": derived.scoring,
+                "components": [
+                    _component_payload(item, variables, value_labels) for item in derived.components
+                ],
+            }
         else:
             detail = {
                 **summary,
+                "scoring": None,
+                "components": [],
                 "value_labels": [
                     {
                         "code": int(label["code"]),
@@ -368,6 +413,7 @@ def export_static(
     *,
     data_version: str | None,
     only: tuple[str, ...] | None = None,
+    policy: SuppressionPolicy = NO_SUPPRESSION,
 ) -> dict[str, Any]:
     """Write every hot view; returns the index (also written to disk).
 
@@ -399,12 +445,14 @@ def export_static(
                     views.append(("distribution", "distribution_by-country_code", ["country_code"]))
                 for stat, stem, groups in views:
                     if stat == "mean":
-                        table = weighted_mean(base, "value", design, by=groups)
+                        table = weighted_mean(base, "value", design, by=groups, policy=policy)
                     elif stat == "proportion":
-                        table = weighted_proportion(base, "value", design, by=groups, levels=levels)
+                        table = weighted_proportion(
+                            base, "value", design, by=groups, levels=levels, policy=policy
+                        )
                     else:
                         table = weighted_distribution(
-                            base, "value", design, by=groups, levels=levels
+                            base, "value", design, by=groups, levels=levels, policy=policy
                         )
                     envelope = _envelope(
                         data_version,
@@ -415,6 +463,7 @@ def export_static(
                         base,
                         groups,
                         _rows(table, groups),
+                        policy,
                     )
                     relative = Path("v1") / outcome.name / wave / f"{stem}.json"
                     target = static_dir / relative
@@ -432,7 +481,7 @@ def export_static(
                             "rows": len(envelope["rows"]),
                         }
                     )
-        export_catalog(con, static_dir, data_version, files)
+        export_catalog(con, static_dir, data_version, files, policy)
     finally:
         con.close()
     index: dict[str, Any] = {

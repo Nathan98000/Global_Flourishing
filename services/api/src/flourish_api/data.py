@@ -25,6 +25,7 @@ from typing import Any
 import duckdb
 import polars as pl
 from fastapi import HTTPException, Request
+from flourish_stats import SuppressionPolicy
 from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame
 
 # The servable allow-list and the derived-score registry are shared data
@@ -174,6 +175,12 @@ class DataStore:
             return analysis_frame(cursor, outcome.name, wave, oriented=oriented, columns=columns)
         finally:
             cursor.close()
+
+
+def suppression_policy(request: Request) -> SuppressionPolicy:
+    """FastAPI dependency: the serving policy built once in create_app."""
+    policy: SuppressionPolicy = request.app.state.suppression_policy
+    return policy
 
 
 def require_data(request: Request) -> DataStore:

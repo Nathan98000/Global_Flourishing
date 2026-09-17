@@ -11,8 +11,9 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from flourish_stats import SuppressionPolicy
 
-from flourish_api.data import DataStore, require_data
+from flourish_api.data import DataStore, require_data, suppression_policy
 from flourish_api.queries import parse_aggregate_query
 from flourish_api.routes.aggregate import run_aggregate
 from flourish_api.schemas import EstimateResponse
@@ -23,6 +24,7 @@ router = APIRouter()
 @router.get("/states", summary="US state-level aggregates with state weights")
 def states(
     store: Annotated[DataStore, Depends(require_data)],
+    policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     outcome: str,
     wave: str,
     stat: str = "mean",
@@ -46,4 +48,4 @@ def states(
         oriented=oriented,
         p=None,
     )
-    return run_aggregate(store, query)
+    return run_aggregate(store, query, policy)

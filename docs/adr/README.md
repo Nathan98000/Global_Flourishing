@@ -16,3 +16,4 @@ it.
 | [ADR-0008](ADR-0008-one-envelope-two-tiers.md) | One response envelope for two tiers; request-keyed caching | Accepted |
 | [ADR-0009](ADR-0009-static-first-fetch-layer.md) | Static-first fetch layer | Accepted |
 | [ADR-0010](ADR-0010-frontend-rendering-stack.md) | Front-end rendering stack | Accepted |
+| [ADR-0011](ADR-0011-small-cells-shown.md) | Small cells are shown, not withheld (policy default; env-restorable) | Accepted |

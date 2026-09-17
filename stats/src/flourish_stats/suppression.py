@@ -42,3 +42,12 @@ class SuppressionPolicy:
 
 
 DEFAULT_POLICY = SuppressionPolicy()
+
+#: The serving policy since ADR-0011: show every cell. The arithmetic
+#: makes it exact — a cell is suppressed when ``n < threshold`` and
+#: flagged when ``threshold ≤ n < flag_below``, and with both thresholds
+#: at zero ``n < 0`` is never true for a non-negative cell size, so
+#: nothing is ever suppressed or flagged. The 50/100 rule stays one
+#: policy object away (``DEFAULT_POLICY``, or ``FA_SUPPRESSION_*`` in
+#: the API): this is a change of default, not a removal of capability.
+NO_SUPPRESSION = SuppressionPolicy(threshold=0, flag_below=0)

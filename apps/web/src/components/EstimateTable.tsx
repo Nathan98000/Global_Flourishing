@@ -1,12 +1,12 @@
 // The numbers behind a view, as a real table: the screen-reader path and
 // the copy-paste path for every chart, and a view in its own right.
-// Suppressed rows render as suppressed with their n — never dropped.
+// Every cell is shown (ADR-0011); a missing interval reads "—" and the
+// n rides on every row.
 
 import type { EstimateResponse } from '../api/types'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel } from '../labels'
 import type { Meta } from '../api/types'
-import { Flagged, Suppressed } from './Suppressed'
 import styles from './EstimateTable.module.css'
 
 export function EstimateTable({
@@ -21,7 +21,6 @@ export function EstimateTable({
   const by = response.meta.by
   const hasLevel = response.rows.some((row) => row.level !== null && row.level !== undefined)
   const hasP = response.rows.some((row) => row.p !== null && row.p !== undefined)
-  const threshold = response.meta.suppression.threshold
   return (
     <table className={styles.table}>
       {caption && <caption className={styles.caption}>{caption}</caption>}
@@ -48,24 +47,8 @@ export function EstimateTable({
             ))}
             {hasLevel && <td>{row.level ?? '—'}</td>}
             {hasP && <td>{row.p ?? '—'}</td>}
-            {row.suppressed ? (
-              <td colSpan={2}>
-                <Suppressed n={row.n} threshold={threshold} />
-              </td>
-            ) : (
-              <>
-                <td className={styles.number}>
-                  {formatEstimate(row.estimate, row.stat)}
-                  {row.flagged && (
-                    <>
-                      {' '}
-                      <Flagged n={row.n} />
-                    </>
-                  )}
-                </td>
-                <td className={styles.number}>{formatCI(row)}</td>
-              </>
-            )}
+            <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
+            <td className={styles.number}>{formatCI(row)}</td>
             <td className={styles.number}>{formatCount(row.n)}</td>
             <td>{row.weight}</td>
           </tr>

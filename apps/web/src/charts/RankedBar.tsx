@@ -1,14 +1,16 @@
 // Ranked countries, one series, one hue (no legend — the title names
-// it), suppression rendered in place, the small-cell dagger, a hover tip
-// carrying estimate, CI, n and weight, and a direct value label on every
-// row (F16). Two marks by scale (F1 / ADR-0010 revised): shares keep
-// zero-based bars; 0–10 location stats (means, medians) render as dot +
-// CI on a data-fitted window whose edges are always labelled ticks, with
-// the axis on top so the window is stated before the rows. Never fetches.
+// it), a hover tip carrying estimate, CI and n, and a direct value label
+// on every row (F16). Two marks by scale (F1 / ADR-0010 revised): shares
+// keep zero-based bars; 0–10 location stats (means, medians) render as
+// dot + CI on a data-fitted window whose edges are always labelled
+// ticks, with the axis on top so the window is stated before the rows.
+// Every cell is shown (ADR-0011); a row with no computable interval
+// draws its dot without a whisker, and a missing value reads "—".
+// Never fetches.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
-import { formatCount, formatEstimate } from '../format'
+import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
 import { ciExtents, fittedScale } from './domain'
 import {
@@ -17,7 +19,6 @@ import {
   INK,
   INK_SECONDARY,
   ROW_HEIGHT,
-  SUPPRESSED_HATCH_FILL,
   WHISKER,
   plotCI,
   plotValue,
@@ -36,8 +37,8 @@ export function rankEntries(rows: EstimateRow[], meta: Meta, sort: 'estimate' | 
   const entries = rows.map((row) => ({
     row,
     label: groupValueLabel('country_code', row.group['country_code'] ?? null, meta),
-    value: row.suppressed ? null : plotValue(row),
-    ci: row.suppressed ? null : plotCI(row),
+    value: plotValue(row),
+    ci: plotCI(row),
   }))
   if (sort === 'name') return entries.sort((a, b) => a.label.localeCompare(b.label))
   return entries.sort((a, b) => {
@@ -70,9 +71,7 @@ export function RankedBar({
       const entries = rankEntries(rows, meta, sort)
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
-      const suppressed = entries.filter((entry) => entry.row.suppressed)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-      const threshold = responseMeta.suppression.threshold
       const style = {
         fontFamily: FONT_FAMILY,
         fontSize: '12px',
@@ -84,8 +83,7 @@ export function RankedBar({
       const marginLeft = narrow ? 104 : 128
       const marginRight = narrow ? 52 : 64
       const height = 44 + entries.length * ROW_HEIGHT
-      const valueOf = (entry: Entry) =>
-        formatEstimate(entry.row.estimate, entry.row.stat) + (entry.row.flagged ? ' †' : '')
+      const valueOf = (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat)
 
       if (!isShare) {
         // Location stats on a bounded scale: dot + CI on a fitted window.
@@ -126,15 +124,7 @@ export function RankedBar({
               stroke: 'var(--surface)',
               strokeWidth: 2,
             }),
-            Plot.text(suppressed, {
-              y: 'label',
-              x: lo,
-              text: (entry: Entry) => `withheld (n = ${formatCount(entry.row.n)})`,
-              textAnchor: 'start',
-              fill: INK_SECONDARY,
-              fontSize: 11,
-            }),
-            Plot.text(valid, {
+            Plot.text(entries, {
               y: 'label',
               x: hi,
               text: valueOf,
@@ -149,7 +139,7 @@ export function RankedBar({
               Plot.pointerY({
                 y: 'label',
                 x: (entry: Entry) => entry.value ?? lo,
-                title: (entry: Entry) => tipText(entry.row, entry.label, threshold),
+                title: (entry: Entry) => tipText(entry.row, entry.label),
                 fontFamily: FONT_FAMILY,
               }),
             ),
@@ -191,24 +181,7 @@ export function RankedBar({
               strokeWidth: 1.5,
             },
           ),
-          Plot.barX(suppressed, {
-            y: 'label',
-            x: xMax * 0.035,
-            fill: SUPPRESSED_HATCH_FILL,
-            stroke: 'var(--suppressed-hatch)',
-            strokeWidth: 0.5,
-            insetTop: 5,
-            insetBottom: 5,
-          }),
-          Plot.text(suppressed, {
-            y: 'label',
-            x: xMax * 0.045,
-            text: (entry: Entry) => `withheld (n = ${formatCount(entry.row.n)})`,
-            textAnchor: 'start',
-            fill: INK_SECONDARY,
-            fontSize: 11,
-          }),
-          Plot.text(valid, {
+          Plot.text(entries, {
             y: 'label',
             x: xMax,
             text: valueOf,
@@ -223,7 +196,7 @@ export function RankedBar({
             Plot.pointerY({
               y: 'label',
               x: (entry: Entry) => entry.value ?? 0,
-              title: (entry: Entry) => tipText(entry.row, entry.label, threshold),
+              title: (entry: Entry) => tipText(entry.row, entry.label),
               fontFamily: FONT_FAMILY,
             }),
           ),

@@ -6,7 +6,7 @@
 
 import { Link, getRouteApi } from '@tanstack/react-router'
 import { useMeta } from '../api/meta'
-import type { VariableDetail } from '../api/types'
+import type { ValueLabel, VariableDetail } from '../api/types'
 import { useVariable } from '../api/variables'
 import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
@@ -15,6 +15,40 @@ import { directionPhrase } from '../labels'
 import styles from './CodebookDetailView.module.css'
 
 const route = getRouteApi('/codebook/$name')
+
+function ValueLabelTable({
+  labels,
+  countryName,
+}: {
+  labels: ValueLabel[]
+  countryName: (code: number | null) => string
+}) {
+  return (
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th scope="col">Code</th>
+          <th scope="col">Label</th>
+          <th scope="col">Applies to</th>
+          <th scope="col">Non-response</th>
+        </tr>
+      </thead>
+      <tbody>
+        {labels.map((label, index) => (
+          <tr key={index}>
+            <td className={styles.num}>{label.code}</td>
+            <td>{label.label}</td>
+            <td>
+              {countryName(label.country_code)}
+              {label.wave ? `, ${label.wave}` : ''}
+            </td>
+            <td>{label.is_nonresponse ? 'yes' : ''}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
 
 export function whyNotChartable(detail: VariableDetail): string {
   if (detail.servable) return ''
@@ -90,40 +124,41 @@ export function CodebookDetailView() {
 
       {detail.wording ? (
         <blockquote className={styles.wording}>{detail.wording}</blockquote>
-      ) : (
-        <p className={styles.whyNot}>
-          {detail.is_derived
-            ? `Derived score — ${detail.label ?? 'computed by the pipeline.'}`
-            : 'No wording recorded for this item.'}
-        </p>
+      ) : detail.is_derived ? null : (
+        <p className={styles.whyNot}>No wording recorded for this item.</p>
+      )}
+
+      {detail.is_derived && (
+        <>
+          <h3>How it is scored</h3>
+          <p>{detail.scoring ?? detail.label ?? 'Computed by the pipeline.'}</p>
+          {detail.components.length > 0 && (
+            <>
+              <h3>The questions behind it</h3>
+              {detail.components.map((component) => (
+                <section key={component.name} className={styles.component}>
+                  <h4 className={styles.componentTitle}>
+                    {component.display_name} <span className={styles.code}>{component.name}</span>
+                  </h4>
+                  {component.wording ? (
+                    <blockquote className={styles.wording}>{component.wording}</blockquote>
+                  ) : (
+                    <p className={styles.whyNot}>No wording recorded for this item.</p>
+                  )}
+                  {component.value_labels.length > 0 && (
+                    <ValueLabelTable labels={component.value_labels} countryName={countryName} />
+                  )}
+                </section>
+              ))}
+            </>
+          )}
+        </>
       )}
 
       {labels.length > 0 && (
         <>
           <h3>Value labels</h3>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">Code</th>
-                <th scope="col">Label</th>
-                <th scope="col">Applies to</th>
-                <th scope="col">Non-response</th>
-              </tr>
-            </thead>
-            <tbody>
-              {labels.map((label, index) => (
-                <tr key={index}>
-                  <td className={styles.num}>{label.code}</td>
-                  <td>{label.label}</td>
-                  <td>
-                    {countryName(label.country_code)}
-                    {label.wave ? `, ${label.wave}` : ''}
-                  </td>
-                  <td>{label.is_nonresponse ? 'yes' : ''}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ValueLabelTable labels={labels} countryName={countryName} />
         </>
       )}
 

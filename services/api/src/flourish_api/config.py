@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     duckdb_threads: int = 2
     duckdb_memory_limit: str = "256MB"
 
+    # Small-cell serving policy (ADR-0011): zeros show every cell — with
+    # both thresholds 0, `n < 0` is never true, so nothing is suppressed
+    # or flagged. Setting FA_SUPPRESSION_THRESHOLD=50 and
+    # FA_SUPPRESSION_FLAG_BELOW=100 restores the pre-ADR-0011 rule; the
+    # machinery in flourish_stats.suppression is untouched either way.
+    suppression_threshold: int = 0
+    suppression_flag_below: int = 0
+
     # In-process LRU over /v1 GET responses (entries, not bytes; responses
     # are small aggregates). 0 disables.
     cache_size: int = 256

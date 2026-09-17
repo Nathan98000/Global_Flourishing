@@ -29,20 +29,18 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-SFI_DOMAINS: dict[str, tuple[str, str]] = {
-    "happiness": ("HAPPY", "LIFE_SAT"),
-    "health": ("PHYSICAL_HLTH", "MENTAL_HEALTH"),
-    "meaning": ("WORTHWHILE", "LIFE_PURPOSE"),
-    "character": ("PROMOTE_GOOD", "GIVE_UP"),
-    "relationships": ("CONTENT", "SAT_RELATNSHP"),
-    "financial": ("EXPENSES", "WORRY_SAFETY"),
-}
-SFI_ITEMS: tuple[str, ...] = tuple(item for pair in SFI_DOMAINS.values() for item in pair)
-SFI_MIN_ITEMS = 10
-
-PHQ2_ITEMS = ("DEPRESSED", "INTEREST")
-GAD2_ITEMS = ("FEEL_ANXIOUS", "CONTROL_WORRY")
-SCREEN_POSITIVE_AT = 3
+# What each score is built from lives in the derived-score registry
+# (flourish_stats.outcomes — one home, served to clients as each score's
+# components and scoring rule); this stage imports the facts and does
+# the arithmetic.
+from flourish_stats.outcomes import (
+    GAD2_ITEMS,
+    PHQ2_ITEMS,
+    SCREEN_POSITIVE_AT,
+    SFI_DOMAINS,
+    SFI_ITEMS,
+    SFI_MIN_ITEMS,
+)
 
 PRIORITY_ITEMS = {"money": "MONEY", "relationships": "GOOD_RELATION", "meaning": "MEANINGFUL"}
 

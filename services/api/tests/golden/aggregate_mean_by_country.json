@@ -16,8 +16,8 @@
     "se_method": "taylor",
     "stat": "mean",
     "suppression": {
-      "flag_below": 100,
-      "threshold": 50
+      "flag_below": 0,
+      "threshold": 0
     },
     "waves": [
       "Y1"
@@ -33,7 +33,7 @@
       "ci_method": "normal",
       "df": 4,
       "estimate": 4.554716981132075,
-      "flagged": true,
+      "flagged": false,
       "from_level": null,
       "group": {
         "country_code": 1
@@ -60,7 +60,7 @@
       "ci_method": "normal",
       "df": 53,
       "estimate": 5.0618181818181816,
-      "flagged": true,
+      "flagged": false,
       "from_level": null,
       "group": {
         "country_code": 22

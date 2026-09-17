@@ -61,25 +61,20 @@ test('2 — Codebook: search, open the entry, chart it, read the wording', async
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
-test('3 — a suppressed cell renders as suppressed with its n, not a gap', async ({ page }) => {
-  // Synthetic by-cells sit under the threshold: the engine withholds the
-  // estimate and the UI must show that, with the n, in the chart AND the
-  // data table.
+test('3 — a small cell renders with its n and no flag, not a gap', async ({ page }) => {
+  // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
+  // were withheld; since ADR-0011 every cell is shown, with its n in the
+  // data table so a reader can see what the number rests on.
   await page.goto('/breakdowns?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
-  await expect(
-    chartRegion(page)
-      .getByText(/withheld \(n = \d/)
-      .first(),
-  ).toBeVisible()
+  await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
 
   await page.getByText('Data table').click()
-  await expect(
-    page
-      .getByRole('table')
-      .getByText(/withheld \(n = \d/)
-      .first(),
-  ).toBeVisible()
+  const table = page.getByRole('table')
+  await expect(table.getByText(/withheld|†/)).toHaveCount(0)
+  // Every row carries an estimate and its n (the small cells included).
+  const cells = await table.locator('tbody tr').count()
+  expect(cells).toBeGreaterThan(0)
 })
 
 test('4 — CSV export downloads with the # meta header lines', async ({ page }) => {
@@ -97,7 +92,7 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   const body = await streamToString(download)
   expect(body).toContain('# data_version: synthetic.0.0.1')
   expect(body).toContain('# outcome: HAPPY')
-  expect(body).toContain('# suppression: n<50 suppressed, n<100 flagged')
+  expect(body).toContain('# suppression: none (all cells shown)')
   expect(body.split('\n').find((line) => !line.startsWith('#'))).toContain(
     'country_code,stat,estimate',
   )

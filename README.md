@@ -15,7 +15,8 @@ by country × demographic), a searchable Codebook with exact question
 wording, and a Methods page rendered from
 [docs/METHODS.md](docs/METHODS.md). The URL is the state — every view
 survives reload and pastes into another browser — with CSV/PNG export,
-dark mode, and suppression rendered in place, never dropped. The app is
+dark mode, and every cell shown with its n — small cells included
+(ADR-0011), with intervals that widen honestly. The app is
 **static-first** ([ADR-0009](docs/adr/ADR-0009-static-first-fetch-layer.md)):
 the common views load from 2,158 precomputed JSON files on the app's own
 origin and the Atlas renders with the API cold, down or data-less;
@@ -151,7 +152,7 @@ for Global Human Flourishing. <https://doi.org/10.17605/OSF.IO/3JTZ8>. Study
 profile: VanderWeele et al., *Nature Mental Health* (2025).
 
 Raw microdata is **not** in this repository and never will be; the app serves
-aggregates only, with small cells suppressed. Everything shown is an
+aggregates only. Everything shown is an
 **association, not a cause** — the in-app Methods page (rendered from
 [docs/METHODS.md](docs/METHODS.md)) explains why. This project is not
 affiliated with the study.

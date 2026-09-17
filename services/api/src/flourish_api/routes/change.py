@@ -13,14 +13,14 @@ from typing import Annotated
 import pyarrow as pa
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import (
-    DEFAULT_POLICY,
+    SuppressionPolicy,
     paired_change,
     paired_change_distribution,
     three_point_panel,
     transition_matrix,
 )
 
-from flourish_api.data import DataStore, require_data
+from flourish_api.data import DataStore, require_data, suppression_policy
 from flourish_api.frames import AssembledFrame, assemble_change_frame, wave_column
 from flourish_api.queries import ChangeQuery, parse_change_query
 from flourish_api.routes.aggregate import catalog_levels
@@ -33,24 +33,38 @@ router = APIRouter()
 TRANSITION_SCALE_TYPES = frozenset({"ordinal", "nominal", "binary"})
 
 
-def change_tables(assembled: AssembledFrame, query: ChangeQuery) -> list[pa.Table]:
+def change_tables(
+    assembled: AssembledFrame, query: ChangeQuery, policy: SuppressionPolicy
+) -> list[pa.Table]:
     frame, design, groups = assembled.frame, assembled.design, list(query.by)
     if query.is_three_point:
         y1, my, y2 = (wave_column(w) for w in query.waves)
-        return [three_point_panel(frame, y1, my, y2, design, scope=query.scope, by=groups)]
+        return [
+            three_point_panel(
+                frame, y1, my, y2, design, scope=query.scope, by=groups, policy=policy
+            )
+        ]
     earlier, later = (wave_column(w) for w in query.waves)
-    tables = [paired_change(frame, earlier, later, design, by=groups)]
+    tables = [paired_change(frame, earlier, later, design, by=groups, policy=policy)]
     levels = catalog_levels(query.outcome)
     if levels is not None and frame[earlier].dtype.is_integer():
         span = levels[-1] - levels[0]
         tables.append(
             paired_change_distribution(
-                frame, earlier, later, design, by=groups, levels=range(-span, span + 1)
+                frame,
+                earlier,
+                later,
+                design,
+                by=groups,
+                levels=range(-span, span + 1),
+                policy=policy,
             )
         )
         if query.outcome.scale_type in TRANSITION_SCALE_TYPES:
             tables.append(
-                transition_matrix(frame, earlier, later, design, by=groups, levels=levels)
+                transition_matrix(
+                    frame, earlier, later, design, by=groups, levels=levels, policy=policy
+                )
             )
     return tables
 
@@ -58,6 +72,7 @@ def change_tables(assembled: AssembledFrame, query: ChangeQuery) -> list[pa.Tabl
 @router.get("/change", summary="Within-person change across waves")
 def change(
     store: Annotated[DataStore, Depends(require_data)],
+    policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     outcome: str,
     to: str,
     via: str | None = None,
@@ -85,7 +100,9 @@ def change(
     )
     assembled = assemble_change_frame(store, query)
     rows = [
-        row for table in change_tables(assembled, query) for row in rows_from_table(table, query.by)
+        row
+        for table in change_tables(assembled, query, policy)
+        for row in rows_from_table(table, query.by)
     ]
     meta = ResponseMeta(
         data_version=store.data_version,
@@ -100,9 +117,7 @@ def change(
         weight=query.spec.weight,
         se_method=assembled.design.se_method,
         ci_level=0.95,
-        suppression=SuppressionModel(
-            threshold=DEFAULT_POLICY.threshold, flag_below=DEFAULT_POLICY.flag_below
-        ),
+        suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
         n_frame=assembled.frame.height,
         n_valid=assembled.frame[assembled.value].drop_nulls().len(),
         by=list(query.by),

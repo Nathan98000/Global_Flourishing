@@ -90,8 +90,10 @@ R exactly, including its subtleties for subgroups.
 
 Intervals shown are **95% confidence intervals**, estimate ± 1.96
 standard errors (normal-based, like R's `confint` on a `svymean`). With
-the study's sample sizes the normal approximation is comfortable; tiny
-cells are suppressed long before it breaks down.
+the study's sample sizes the normal approximation is comfortable for
+typical cells; in the very small cells the app now shows (see below),
+read the interval — and the n — with care, and a cell resting on a
+single sampling unit has no computable interval at all, shown as "—".
 
 ## Subgroups (domain estimation)
 
@@ -104,15 +106,23 @@ same way (complete-case per item: excluded from the estimate, kept in the
 design). Because GFS strata never cross a country border, a per-country
 figure is identical either way — a fact the test suite asserts.
 
-## Small cells: suppression and flagging
+## Small cells: shown, with their n
 
-Deep cross-tabs can produce cells with a handful of respondents —
-statistically meaningless and potentially misleading. Cells with
-**unweighted n below 50 are suppressed** (the estimate is withheld; the
-cell still shows its n so the gap is honest), and cells with **n from 50
-to 99 are flagged** as small. For categorical breakdowns the rule applies
-per answer option, and in transition matrices per cell. The thresholds
-are parameters of the engine, not magic numbers scattered through it.
+Deep cross-tabs can produce cells with a handful of respondents. Since
+[ADR-0011](adr/ADR-0011-small-cells-shown.md) the app **shows every
+cell, however small** — nothing is withheld or flagged. What protects
+the reader instead is context that never leaves a number's side: the
+unweighted **n** on every row (read it before leaning on a small cell),
+and a confidence interval that widens honestly as cells shrink. A cell
+resting on a single sampling unit has no computable interval and shows
+"—" in its place.
+
+The suppression machinery itself is intact and parameterised, not
+deleted: the engine still takes a threshold pair, and setting
+`FA_SUPPRESSION_THRESHOLD=50` / `FA_SUPPRESSION_FLAG_BELOW=100` on the
+API (and passing the same policy to the static exporter) restores the
+previous rule, under which cells below n = 50 were withheld and cells of
+50–99 flagged.
 
 ## Change over time
 
@@ -130,8 +140,8 @@ estimate.
 Mean change is estimated on complete pairs (both waves answered), with
 the same design-based CI machinery; distributions of individual change
 and transition matrices ("of the people who said X in 2023, what did
-they say in 2024?") come with the same per-cell uncertainty and
-suppression.
+they say in 2024?") come with the same per-cell uncertainty, and every
+cell is shown with its n.
 
 ## Medians and correlations
 
@@ -160,10 +170,10 @@ The app says "associated with", and means exactly that.
 
 Every `/v1` response says what it did: the `meta` block names the data
 version, the weight rule it resolved (by its key in the table above) and
-the weight column, the SE method, the suppression thresholds, and the
-unweighted counts behind the estimate — and each row repeats the weight,
-n, CI and suppression flags, so a number can never be quoted without its
-context. The API never chooses a weight itself; it looks the rule up in
+the weight column, the SE method, the serving policy (no suppression by
+default — ADR-0011), and the unweighted counts behind the estimate — and
+each row repeats the weight, n and CI, so a number can never be quoted
+without its context. The API never chooses a weight itself; it looks the rule up in
 the table, which is also served verbatim at `/v1/meta`. Subgroup filters
 are applied as domains (the design is kept whole), and requests that
 don't make sense — a question not asked at that wave, a statistic that

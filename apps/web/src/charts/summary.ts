@@ -2,14 +2,13 @@
 // (§2.10), plus the polite announcement when a view updates.
 
 import type { EstimateRow, Meta } from '../api/types'
-import { formatCount, formatEstimate } from '../format'
+import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
 
 export function summarizeExtremes(rows: EstimateRow[], meta: Meta, subject: string): string {
   const valid = rows
-    .filter((row) => !row.suppressed && row.estimate !== null)
+    .filter((row) => row.estimate !== null)
     .sort((a, b) => (b.estimate ?? 0) - (a.estimate ?? 0))
-  const withheld = rows.filter((row) => row.suppressed).length
   const parts: string[] = [subject]
   const highest = valid[0]
   const lowest = valid[valid.length - 1]
@@ -22,11 +21,6 @@ export function summarizeExtremes(rows: EstimateRow[], meta: Meta, subject: stri
     )
   } else {
     parts.push('No estimates to show.')
-  }
-  if (withheld > 0) {
-    parts.push(
-      `${formatCount(withheld)} ${withheld === 1 ? 'value' : 'values'} withheld (small cells).`,
-    )
   }
   parts.push('The data table below carries every number.')
   return parts.join(' ')

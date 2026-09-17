@@ -1,7 +1,7 @@
 // Number formatting: one place, one locale (the site is English), so
 // every view renders 7.21 [7.10, 7.32] · n = 1,204 the same way.
 
-import type { EstimateRow, ResponseMeta } from './api/types'
+import type { EstimateRow } from './api/types'
 
 const count = new Intl.NumberFormat('en-US')
 const two = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -22,26 +22,17 @@ export function formatEstimate(value: number | null | undefined, stat: string): 
   return two.format(value)
 }
 
+/** A missing interval renders as an em dash — a lone PSU in a stratum
+ * yields no computable SE (ADR-0011), and that is data to show, never a
+ * zero-width mark. */
 export function formatCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi' | 'stat'>): string {
-  if (row.ci_lo === null || row.ci_hi === null) return ''
+  if (row.ci_lo === null || row.ci_hi === null) return '—'
   return `[${formatEstimate(row.ci_lo, row.stat)}, ${formatEstimate(row.ci_hi, row.stat)}]`
 }
 
 /** "95% CI" from meta.ci_level (never hard-coded 95). */
 export function ciLabel(ciLevel: number): string {
   return `${one.format(ciLevel * 100).replace(/\.0$/, '')}% CI`
-}
-
-/** The provenance line under every chart: weight, SE method, suppression. */
-export function provenanceLine(meta: ResponseMeta): string {
-  const parts = [
-    `weighted (${meta.weight})`,
-    meta.se_method === 'taylor' ? 'design-based (Taylor) SEs' : `${meta.se_method} SEs`,
-    ciLabel(meta.ci_level),
-    `estimates withheld below n = ${meta.suppression.threshold}, ` +
-      `flagged below n = ${meta.suppression.flag_below}`,
-  ]
-  return parts.join(' · ')
 }
 
 export function formatPercent(fraction: number, decimals = 0): string {

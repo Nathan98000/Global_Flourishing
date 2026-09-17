@@ -48,6 +48,45 @@
         "title": "BreakdownLevelModel",
         "type": "object"
       },
+      "ComponentModel": {
+        "description": "One question a derived score is computed from (its own catalog\nentry, sliced to what the Codebook renders under the score).",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value_labels": {
+            "items": {
+              "$ref": "#/components/schemas/ValueLabelModel"
+            },
+            "title": "Value Labels",
+            "type": "array"
+          },
+          "wording": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wording"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "wording",
+          "value_labels"
+        ],
+        "title": "ComponentModel",
+        "type": "object"
+      },
       "CountryModel": {
         "properties": {
           "code": {
@@ -752,6 +791,14 @@
       },
       "VariableDetail": {
         "properties": {
+          "components": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ComponentModel"
+            },
+            "title": "Components",
+            "type": "array"
+          },
           "default_stat": {
             "title": "Default Stat",
             "type": "string"
@@ -823,6 +870,17 @@
           "scale_type": {
             "title": "Scale Type",
             "type": "string"
+          },
+          "scoring": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring"
           },
           "servable": {
             "title": "Servable",
@@ -1065,7 +1123,7 @@
     }
   },
   "info": {
-    "description": "Aggregate statistics from the Global Flourishing Study, Waves 1-2. Every estimate carries its survey weight, design-based CI, unweighted n and suppression flags. Data: https://doi.org/10.17605/OSF.IO/3JTZ8",
+    "description": "Aggregate statistics from the Global Flourishing Study, Waves 1-2. Every estimate carries its survey weight, design-based CI and unweighted n. Data: https://doi.org/10.17605/OSF.IO/3JTZ8",
     "title": "Flourish Atlas API",
     "version": "0.1.0"
   },
