@@ -33,20 +33,15 @@ interface Entry {
   ci: [number, number] | null
 }
 
-export function rankEntries(rows: EstimateRow[], meta: Meta, sort: 'estimate' | 'name'): Entry[] {
-  const entries = rows.map((row) => ({
+/** Rows arrive already ordered (src/sortRows.ts — the same order the
+ * data table renders); the chart never re-sorts. */
+export function rankEntries(rows: EstimateRow[], meta: Meta): Entry[] {
+  return rows.map((row) => ({
     row,
     label: groupValueLabel('country_code', row.group['country_code'] ?? null, meta),
     value: plotValue(row),
     ci: plotCI(row),
   }))
-  if (sort === 'name') return entries.sort((a, b) => a.label.localeCompare(b.label))
-  return entries.sort((a, b) => {
-    if (a.value === null && b.value === null) return a.label.localeCompare(b.label)
-    if (a.value === null) return 1
-    if (b.value === null) return -1
-    return b.value - a.value
-  })
 }
 
 export function RankedBar({
@@ -55,7 +50,6 @@ export function RankedBar({
   responseMeta,
   variable,
   color,
-  sort,
   levelLabel,
 }: {
   rows: EstimateRow[]
@@ -63,12 +57,11 @@ export function RankedBar({
   responseMeta: ResponseMeta
   variable: VariableSummary
   color: string
-  sort: 'estimate' | 'name'
   levelLabel?: string
 }) {
   const container = usePlot(
     (available) => {
-      const entries = rankEntries(rows, meta, sort)
+      const entries = rankEntries(rows, meta)
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -203,7 +196,7 @@ export function RankedBar({
         ],
       })
     },
-    [rows, meta, responseMeta, variable, color, sort, levelLabel],
+    [rows, meta, responseMeta, variable, color, levelLabel],
   )
 
   return <div ref={container} />

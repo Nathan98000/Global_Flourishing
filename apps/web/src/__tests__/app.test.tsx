@@ -29,14 +29,6 @@ const sfiByCountry = testResponse(
   { outcome: 'sfi' },
 )
 
-const sfiByCountryY2 = testResponse(
-  [
-    testRow({ group: { country_code: 1 }, estimate: 6.8, ci_lo: 6.7, ci_hi: 6.9, n: 23 }),
-    testRow({ group: { country_code: 22 }, estimate: 7.3, ci_lo: 7.2, ci_hi: 7.4, n: 180 }),
-  ],
-  { outcome: 'sfi', waves: ['Y2'], weight: 'w_c2', weight_key: 'y2' },
-)
-
 // A derived score ships no missingness rows — coverage must still appear.
 const sfiDetail: VariableDetail = {
   ...sfiVariable,
@@ -92,7 +84,6 @@ const staticTier: Routes = {
   '/data/variables.json': { variables: [sfiVariable, happyVariable] },
   '/data/v1/sfi/variable.json': sfiDetail,
   '/data/v1/sfi/Y1/mean_by-country_code.json': sfiByCountry,
-  '/data/v1/sfi/Y2/mean_by-country_code.json': sfiByCountryY2,
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/data/v1/HAPPY/Y1/mean_by-country_code.json': testResponse(
     [testRow({ group: { country_code: 1 } })],
@@ -150,10 +141,9 @@ test('the Atlas renders from the static tier, question on the page, plain footno
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
   expect(screen.getByText(/Mean of the 12 SFI items/)).toBeInTheDocument()
-  // The footnote glosses the interval correctly (decision 6) and names
-  // the served withholding rule.
-  expect(screen.getByText(/contain the true value 95 times out of 100/)).toBeInTheDocument()
-  expect(screen.queryByText(/withheld|flagged/)).toBeNull()
+  // The footnote names the interval level and nothing more (item 7).
+  expect(screen.getByText(/Lines are 95% confidence intervals/)).toBeInTheDocument()
+  expect(screen.queryByText(/withheld|flagged|true value/)).toBeNull()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
 })
 
@@ -175,17 +165,6 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   fireEvent.change(screen.getByLabelText(/or search all/), { target: { value: 'happiness' } })
   fireEvent.click(await screen.findByRole('button', { name: /Happiness/ }))
   expect((await screen.findByLabelText('Topic')) as HTMLSelectElement).toHaveValue('wellbeing')
-})
-
-test('a Wave 2 view never renders without its coverage story (F3)', async () => {
-  mockFetch(staticTier)
-  await renderAt('/?wave=Y2')
-  // sfi is derived and has no missingness rows; the banner still appears,
-  // built from per-country n at Y2 against Y1 — both static files.
-  const banner = await screen.findByRole('complementary')
-  expect(banner).toHaveTextContent('Not everyone came back for the 2024 round')
-  expect(banner).toHaveTextContent('23%')
-  expect(banner).toHaveTextContent('90%')
 })
 
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {

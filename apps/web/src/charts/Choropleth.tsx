@@ -7,15 +7,8 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import {
-  FONT_FAMILY,
-  INK_SECONDARY,
-  MAP_EMPTY,
-  SEQUENTIAL_RAMP,
-  SURFACE,
-  plotValue,
-  tipText,
-} from './theme'
+import { ciLabel, formatEstimate } from '../format'
+import { FONT_FAMILY, INK_SECONDARY, MAP_EMPTY, SEQUENTIAL_RAMP, SURFACE, plotValue } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 import {
   ISO3_TO_NUMERIC,
@@ -107,8 +100,19 @@ export function Choropleth({
       const color = quantizeColor(domain)
       const fillOf = (entry: MapEntry): string =>
         entry.value === null ? MAP_EMPTY : color(entry.value)
-      const tipOf = (entry: MapEntry): string =>
-        entry.row ? tipText(entry.row, entry.label) : `${entry.label}\nno estimate at this wave`
+      // The map tip carries country, value and interval — nothing else
+      // (round-2 item 9); n lives in the data table.
+      const tipOf = (entry: MapEntry): string => {
+        if (!entry.row) return `${entry.label}\nno estimate at this wave`
+        const row = entry.row
+        const lines = [`${formatEstimate(row.estimate, row.stat)}  ${entry.label}`]
+        if (row.ci_lo !== null && row.ci_hi !== null) {
+          lines.push(
+            `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
+          )
+        }
+        return lines.join('\n')
+      }
       const small = entries.filter((entry) => entry.small)
       const selectedSet = new Set(selected ?? [])
       const highlighted = entries.filter((entry) =>

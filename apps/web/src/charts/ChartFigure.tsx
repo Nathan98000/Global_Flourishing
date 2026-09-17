@@ -1,16 +1,14 @@
 // The frame around every chart (§2.10): a figure with a figcaption, a
 // role="img" chart node whose aria-label states what it shows and its
 // extremes, a <details> data table with the same numbers (the
-// screen-reader and copy-paste path), a plain-language footnote (weights,
-// precision, withholding — linked to Methods), and CSV/PNG export.
-// Charts render inside; this never fetches.
+// screen-reader and copy-paste path), a one-line footnote linked to
+// Methods, and CSV/PNG export. Charts render inside; this never fetches.
 
 import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { downloadChartPng } from '../export/png'
-import { isShareStat } from '../format'
 import styles from './ChartFigure.module.css'
 
 export type CsvExport =
@@ -18,23 +16,18 @@ export type CsvExport =
 
 export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map'
 
-/** The footnote under every chart: what a mark is, what the interval
- * means (decision 6 — a property of the procedure, never a probability
- * about this interval), how the weighting reads, and the withholding
- * rule — all numbers from the response, nothing hard-coded. */
+/** The footnote under every chart (round-2 item 7): what the lines are
+ * — 95% confidence intervals, the level from the response — the
+ * weighting in one clause, and where the n lives. No sentence explains
+ * what a confidence interval means; that is the Methods page's job. */
 export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks): string {
-  const share = isShareStat(meta.stat)
-  const quantity = share ? 'share' : 'average'
-  const outOf = Math.round(meta.ci_level * 100)
-  const lead =
+  const level = Math.round(meta.ci_level * 100)
+  const interval =
     marks === 'map'
-      ? `Each country is shaded by its weighted ${quantity}. Hover one for the exact value and its interval — drawn so it contains the true value ${outOf} times out of 100.`
-      : marks === 'bins'
-        ? `Each bar is the weighted share giving that answer; the line through its top shows how precise that share is — intervals drawn this way contain the true value ${outOf} times out of 100.`
-        : marks === 'bars'
-          ? `Each bar is the weighted share answering this way; the line through its end shows how precise that share is — intervals drawn this way contain the true value ${outOf} times out of 100.`
-          : `Each dot is a weighted ${quantity}; the line through it shows how precise that ${quantity} is — intervals drawn this way contain the true value ${outOf} times out of 100.`
-  return `${lead} Weighted so each country's sample stands for its adult population.`
+      ? `Hover a country for its ${level}% confidence interval`
+      : `Lines are ${level}% confidence intervals`
+  const where = marks === 'map' ? 'n in the data table' : 'n shown per row in the data table'
+  return `${interval} · weighted so each country's sample stands for its adult population · ${where}.`
 }
 
 export function ChartFigure({

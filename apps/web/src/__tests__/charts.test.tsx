@@ -36,11 +36,9 @@ const metaWithHK = {
 }
 
 describe('rankEntries', () => {
-  test('ranks by estimate, or by name', () => {
-    const ranked = rankEntries(rows, metaWithHK, 'estimate')
-    expect(ranked.map((entry) => entry.label)).toEqual(['United States', 'Testland', 'Hong Kong'])
-    const byName = rankEntries(rows, metaWithHK, 'name')
-    expect(byName.map((entry) => entry.label)).toEqual(['Hong Kong', 'Testland', 'United States'])
+  test('keeps the input order — sorting is sortRows.ts, shared with the table', () => {
+    const entries = rankEntries(rows, metaWithHK)
+    expect(entries.map((entry) => entry.label)).toEqual(['United States', 'Testland', 'Hong Kong'])
   })
 })
 
@@ -53,7 +51,6 @@ describe('RankedBar', () => {
         responseMeta={testResponseMeta()}
         variable={happyVariable}
         color="var(--sfi-happiness)"
-        sort="estimate"
       />,
     )
     const svg = container.querySelector('svg')
@@ -114,7 +111,6 @@ describe('RankedBar', () => {
         responseMeta={testResponseMeta({ stat: 'proportion' })}
         variable={attendVariable}
         color="var(--series-1)"
-        sort="estimate"
         levelLabel="More than once a week"
       />,
     )
@@ -138,7 +134,6 @@ describe('RankedBar', () => {
         responseMeta={testResponseMeta({ stat: 'quantile' })}
         variable={happyVariable}
         color="var(--series-1)"
-        sort="estimate"
       />,
     )
     const svg = container.querySelector('svg')

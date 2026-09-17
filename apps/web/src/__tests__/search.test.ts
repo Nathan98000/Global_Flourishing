@@ -81,6 +81,19 @@ describe('atlas search', () => {
     expect(parseAtlasSearch({ oriented: 'yes' }).invalid).toEqual(['oriented'])
   })
 
+  test("dir rides the URL only when it differs from the sort's default", () => {
+    // Defaults: values high-first, names A→Z — omitted from the URL.
+    expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ dir: 'desc' })))).toBe('')
+    expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ dir: 'asc' })))).toBe('?dir=asc')
+    expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ sort: 'name', dir: 'asc' })))).toBe(
+      '?sort=name',
+    )
+    expect(
+      stringifySearch(atlasSearchParams(parseAtlasSearch({ sort: 'name', dir: 'desc' }))),
+    ).toBe('?sort=name&dir=desc')
+    expect(parseAtlasSearch({ dir: 'sideways' }).invalid).toEqual(['dir'])
+  })
+
   test('topic (mid-selection) round-trips; absent = inferred from the measure', () => {
     expect(parseAtlasSearch({}).topic).toBeUndefined()
     const search = parseAtlasSearch({ topic: 'wellbeing' })

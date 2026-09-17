@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import { summarizeCoverage } from '../coverage'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel } from '../labels'
 import { testMeta, testRow } from '../test-utils/fixtures'
-import type { MissingnessRow } from '../api/types'
 
 describe('formatting', () => {
   test('means keep two decimals; shares render as percentages', () => {
@@ -39,60 +37,5 @@ describe('labels come from meta, never a TS copy', () => {
     expect(groupValueLabel('age_band', '18-24', testMeta)).toBe('18–24')
     expect(groupValueLabel('gender', null, testMeta)).toBe('—')
     expect(groupValueLabel('gender', 9, testMeta)).toBe('9')
-  })
-})
-
-describe('coverage', () => {
-  const rows: MissingnessRow[] = [
-    {
-      wave: 'Y1',
-      country_code: 1,
-      n_present: 100,
-      n_valid: 95,
-      n_skipped: 5,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y1',
-      country_code: 22,
-      n_present: 200,
-      n_valid: 190,
-      n_skipped: 10,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y2',
-      country_code: 1,
-      n_present: 23,
-      n_valid: 22,
-      n_skipped: 1,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y2',
-      country_code: 22,
-      n_present: 180,
-      n_valid: 175,
-      n_skipped: 5,
-      n_dk: 0,
-      n_refused: 0,
-    },
-  ]
-
-  test('per-country retention with honest extremes', () => {
-    const summary = summarizeCoverage(rows, 'Y2')
-    expect(summary.countries).toHaveLength(2)
-    expect(summary.lowest?.country_code).toBe(1)
-    expect(summary.lowest?.fraction).toBeCloseTo(0.23)
-    expect(summary.highest?.country_code).toBe(22)
-    expect(summary.highest?.fraction).toBeCloseTo(0.9)
-  })
-
-  test('a wave with no rows yields no banner data', () => {
-    const summary = summarizeCoverage(rows.slice(0, 2), 'MY')
-    expect(summary.lowest).toBeNull()
   })
 })

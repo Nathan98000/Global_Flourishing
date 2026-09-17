@@ -8,6 +8,7 @@
 import type { AggregateRequest } from '../api/estimates'
 import type { Stat, VariableSummary, Wave } from '../api/types'
 import { isStat, isWave } from '../api/types'
+import { defaultDir, type SortDir } from '../sortRows'
 import type { RawSearch } from './searchCodec'
 
 const NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/
@@ -141,6 +142,8 @@ export interface AtlasSearch {
   stat?: Stat
   view: 'bars' | 'map'
   sort: 'estimate' | 'name'
+  /** Absent = the sort's own default (values high-first, names A→Z). */
+  dir?: SortDir
   countries: number[]
   /** Categorical outcomes: which answer level is ranked/mapped. */
   level?: number
@@ -167,6 +170,7 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
     wave: collect.take('wave', raw, parseWave, ATLAS_DEFAULTS.wave),
     view: collect.take('view', raw, parseEnum('bars', 'map'), ATLAS_DEFAULTS.view),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name'), ATLAS_DEFAULTS.sort),
+    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, () => parseCountries(raw), ATLAS_DEFAULTS.countries),
     topic: collect.take('topic', raw, parseName, undefined),
     stat: collect.take('stat', raw, parseStat, undefined),
@@ -186,6 +190,7 @@ export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, 
       stat: search.stat,
       view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
       sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
+      dir: search.dir === defaultDir(search.sort ?? ATLAS_DEFAULTS.sort) ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
       oriented: search.oriented ? true : undefined,
@@ -218,6 +223,8 @@ export interface BreakdownsSearch {
   /** 1–2 extra dimensions beyond country (demographics, or one survey variable). */
   by: string[]
   sort: 'estimate' | 'name' | 'gap'
+  /** Absent = the sort's own default (values/gaps high-first, names A→Z). */
+  dir?: SortDir
   countries: number[]
   /** Categorical outcomes: which answer level the cells show. */
   level?: number
@@ -249,6 +256,7 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
     wave: collect.take('wave', raw, parseWave, BREAKDOWNS_DEFAULTS.wave),
     by: collect.take('by', raw, () => parseBy(raw), BREAKDOWNS_DEFAULTS.by),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name', 'gap'), BREAKDOWNS_DEFAULTS.sort),
+    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take(
       'countries',
       raw,
@@ -273,6 +281,8 @@ export function breakdownsSearchParams(search: Partial<BreakdownsSearch>): Recor
       wave: search.wave === BREAKDOWNS_DEFAULTS.wave ? undefined : search.wave,
       by: byIsDefault ? undefined : search.by,
       sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
+      dir:
+        search.dir === defaultDir(search.sort ?? BREAKDOWNS_DEFAULTS.sort) ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
     },

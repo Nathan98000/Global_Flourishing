@@ -1,17 +1,14 @@
 // The shared primitives: suppression rendered in place, errors rendered
 // distinctly, coverage summarized honestly.
 
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
 import { ApiError, NetworkError } from '../api/errors'
-import { CoverageBanner } from '../components/CoverageBanner'
+import { CountryFilter } from '../components/controls/CountryFilter'
 import { ErrorState } from '../components/ErrorState'
 import { EstimateTable } from '../components/EstimateTable'
 import { Stat } from '../components/Stat'
-import { coverageFromEstimates, summarize, summarizeCoverage } from '../coverage'
 import { attendVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
-import { renderWithRouter } from '../test-utils/router'
-import type { MissingnessRow } from '../api/types'
 
 describe('Stat', () => {
   test('an estimate never appears without CI, n and weight', () => {
@@ -76,6 +73,9 @@ describe('EstimateTable', () => {
     expect(screen.getByText('31')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument() // the missing interval
     expect(screen.queryByText(/withheld/)).toBeNull()
+    // The weight is a caption, not a column (§6).
+    expect(screen.queryByRole('columnheader', { name: 'Weight' })).toBeNull()
+    expect(screen.getByText(/Weighted estimates \(w_c1\)/)).toBeInTheDocument()
   })
 
   test('breakdown levels use the served labels', () => {
@@ -101,105 +101,54 @@ describe('EstimateTable', () => {
   })
 })
 
-describe('CoverageBanner', () => {
-  const rows: MissingnessRow[] = [
-    {
-      wave: 'Y1',
-      country_code: 1,
-      n_present: 100,
-      n_valid: 95,
-      n_skipped: 5,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y1',
-      country_code: 22,
-      n_present: 200,
-      n_valid: 190,
-      n_skipped: 10,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y2',
-      country_code: 1,
-      n_present: 23,
-      n_valid: 22,
-      n_skipped: 1,
-      n_dk: 0,
-      n_refused: 0,
-    },
-    {
-      wave: 'Y2',
-      country_code: 22,
-      n_present: 180,
-      n_valid: 175,
-      n_skipped: 5,
-      n_dk: 0,
-      n_refused: 0,
-    },
-  ]
+describe('CountryFilter', () => {
+  const countries = testMeta.countries
 
-  const renderBanner = (wave: 'MY' | 'Y2') =>
-    renderWithRouter(
-      <CoverageBanner
-        wave={wave}
-        summary={summarizeCoverage(rows, wave)}
-        countries={testMeta.countries}
-      />,
+  function renderFilter(selected: number[] = [], onChange = vi.fn()) {
+    render(<CountryFilter countries={countries} selected={selected} onChange={onChange} />)
+    return onChange
+  }
+
+  test('the trigger reports state: all, or the count', () => {
+    const { unmount } = render(
+      <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-
-  test('names the extremes in plain words and offers the per-country table', async () => {
-    renderBanner('Y2')
-    const banner = await screen.findByRole('complementary')
-    expect(banner).toHaveTextContent('Not everyone came back for the 2024 round')
-    expect(banner).toHaveTextContent('23%')
-    expect(banner).toHaveTextContent('Testland')
-    expect(banner).toHaveTextContent('90%')
-    expect(banner).toHaveTextContent('United States')
-    expect(screen.getByText('Follow-up by country')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Why this matters' })).toBeInTheDocument()
+    expect(screen.getByText('All 2 countries')).toBeInTheDocument()
+    unmount()
+    render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
+    expect(screen.getByText('1 country')).toBeInTheDocument()
   })
 
-  test('renders nothing without comparable waves', async () => {
-    renderBanner('MY')
-    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull())
-  })
-})
-
-describe('coverageFromEstimates', () => {
-  test('derived scores get coverage from per-country n against Wave 1', () => {
-    const atY2 = [
-      testRow({ group: { country_code: 1 }, n: 23 }),
-      testRow({ group: { country_code: 22 }, n: 180 }),
-    ]
-    const atY1 = [
-      testRow({ group: { country_code: 1 }, n: 100 }),
-      testRow({ group: { country_code: 22 }, n: 200 }),
-    ]
-    const summary = summarize(coverageFromEstimates(atY2, atY1))
-    expect(summary.lowest?.country_code).toBe(1)
-    expect(summary.lowest?.fraction).toBeCloseTo(0.23)
-    expect(summary.highest?.fraction).toBeCloseTo(0.9)
+  test('Select all checks every country', () => {
+    const onChange = renderFilter([])
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+    expect(onChange).toHaveBeenCalledWith([1, 22])
   })
 
-  test('proportions take the largest cell per country, suppressed rows still count', () => {
-    const atWave = [
-      testRow({ group: { country_code: 1 }, level: 0, n: 80 }),
-      testRow({ group: { country_code: 1 }, level: 1, n: 80 }),
-      testRow({ group: { country_code: 22 }, suppressed: true, estimate: null, n: 40 }),
-    ]
-    const baseline = [
-      testRow({ group: { country_code: 1 }, n: 100 }),
-      testRow({ group: { country_code: 22 }, n: 100 }),
-    ]
-    const coverage = coverageFromEstimates(atWave, baseline)
-    expect(coverage.find((entry) => entry.country_code === 1)?.presentAtWave).toBe(80)
-    expect(coverage.find((entry) => entry.country_code === 22)?.fraction).toBeCloseTo(0.4)
+  test('Clear returns to the all-countries default', () => {
+    const onChange = renderFilter([1, 22])
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(onChange).toHaveBeenCalledWith([])
   })
 
-  test('an empty wave is "no coverage story", not 0%', () => {
-    expect(coverageFromEstimates([], [testRow()])).toEqual([])
+  test('Escape closes the panel and returns focus to the trigger', () => {
+    renderFilter()
+    const details = document.querySelector('details') as HTMLDetailsElement
+    details.open = true
+    fireEvent.keyDown(details, { key: 'Escape' })
+    expect(details.open).toBe(false)
+    expect(document.activeElement?.tagName.toLowerCase()).toBe('summary')
+  })
+
+  test('a pointerdown outside closes the panel and leaves focus alone', () => {
+    renderFilter()
+    const details = document.querySelector('details') as HTMLDetailsElement
+    details.open = true
+    fireEvent.pointerDown(document.body)
+    expect(details.open).toBe(false)
+    // …while a pointerdown inside keeps it open.
+    details.open = true
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Clear' }))
+    expect(details.open).toBe(true)
   })
 })
