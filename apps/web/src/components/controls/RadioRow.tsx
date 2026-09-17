@@ -16,15 +16,18 @@ export function RadioRow<T extends string>({
   options,
   value,
   onChange,
+  wide = false,
 }: {
   legend: string
   name: string
   options: readonly RadioOption<T>[]
   value: T
   onChange: (value: T) => void
+  /** Long rows (answer levels) span the full width of the phone grid. */
+  wide?: boolean
 }) {
   return (
-    <fieldset className={styles.fieldset}>
+    <fieldset className={styles.fieldset} data-wide={wide || undefined}>
       <legend className={styles.legend}>{legend}</legend>
       <span className={styles.row}>
         {options.map((option) => (

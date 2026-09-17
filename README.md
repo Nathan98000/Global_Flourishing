@@ -31,7 +31,7 @@ has the stack and the Hong Kong map story). The full plan is
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
 
-![The Atlas: Secure Flourishing Index by country, with CIs, a tier badge and export buttons](docs/atlas-screenshot.png)
+![The Atlas: Secure Flourishing Index by country as dots with confidence intervals on a fitted 5.5–8.5 window, every value labelled, topic and measure pickers above](docs/atlas-screenshot.png)
 
 Try it locally (with the built data present):
 

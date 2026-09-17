@@ -12,12 +12,11 @@ import {
   INK_SECONDARY,
   ROW_HEIGHT,
   WHISKER,
-  axisLabel,
   plotCI,
   plotValue,
   tipText,
 } from './theme'
-import { usePlot } from './usePlot'
+import { chartWidth, usePlot } from './usePlot'
 
 export interface DotEntry {
   row: EstimateRow
@@ -140,35 +139,38 @@ export function DotPlot({
   levelDomain: string[]
   labeler?: LevelLabeler
 }) {
-  const container = usePlot(() => {
-    const entries = dotEntries(rows, meta, levelColumn, null, labeler)
-    const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-    const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
-      targetTicks: 6,
-    })
-    return Plot.plot({
-      height: 44 + levelDomain.length * ROW_HEIGHT,
-      width: 660,
-      marginLeft: 150,
-      marginRight: 40,
-      style: {
-        fontFamily: FONT_FAMILY,
-        fontSize: '12px',
-        background: 'transparent',
-        color: INK_SECONDARY,
-      },
-      x: {
-        domain: scale.domain,
-        ticks: scale.ticks,
-        label: axisLabel(variable, responseMeta),
-        labelAnchor: 'center',
-        grid: true,
-        tickFormat: isShare ? (d: number) => `${scale.format(d)}%` : scale.format,
-      },
-      y: { domain: levelDomain, label: null, tickSize: 0 },
-      marks: dotMarks(entries, color, responseMeta.suppression.threshold, {}, scale.domain[0]),
-    })
-  }, [rows, meta, responseMeta, variable, color, levelColumn, levelDomain, labeler])
+  const container = usePlot(
+    (available) => {
+      const entries = dotEntries(rows, meta, levelColumn, null, labeler)
+      const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
+      const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
+        targetTicks: 6,
+      })
+      const width = chartWidth(660, available)
+      return Plot.plot({
+        height: 44 + levelDomain.length * ROW_HEIGHT,
+        width,
+        marginLeft: width < 480 ? 100 : 150,
+        marginRight: 40,
+        style: {
+          fontFamily: FONT_FAMILY,
+          fontSize: '12px',
+          background: 'transparent',
+          color: INK_SECONDARY,
+        },
+        x: {
+          domain: scale.domain,
+          ticks: scale.ticks,
+          label: null,
+          grid: true,
+          tickFormat: isShare ? (d: number) => `${scale.format(d)}%` : scale.format,
+        },
+        y: { domain: levelDomain, label: null, tickSize: 0 },
+        marks: dotMarks(entries, color, responseMeta.suppression.threshold, {}, scale.domain[0]),
+      })
+    },
+    [rows, meta, responseMeta, variable, color, levelColumn, levelDomain, labeler],
+  )
 
   return <div ref={container} />
 }

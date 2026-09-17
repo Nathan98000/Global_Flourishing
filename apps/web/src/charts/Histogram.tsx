@@ -22,7 +22,7 @@ import {
   plotValue,
   tipText,
 } from './theme'
-import { usePlot } from './usePlot'
+import { chartWidth, usePlot } from './usePlot'
 
 interface BinEntry {
   row: EstimateRow
@@ -70,94 +70,100 @@ export function Histogram({
   const threshold = responseMeta.suppression.threshold
   const hasSuppressed = rows.some((row) => row.suppressed)
 
-  const container = usePlot(() => {
-    const entries = binEntries(rows, meta)
-    const facets = [...new Set(entries.map((entry) => entry.facet))]
-    const faceted = facets.length > 1
-    const facetChannel: Record<string, string> = faceted ? { fx: 'facet' } : {}
-    const valid = entries.filter((entry) => entry.value !== null)
-    const suppressed = entries.filter((entry) => entry.row.suppressed)
-    const levels =
-      variable.min !== null && variable.max !== null
-        ? Array.from({ length: variable.max - variable.min + 1 }, (_, i) => (variable.min ?? 0) + i)
-        : [...new Set(entries.map((entry) => entry.level))].sort((a, b) => a - b)
-    // Fit the y-domain to the tallest bin (CI included) across the
-    // countries in view; bars keep their zero baseline.
-    const scale = fittedScale(
-      valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0),
-      { targetTicks: 5, zeroBaseline: true },
-    )
-    const maxY = scale.domain[1]
+  const container = usePlot(
+    (available) => {
+      const entries = binEntries(rows, meta)
+      const facets = [...new Set(entries.map((entry) => entry.facet))]
+      const faceted = facets.length > 1
+      const facetChannel: Record<string, string> = faceted ? { fx: 'facet' } : {}
+      const valid = entries.filter((entry) => entry.value !== null)
+      const suppressed = entries.filter((entry) => entry.row.suppressed)
+      const levels =
+        variable.min !== null && variable.max !== null
+          ? Array.from(
+              { length: variable.max - variable.min + 1 },
+              (_, i) => (variable.min ?? 0) + i,
+            )
+          : [...new Set(entries.map((entry) => entry.level))].sort((a, b) => a - b)
+      // Fit the y-domain to the tallest bin (CI included) across the
+      // countries in view; bars keep their zero baseline.
+      const scale = fittedScale(
+        valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0),
+        { targetTicks: 5, zeroBaseline: true },
+      )
+      const maxY = scale.domain[1]
 
-    return Plot.plot({
-      height: 300,
-      width: Math.max(420, Math.min(900, facets.length * 260)),
-      marginBottom: 44,
-      style: {
-        fontFamily: FONT_FAMILY,
-        fontSize: '12px',
-        background: 'transparent',
-        color: INK_SECONDARY,
-      },
-      x: {
-        domain: levels,
-        label: `Answer (${variable.min ?? '·'}–${variable.max ?? '·'})`,
-        labelAnchor: 'center',
-        tickSize: 0,
-      },
-      y: {
-        domain: scale.domain,
-        ticks: scale.ticks,
-        label: 'Weighted share (%)',
-        grid: true,
-        tickFormat: (d: number) => `${scale.format(d)}%`,
-      },
-      ...(faceted ? { fx: { domain: facets, label: null } } : {}),
-      marks: [
-        Plot.barY(valid, {
-          ...facetChannel,
-          x: 'level',
-          y: 'value',
-          fill: color,
-          ry2: BAR_RADIUS,
-          insetLeft: 1,
-          insetRight: 1,
-        }),
-        Plot.ruleX(
-          valid.filter((entry) => entry.ci !== null),
-          {
+      return Plot.plot({
+        height: 300,
+        width: chartWidth(Math.max(420, Math.min(900, facets.length * 260)), available),
+        marginBottom: 44,
+        style: {
+          fontFamily: FONT_FAMILY,
+          fontSize: '12px',
+          background: 'transparent',
+          color: INK_SECONDARY,
+        },
+        x: {
+          domain: levels,
+          label: `Answer (${variable.min ?? '·'}–${variable.max ?? '·'})`,
+          labelAnchor: 'center',
+          tickSize: 0,
+        },
+        y: {
+          domain: scale.domain,
+          ticks: scale.ticks,
+          label: 'Weighted share (%)',
+          grid: true,
+          tickFormat: (d: number) => `${scale.format(d)}%`,
+        },
+        ...(faceted ? { fx: { domain: facets, label: null } } : {}),
+        marks: [
+          Plot.barY(valid, {
             ...facetChannel,
             x: 'level',
-            y1: (entry: BinEntry) => entry.ci?.[0],
-            y2: (entry: BinEntry) => entry.ci?.[1],
-            stroke: WHISKER,
-            strokeWidth: 1.5,
-          },
-        ),
-        Plot.barY(suppressed, {
-          ...facetChannel,
-          x: 'level',
-          y: maxY * 0.06,
-          fill: SUPPRESSED_HATCH_FILL,
-          stroke: 'var(--suppressed-hatch)',
-          strokeWidth: 0.5,
-          insetLeft: 3,
-          insetRight: 3,
-        }),
-        Plot.tip(
-          entries,
-          Plot.pointerX({
-            ...facetChannel,
-            x: 'level',
-            y: (entry: BinEntry) => entry.value ?? 0,
-            title: (entry: BinEntry) =>
-              tipText(entry.row, `${entry.facet} · answer ${entry.level}`, threshold),
-            fontFamily: FONT_FAMILY,
+            y: 'value',
+            fill: color,
+            ry2: BAR_RADIUS,
+            insetLeft: 1,
+            insetRight: 1,
           }),
-        ),
-      ],
-    })
-  }, [rows, meta, responseMeta, variable, color])
+          Plot.ruleX(
+            valid.filter((entry) => entry.ci !== null),
+            {
+              ...facetChannel,
+              x: 'level',
+              y1: (entry: BinEntry) => entry.ci?.[0],
+              y2: (entry: BinEntry) => entry.ci?.[1],
+              stroke: WHISKER,
+              strokeWidth: 1.5,
+            },
+          ),
+          Plot.barY(suppressed, {
+            ...facetChannel,
+            x: 'level',
+            y: maxY * 0.06,
+            fill: SUPPRESSED_HATCH_FILL,
+            stroke: 'var(--suppressed-hatch)',
+            strokeWidth: 0.5,
+            insetLeft: 3,
+            insetRight: 3,
+          }),
+          Plot.tip(
+            entries,
+            Plot.pointerX({
+              ...facetChannel,
+              x: 'level',
+              y: (entry: BinEntry) => entry.value ?? 0,
+              title: (entry: BinEntry) =>
+                tipText(entry.row, `${entry.facet} · answer ${entry.level}`, threshold),
+              fontFamily: FONT_FAMILY,
+            }),
+          ),
+        ],
+      })
+    },
+    [rows, meta, responseMeta, variable, color],
+  )
 
   return (
     <div>

@@ -2,7 +2,38 @@
 // (countries, breakdown_labels) — the front end owns no copy of any
 // label map (exit criterion 6).
 
-import type { EstimateRow, Meta, VariableDetail } from './api/types'
+import type { EstimateRow, Meta, VariableDetail, VariableSummary } from './api/types'
+
+/** The server's direction enum in plain words (F6: no `direction: none`
+ * on a public surface). */
+export function directionPhrase(direction: string): string {
+  if (direction === 'higher_better') return 'higher is better'
+  if (direction === 'lower_better') return 'lower is better'
+  return 'no better-or-worse direction'
+}
+
+/** The subtitle that names the scale and direction once (decision 2):
+ * "Average score on a 0–10 scale · higher is better". The axis then
+ * carries only its ticks. Everything comes from the variable's own
+ * facts; nothing here re-derives a label. */
+export function scaleSubtitle(
+  variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
+  stat: string,
+  oriented = false,
+): string {
+  const lead = stat === 'quantile' ? 'Median score' : 'Average score'
+  const range =
+    variable.min !== null && variable.max !== null
+      ? ` on a ${variable.min}–${variable.max} scale`
+      : ''
+  const direction =
+    variable.direction === 'lower_better' && oriented
+      ? 'reversed so higher is better'
+      : variable.direction === 'none'
+        ? ''
+        : directionPhrase(variable.direction)
+  return `${lead}${range}${direction ? ` · ${direction}` : ''}`
+}
 
 export function columnLabel(column: string, meta: Meta): string {
   if (column === 'country_code') return 'Country'

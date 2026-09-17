@@ -1,92 +1,146 @@
-// Outcome selection: a quick filter narrowing a grouped native select
-// (derived scores first, then families). Native controls only — fully
-// keyboard and screen-reader capable without a combobox re-implementation.
+// Choosing a measure is two steps, not one list of 161 (owner decision
+// 1): a topic select (the catalog families, with a count on each), then
+// a measure select holding only that topic's items — plus a search
+// field ("or search all …") that matches name, display name and
+// question wording and selects a measure directly, setting the topic to
+// match. Native controls only; the search results are plain buttons.
 
 import { useId, useMemo, useState } from 'react'
 import type { VariableSummary } from '../../api/types'
+import { topicsOf } from '../../topics'
 import styles from './OutcomePicker.module.css'
 
-export function groupVariables(
-  variables: VariableSummary[],
-  filter: string,
-): { family: string; options: VariableSummary[] }[] {
-  const needle = filter.trim().toLowerCase()
-  const matches = variables.filter(
+export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return []
+  return variables.filter(
     (variable) =>
       variable.servable &&
-      (!needle ||
-        variable.name.toLowerCase().includes(needle) ||
+      (variable.name.toLowerCase().includes(needle) ||
         variable.display_name.toLowerCase().includes(needle) ||
-        (variable.label ?? '').toLowerCase().includes(needle)),
+        (variable.label ?? '').toLowerCase().includes(needle) ||
+        (variable.wording ?? '').toLowerCase().includes(needle)),
   )
-  const families = new Map<string, VariableSummary[]>()
-  for (const variable of matches) {
-    const bucket = families.get(variable.family) ?? []
-    bucket.push(variable)
-    families.set(variable.family, bucket)
-  }
-  const names = [...families.keys()].sort((a, b) =>
-    a === 'derived' ? -1 : b === 'derived' ? 1 : a.localeCompare(b),
-  )
-  return names.map((family) => ({ family, options: families.get(family) ?? [] }))
 }
 
 export function OutcomePicker({
   variables,
   value,
-  onChange,
+  topic,
+  onSelect,
 }: {
   variables: VariableSummary[]
+  /** The current outcome (may be unknown to the catalog). */
   value: string
-  onChange: (outcome: string) => void
+  /** Topic mid-selection from the URL; absent = the outcome's family. */
+  topic?: string
+  /** A measure was picked (topic is then inferred), or only a topic. */
+  onSelect: (selection: { outcome?: string; topic?: string }) => void
 }) {
-  const [filter, setFilter] = useState('')
-  const filterId = useId()
-  const selectId = useId()
-  const groups = useMemo(() => groupVariables(variables, filter), [variables, filter])
-  const visible = groups.some((group) => group.options.some((option) => option.name === value))
+  const [query, setQuery] = useState('')
+  const topicId = useId()
+  const measureId = useId()
+  const searchId = useId()
+
+  const topics = useMemo(() => topicsOf(variables), [variables])
+  const current = variables.find((variable) => variable.name === value)
+  const activeTopic = topic ?? current?.family
+  const active = topics.find((entry) => entry.family === activeTopic)
+  const measureValue = current && current.family === activeTopic ? current.name : ''
+  const servableCount = useMemo(
+    () => variables.filter((variable) => variable.servable).length,
+    [variables],
+  )
+  const matches = useMemo(() => searchMeasures(variables, query).slice(0, 8), [variables, query])
+
+  const pick = (name: string) => {
+    setQuery('')
+    onSelect({ outcome: name })
+  }
+
   return (
     <div className={styles.picker}>
-      <label className={styles.label} htmlFor={filterId}>
-        Filter outcomes
-      </label>
-      <input
-        id={filterId}
-        className={styles.filter}
-        type="search"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-        placeholder="happiness, PHQ, meaning…"
-      />
-      <label className={styles.label} htmlFor={selectId}>
-        Outcome
-      </label>
-      <select
-        id={selectId}
-        className={styles.select}
-        value={visible ? value : ''}
-        onChange={(event) => {
-          if (event.target.value) onChange(event.target.value)
-        }}
-      >
-        {!visible && (
-          <option value="" disabled>
-            {groups.length ? 'Pick a match…' : 'No outcomes match the filter'}
-          </option>
-        )}
-        {groups.map((group) => (
-          <optgroup
-            key={group.family}
-            label={group.family === 'derived' ? 'derived scores' : group.family}
-          >
-            {group.options.map((option) => (
-              <option key={option.name} value={option.name}>
-                {option.display_name} ({option.name})
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={topicId}>
+          Topic
+        </label>
+        <select
+          id={topicId}
+          className={styles.select}
+          value={active?.family ?? ''}
+          onChange={(event) => onSelect({ topic: event.target.value })}
+        >
+          {!active && (
+            <option value="" disabled>
+              Choose a topic…
+            </option>
+          )}
+          {topics.map((entry) => (
+            <option key={entry.family} value={entry.family}>
+              {entry.name} ({entry.measures.length})
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={measureId}>
+          Measure
+        </label>
+        <select
+          id={measureId}
+          className={styles.select}
+          value={measureValue}
+          onChange={(event) => {
+            if (event.target.value) pick(event.target.value)
+          }}
+        >
+          {!measureValue && (
+            <option value="" disabled>
+              Choose a measure…
+            </option>
+          )}
+          {(active?.measures ?? []).map((option) => (
+            <option key={option.name} value={option.name}>
+              {option.display_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={searchId}>
+          or search all {servableCount}
+        </label>
+        <div className={styles.searchWrap}>
+          <input
+            id={searchId}
+            className={styles.search}
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && matches[0]) {
+                event.preventDefault()
+                pick(matches[0].name)
+              }
+              if (event.key === 'Escape') setQuery('')
+            }}
+            placeholder="loneliness, prayer, exercise…"
+          />
+          {query.trim() && (
+            <ul className={styles.results}>
+              {matches.length === 0 && <li className={styles.noMatch}>No measure matches</li>}
+              {matches.map((match) => (
+                <li key={match.name}>
+                  <button type="button" className={styles.result} onClick={() => pick(match.name)}>
+                    <span>{match.display_name}</span>
+                    <span className={styles.code}>{match.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

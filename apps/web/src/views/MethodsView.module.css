@@ -1,5 +1,7 @@
 .methods {
-  max-width: 46rem;
+  /* Prose measure (F14): ~70ch, while the data views keep the full
+     68rem layout. */
+  max-width: 70ch;
 }
 
 .summary {

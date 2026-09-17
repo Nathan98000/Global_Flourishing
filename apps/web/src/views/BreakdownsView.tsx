@@ -1,34 +1,37 @@
 // Breakdowns (§2.6): outcome × one demographic as small multiples by
 // country, sortable, suppressed cells shown with their n. A second
 // breakdown — another demographic, or one categorical survey variable —
-// is API-only by design; the tier badge says which tier answered.
+// is API-only by design and says it needs the live service.
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
-import { useHealth, useMeta } from '../api/meta'
+import { NetworkError } from '../api/errors'
+import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat, VariableDetail } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SmallMultiples } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
-import { CoverageBanner } from '../components/CoverageBanner'
+import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OutcomeCoverage } from '../components/OutcomeCoverage'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { columnLabel, highestLevel, outcomeLevels } from '../labels'
+import { columnLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
   breakdownsSearchParams,
   type BreakdownsSearch,
 } from '../state/search'
+import { WAVE_CHIPS, WAVE_TITLES } from './AtlasView'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/breakdowns')
@@ -52,9 +55,11 @@ export function BreakdownsView() {
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
+  const boot = useBootStatus()
   const variables = useVariables()
   const variable = variables.data?.byName[search.outcome]
-  const detailQuery = useVariable(variables.isSuccess ? search.outcome : null)
+  const chartable = variable !== undefined && variable.servable
+  const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
 
   const primary = search.by[0] ?? BREAKDOWNS_DEFAULTS.by[0] ?? 'age_band'
@@ -72,7 +77,7 @@ export function BreakdownsView() {
   const activeLevel = search.level ?? outcomeLevelOptions[0]?.value
   const levelLabel = outcomeLevelOptions.find((entry) => entry.value === activeLevel)?.label
 
-  const request = variables.isSuccess ? breakdownsRequest(search, variable) : null
+  const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
 
@@ -132,12 +137,29 @@ export function BreakdownsView() {
 
   const waveOptions: RadioOption<BreakdownsSearch['wave']>[] = meta.data.meta.waves.map((wave) => ({
     value: wave as BreakdownsSearch['wave'],
-    label: wave,
+    label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
+    title:
+      variable && !variable.waves_available.includes(wave)
+        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
+        : WAVE_TITLES[wave],
   }))
 
-  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)} — ${search.wave}`
+  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)} — ${WAVE_TITLES[search.wave] ?? search.wave}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
+  const subtitle =
+    [
+      isCategorical
+        ? levelLabel
+          ? `share answering “${levelLabel}”`
+          : null
+        : variable
+          ? scaleSubtitle(variable, stat)
+          : null,
+      secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined
 
   const csv: CsvExport | undefined =
     request === null
@@ -162,7 +184,11 @@ export function BreakdownsView() {
         invalid={search.invalid}
         onDismiss={() =>
           void navigate({
-            search: breakdownsSearchParams({ ...search, invalid: undefined }) as never,
+            search: breakdownsSearchParams({
+              ...search,
+              invalid: undefined,
+              invalidRaw: undefined,
+            }) as never,
             replace: true,
           })
         }
@@ -171,13 +197,25 @@ export function BreakdownsView() {
         <OutcomePicker
           variables={variables.data.list}
           value={search.outcome}
-          onChange={(outcome) => {
+          topic={search.topic}
+          onSelect={({ outcome, topic }) => {
+            if (outcome === undefined) {
+              setSearch({ topic })
+              return
+            }
             const target = variables.data.byName[outcome]
             const wave =
               target && !target.waves_available.includes(search.wave)
                 ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
                 : search.wave
-            setSearch({ outcome, wave: wave ?? search.wave })
+            setSearch({
+              outcome,
+              topic: undefined,
+              wave: wave ?? search.wave,
+              level: undefined,
+              invalid: undefined,
+              invalidRaw: undefined,
+            })
           }}
         />
         <RadioRow
@@ -190,12 +228,13 @@ export function BreakdownsView() {
         <RadioRow
           legend="Break down by"
           name="by"
+          wide
           options={demographicOptions}
           value={primary}
           onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
         />
         <label className={styles.oriented}>
-          Second breakdown (live query){' '}
+          Second breakdown (needs the live service){' '}
           <select
             value={secondary ?? ''}
             onChange={(event) =>
@@ -243,6 +282,7 @@ export function BreakdownsView() {
           <RadioRow
             legend="Answer level"
             name="outcome-level"
+            wide
             options={outcomeLevelOptions.map((entry) => ({
               value: String(entry.value),
               label: entry.label,
@@ -253,69 +293,84 @@ export function BreakdownsView() {
         )}
       </div>
 
-      {search.wave !== 'Y1' && detail && (
-        <div className={styles.banner}>
-          <CoverageBanner
-            wave={search.wave}
-            missingness={detail.missingness}
-            countries={meta.data.meta.countries}
-          />
-        </div>
-      )}
-
-      {estimates.isPending ? (
-        <Skeleton height={420} label="Loading estimates" />
-      ) : estimates.isError ? (
-        <ErrorState error={estimates.error} />
-      ) : response && variable ? (
-        <>
-          <p role="status" className="visually-hidden">
-            Updated: {title}, {displayRows.length} cells.
+      {!chartable ? (
+        <EmptyState title="Choose a measure to begin">
+          <p>
+            {variable === undefined
+              ? `The link asked for “${search.outcome}”, which isn't in this release's codebook — `
+              : `“${search.outcome}” can't be charted (its codebook entry says why) — `}
+            pick a topic and measure above, or search all the measures.
           </p>
-          <ChartFigure
-            title={title}
-            subtitle={
-              [
-                isCategorical && levelLabel ? `share answering “${levelLabel}”` : null,
-                secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
-              ]
-                .filter(Boolean)
-                .join(' · ') || undefined
-            }
-            ariaLabel={
-              `${title}: one panel per country, ` +
-              `${levelDomain(primary, meta.data.meta).length} levels each; suppressed cells say ` +
-              `“withheld” with their n. The data table below carries every number.`
-            }
-            tier={estimates.data.source}
-            response={{ ...response, rows: displayRows }}
-            meta={meta.data.meta}
-            csv={csv}
-            isRefreshing={estimates.isPlaceholderData}
-          >
-            <SmallMultiples
-              rows={displayRows}
-              meta={meta.data.meta}
-              responseMeta={response.meta}
-              variable={variable}
-              color={outcomeColor(variable.name)}
-              levelColumn={primary}
-              levelDomain={levelDomain(primary, meta.data.meta)}
-              seriesColumn={secondary}
-              seriesDomain={
-                secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
-              }
-              sort={search.sort}
-              labeler={labeler}
-            />
-          </ChartFigure>
-        </>
-      ) : null}
+        </EmptyState>
+      ) : (
+        <>
+          {search.wave !== 'Y1' && variable && detail && (
+            <div className={styles.banner}>
+              <OutcomeCoverage
+                wave={search.wave}
+                variable={variable}
+                detail={detail}
+                countries={meta.data.meta.countries}
+              />
+            </div>
+          )}
 
-      {detail && (
-        <div className={styles.wording}>
-          <WordingPanel detail={detail} />
-        </div>
+          {estimates.isPending ? (
+            <Skeleton height={420} label="Loading estimates" />
+          ) : estimates.isError ? (
+            estimates.error instanceof NetworkError && boot.state !== 'ready' ? (
+              <p className={styles.hint} role="status">
+                This view needs the live data service, which is offline right now — the standard
+                views still work.
+              </p>
+            ) : (
+              <ErrorState error={estimates.error} />
+            )
+          ) : response && variable ? (
+            <>
+              <p role="status" className="visually-hidden">
+                Updated: {title}, {displayRows.length} cells.
+              </p>
+              <ChartFigure
+                title={title}
+                subtitle={subtitle}
+                ariaLabel={
+                  `${title}: one panel per country, ` +
+                  `${levelDomain(primary, meta.data.meta).length} levels each; suppressed cells say ` +
+                  `“withheld” with their n. The data table below carries every number.`
+                }
+                marks="dots"
+                intro={
+                  detail && (
+                    <div className={styles.wording}>
+                      <WordingPanel detail={detail} />
+                    </div>
+                  )
+                }
+                response={{ ...response, rows: displayRows }}
+                meta={meta.data.meta}
+                csv={csv}
+                isRefreshing={estimates.isPlaceholderData}
+              >
+                <SmallMultiples
+                  rows={displayRows}
+                  meta={meta.data.meta}
+                  responseMeta={response.meta}
+                  variable={variable}
+                  color={outcomeColor(variable.name)}
+                  levelColumn={primary}
+                  levelDomain={levelDomain(primary, meta.data.meta)}
+                  seriesColumn={secondary}
+                  seriesDomain={
+                    secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
+                  }
+                  sort={search.sort}
+                  labeler={labeler}
+                />
+              </ChartFigure>
+            </>
+          ) : null}
+        </>
       )}
     </section>
   )

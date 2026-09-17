@@ -10,8 +10,8 @@ import type { VariableDetail } from '../api/types'
 import { useVariable } from '../api/variables'
 import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
-import { TierBadge } from '../components/TierBadge'
 import { formatCount, formatPercent } from '../format'
+import { directionPhrase } from '../labels'
 import styles from './CodebookDetailView.module.css'
 
 const route = getRouteApi('/codebook/$name')
@@ -70,9 +70,8 @@ export function CodebookDetailView() {
       </h2>
       <p className={styles.facts}>
         {detail.family} · {detail.scale_type}
-        {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} ·
-        direction: {detail.direction.replace('_', ' ')} · waves: {detail.waves_available.join(', ')}{' '}
-        <TierBadge source={detailQuery.data.source} />
+        {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} ·{' '}
+        {directionPhrase(detail.direction)} · waves: {detail.waves_available.join(', ')}
       </p>
 
       {detail.servable ? (

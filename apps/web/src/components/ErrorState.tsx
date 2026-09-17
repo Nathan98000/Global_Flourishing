@@ -15,7 +15,7 @@ function body(error: unknown): { title: string; lines: string[] } {
         return {
           title: 'This deployment has no data build',
           lines: [
-            'The live API is running without data, so custom queries are unavailable.',
+            'The live data service is running without data, so filters and medians are unavailable.',
             ...error.details,
           ],
         }
@@ -36,8 +36,8 @@ function body(error: unknown): { title: string; lines: string[] } {
   }
   if (error instanceof NetworkError) {
     return {
-      title: 'The live API is unreachable',
-      lines: ['Precomputed views still work; custom queries need the API.'],
+      title: 'Live data service is offline',
+      lines: ['The standard views still work; filters and medians are unavailable.'],
     }
   }
   return { title: 'Something went wrong', lines: [String(error)] }

@@ -1,8 +1,12 @@
-// Response coverage per country for a wave, from a variable's missingness
-// rows (proposal §3.4: no Wave-2 or midyear number is honest without it —
-// retention runs from 90% in China to 23% in Hong Kong).
+// Response coverage per country for a wave (proposal §3.4: no Wave-2 or
+// midyear number is honest without it — retention runs from 90% in China
+// to 23% in Hong Kong). Two sources, one shape: an item's missingness
+// rows carry who answered per wave; a derived score has no missingness
+// rows, so its coverage comes from the unweighted n per country in the
+// wave's own estimates against the same query at Wave 1 — both files the
+// static tier already serves, so the story survives the API being down.
 
-import type { MissingnessRow } from './api/types'
+import type { EstimateRow, MissingnessRow } from './api/types'
 
 export interface CountryCoverage {
   country_code: number
@@ -22,6 +26,34 @@ export function coverageByCountry(rows: MissingnessRow[], wave: 'MY' | 'Y2'): Co
   // No rows at that wave anywhere = the item wasn't asked then; that is
   // "no coverage story", not "0% coverage".
   if (atWave.size === 0) return []
+  return pairUp(y1, atWave)
+}
+
+/** Unweighted n per country from estimate rows (the largest cell —
+ * proportions carry one row per level of the same people). */
+function nByCountry(rows: EstimateRow[]): Map<number, number> {
+  const byCountry = new Map<number, number>()
+  for (const row of rows) {
+    const code = Number(row.group['country_code'])
+    if (!Number.isFinite(code)) continue
+    const existing = byCountry.get(code) ?? 0
+    if (row.n > existing) byCountry.set(code, row.n)
+  }
+  return byCountry
+}
+
+/** Coverage for outcomes without missingness rows (derived scores):
+ * who has a value at this wave, against the same query at Wave 1. */
+export function coverageFromEstimates(
+  currentRows: EstimateRow[],
+  baselineRows: EstimateRow[],
+): CountryCoverage[] {
+  const atWave = nByCountry(currentRows)
+  if (atWave.size === 0) return []
+  return pairUp(nByCountry(baselineRows), atWave)
+}
+
+function pairUp(y1: Map<number, number>, atWave: Map<number, number>): CountryCoverage[] {
   const codes = [...new Set([...y1.keys(), ...atWave.keys()])].sort((a, b) => a - b)
   return codes
     .map((code) => {
@@ -43,8 +75,7 @@ export interface CoverageSummary {
   highest: CountryCoverage | null
 }
 
-export function summarizeCoverage(rows: MissingnessRow[], wave: 'MY' | 'Y2'): CoverageSummary {
-  const countries = coverageByCountry(rows, wave)
+export function summarize(countries: CountryCoverage[]): CoverageSummary {
   const comparable = countries.filter((entry) => entry.fraction !== null)
   comparable.sort((a, b) => (a.fraction ?? 0) - (b.fraction ?? 0))
   return {
@@ -52,4 +83,8 @@ export function summarizeCoverage(rows: MissingnessRow[], wave: 'MY' | 'Y2'): Co
     lowest: comparable[0] ?? null,
     highest: comparable[comparable.length - 1] ?? null,
   }
+}
+
+export function summarizeCoverage(rows: MissingnessRow[], wave: 'MY' | 'Y2'): CoverageSummary {
+  return summarize(coverageByCountry(rows, wave))
 }

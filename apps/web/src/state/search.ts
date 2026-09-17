@@ -25,23 +25,75 @@ function all(raw: Raw, key: string): unknown[] {
   return Array.isArray(value) ? value : [value]
 }
 
+/** Rejected raws a state object carries into a re-parse. The router
+ * re-validates coerced state during its own URL rebuilds; without this,
+ * a rebuild would silently shorten the invalid list (the wave=Y9 the
+ * visitor typed is already 'Y1' by then). Never a URL param — from a
+ * URL this key is a string and is ignored. */
+function carriedInvalid(raw: Raw): Record<string, unknown> {
+  const carried = (raw as Record<string, unknown>)['invalidRaw']
+  return typeof carried === 'object' && carried !== null && !Array.isArray(carried)
+    ? (carried as Record<string, unknown>)
+    : {}
+}
+
 class Collector {
   readonly dropped: string[] = []
+  readonly raw: Record<string, unknown> = {}
+
+  private reject(key: string, value: unknown): void {
+    this.dropped.push(key)
+    this.raw[key] = value
+  }
 
   take<T>(key: string, raw: Raw, parse: (value: unknown) => T | undefined, fallback: T): T {
     const value = first(raw, key)
-    if (value === undefined) return fallback
-    const parsed = parse(value)
-    if (parsed === undefined) {
-      this.dropped.push(key)
-      return fallback
+    let out = fallback
+    if (value !== undefined) {
+      const parsed = parse(value)
+      if (parsed === undefined) this.reject(key, (raw as Record<string, unknown>)[key])
+      else out = parsed
     }
-    return parsed
+    const carried = carriedInvalid(raw)[key]
+    if (
+      !(key in this.raw) &&
+      carried !== undefined &&
+      parse(first({ [key]: carried }, key)) === undefined
+    ) {
+      this.reject(key, carried)
+    }
+    return out
   }
 
-  finish<T extends object>(search: T): T & { invalid?: string[] } {
-    return this.dropped.length ? { ...search, invalid: this.dropped } : search
+  finish<T extends object>(search: T): T & { invalid?: string[]; invalidRaw?: RawParams } {
+    // Always present (undefined when clean): a router state merge would
+    // otherwise let a stale notice — or a rejected raw value in an
+    // optional field — survive a re-parse.
+    return {
+      ...search,
+      invalid: this.dropped.length ? this.dropped : undefined,
+      invalidRaw: this.dropped.length ? this.raw : undefined,
+    }
   }
+}
+
+export type RawParams = Record<string, unknown>
+
+/** Serialization keeps the *rejected raw params* in the URL (they are
+ * what was typed), so every re-parse recomputes the full invalid list —
+ * a router rewrite can never silently shorten the notice. A key the
+ * caller set to a real value (the user moved that control, or dismissed
+ * the notice) drops its raw leftover. */
+function withInvalidRaw(
+  params: Record<string, unknown>,
+  invalidRaw: RawParams | undefined,
+): Record<string, unknown> {
+  if (!invalidRaw) return params
+  const result = { ...params }
+  for (const [key, value] of Object.entries(invalidRaw)) {
+    if (result[key] === undefined) result[key] = value
+  }
+  return result
 }
 
 const parseName = (value: unknown): string | undefined =>
@@ -81,6 +133,9 @@ function parseCountries(raw: Raw): number[] | undefined {
 
 export interface AtlasSearch {
   outcome: string
+  /** Topic (catalog family) mid-selection; absent = the outcome's own
+   * family, so a shared link that names only the measure infers it. */
+  topic?: string
   wave: Wave
   /** Absent = the variable's server-declared default_stat. */
   stat?: Stat
@@ -91,6 +146,7 @@ export interface AtlasSearch {
   level?: number
   oriented?: boolean
   invalid?: string[]
+  invalidRaw?: RawParams
 }
 
 export const ATLAS_DEFAULTS = {
@@ -103,34 +159,39 @@ export const ATLAS_DEFAULTS = {
 
 export function parseAtlasSearch(raw: Raw): AtlasSearch {
   const collect = new Collector()
+  // Optional keys are set explicitly (undefined when absent or invalid):
+  // the router merges re-parsed state over the raw input, and only a
+  // present-but-undefined key overrides a rejected raw value there.
   const search: AtlasSearch = {
     outcome: collect.take('outcome', raw, parseName, ATLAS_DEFAULTS.outcome),
     wave: collect.take('wave', raw, parseWave, ATLAS_DEFAULTS.wave),
     view: collect.take('view', raw, parseEnum('bars', 'map'), ATLAS_DEFAULTS.view),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name'), ATLAS_DEFAULTS.sort),
     countries: collect.take('countries', raw, () => parseCountries(raw), ATLAS_DEFAULTS.countries),
+    topic: collect.take('topic', raw, parseName, undefined),
+    stat: collect.take('stat', raw, parseStat, undefined),
+    level: collect.take('level', raw, parseIntCode, undefined),
+    oriented: collect.take('oriented', raw, parseTrue, undefined) ? true : undefined,
   }
-  const stat = collect.take('stat', raw, parseStat, undefined)
-  if (stat !== undefined) search.stat = stat
-  const level = collect.take('level', raw, parseIntCode, undefined)
-  if (level !== undefined) search.level = level
-  if (collect.take('oriented', raw, parseTrue, undefined)) search.oriented = true
   return collect.finish(search)
 }
 
 /** Only the non-default params — what a shared URL should contain. */
 export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, unknown> {
-  return {
-    outcome: search.outcome === ATLAS_DEFAULTS.outcome ? undefined : search.outcome,
-    wave: search.wave === ATLAS_DEFAULTS.wave ? undefined : search.wave,
-    stat: search.stat,
-    view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
-    sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
-    countries: search.countries?.length ? search.countries.join(',') : undefined,
-    level: search.level,
-    oriented: search.oriented ? true : undefined,
-    invalid: search.invalid?.length ? search.invalid : undefined,
-  }
+  return withInvalidRaw(
+    {
+      outcome: search.outcome === ATLAS_DEFAULTS.outcome ? undefined : search.outcome,
+      topic: search.topic,
+      wave: search.wave === ATLAS_DEFAULTS.wave ? undefined : search.wave,
+      stat: search.stat,
+      view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
+      sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
+      countries: search.countries?.length ? search.countries.join(',') : undefined,
+      level: search.level,
+      oriented: search.oriented ? true : undefined,
+    },
+    search.invalidRaw,
+  )
 }
 
 /** The /v1 query this view makes (country selection filters client-side). */
@@ -151,6 +212,8 @@ export function atlasRequest(
 
 export interface BreakdownsSearch {
   outcome: string
+  /** Topic (catalog family) mid-selection; see AtlasSearch.topic. */
+  topic?: string
   wave: Wave
   /** 1–2 extra dimensions beyond country (demographics, or one survey variable). */
   by: string[]
@@ -159,6 +222,7 @@ export interface BreakdownsSearch {
   /** Categorical outcomes: which answer level the cells show. */
   level?: number
   invalid?: string[]
+  invalidRaw?: RawParams
 }
 
 export const BREAKDOWNS_DEFAULTS = {
@@ -191,9 +255,9 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
       () => parseCountries(raw),
       BREAKDOWNS_DEFAULTS.countries,
     ),
+    topic: collect.take('topic', raw, parseName, undefined),
+    level: collect.take('level', raw, parseIntCode, undefined),
   }
-  const level = collect.take('level', raw, parseIntCode, undefined)
-  if (level !== undefined) search.level = level
   return collect.finish(search)
 }
 
@@ -202,15 +266,18 @@ export function breakdownsSearchParams(search: Partial<BreakdownsSearch>): Recor
     search.by === undefined ||
     (search.by.length === BREAKDOWNS_DEFAULTS.by.length &&
       search.by.every((value, index) => value === BREAKDOWNS_DEFAULTS.by[index]))
-  return {
-    outcome: search.outcome === BREAKDOWNS_DEFAULTS.outcome ? undefined : search.outcome,
-    wave: search.wave === BREAKDOWNS_DEFAULTS.wave ? undefined : search.wave,
-    by: byIsDefault ? undefined : search.by,
-    sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
-    countries: search.countries?.length ? search.countries.join(',') : undefined,
-    level: search.level,
-    invalid: search.invalid?.length ? search.invalid : undefined,
-  }
+  return withInvalidRaw(
+    {
+      outcome: search.outcome === BREAKDOWNS_DEFAULTS.outcome ? undefined : search.outcome,
+      topic: search.topic,
+      wave: search.wave === BREAKDOWNS_DEFAULTS.wave ? undefined : search.wave,
+      by: byIsDefault ? undefined : search.by,
+      sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
+      countries: search.countries?.length ? search.countries.join(',') : undefined,
+      level: search.level,
+    },
+    search.invalidRaw,
+  )
 }
 
 export function breakdownsRequest(
@@ -233,6 +300,7 @@ export interface CodebookSearch {
   wave?: Wave
   scale?: string
   invalid?: string[]
+  invalidRaw?: RawParams
 }
 
 export function parseCodebookSearch(raw: Raw): CodebookSearch {
@@ -244,22 +312,21 @@ export function parseCodebookSearch(raw: Raw): CodebookSearch {
       (value) => (typeof value === 'string' ? value.slice(0, 200) : undefined),
       '',
     ),
+    family: collect.take('family', raw, parseName, undefined),
+    wave: collect.take('wave', raw, parseWave, undefined),
+    scale: collect.take('scale', raw, parseName, undefined),
   }
-  const family = collect.take('family', raw, parseName, undefined)
-  if (family !== undefined) search.family = family
-  const wave = collect.take('wave', raw, parseWave, undefined)
-  if (wave !== undefined) search.wave = wave
-  const scale = collect.take('scale', raw, parseName, undefined)
-  if (scale !== undefined) search.scale = scale
   return collect.finish(search)
 }
 
 export function codebookSearchParams(search: Partial<CodebookSearch>): Record<string, unknown> {
-  return {
-    q: search.q || undefined,
-    family: search.family,
-    wave: search.wave,
-    scale: search.scale,
-    invalid: search.invalid?.length ? search.invalid : undefined,
-  }
+  return withInvalidRaw(
+    {
+      q: search.q || undefined,
+      family: search.family,
+      wave: search.wave,
+      scale: search.scale,
+    },
+    search.invalidRaw,
+  )
 }

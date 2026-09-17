@@ -53,20 +53,40 @@ describe('atlas search', () => {
     expect(search.view).toBe('bars')
     expect(search.countries).toEqual([])
     expect(search.invalid).toEqual(['wave', 'view', 'countries'])
-    // The notice survives the serialization middleware while active…
-    expect(stringifySearch(atlasSearchParams(search))).toBe(
-      '?invalid=wave&invalid=view&invalid=countries',
+    // Serialization keeps the rejected raw params (they are what was
+    // typed), so any re-parse — including the router's own URL
+    // normalization — recomputes the SAME full notice (F5)…
+    const serialized = stringifySearch(atlasSearchParams(search))
+    expect(serialized).toBe('?wave=Y9&view=pie&countries=x%2Cy')
+    expect(parseAtlasSearch(parseSearchString(serialized)).invalid).toEqual([
+      'wave',
+      'view',
+      'countries',
+    ])
+    // …dismissing strips them…
+    expect(
+      stringifySearch(atlasSearchParams({ ...search, invalid: undefined, invalidRaw: undefined })),
+    ).toBe('')
+    // …an explicit new value for one control drops only that leftover…
+    expect(stringifySearch(atlasSearchParams({ ...search, wave: 'Y2' }))).toBe(
+      '?wave=Y2&view=pie&countries=x%2Cy',
     )
-    // …dismissing strips it…
-    expect(stringifySearch(atlasSearchParams({ ...search, invalid: undefined }))).toBe('')
-    // …and a forged or reloaded ?invalid=wave cannot conjure one (the
-    // parser recomputes it from the actual params).
+    // …and a forged ?invalid=wave cannot conjure a notice (the parser
+    // recomputes it from the actual params).
     expect(parseAtlasSearch({ invalid: 'wave' }).invalid).toBeUndefined()
   })
 
   test('oriented is an explicit opt-in', () => {
     expect(parseAtlasSearch({ oriented: 'true' }).oriented).toBe(true)
     expect(parseAtlasSearch({ oriented: 'yes' }).invalid).toEqual(['oriented'])
+  })
+
+  test('topic (mid-selection) round-trips; absent = inferred from the measure', () => {
+    expect(parseAtlasSearch({}).topic).toBeUndefined()
+    const search = parseAtlasSearch({ topic: 'wellbeing' })
+    expect(search.topic).toBe('wellbeing')
+    expect(stringifySearch(atlasSearchParams(search))).toBe('?topic=wellbeing')
+    expect(parseAtlasSearch({ topic: 'not a name!' }).invalid).toEqual(['topic'])
   })
 
   test('the request uses the API names and the server default stat', () => {
