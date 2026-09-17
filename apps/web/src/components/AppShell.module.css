@@ -11,7 +11,7 @@
 .header {
   display: flex;
   align-items: baseline;
-  gap: var(--space-5);
+  gap: var(--space-4) var(--space-5);
   flex-wrap: wrap;
 }
 
@@ -29,7 +29,6 @@
   display: flex;
   gap: var(--space-4);
   flex: 1;
-  flex-wrap: wrap;
 }
 
 .nav a {
@@ -46,6 +45,33 @@
   color: var(--ink);
   font-weight: 600;
   border-bottom: 2px solid var(--accent);
+}
+
+/* F2/F17: below ~800px the nav takes its own full-width row under the
+   brand (instead of wrapping one item per line), with tap-sized links. */
+@media (max-width: 50rem) {
+  .header {
+    row-gap: 0;
+    align-items: center;
+  }
+
+  .nav {
+    flex-basis: 100%;
+    order: 3;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--grid);
+  }
+
+  .nav a {
+    padding: var(--space-2) var(--space-1) var(--space-3);
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .nav a[data-status='active'] {
+    margin-bottom: -1px;
+  }
 }
 
 .banner {

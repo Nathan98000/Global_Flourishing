@@ -48,3 +48,21 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
+
+/* Touch sizing on small screens (F2): options clear 40px, long rows
+   wrap instead of overflowing. */
+@media (max-width: 40rem) {
+  .row {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .option {
+    flex: 1 1 auto;
+    text-align: center;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

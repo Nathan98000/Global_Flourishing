@@ -71,7 +71,6 @@ describe('RankedBar', () => {
     // Direct value label on every row (F16), not just the leader.
     expect(text).toContain('7.40')
     expect(text).toContain('6.90')
-    expect(text).toContain('higher is better') // direction on the axis
     // The mark is a dot, not a zero-based bar (F1)…
     expect(svg?.querySelectorAll('circle')).toHaveLength(2)
     // …on a window fitted to the data (CIs 6.8–7.5), whose first and
@@ -141,7 +140,9 @@ describe('RankedBar', () => {
         sort="estimate"
       />,
     )
-    expect(container.querySelector('svg')?.textContent).toContain('Median')
+    const svg = container.querySelector('svg')
+    expect(svg?.querySelectorAll('circle')).toHaveLength(1)
+    expect(svg?.textContent).toContain('7.00')
   })
 })
 

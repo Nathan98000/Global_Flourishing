@@ -1,9 +1,11 @@
 # Methods
 
 How Flourish Atlas turns 207,919 questionnaires into the numbers on the
-screen. This page is the source for the in-app Methods view (Phase 4);
-the implementation is the `flourish_stats` package, verified against R's
-`survey` package (see [R parity](#verified-against-r) below).
+screen: which weights are applied and why, how the margins of error are
+computed, and when a number is withheld. Everything described here runs
+in open code, and the results are checked against an independent
+implementation (R's `survey` package — see
+[R parity](#verified-against-r) below).
 
 ## Survey weights: why every number carries one
 

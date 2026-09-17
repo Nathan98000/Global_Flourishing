@@ -70,10 +70,14 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   label, wording, value label, direction, country name, suppression
   threshold and CI level comes from the server (`/v1/meta`,
   `/v1/variables`, or their static-tier mirrors); `default_stat` rides
-  on every variable summary. The one client-side rule is the static
-  path computation (mirrors the exporter's naming; a miss falls back to
-  the API — ADR-0009). Chart colors are `var(--token)` strings from
-  `tokens.css`, never hex in chart code (ADR-0010).
+  on every variable summary. Two deliberate client-side exceptions:
+  the static path computation (mirrors the exporter's naming; a miss
+  falls back to the API — ADR-0009), and the picker's topic *names*
+  (`apps/web/src/topics.ts` — display names for the catalog's family
+  codes, owner decision, design review Sept 2026; the measures under
+  each topic are still the server's). Chart colors are `var(--token)`
+  strings from `tokens.css`, never hex in chart code (ADR-0010; scale
+  windows fit the data — see its "Revised" section).
 - **The generated client is committed and drift-checked**: after any
   API schema change run `uv run python -m flourish_api.openapi >
   apps/web/openapi.json && pnpm -C apps/web gen:api` and commit both.

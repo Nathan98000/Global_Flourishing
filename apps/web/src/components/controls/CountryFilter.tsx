@@ -1,5 +1,8 @@
 // Country selection: native disclosure + checkboxes. Empty = all 23.
+// Escape closes the panel and returns focus to the trigger (F9); the
+// reset control reads as the button it is.
 
+import { useRef } from 'react'
 import type { Country } from '../../api/types'
 import styles from './CountryFilter.module.css'
 
@@ -12,6 +15,8 @@ export function CountryFilter({
   selected: readonly number[]
   onChange: (codes: number[]) => void
 }) {
+  const details = useRef<HTMLDetailsElement | null>(null)
+  const summary = useRef<HTMLElement | null>(null)
   const set = new Set(selected)
   const toggle = (code: number) => {
     const next = new Set(set)
@@ -20,8 +25,21 @@ export function CountryFilter({
     onChange([...next].sort((a, b) => a - b))
   }
   return (
-    <details className={styles.details}>
-      <summary className={styles.summary}>
+    // The keydown is a bubbling Escape-to-close for the disclosure
+    // (focus returns to the trigger) — not a fake interactive element,
+    // which is what the a11y rule guards against.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <details
+      ref={details}
+      className={styles.details}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && details.current?.open) {
+          details.current.open = false
+          summary.current?.focus()
+        }
+      }}
+    >
+      <summary ref={summary} className={styles.summary}>
         Countries{selected.length ? ` (${selected.length} selected)` : ' (all)'}
       </summary>
       <div className={styles.panel}>
@@ -31,7 +49,7 @@ export function CountryFilter({
           onClick={() => onChange([])}
           disabled={selected.length === 0}
         >
-          Show all
+          Reset — show all {countries.length}
         </button>
         <ul className={styles.list}>
           {[...countries]

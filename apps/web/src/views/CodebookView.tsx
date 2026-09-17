@@ -12,7 +12,6 @@ import { useVariables } from '../api/variables'
 import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Skeleton } from '../components/Skeleton'
-import { TierBadge } from '../components/TierBadge'
 import { formatCount } from '../format'
 import { codebookSearchParams, type CodebookSearch } from '../state/search'
 import styles from './CodebookView.module.css'
@@ -104,7 +103,11 @@ export function CodebookView() {
         invalid={search.invalid}
         onDismiss={() =>
           void navigate({
-            search: codebookSearchParams({ ...search, invalid: undefined }) as never,
+            search: codebookSearchParams({
+              ...search,
+              invalid: undefined,
+              invalidRaw: undefined,
+            }) as never,
             replace: true,
           })
         }
@@ -166,7 +169,6 @@ export function CodebookView() {
             ))}
           </select>
         </div>
-        <TierBadge source={variables.data.source} />
       </div>
 
       <p role="status" className={styles.count}>

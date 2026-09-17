@@ -61,6 +61,11 @@
   font-weight: 600;
 }
 
+/* "chart this →" never wraps to a second line (F11). */
+.table td:last-child {
+  white-space: nowrap;
+}
+
 .nameCell {
   display: flex;
   flex-direction: column;

@@ -16,7 +16,7 @@ import {
   plotValue,
   tipText,
 } from './theme'
-import { usePlot } from './usePlot'
+import { chartWidth, usePlot } from './usePlot'
 import {
   ISO3_TO_NUMERIC,
   SMALL_TERRITORY_SQ_DEG,
@@ -99,75 +99,79 @@ export function Choropleth({
   selected?: readonly number[]
   levelLabel?: string
 }) {
-  const container = usePlot(() => {
-    const { entries } = joinCountries(rows, meta, features)
-    const domain = mapDomain(rows, responseMeta)
-    const color = quantizeColor(domain)
-    const threshold = responseMeta.suppression.threshold
-    const fillOf = (entry: MapEntry): string =>
-      entry.value === null ? MAP_EMPTY : color(entry.value)
-    const tipOf = (entry: MapEntry): string =>
-      entry.row
-        ? tipText(entry.row, entry.label, threshold)
-        : `${entry.label}\nno estimate at this wave`
-    const small = entries.filter((entry) => entry.small)
-    const selectedSet = new Set(selected ?? [])
-    const highlighted = entries.filter((entry) =>
-      selectedSet.has(Number(entry.row?.group['country_code'])),
-    )
+  const container = usePlot(
+    (available) => {
+      const { entries } = joinCountries(rows, meta, features)
+      const domain = mapDomain(rows, responseMeta)
+      const width = chartWidth(720, available)
+      const color = quantizeColor(domain)
+      const threshold = responseMeta.suppression.threshold
+      const fillOf = (entry: MapEntry): string =>
+        entry.value === null ? MAP_EMPTY : color(entry.value)
+      const tipOf = (entry: MapEntry): string =>
+        entry.row
+          ? tipText(entry.row, entry.label, threshold)
+          : `${entry.label}\nno estimate at this wave`
+      const small = entries.filter((entry) => entry.small)
+      const selectedSet = new Set(selected ?? [])
+      const highlighted = entries.filter((entry) =>
+        selectedSet.has(Number(entry.row?.group['country_code'])),
+      )
 
-    return Plot.plot({
-      width: 720,
-      height: 400,
-      style: {
-        fontFamily: FONT_FAMILY,
-        fontSize: '12px',
-        background: 'transparent',
-        color: INK_SECONDARY,
-      },
-      projection: 'equal-earth',
-      marks: [
-        Plot.sphere({ stroke: 'var(--grid)' }),
-        Plot.geo(features, { fill: MAP_EMPTY, stroke: SURFACE, strokeWidth: 0.4 }),
-        Plot.geo(entries, {
-          geometry: (entry: MapEntry) => entry.feature,
-          fill: fillOf,
-          stroke: SURFACE,
-          strokeWidth: 0.4,
-          tip: true,
-          title: tipOf,
-        }),
-        Plot.geo(highlighted, {
-          geometry: (entry: MapEntry) => entry.feature,
-          fill: 'none',
-          stroke: 'var(--ink)',
-          strokeWidth: 1.2,
-        }),
-        Plot.dot(small, {
-          x: (entry: MapEntry) => featureCentroid(entry.feature)[0],
-          y: (entry: MapEntry) => featureCentroid(entry.feature)[1],
-          r: 5,
-          fill: fillOf,
-          stroke: SURFACE,
-          strokeWidth: 2,
-          tip: true,
-          title: tipOf,
-        }),
-        Plot.text(small, {
-          x: (entry: MapEntry) => featureCentroid(entry.feature)[0],
-          y: (entry: MapEntry) => featureCentroid(entry.feature)[1],
-          text: (entry: MapEntry) => entry.label,
-          dx: 10,
-          textAnchor: 'start',
-          fill: 'var(--ink)',
-          stroke: SURFACE,
-          strokeWidth: 3,
-          paintOrder: 'stroke',
-          fontSize: 11,
-        }),
-      ],
-    })
-  }, [rows, meta, responseMeta, features, selected, levelLabel])
+      return Plot.plot({
+        width,
+        height: Math.round((width * 400) / 720),
+        style: {
+          fontFamily: FONT_FAMILY,
+          fontSize: '12px',
+          background: 'transparent',
+          color: INK_SECONDARY,
+        },
+        projection: 'equal-earth',
+        marks: [
+          Plot.sphere({ stroke: 'var(--grid)' }),
+          Plot.geo(features, { fill: MAP_EMPTY, stroke: SURFACE, strokeWidth: 0.4 }),
+          Plot.geo(entries, {
+            geometry: (entry: MapEntry) => entry.feature,
+            fill: fillOf,
+            stroke: SURFACE,
+            strokeWidth: 0.4,
+            tip: true,
+            title: tipOf,
+          }),
+          Plot.geo(highlighted, {
+            geometry: (entry: MapEntry) => entry.feature,
+            fill: 'none',
+            stroke: 'var(--ink)',
+            strokeWidth: 1.2,
+          }),
+          Plot.dot(small, {
+            x: (entry: MapEntry) => featureCentroid(entry.feature)[0],
+            y: (entry: MapEntry) => featureCentroid(entry.feature)[1],
+            r: 5,
+            fill: fillOf,
+            stroke: SURFACE,
+            strokeWidth: 2,
+            tip: true,
+            title: tipOf,
+          }),
+          Plot.text(small, {
+            x: (entry: MapEntry) => featureCentroid(entry.feature)[0],
+            y: (entry: MapEntry) => featureCentroid(entry.feature)[1],
+            text: (entry: MapEntry) => entry.label,
+            dx: 10,
+            textAnchor: 'start',
+            fill: 'var(--ink)',
+            stroke: SURFACE,
+            strokeWidth: 3,
+            paintOrder: 'stroke',
+            fontSize: 11,
+          }),
+        ],
+      })
+    },
+    [rows, meta, responseMeta, features, selected, levelLabel],
+  )
 
   return <div ref={container} />
 }

@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
 
-test('1 — Atlas: change outcome and wave, share the URL, reload reproduces it', async ({
+test('1 — Atlas: change topic, measure and wave, share the URL, reload reproduces it', async ({
   page,
   browser,
 }) => {
@@ -15,10 +15,11 @@ test('1 — Atlas: change outcome and wave, share the URL, reload reproduces it'
     page.getByText('Secure Flourishing Index — Wave 1 (2023)', { exact: true }),
   ).toBeVisible()
 
-  await page.getByLabel('Outcome', { exact: true }).selectOption('HAPPY')
-  await page.getByRole('group', { name: 'Wave' }).getByText('Y2', { exact: true }).click()
+  // Two steps, not one list of 161: topic first, then that topic's measures.
+  await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
+  await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
+  await page.getByRole('group', { name: 'Wave' }).getByText('2024', { exact: true }).click()
   await expect(page.getByText('Happiness — Wave 2 (2024)', { exact: true })).toBeVisible()
-  await expect(page.getByText('served from precomputed files')).toBeVisible()
 
   const shared = page.url()
   expect(shared).toContain('outcome=HAPPY')
@@ -33,6 +34,8 @@ test('1 — Atlas: change outcome and wave, share the URL, reload reproduces it'
   const second = await context.newPage()
   await second.goto(shared)
   await expect(second.getByText('Happiness — Wave 2 (2024)', { exact: true })).toBeVisible()
+  // The address bar stays canonical: defaults never reach the URL (§2.2).
+  await expect(second).toHaveURL(/\?outcome=HAPPY&wave=Y2$/)
   await context.close()
 
   // Back returns to the previous state (the URL is the state).
@@ -53,8 +56,8 @@ test('2 — Codebook: search, open the entry, chart it, read the wording', async
   await expect(page).toHaveURL(/outcome=ATTEND_SVCS/)
   await expect(page.getByText('Service attendance — Wave 1 (2023)', { exact: true })).toBeVisible()
 
-  // The wording panel is one click away from the chart.
-  await page.getByText('Question wording & codes').click()
+  // The question is on the page, not behind a button (decision 3).
+  await expect(page.getByText('What people were asked')).toBeVisible()
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
@@ -105,14 +108,15 @@ test('5 — dark mode toggles and survives a reload', async ({ page }) => {
   const html = page.locator('html')
   await expect(html).not.toHaveAttribute('data-theme', 'dark')
 
-  await page.getByRole('button', { name: /Light|Dark/ }).click()
+  // The button names its action (F15).
+  await page.getByRole('button', { name: 'Switch to dark' }).click()
   await expect(html).toHaveAttribute('data-theme', 'dark')
 
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'dark')
-  await expect(page.getByRole('button', { name: 'Dark' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Switch to light' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Dark' }).click()
+  await page.getByRole('button', { name: 'Switch to light' }).click()
   await expect(html).toHaveAttribute('data-theme', 'light')
 })
 
@@ -126,11 +130,10 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await expect(
     page.getByText('Secure Flourishing Index — Wave 1 (2023)', { exact: true }),
   ).toBeVisible()
-  await expect(page.getByText('served from precomputed files')).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
-  // …and the app is honest about the degraded state.
-  await expect(page.getByText(/live API is unreachable/i)).toBeVisible()
-  await expect(page.getByText('API unreachable')).toBeVisible()
+  // …and the app says so in plain words (F6).
+  await expect(page.getByText(/Live data service is offline/)).toBeVisible()
+  await expect(page.getByText(/standard views still work/)).toBeVisible()
 })
 
 async function streamToString(download: {

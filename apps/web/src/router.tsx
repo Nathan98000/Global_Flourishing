@@ -21,11 +21,15 @@ import { AtlasView } from './views/AtlasView'
 
 // Serialization middleware: defaults never reach the address bar — the
 // URL carries exactly what differs from the default view (§2.2). The
-// cleaners accept partial input because the router also runs this while
-// building Link hrefs from partial search objects.
+// cleaner must run on `next()`'s RESULT, not its input: the router
+// appends a validation middleware after this one which merges the full
+// validated state (defaults included) over whatever was passed in, so
+// cleaning first gets undone. Cleaning last is what actually reaches
+// the URL. The cleaners accept partial input because the router also
+// runs this while building Link hrefs from partial search objects.
 function omitDefaults<T>(clean: (search: Partial<T>) => Record<string, unknown>) {
   return ({ search, next }: { search: T; next: (search: T) => T }): T =>
-    next(clean(search as Partial<T>) as unknown as T)
+    clean(next(search) as Partial<T>) as unknown as T
 }
 
 const rootRoute = createRootRoute({
