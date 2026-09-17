@@ -13,6 +13,29 @@ from dataclasses import dataclass
 #: Catalog `scale_type` values an outcome may have to be aggregated.
 SERVABLE_SCALE_TYPES = frozenset({"scale_0_10", "ordinal", "binary", "nominal", "count"})
 
+#: Catalog `scale_type` values that are bookkeeping, not survey content —
+#: excluded from the variables listing by the API and the static exporter.
+NON_SUBSTANTIVE_SCALE_TYPES = frozenset({"design", "date", "id", "string", "weight"})
+
+#: Numeric scales whose default statistic is the weighted mean; every
+#: other servable scale defaults to per-level proportions.
+MEAN_SCALE_TYPES = frozenset({"scale_0_10", "count"})
+
+#: Scales the static exporter precomputes a full distribution for.
+DISTRIBUTION_SCALE_TYPES = frozenset({"scale_0_10"})
+
+
+def default_stat(scale_type: str) -> str:
+    """The statistic a view shows when the user hasn't chosen one.
+
+    One rule, three consumers: the exporter names its files with it, the
+    API serves it as ``default_stat`` on every variable summary, and the
+    front end computes static paths from that field — never from a copy
+    of this rule.
+    """
+    return "mean" if scale_type in MEAN_SCALE_TYPES else "proportion"
+
+
 #: Waves the derived outcomes exist at (derive.py builds Y1 + Y2; the MY
 #: rows carry only the midyear priorities, which ship in Phase 5).
 DERIVED_WAVES: tuple[str, ...] = ("Y1", "Y2")

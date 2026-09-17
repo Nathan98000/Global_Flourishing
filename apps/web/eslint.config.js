@@ -23,6 +23,11 @@ export default tseslint.config(
       ...jsxA11y.flatConfigs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // An underscore prefix marks a deliberately unused value (mock args).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
 )

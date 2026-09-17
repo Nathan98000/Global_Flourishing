@@ -48,10 +48,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_sentry(settings)
     install_middleware(app, settings)
 
-    if settings.cors_origin_list:
+    # Dev default: the Vite dev/preview servers, so the local loop
+    # (`make api` + `make web`) exercises the front end's API fallback
+    # without exporting FA_CORS_ORIGINS. Prod stays explicit-only.
+    origins = settings.cors_origin_list
+    if not origins and settings.env == "dev":
+        origins = ["http://localhost:5173", "http://localhost:4173"]
+    if origins:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=settings.cors_origin_list,
+            allow_origins=origins,
             allow_methods=["GET"],
             allow_headers=["*"],
         )

@@ -1,54 +1,111 @@
-:root {
-  color-scheme: light dark;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+/* Global base styles. Colors, spacing and type come from tokens.css
+   (imported first in main.tsx); per-component rules live in CSS Modules. */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
   line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-size: var(--text-base);
 }
 
-.layout {
-  max-width: 60rem;
-  margin: 0 auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-  gap: 1rem;
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  margin: 0 0 var(--space-3);
 }
 
-header {
-  display: flex;
-  align-items: baseline;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+h1 {
+  font-size: var(--text-lg);
 }
 
-header h1 {
-  margin: 0;
-  font-size: 1.4rem;
+h2 {
+  font-size: var(--text-lg);
 }
 
-nav {
-  display: flex;
-  gap: 1rem;
+h3 {
+  font-size: var(--text-md);
 }
 
-nav a[data-status='active'] {
-  font-weight: 700;
+p {
+  margin: 0 0 var(--space-3);
 }
 
-main {
-  flex: 1;
+a {
+  color: var(--accent);
 }
 
-footer {
-  font-size: 0.8rem;
-  opacity: 0.75;
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+code {
+  font-size: 0.9em;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: var(--space-2);
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

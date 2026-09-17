@@ -1,0 +1,28 @@
+.table {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  text-align: left;
+  color: var(--ink-secondary);
+  padding-bottom: var(--space-2);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+  border-bottom: 1px solid var(--grid);
+  vertical-align: baseline;
+}
+
+.table thead th {
+  color: var(--ink-secondary);
+  font-weight: 600;
+  font-size: var(--text-xs);
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+}

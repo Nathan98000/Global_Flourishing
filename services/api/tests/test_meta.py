@@ -14,6 +14,26 @@ def test_meta_shape(client: TestClient) -> None:
     assert "wellbeing" in body["families"]
 
 
+def test_meta_breakdown_labels_come_from_the_catalog(client: TestClient) -> None:
+    labels = client.get("/v1/meta").json()["breakdown_labels"]
+    # Every breakdown except country_code (countries carry their own names).
+    assert set(labels) == {
+        "age_band",
+        "gender",
+        "education_3",
+        "employment",
+        "marital_status",
+        "urban_rural",
+        "income_quintile",
+    }
+    gender = labels["gender"]
+    assert gender["display_name"] == "Gender"
+    assert gender["levels"][0] == {"value": 1, "label": "Male"}
+    assert len(gender["levels"]) == 4  # nonresponse codes are not levels
+    assert labels["age_band"]["levels"][0] == {"value": "18-24", "label": "18–24"}
+    assert labels["income_quintile"]["levels"][4]["label"] == "Q5 (highest)"
+
+
 def test_meta_serves_the_weight_table_verbatim(client: TestClient) -> None:
     from flourish_stats import WEIGHT_TABLE
 

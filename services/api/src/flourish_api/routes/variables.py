@@ -14,7 +14,11 @@ from typing import Annotated
 
 import polars as pl
 from fastapi import APIRouter, Depends, HTTPException, Query
-from flourish_stats.outcomes import DERIVED_OUTCOMES
+from flourish_stats.outcomes import (
+    DERIVED_OUTCOMES,
+    NON_SUBSTANTIVE_SCALE_TYPES,
+    default_stat,
+)
 
 from flourish_api.data import DataStore, require_data
 from flourish_api.schemas import (
@@ -27,13 +31,12 @@ from flourish_api.schemas import (
 
 router = APIRouter()
 
-#: Catalog scale types that are bookkeeping, not survey content.
-_NON_SUBSTANTIVE = ("design", "date", "id", "string", "weight")
-
 
 def _substantive(store: DataStore) -> pl.DataFrame:
     assert store.catalog is not None
-    return store.catalog.variables.filter(~pl.col("scale_type").is_in(list(_NON_SUBSTANTIVE)))
+    return store.catalog.variables.filter(
+        ~pl.col("scale_type").is_in(sorted(NON_SUBSTANTIVE_SCALE_TYPES))
+    )
 
 
 def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummary:
@@ -52,6 +55,7 @@ def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummar
         is_country_specific=bool(row["is_country_specific"]),
         is_derived=False,
         servable=store.catalog.outcome(name) is not None,
+        default_stat=default_stat(str(row["scale_type"])),
     )
 
 
@@ -70,6 +74,7 @@ def _derived_summary(name: str) -> VariableSummary:
         is_country_specific=False,
         is_derived=True,
         servable=True,
+        default_stat=default_stat(derived.scale_type),
     )
 
 

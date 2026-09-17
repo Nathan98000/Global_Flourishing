@@ -200,6 +200,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BreakdownLabelsModel
+         * @description Display name + ordered levels for one demographic breakdown column
+         *     (from ``flourish_stats.breakdowns`` — the front end owns no copy).
+         */
+        BreakdownLabelsModel: {
+            /** Display Name */
+            display_name: string;
+            /** Levels */
+            levels: components["schemas"]["BreakdownLevelModel"][];
+        };
+        /** BreakdownLevelModel */
+        BreakdownLevelModel: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | string;
+        };
         /** CountryModel */
         CountryModel: {
             /** Code */
@@ -301,6 +319,10 @@ export interface components {
         };
         /** MetaResponse */
         MetaResponse: {
+            /** Breakdown Labels */
+            breakdown_labels: {
+                [key: string]: components["schemas"]["BreakdownLabelsModel"];
+            };
             /** Breakdowns */
             breakdowns: string[];
             /** Ci Level */
@@ -312,7 +334,7 @@ export interface components {
             /** Families */
             families: string[];
             /** Git Sha */
-            git_sha: string | null;
+            git_sha?: string | null;
             suppression: components["schemas"]["SuppressionModel"];
             /** Waves */
             waves: string[];
@@ -417,6 +439,8 @@ export interface components {
         };
         /** VariableDetail */
         VariableDetail: {
+            /** Default Stat */
+            default_stat: string;
             /** Direction */
             direction: string;
             /** Display Name */
@@ -455,6 +479,8 @@ export interface components {
         };
         /** VariableSummary */
         VariableSummary: {
+            /** Default Stat */
+            default_stat: string;
             /** Direction */
             direction: string;
             /** Display Name */

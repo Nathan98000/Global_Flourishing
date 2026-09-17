@@ -17,6 +17,10 @@ def test_listing_covers_catalog_and_derived(client: TestClient) -> None:
     assert by_name["INCOME"]["servable"] is False  # listed, searchable, not chartable
     assert by_name["sfi"]["is_derived"] is True and by_name["sfi"]["family"] == "derived"
     assert by_name["LONELY"]["direction"] == "lower_better"
+    # default_stat rides on every summary so the front end never re-derives it.
+    assert by_name["HAPPY"]["default_stat"] == "mean"
+    assert by_name["ATTEND_SVCS"]["default_stat"] == "proportion"
+    assert by_name["phq2_positive"]["default_stat"] == "proportion"
 
 
 def test_search_matches_name_display_and_wording(client: TestClient) -> None:

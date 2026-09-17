@@ -14,6 +14,12 @@ Per servable outcome × available wave:
 - the same stat by country × each demographic — the Breakdowns view;
 - for 0–10 scales, the full distribution by country — the histograms.
 
+Plus the catalog tier (Phase 4): ``meta.json`` (the ``/v1/meta`` payload
+minus ``git_sha``), ``variables.json`` (the ``/v1/variables`` listing) and
+``v1/<name>/variable.json`` (each ``/v1/variables/{name}`` detail), so
+the app boots — countries, labels, wording, breakdown labels and all —
+without the API ever answering.
+
 Everything runs through ``flourish_stats`` with the weight resolved from
 the wave→weight→eligibility table; suppression is the engine default.
 Output bytes are deterministic (sorted keys, index sorted by path).
@@ -41,12 +47,21 @@ from flourish_stats import (
     WeightSpec,
     eligibility_expr,
     resolve,
+    weight_table_json,
     weighted_distribution,
     weighted_mean,
     weighted_proportion,
 )
+from flourish_stats.breakdowns import BREAKDOWN_LEVELS, breakdown_labels
 from flourish_stats.io import analysis_frame, derived_frame
-from flourish_stats.outcomes import DERIVED_OUTCOMES, DERIVED_WAVES, SERVABLE_SCALE_TYPES
+from flourish_stats.outcomes import (
+    DERIVED_OUTCOMES,
+    DERIVED_WAVES,
+    DISTRIBUTION_SCALE_TYPES,
+    NON_SUBSTANTIVE_SCALE_TYPES,
+    SERVABLE_SCALE_TYPES,
+    default_stat,
+)
 
 #: The Breakdowns view's demographics (mirrors the API's allow-list).
 DEMOGRAPHICS: tuple[str, ...] = (
@@ -59,8 +74,8 @@ DEMOGRAPHICS: tuple[str, ...] = (
     "income_quintile",
 )
 
-MEAN_SCALE_TYPES = frozenset({"scale_0_10", "count"})
-DISTRIBUTION_SCALE_TYPES = frozenset({"scale_0_10"})
+#: The wave vocabulary (asserted equal to the API's in its contract test).
+WAVES: tuple[str, ...] = ("Y1", "MY", "Y2")
 
 _RESULT_FIELDS = (
     "stat",
@@ -205,6 +220,148 @@ def _envelope(
     }
 
 
+def _write_json(target: Path, payload: dict[str, Any]) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
+
+
+def _catalog_table(con: duckdb.DuckDBPyConnection, name: str) -> pl.DataFrame:
+    frame = pl.from_arrow(con.execute(f"FROM {name}").arrow())
+    assert isinstance(frame, pl.DataFrame)
+    return frame
+
+
+def _summary_payload(row: dict[str, Any], servable: bool) -> dict[str, Any]:
+    """One /v1/variables summary, field for field (the contract test
+    compares this against the live route on the synthetic database)."""
+    return {
+        "name": str(row["name"]),
+        "display_name": str(row["display_name"]),
+        "label": None if row["label"] is None else str(row["label"]),
+        "family": str(row["family"]),
+        "scale_type": str(row["scale_type"]),
+        "direction": str(row["direction"]),
+        "min": row["min"],
+        "max": row["max"],
+        "waves_available": list(row["waves_available"]),
+        "is_country_specific": bool(row["is_country_specific"]),
+        "is_derived": False,
+        "servable": servable,
+        "default_stat": default_stat(str(row["scale_type"])),
+    }
+
+
+def _derived_summary_payload(name: str) -> dict[str, Any]:
+    derived = DERIVED_OUTCOMES[name]
+    return {
+        "name": name,
+        "display_name": derived.display_name,
+        "label": derived.description,
+        "family": "derived",
+        "scale_type": derived.scale_type,
+        "direction": derived.direction,
+        "min": derived.min,
+        "max": derived.max,
+        "waves_available": list(DERIVED_WAVES),
+        "is_country_specific": False,
+        "is_derived": True,
+        "servable": True,
+        "default_stat": default_stat(derived.scale_type),
+    }
+
+
+def export_catalog(
+    con: duckdb.DuckDBPyConnection,
+    static_dir: Path,
+    data_version: str | None,
+    files: list[dict[str, Any]],
+) -> None:
+    """Write meta.json, variables.json and every v1/<name>/variable.json.
+
+    Small, estimation-free files; always complete (``only`` never trims
+    them) so the app can boot and search the codebook from the static
+    tier alone.
+    """
+    variables = _catalog_table(con, "variables")
+    value_labels = _catalog_table(con, "value_labels")
+    countries = _catalog_table(con, "countries")
+    coverage = _catalog_table(con, "coverage")
+
+    servable = {
+        str(row["name"])
+        for row in variables.filter(
+            pl.col("scale_type").is_in(sorted(SERVABLE_SCALE_TYPES))
+            & ~pl.col("is_country_specific")
+            & ~pl.col("restricted")
+        ).iter_rows(named=True)
+    }
+    substantive = variables.filter(
+        ~pl.col("scale_type").is_in(sorted(NON_SUBSTANTIVE_SCALE_TYPES))
+    ).sort("name")
+
+    _write_json(
+        static_dir / "meta.json",
+        {
+            "data_version": data_version,
+            "countries": [
+                {"code": row["code"], "name": str(row["name"]), "iso3": str(row["iso3"])}
+                for row in countries.sort("code").iter_rows(named=True)
+            ],
+            "waves": list(WAVES),
+            "weight_table": json.loads(weight_table_json()),
+            "suppression": {
+                "threshold": DEFAULT_POLICY.threshold,
+                "flag_below": DEFAULT_POLICY.flag_below,
+            },
+            "ci_level": 0.95,
+            "breakdowns": sorted(BREAKDOWN_LEVELS),
+            "breakdown_labels": breakdown_labels(variables, value_labels),
+            "families": sorted(variables["family"].unique().to_list()),
+        },
+    )
+
+    summaries = [
+        _summary_payload(row, str(row["name"]) in servable)
+        for row in substantive.iter_rows(named=True)
+    ]
+    summaries.extend(_derived_summary_payload(name) for name in sorted(DERIVED_OUTCOMES))
+    _write_json(static_dir / "variables.json", {"variables": summaries})
+
+    for summary in summaries:
+        name = str(summary["name"])
+        detail: dict[str, Any]
+        if summary["is_derived"]:
+            detail = {**summary, "wording": None, "value_labels": [], "missingness": []}
+        else:
+            row = substantive.filter(pl.col("name") == name).row(0, named=True)
+            detail = {
+                **summary,
+                "wording": None if row["wording"] is None else str(row["wording"]),
+                "value_labels": [
+                    {
+                        "code": int(label["code"]),
+                        "label": str(label["label"]),
+                        "wave": label["wave"],
+                        "country_code": label["country_code"],
+                        "is_nonresponse": bool(label["is_nonresponse"]),
+                    }
+                    for label in value_labels.filter(pl.col("variable") == name)
+                    .sort("code", "country_code", "wave", nulls_last=True)
+                    .iter_rows(named=True)
+                ],
+                "missingness": [
+                    dict(row)
+                    for row in coverage.filter(pl.col("variable") == name)
+                    .drop("variable")
+                    .sort("wave", "country_code")
+                    .iter_rows(named=True)
+                ],
+            }
+        relative = Path("v1") / name / "variable.json"
+        _write_json(static_dir / relative, detail)
+        files.append({"path": relative.as_posix(), "outcome": name, "kind": "variable"})
+
+
 def export_static(
     db_path: Path,
     static_dir: Path,
@@ -225,17 +382,17 @@ def export_static(
         if only is not None:
             outcomes = [outcome for outcome in outcomes if outcome.name in only]
         for outcome in outcomes:
-            default_stat = "mean" if outcome.scale_type in MEAN_SCALE_TYPES else "proportion"
+            stat_default = default_stat(outcome.scale_type)
             levels = _levels(outcome)
             for wave in outcome.waves:
                 spec = resolve((wave,))
                 design = Design(weight=spec.weight, strata="strata", psu="psu")
                 base = _frame(con, outcome, wave, spec, DEMOGRAPHICS)
                 views: list[tuple[str, str, list[str]]] = [
-                    (default_stat, f"{default_stat}_by-country_code", ["country_code"])
+                    (stat_default, f"{stat_default}_by-country_code", ["country_code"])
                 ]
                 views.extend(
-                    (default_stat, f"{default_stat}_by-country_code-{demo}", ["country_code", demo])
+                    (stat_default, f"{stat_default}_by-country_code-{demo}", ["country_code", demo])
                     for demo in DEMOGRAPHICS
                 )
                 if outcome.scale_type in DISTRIBUTION_SCALE_TYPES:
@@ -275,11 +432,13 @@ def export_static(
                             "rows": len(envelope["rows"]),
                         }
                     )
+        export_catalog(con, static_dir, data_version, files)
     finally:
         con.close()
     index: dict[str, Any] = {
         "data_version": data_version,
         "file_count": len(files),
+        "catalog_files": ["meta.json", "variables.json"],
         "files": sorted(files, key=lambda item: item["path"]),
     }
     (static_dir / "index.json").write_text(

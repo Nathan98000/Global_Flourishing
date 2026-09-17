@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup data data-validate parity loadtest gen-client api web lint format typecheck test build docker-build docker-run deploy clean
+.PHONY: help setup data data-validate parity loadtest gen-client api web web-fixtures lint format typecheck test build docker-build docker-run deploy clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -37,6 +37,9 @@ api: ## Run the API dev server on :8080
 web: ## Run the Vite dev server
 	pnpm -C apps/web dev
 
+web-fixtures: ## Synthetic static tier into apps/web/public/data (vitest/Playwright/Lighthouse)
+	uv run python scripts/web_fixtures.py
+
 lint: ## ruff + eslint + prettier --check
 	uv run ruff check .
 	uv run ruff format --check .
@@ -50,7 +53,7 @@ typecheck: ## pyright + tsc
 	uv run pyright
 	pnpm -C apps/web typecheck
 
-test: ## pytest (api, pipeline, stats) + vitest
+test: web-fixtures ## pytest (api, pipeline, stats) + vitest (against the fixture tier)
 	uv run pytest
 	pnpm -C apps/web test
 
