@@ -6,6 +6,7 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { formatCount } from '../format'
 import { groupValueLabel } from '../labels'
+import { ciExtents, fittedScale } from './domain'
 import {
   FONT_FAMILY,
   INK_SECONDARY,
@@ -53,6 +54,9 @@ export function dotMarks(
   color: string,
   threshold: number,
   facetChannel: Record<string, string> = {},
+  /** Where "withheld" text anchors — the domain's left edge, not 0,
+   * when the window is data-fitted (F1). */
+  suppressedX = 0,
 ) {
   const valid = entries.filter((entry) => entry.value !== null)
   const suppressed = entries.filter((entry) => entry.row.suppressed)
@@ -80,7 +84,8 @@ export function dotMarks(
     Plot.text(suppressed, {
       ...facetChannel,
       y: 'level',
-      x: 0,
+      x: suppressedX,
+      dx: 4,
       text: (entry: DotEntry) => `withheld (n = ${formatCount(entry.row.n)})`,
       textAnchor: 'start',
       fill: INK_SECONDARY,
@@ -103,7 +108,7 @@ export function dotMarks(
       Plot.pointerY({
         ...facetChannel,
         y: 'level',
-        x: (entry: DotEntry) => entry.value ?? 0,
+        x: (entry: DotEntry) => entry.value ?? suppressedX,
         title: (entry: DotEntry) =>
           tipText(
             entry.row,
@@ -138,7 +143,9 @@ export function DotPlot({
   const container = usePlot(() => {
     const entries = dotEntries(rows, meta, levelColumn, null, labeler)
     const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
-    const maxX = Math.max(10, ...entries.map((entry) => entry.ci?.[1] ?? entry.value ?? 0)) * 1.05
+    const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
+      targetTicks: 6,
+    })
     return Plot.plot({
       height: 44 + levelDomain.length * ROW_HEIGHT,
       width: 660,
@@ -151,14 +158,15 @@ export function DotPlot({
         color: INK_SECONDARY,
       },
       x: {
+        domain: scale.domain,
+        ticks: scale.ticks,
         label: axisLabel(variable, responseMeta),
         labelAnchor: 'center',
         grid: true,
-        tickFormat: isShare ? (d: number) => `${d}%` : undefined,
-        ...(isShare ? { domain: [0, maxX] } : {}),
+        tickFormat: isShare ? (d: number) => `${scale.format(d)}%` : scale.format,
       },
       y: { domain: levelDomain, label: null, tickSize: 0 },
-      marks: dotMarks(entries, color, responseMeta.suppression.threshold),
+      marks: dotMarks(entries, color, responseMeta.suppression.threshold, {}, scale.domain[0]),
     })
   }, [rows, meta, responseMeta, variable, color, levelColumn, levelDomain, labeler])
 

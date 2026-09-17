@@ -6,7 +6,7 @@
 // so no country silently disappears from a map of 23 (ADR-0010).
 
 import * as Plot from '@observablehq/plot'
-import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
+import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import {
   FONT_FAMILY,
   INK_SECONDARY,
@@ -88,7 +88,6 @@ export function Choropleth({
   rows,
   meta,
   responseMeta,
-  variable,
   features,
   selected,
   levelLabel,
@@ -96,14 +95,13 @@ export function Choropleth({
   rows: EstimateRow[]
   meta: Meta
   responseMeta: ResponseMeta
-  variable: VariableSummary
   features: WorldFeature[]
   selected?: readonly number[]
   levelLabel?: string
 }) {
   const container = usePlot(() => {
     const { entries } = joinCountries(rows, meta, features)
-    const domain = mapDomain(rows, responseMeta, variable)
+    const domain = mapDomain(rows, responseMeta)
     const color = quantizeColor(domain)
     const threshold = responseMeta.suppression.threshold
     const fillOf = (entry: MapEntry): string =>
@@ -169,41 +167,77 @@ export function Choropleth({
         }),
       ],
     })
-  }, [rows, meta, responseMeta, variable, features, selected, levelLabel])
+  }, [rows, meta, responseMeta, features, selected, levelLabel])
 
   return <div ref={container} />
 }
 
-/** Discrete legend for the quantized ramp: seven swatches, labelled ends. */
-export function MapLegend({ domain, isShare }: { domain: [number, number]; isShare: boolean }) {
-  const render = (value: number) => (isShare ? `${Math.round(value)}%` : String(value))
+const legendValue = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+
+/** Discrete legend for the quantized ramp: the measure named, seven
+ * swatches over the observed range with both ends labelled by their
+ * values, and an explicit swatch for countries with no estimate. */
+export function MapLegend({
+  domain,
+  isShare,
+  title,
+}: {
+  domain: [number, number]
+  isShare: boolean
+  title: string
+}) {
+  const render = (value: number) => `${legendValue.format(value)}${isShare ? '%' : ''}`
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }} aria-hidden="true">
-      <span>{render(domain[0])}</span>
-      <span style={{ display: 'flex' }}>
-        {SEQUENTIAL_RAMP.map((token) => (
-          <span
-            key={token}
-            style={{ width: 22, height: 10, background: token, display: 'inline-block' }}
-          />
-        ))}
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap' }}
+      aria-hidden="true"
+    >
+      <span style={{ fontWeight: 600 }}>{title}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{render(domain[0])}</span>
+        <span style={{ display: 'flex' }}>
+          {SEQUENTIAL_RAMP.map((token) => (
+            <span
+              key={token}
+              style={{ width: 22, height: 10, background: token, display: 'inline-block' }}
+            />
+          ))}
+        </span>
+        <span>{render(domain[1])}</span>
       </span>
-      <span>{render(domain[1])}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{
+            width: 22,
+            height: 10,
+            background: MAP_EMPTY,
+            border: '1px solid var(--grid)',
+            display: 'inline-block',
+          }}
+        />
+        <span>no estimate</span>
+      </span>
     </div>
   )
 }
 
-export function mapDomain(
-  rows: EstimateRow[],
-  responseMeta: ResponseMeta,
-  variable: VariableSummary,
-): [number, number] {
+/** The ramp anchors to the observed range (F1): the map's job is to
+ * separate the 23 countries, and the legend's labelled ends say exactly
+ * what the window is. Withheld and absent countries wear the empty fill. */
+export function mapDomain(rows: EstimateRow[], responseMeta: ResponseMeta): [number, number] {
   const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
   const values = rows
     .map((row) => (row.suppressed ? null : plotValue(row)))
     .filter((v): v is number => v !== null)
-  if (isShare) return [0, Math.max(10, ...values)]
-  return [variable.min ?? Math.min(...values), variable.max ?? Math.max(...values)]
+  if (values.length === 0) return [0, 1]
+  let lo = Math.min(...values)
+  let hi = Math.max(...values)
+  if (hi - lo < 1e-9) {
+    const pad = isShare ? 1 : 0.5
+    lo = isShare ? Math.max(0, lo - pad) : lo - pad
+    hi += pad
+  }
+  return [lo, hi]
 }
 
 const centroidCache = new WeakMap<object, [number, number]>()

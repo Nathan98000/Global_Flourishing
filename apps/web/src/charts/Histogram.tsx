@@ -1,11 +1,17 @@
 // The distribution stat: weighted share per answer (0–10), with per-bin
 // CIs. Empty bins ship because the API passes the catalog's [min, max]
-// grid; suppressed bins render as hatched stubs with their n in the tip.
-// Multiple selected countries facet into columns with shared scales.
+// grid; suppressed bins render as hatched stubs with their n in the tip,
+// and the hatch is named in a legend that states the rule. The y-domain
+// fits the tallest bin across the countries being compared (F1), with
+// the fitted top always a labelled tick. Multiple selected countries
+// facet into columns with shared scales.
 
 import * as Plot from '@observablehq/plot'
+import type { CSSProperties } from 'react'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
+import { formatCount } from '../format'
 import { groupValueLabel } from '../labels'
+import { fittedScale } from './domain'
 import {
   BAR_RADIUS,
   FONT_FAMILY,
@@ -38,6 +44,16 @@ export function binEntries(rows: EstimateRow[], meta: Meta): BinEntry[] {
     }))
 }
 
+const HATCH_SWATCH: CSSProperties = {
+  display: 'inline-block',
+  width: 18,
+  height: 12,
+  verticalAlign: '-2px',
+  border: '1px solid var(--suppressed-hatch)',
+  background:
+    'repeating-linear-gradient(45deg, var(--suppressed-fill), var(--suppressed-fill) 3px, var(--suppressed-hatch) 3px, var(--suppressed-hatch) 4px)',
+}
+
 export function Histogram({
   rows,
   meta,
@@ -51,6 +67,9 @@ export function Histogram({
   variable: VariableSummary
   color: string
 }) {
+  const threshold = responseMeta.suppression.threshold
+  const hasSuppressed = rows.some((row) => row.suppressed)
+
   const container = usePlot(() => {
     const entries = binEntries(rows, meta)
     const facets = [...new Set(entries.map((entry) => entry.facet))]
@@ -62,8 +81,13 @@ export function Histogram({
       variable.min !== null && variable.max !== null
         ? Array.from({ length: variable.max - variable.min + 1 }, (_, i) => (variable.min ?? 0) + i)
         : [...new Set(entries.map((entry) => entry.level))].sort((a, b) => a - b)
-    const maxY = Math.max(10, ...valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0)) * 1.1
-    const threshold = responseMeta.suppression.threshold
+    // Fit the y-domain to the tallest bin (CI included) across the
+    // countries in view; bars keep their zero baseline.
+    const scale = fittedScale(
+      valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0),
+      { targetTicks: 5, zeroBaseline: true },
+    )
+    const maxY = scale.domain[1]
 
     return Plot.plot({
       height: 300,
@@ -82,10 +106,11 @@ export function Histogram({
         tickSize: 0,
       },
       y: {
-        domain: [0, maxY],
+        domain: scale.domain,
+        ticks: scale.ticks,
         label: 'Weighted share (%)',
         grid: true,
-        tickFormat: (d: number) => `${d}%`,
+        tickFormat: (d: number) => `${scale.format(d)}%`,
       },
       ...(faceted ? { fx: { domain: facets, label: null } } : {}),
       marks: [
@@ -134,5 +159,17 @@ export function Histogram({
     })
   }, [rows, meta, responseMeta, variable, color])
 
-  return <div ref={container} />
+  return (
+    <div>
+      <div ref={container} />
+      {hasSuppressed && (
+        <p
+          style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-secondary)', margin: '4px 0 0' }}
+          aria-hidden="true"
+        >
+          <span style={HATCH_SWATCH} /> hatched = withheld, n &lt; {formatCount(threshold)}
+        </p>
+      )}
+    </div>
+  )
 }
