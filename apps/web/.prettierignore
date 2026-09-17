@@ -8,3 +8,6 @@ src/api/schema.d.ts
 public/data/
 .lighthouseci/
 lhci-report/
+# Local Playwright artifacts (CI runs e2e in its own job).
+test-results/
+playwright-report/
