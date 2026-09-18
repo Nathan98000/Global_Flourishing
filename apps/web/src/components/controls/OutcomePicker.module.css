@@ -16,14 +16,10 @@
   color: var(--ink-secondary);
 }
 
+/* Surfaces, borders and padding come from the global input/select rule. */
 .search,
 .select {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
-  min-height: 2rem;
 }
 
 .select {

@@ -68,14 +68,10 @@ const MARKS = [
   '--series-3',
 ]
 
-// Sub-3:1 in light mode by design (validated palette, relief rule);
-// --series-3 shares the health hue.
-const LIGHT_RELIEF = new Set([
-  '--sfi-happiness',
-  '--sfi-health',
-  '--sfi-relationships',
-  '--series-3',
-])
+// Sub-3:1 in light mode by design (validated palette, relief rule):
+// three of the six fixed SFI hues. The warm redesign series (teal /
+// burnt orange / violet) all clear 3:1 on the paper surface.
+const LIGHT_RELIEF = new Set(['--sfi-happiness', '--sfi-health', '--sfi-relationships'])
 
 describe.each([
   ['light', light],
@@ -90,10 +86,20 @@ describe.each([
     assertContrast(vars, '--error-text', '--surface', 4.5, theme)
     assertContrast(vars, '--ink', '--notice-bg', 4.5, theme)
     assertContrast(vars, '--ink', '--warning-bg', 4.5, theme)
+    // Selected segmented-control option: ink on the selected tint.
+    assertContrast(vars, '--ink', '--control-selected', 4.5, theme)
   })
 
   test('focus ring is visible (3:1 non-text)', () => {
     assertContrast(vars, '--focus-ring', '--page', 3, theme)
+  })
+
+  test('the sequential ramp reads against the surface', () => {
+    // The deep end carries the high values: full non-text contrast.
+    assertContrast(vars, '--seq-700', '--surface', 3, theme)
+    // The light end must still be *visible* on the surface — the floor
+    // that rejected a blue ramp indistinguishable on off-white paper.
+    assertContrast(vars, '--seq-100', '--surface', 1.15, theme)
   })
 
   test('chart marks clear 3:1 against the plot surface', () => {

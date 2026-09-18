@@ -13,34 +13,35 @@
   color: var(--ink-secondary);
 }
 
+/* A quiet segmented group (redesign §3): a tinted row, the selected
+   option a slightly deeper tint with an ink rule under it — never a
+   filled accent block competing with the chart. As wide as its labels,
+   never stretched (desktop). */
 .row {
   display: inline-flex;
-  border: 1px solid var(--border);
+  background: var(--control-bg);
   border-radius: var(--radius-md);
   overflow: hidden;
   width: fit-content;
 }
 
 .option {
-  padding: var(--space-1) var(--space-3);
+  padding: 6px 12px;
   font-size: var(--text-sm);
   color: var(--ink-secondary);
   cursor: pointer;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.option:last-child {
-  border-right: 0;
 }
 
 .option[data-checked] {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--control-selected);
+  color: var(--ink);
+  font-weight: 550;
+  box-shadow: inset 0 -2px 0 var(--control-rule);
 }
 
 .option[data-disabled] {
-  opacity: 0.45;
+  color: var(--ink-muted);
+  opacity: 1;
   cursor: not-allowed;
 }
 

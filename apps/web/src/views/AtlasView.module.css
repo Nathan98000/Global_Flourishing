@@ -1,8 +1,10 @@
 .deck {
   color: var(--ink-secondary);
-  font-size: var(--text-md);
-  max-width: 48rem;
-  margin: 0 0 var(--space-4);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.45;
+  max-width: 34rem;
+  margin: 0 0 var(--space-7);
 }
 
 /* One deck, two lengths: the phone gets the short line so the chart
@@ -26,7 +28,8 @@
   align-items: flex-end;
   gap: var(--space-4);
   flex-wrap: wrap;
-  margin-bottom: var(--space-4);
+  /* Composes with the chart block's rule + top padding to the §4 seam. */
+  margin-bottom: var(--space-5);
 }
 
 .oriented {
@@ -52,7 +55,7 @@
    within the first screen; segmented rows and selects stretch. */
 @media (max-width: 40rem) {
   .deck {
-    font-size: var(--text-sm);
+    font-size: var(--text-base);
     margin-bottom: var(--space-3);
   }
 

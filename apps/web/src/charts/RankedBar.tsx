@@ -74,7 +74,8 @@ export function RankedBar({
       const width = chartWidth(660, available)
       const narrow = width < 480
       const marginLeft = narrow ? 104 : 128
-      const marginRight = narrow ? 52 : 64
+      // Sized for the 14px value column, 16px off the plot's right edge (§5).
+      const marginRight = narrow ? 60 : 72
       const height = 44 + entries.length * ROW_HEIGHT
       const valueOf = (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat)
 
@@ -121,11 +122,11 @@ export function RankedBar({
               y: 'label',
               x: hi,
               text: valueOf,
-              dx: 8,
+              dx: 16,
               textAnchor: 'start',
               fill: INK,
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: 14,
+              fontWeight: 500,
             }),
             Plot.tip(
               entries,
@@ -178,11 +179,11 @@ export function RankedBar({
             y: 'label',
             x: xMax,
             text: valueOf,
-            dx: 8,
+            dx: 16,
             textAnchor: 'start',
             fill: INK,
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: 14,
+            fontWeight: 500,
           }),
           Plot.tip(
             entries,
