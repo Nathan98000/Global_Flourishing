@@ -147,6 +147,26 @@ export function BreakdownsView() {
     )
   }
 
+  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
+    if (outcome === undefined) {
+      setSearch({ topic })
+      return
+    }
+    const target = variables.data.byName[outcome]
+    const wave =
+      target && !target.waves_available.includes(search.wave)
+        ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
+        : search.wave
+    setSearch({
+      outcome,
+      topic: undefined,
+      wave: wave ?? search.wave,
+      level: undefined,
+      invalid: undefined,
+      invalidRaw: undefined,
+    })
+  }
+
   const demographics = meta.data.meta.breakdowns.filter((column) => column !== 'country_code')
   const demographicOptions: RadioOption<string>[] = demographics.map((column) => ({
     value: column,
@@ -202,8 +222,9 @@ export function BreakdownsView() {
             }
           : undefined
 
-  // The split, sorts and country filter fold into a disclosure under
-  // 40rem (§8); Measure, Wave and the breakdown itself stay visible.
+  // The split, sorts, country filter and answer level fold into a
+  // disclosure under 40rem (§8), Topic + search first inside it;
+  // Measure, Wave and the breakdown itself stay visible.
   const displayOptions = (
     <>
       <label className={styles.oriented}>
@@ -268,6 +289,20 @@ export function BreakdownsView() {
         selected={search.countries}
         onChange={(countries) => setSearch({ countries })}
       />
+      {isCategorical && outcomeLevelOptions.length > 0 && (
+        <RadioRow
+          legend="Answer level"
+          name="outcome-level"
+          wide
+          selectOnNarrow
+          options={outcomeLevelOptions.map((entry) => ({
+            value: String(entry.value),
+            label: entry.label,
+          }))}
+          value={String(activeLevel)}
+          onChange={(value) => setSearch({ level: Number(value) })}
+        />
+      )}
     </>
   )
 
@@ -292,25 +327,8 @@ export function BreakdownsView() {
           variables={variables.data.list}
           value={search.outcome}
           topic={search.topic}
-          onSelect={({ outcome, topic }) => {
-            if (outcome === undefined) {
-              setSearch({ topic })
-              return
-            }
-            const target = variables.data.byName[outcome]
-            const wave =
-              target && !target.waves_available.includes(search.wave)
-                ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
-                : search.wave
-            setSearch({
-              outcome,
-              topic: undefined,
-              wave: wave ?? search.wave,
-              level: undefined,
-              invalid: undefined,
-              invalidRaw: undefined,
-            })
-          }}
+          onSelect={handlePick}
+          fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
           legend="Wave"
@@ -323,6 +341,7 @@ export function BreakdownsView() {
           legend="Break down by"
           name="by"
           wide
+          selectOnNarrow
           options={demographicOptions}
           value={primary}
           onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
@@ -330,23 +349,19 @@ export function BreakdownsView() {
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — split, sort, countries</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
+            <div className={styles.moreBody}>
+              <OutcomePicker
+                variables={variables.data.list}
+                value={search.outcome}
+                topic={search.topic}
+                onSelect={handlePick}
+                fields="topic-and-search"
+              />
+              {displayOptions}
+            </div>
           </details>
         ) : (
           displayOptions
-        )}
-        {isCategorical && outcomeLevelOptions.length > 0 && (
-          <RadioRow
-            legend="Answer level"
-            name="outcome-level"
-            wide
-            options={outcomeLevelOptions.map((entry) => ({
-              value: String(entry.value),
-              label: entry.label,
-            }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
         )}
       </div>
 

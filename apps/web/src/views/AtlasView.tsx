@@ -117,6 +117,28 @@ export function AtlasView() {
     )
   }
 
+  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
+    if (outcome === undefined) {
+      setSearch({ topic })
+      return
+    }
+    const target = variables.data.byName[outcome]
+    const wave =
+      target && !target.waves_available.includes(search.wave)
+        ? (target.waves_available[0] as AtlasSearch['wave'] | undefined)
+        : search.wave
+    setSearch({
+      outcome,
+      topic: undefined,
+      wave: wave ?? search.wave,
+      stat: undefined,
+      level: undefined,
+      oriented: undefined,
+      invalid: undefined,
+      invalidRaw: undefined,
+    })
+  }
+
   const countryCount = meta.data.meta.countries.length
   const waveOptions: RadioOption<AtlasSearch['wave']>[] = meta.data.meta.waves.map((wave) => ({
     value: wave as AtlasSearch['wave'],
@@ -183,9 +205,10 @@ export function AtlasView() {
             }
           : undefined
 
-  // View, Statistic, Sort, Order and Countries fold into a disclosure
-  // under 40rem (§8); Measure and Wave stay visible so the chart starts
-  // within the first phone screen.
+  // Statistic, View, Sort, Order, Countries and Answer level fold into a
+  // disclosure under 40rem (§8), Topic + search first inside it; Measure
+  // and Wave stay visible so the chart starts within the first phone
+  // screen.
   const displayOptions = (
     <>
       {statOptions && (
@@ -248,6 +271,17 @@ export function AtlasView() {
         selected={search.countries}
         onChange={(countries) => setSearch({ countries })}
       />
+      {isCategorical && levels.length > 0 && (
+        <RadioRow
+          legend="Answer level"
+          name="level"
+          wide
+          selectOnNarrow
+          options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+          value={String(activeLevel)}
+          onChange={(value) => setSearch({ level: Number(value) })}
+        />
+      )}
     </>
   )
 
@@ -288,27 +322,8 @@ export function AtlasView() {
           variables={variables.data.list}
           value={search.outcome}
           topic={search.topic}
-          onSelect={({ outcome, topic }) => {
-            if (outcome === undefined) {
-              setSearch({ topic })
-              return
-            }
-            const target = variables.data.byName[outcome]
-            const wave =
-              target && !target.waves_available.includes(search.wave)
-                ? (target.waves_available[0] as AtlasSearch['wave'] | undefined)
-                : search.wave
-            setSearch({
-              outcome,
-              topic: undefined,
-              wave: wave ?? search.wave,
-              stat: undefined,
-              level: undefined,
-              oriented: undefined,
-              invalid: undefined,
-              invalidRaw: undefined,
-            })
-          }}
+          onSelect={handlePick}
+          fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
           legend="Wave"
@@ -320,20 +335,19 @@ export function AtlasView() {
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — chart, sort, countries</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
+            <div className={styles.moreBody}>
+              <OutcomePicker
+                variables={variables.data.list}
+                value={search.outcome}
+                topic={search.topic}
+                onSelect={handlePick}
+                fields="topic-and-search"
+              />
+              {displayOptions}
+            </div>
           </details>
         ) : (
           displayOptions
-        )}
-        {isCategorical && levels.length > 0 && (
-          <RadioRow
-            legend="Answer level"
-            name="level"
-            wide
-            options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
         )}
         {variable && variable.direction === 'lower_better' && !variable.is_derived && (
           <label className={styles.oriented}>

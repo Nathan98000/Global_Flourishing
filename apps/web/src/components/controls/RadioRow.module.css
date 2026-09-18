@@ -13,16 +13,23 @@
   color: var(--ink-secondary);
 }
 
-/* A quiet segmented group (redesign §3): a tinted row, the selected
-   option a slightly deeper tint with an ink rule under it — never a
-   filled accent block competing with the chart. As wide as its labels,
-   never stretched (desktop). */
+/* A quiet segmented group (redesign §3): an outlined tinted row with
+   hairline dividers, the selected option a slightly deeper tint with an
+   ink rule under it — never a filled accent block competing with the
+   chart. As wide as its labels, never stretched (desktop). overflow:
+   hidden clips the 2px selected rule against the 1px frame instead of
+   letting them double up. */
 .row {
   display: inline-flex;
-  background: var(--control-bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: var(--control-bg);
   overflow: hidden;
   width: fit-content;
+}
+
+.option + .option {
+  border-left: 1px solid var(--border);
 }
 
 .option {
