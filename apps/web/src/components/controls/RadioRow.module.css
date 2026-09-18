@@ -50,18 +50,29 @@
   outline-offset: -2px;
 }
 
-/* Touch sizing on small screens (F2): options clear 40px, long rows
-   wrap instead of overflowing. */
+/* Under 40rem a group is an even grid — three options divide the row in
+   thirds instead of wrapping 2 + 1 (§8) — with 44px touch targets. Wide
+   rows (answer levels, many long labels) keep wrapping: an even grid
+   would crush them. */
 @media (max-width: 40rem) {
   .row {
+    display: grid;
+    grid-template-columns: repeat(var(--options, 3), minmax(0, 1fr));
     width: 100%;
+  }
+
+  .row[data-wide] {
+    display: flex;
     flex-wrap: wrap;
   }
 
-  .option {
+  .row[data-wide] .option {
     flex: 1 1 auto;
+  }
+
+  .option {
     text-align: center;
-    min-height: 40px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;

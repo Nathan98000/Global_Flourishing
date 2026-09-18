@@ -1,7 +1,7 @@
+/* Plain text under the subtitle (§6): no left rule, no tint — the
+   question in quiet 14px secondary ink with the codebook link inline. */
 .panel {
-  border-left: 3px solid var(--accent);
-  padding: 2px 0 2px var(--space-3);
-  font-size: var(--text-sm);
+  font-size: 14px;
   max-width: 46rem;
 }
 
@@ -11,19 +11,13 @@
   color: var(--ink-secondary);
 }
 
-.wording {
+.wording,
+.note {
   margin: 0;
-  font-style: italic;
-  color: var(--ink);
+  color: var(--ink-secondary);
 }
 
 .wording .link,
 .note .link {
-  font-style: normal;
   white-space: nowrap;
-}
-
-.note {
-  margin: 0;
-  color: var(--ink);
 }

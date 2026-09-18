@@ -26,7 +26,7 @@ function BootBanner() {
   if (boot.state === 'no-data') {
     message = (
       <>
-        <strong>No data is reachable right now.</strong> Neither the built-in views nor the live
+        <strong>No data</strong> is reachable right now — neither the built-in views nor the live
         data service answered, so charts cannot load. The deployment may still be setting up its
         data.
       </>
@@ -56,8 +56,11 @@ function BootBanner() {
 
 export function AppShell() {
   const { pathname } = useLocation()
+  // The codebook table is the one surface allowed the old 68rem (§6);
+  // detail pages and everything else keep the 60rem reading column.
+  const wide = pathname === '/codebook'
   return (
-    <div className={styles.layout}>
+    <div className={styles.layout} data-wide={wide || undefined}>
       <a href="#main" className="skip-link">
         Skip to content
       </a>

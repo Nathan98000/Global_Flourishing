@@ -14,6 +14,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount } from '../format'
 import { codebookSearchParams, type CodebookSearch } from '../state/search'
+import { topicName } from '../topics'
 import styles from './CodebookView.module.css'
 
 const route = getRouteApi('/codebook')
@@ -132,9 +133,10 @@ export function CodebookView() {
             onChange={(event) => setSearch({ family: event.target.value || undefined })}
           >
             <option value="">all</option>
+            {/* Family codes wear the picker's topic display names (§6). */}
             {families.map((family) => (
               <option key={family} value={family}>
-                {family}
+                {topicName(family)}
               </option>
             ))}
           </select>
@@ -185,7 +187,10 @@ export function CodebookView() {
               <th scope="col">Family</th>
               <th scope="col">Scale</th>
               <th scope="col">Waves</th>
-              <th scope="col">Chartable</th>
+              {/* The link says it all sighted; screen readers keep the name. */}
+              <th scope="col">
+                <span className="visually-hidden">Chartable</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -197,10 +202,10 @@ export function CodebookView() {
                   </Link>
                   <span className={styles.code}>{variable.name}</span>
                 </th>
-                <td>{variable.family}</td>
+                <td>{topicName(variable.family)}</td>
                 <td>{variable.scale_type}</td>
                 <td>{variable.waves_available.join(', ')}</td>
-                <td>
+                <td className={styles.chartCell}>
                   {variable.servable ? (
                     <Link
                       to="/"
@@ -211,7 +216,7 @@ export function CodebookView() {
                         } as never
                       }
                     >
-                      chart this →
+                      Chart it →
                     </Link>
                   ) : (
                     <span className={styles.code}>not yet</span>

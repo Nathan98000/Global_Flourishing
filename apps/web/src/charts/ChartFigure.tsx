@@ -86,18 +86,25 @@ export function ChartFigure({
           <span className={styles.title}>{title}</span>
           {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
         </span>
+        {/* Text links, not outlined buttons (§6): "Download CSV · PNG". */}
         <span className={styles.actions}>
           {csv &&
             (csv.kind === 'server' ? (
               <a className={styles.action} href={csv.href} download>
-                CSV
+                Download CSV
               </a>
             ) : (
               <button type="button" className={styles.action} onClick={csv.onDownload}>
-                CSV
+                Download CSV
               </button>
             ))}
-          <button type="button" className={styles.action} onClick={() => void exportPng()}>
+          {csv && <span aria-hidden="true">·</span>}
+          <button
+            type="button"
+            className={styles.action}
+            aria-label="Download PNG"
+            onClick={() => void exportPng()}
+          >
             PNG
           </button>
         </span>

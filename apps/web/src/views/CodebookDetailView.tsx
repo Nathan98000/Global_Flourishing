@@ -12,6 +12,7 @@ import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount, formatPercent } from '../format'
 import { directionPhrase } from '../labels'
+import { topicName } from '../topics'
 import styles from './CodebookDetailView.module.css'
 
 const route = getRouteApi('/codebook/$name')
@@ -103,7 +104,7 @@ export function CodebookDetailView() {
         {detail.display_name} <span className={styles.code}>{detail.name}</span>
       </h2>
       <p className={styles.facts}>
-        {detail.family} · {detail.scale_type}
+        {topicName(detail.family)} · {detail.scale_type}
         {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} ·{' '}
         {directionPhrase(detail.direction)} · waves: {detail.waves_available.join(', ')}
       </p>

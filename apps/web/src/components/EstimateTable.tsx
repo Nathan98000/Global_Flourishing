@@ -23,39 +23,46 @@ export function EstimateTable({
   const hasLevel = response.rows.some((row) => row.level !== null && row.level !== undefined)
   const hasP = response.rows.some((row) => row.p !== null && row.p !== undefined)
   return (
-    <table className={styles.table}>
-      {/* The weight is named once here, not repeated on every row (§6). */}
-      <caption className={styles.caption}>
-        {caption ? `${caption} · ` : ''}Weighted estimates ({response.meta.weight}).
-      </caption>
-      <thead>
-        <tr>
-          {by.map((column) => (
-            <th key={column} scope="col">
-              {columnLabel(column, meta)}
-            </th>
-          ))}
-          {hasLevel && <th scope="col">Level</th>}
-          {hasP && <th scope="col">p</th>}
-          <th scope="col">Estimate</th>
-          <th scope="col">{ciLabel(response.meta.ci_level)}</th>
-          <th scope="col">n</th>
-        </tr>
-      </thead>
-      <tbody>
-        {response.rows.map((row, index) => (
-          <tr key={index}>
+    // Scrolls sideways rather than breaking the column (§8); under
+    // 30rem the CI column is dropped from the *display* — it stays in
+    // the CSV and the chart whiskers.
+    <div className={styles.scroll}>
+      <table className={styles.table}>
+        {/* The weight is named once here, not repeated on every row (§6). */}
+        <caption className={styles.caption}>
+          {caption ? `${caption} · ` : ''}Weighted estimates ({response.meta.weight}).
+        </caption>
+        <thead>
+          <tr>
             {by.map((column) => (
-              <td key={column}>{groupValueLabel(column, row.group[column] ?? null, meta)}</td>
+              <th key={column} scope="col">
+                {columnLabel(column, meta)}
+              </th>
             ))}
-            {hasLevel && <td>{row.level ?? '—'}</td>}
-            {hasP && <td>{row.p ?? '—'}</td>}
-            <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
-            <td className={styles.number}>{formatCI(row)}</td>
-            <td className={styles.number}>{formatCount(row.n)}</td>
+            {hasLevel && <th scope="col">Level</th>}
+            {hasP && <th scope="col">p</th>}
+            <th scope="col">Estimate</th>
+            <th scope="col" className={styles.ci}>
+              {ciLabel(response.meta.ci_level)}
+            </th>
+            <th scope="col">n</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {response.rows.map((row, index) => (
+            <tr key={index}>
+              {by.map((column) => (
+                <td key={column}>{groupValueLabel(column, row.group[column] ?? null, meta)}</td>
+              ))}
+              {hasLevel && <td>{row.level ?? '—'}</td>}
+              {hasP && <td>{row.p ?? '—'}</td>}
+              <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
+              <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>
+              <td className={styles.number}>{formatCount(row.n)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

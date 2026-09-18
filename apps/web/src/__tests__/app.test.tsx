@@ -118,9 +118,11 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   for (const label of ['Atlas', 'Breakdowns', 'Codebook', 'Methods']) {
     expect(nav).toHaveTextContent(label)
   }
-  // The deck says what this is, above the fold (F5).
+  // The deck says what this is, above the fold (F5); the count sits in
+  // its own ink-colored span (§6), so match the two parts.
+  expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
   expect(
-    await screen.findByText(/207,919 people across .* — the Global Flourishing Study, 2023–2024/),
+    screen.getByText(/rate their own lives — the Global Flourishing Study, 2023–2024/),
   ).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Global Flourishing Study/ })).toHaveAttribute(
     'href',
@@ -196,7 +198,9 @@ test('an API without a data build is its own banner', async () => {
 test('with no data source at all the shell renders honestly', async () => {
   mockFetch({ '/health': new TypeError('down') })
   await renderAt('/')
-  expect(await screen.findByText(/No data is reachable right now/)).toBeInTheDocument()
+  // Bold sits only on the state word (§7), so the phrase spans elements.
+  expect(await screen.findByText(/is reachable right now/)).toBeInTheDocument()
+  expect(screen.getByText('No data')).toBeInTheDocument()
   expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
 })
 
@@ -246,4 +250,66 @@ test('unknown routes render the not-found page', async () => {
   mockFetch(staticTier)
   await renderAt('/nowhere')
   expect(await screen.findByText('Page not found')).toBeInTheDocument()
+})
+
+// --- Visual-redesign behaviours (Sept 2026, §6/§8) ---
+
+test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  // Healthy API → the CSV is a real download link; PNG stays a button
+  // whose accessible name carries the verb.
+  expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Download PNG' })).toBeInTheDocument()
+})
+
+test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/codebook')
+  await screen.findByText(/of \d+ variables/)
+  // Family cells and the filter render display names, never raw codes.
+  expect(screen.getAllByText('Wellbeing').length).toBeGreaterThan(0)
+  expect(screen.queryByText('wellbeing')).toBeNull()
+  // The header text survives for screen readers (visually hidden).
+  expect(screen.getByText('Chartable')).toBeInTheDocument()
+  expect(screen.getAllByRole('link', { name: 'Chart it →' }).length).toBeGreaterThan(0)
+})
+
+function stubViewport(matcher: (query: string) => boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: matcher(query),
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
+test('under 40rem the display options fold into a disclosure; Measure and Wave stay out (§8)', async () => {
+  stubViewport((query) => query.includes('40rem'))
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  const summary = screen.getByText('More options — chart, sort, countries')
+  const details = summary.closest('details')
+  expect(details).not.toBeNull()
+  // Wave stays visible outside the fold; Sort lives inside it.
+  const wave = screen.getByRole('group', { name: 'Wave' })
+  expect(details?.contains(wave)).toBe(false)
+  const sort = screen.getByRole('group', { name: 'Sort' })
+  expect(details?.contains(sort)).toBe(true)
+})
+
+test('the Statistic group becomes a native select under 30rem (§8)', async () => {
+  stubViewport(() => true) // a phone matches both 30rem and 40rem
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  const statistic = screen.getByLabelText('Statistic')
+  expect(statistic.tagName).toBe('SELECT')
+  expect(statistic).toHaveDisplayValue('Mean')
 })

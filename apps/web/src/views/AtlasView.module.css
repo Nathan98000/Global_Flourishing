@@ -7,6 +7,11 @@
   margin: 0 0 var(--space-7);
 }
 
+/* The count carries the fact; it reads in ink (§6). */
+.deckCount {
+  color: var(--ink);
+}
+
 /* One deck, two lengths: the phone gets the short line so the chart
    starts within the first screen (F2/F5). */
 .deckShort {
@@ -51,8 +56,39 @@
   margin-bottom: var(--space-3);
 }
 
-/* F2: on a phone the control groups reflow two-up so the chart starts
-   within the first screen; segmented rows and selects stretch. */
+/* The disclosure the display options fold into under 40rem (§8) — only
+   rendered there, so no media guard needed. */
+.moreOptions {
+  font-size: var(--text-sm);
+}
+
+.moreOptions summary {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  padding: var(--space-2) var(--space-3);
+  width: fit-content;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.moreOptions[open] summary {
+  color: var(--ink);
+  margin-bottom: var(--space-3);
+}
+
+.moreBody {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+/* F2 (revised §8): on a phone the visible controls stack one per row —
+   Measure, Wave, the disclosure — so the chart starts within the first
+   screen; segmented rows stretch and divide evenly. */
 @media (max-width: 40rem) {
   .deck {
     font-size: var(--text-base);
@@ -61,17 +97,8 @@
 
   .controls {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-2) var(--space-3);
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
     align-items: end;
-  }
-
-  .controls > :first-child,
-  .controls > fieldset[data-wide] {
-    grid-column: 1 / -1;
-  }
-
-  .oriented {
-    grid-column: 1 / -1;
   }
 }

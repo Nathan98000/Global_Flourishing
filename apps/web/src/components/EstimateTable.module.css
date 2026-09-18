@@ -26,3 +26,14 @@
 .number {
   font-variant-numeric: tabular-nums;
 }
+
+.scroll {
+  overflow-x: auto;
+}
+
+/* The CI column leaves the phone display (§8) — it stays in the CSV. */
+@media (max-width: 30rem) {
+  .ci {
+    display: none;
+  }
+}

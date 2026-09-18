@@ -1,31 +1,40 @@
-.methods {
-  /* Prose measure (F14): ~70ch, while the data views keep the full
-     68rem layout. */
-  max-width: 70ch;
-}
-
+/* Rule-bounded lead (§6): ink rule above, hairline below — no tinted
+   card. Two serif paragraphs, then the sources on one 13px line. */
 .summary {
-  border: 1px solid var(--notice-border);
-  background: var(--notice-bg);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  margin-bottom: var(--space-5);
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--grid);
+  padding: 22px 0;
+  margin-bottom: var(--space-6);
 }
 
 .summary p {
-  margin: 0 0 var(--space-2);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.45;
+  margin: 0 0 var(--space-3);
 }
 
 .links {
+  list-style: none;
   margin: 0;
-  padding-left: 1.2em;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
   font-size: var(--text-sm);
 }
 
-/* Methods prose is the one serif body column (§2). */
+.links li + li::before {
+  content: '· ';
+  color: var(--ink-secondary);
+}
+
+/* Methods prose is the one serif body column (§2), on a 38rem reading
+   measure (§6); the lead above spans the full layout column. */
 .prose {
   font-family: var(--font-serif);
   font-size: 16.5px;
+  max-width: 38rem;
 }
 
 .prose :is(h1, h2) {

@@ -132,15 +132,14 @@ describe('quantized token colors', () => {
 })
 
 describe('MapLegend', () => {
-  test('names the measure, labels both ends, and shows the no-data swatch', () => {
-    const { container } = render(
-      <MapLegend domain={[5.89, 8.1]} isShare={false} title="Secure Flourishing Index" />,
-    )
+  test('labels both ends and shows a bordered no-data swatch (§6: no title — the figure names the measure)', () => {
+    const { container } = render(<MapLegend domain={[5.89, 8.1]} isShare={false} />)
     const text = container.textContent ?? ''
-    expect(text).toContain('Secure Flourishing Index')
     expect(text).toContain('5.89')
     expect(text).toContain('8.1')
     expect(text).toContain('no estimate')
+    // The empty swatch is bordered so it reads apart from non-study land.
+    expect(container.innerHTML).toContain('var(--axis)')
   })
 })
 

@@ -1,6 +1,11 @@
 // A labelled radio group rendered as a segmented row — native inputs,
 // full keyboard support, no dead options (unavailable ones say why).
+// Under 40rem the row becomes an even grid so no option is orphaned on
+// its own line; a group with long labels can opt into rendering as a
+// native <select> under 30rem instead (§8).
 
+import type { CSSProperties } from 'react'
+import { SELECT_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import styles from './RadioRow.module.css'
 
 export interface RadioOption<T extends string> {
@@ -17,6 +22,7 @@ export function RadioRow<T extends string>({
   value,
   onChange,
   wide = false,
+  selectOnNarrow = false,
 }: {
   legend: string
   name: string
@@ -25,11 +31,32 @@ export function RadioRow<T extends string>({
   onChange: (value: T) => void
   /** Long rows (answer levels) span the full width of the phone grid. */
   wide?: boolean
+  /** Labels too long for thirds of a phone: a native select under 30rem. */
+  selectOnNarrow?: boolean
 }) {
+  const asSelect = useMediaQuery(SELECT_VIEWPORT) && selectOnNarrow
+  if (asSelect) {
+    return (
+      <label className={styles.fieldset}>
+        <span className={styles.legend}>{legend}</span>
+        <select value={value} onChange={(event) => onChange(event.target.value as T)}>
+          {options.map((option) => (
+            <option key={option.value} value={option.value} disabled={option.disabled}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
   return (
     <fieldset className={styles.fieldset} data-wide={wide || undefined}>
       <legend className={styles.legend}>{legend}</legend>
-      <span className={styles.row}>
+      <span
+        className={styles.row}
+        style={{ '--options': options.length } as CSSProperties}
+        data-wide={wide || undefined}
+      >
         {options.map((option) => (
           <label
             key={option.value}
