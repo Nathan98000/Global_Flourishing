@@ -22,20 +22,26 @@ body {
   font-size: var(--text-base);
 }
 
+/* Serif carries structure (headings, decks, chart titles, Methods
+   prose); the sans stack keeps the interface — nav, labels, controls,
+   table headers, ticks and data values. */
 h1,
 h2,
 h3,
 h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
   line-height: 1.25;
   margin: 0 0 var(--space-3);
 }
 
 h1 {
-  font-size: var(--text-lg);
+  font-size: 28px;
+  line-height: 1.15;
 }
 
 h2 {
-  font-size: var(--text-lg);
+  font-size: 21px;
 }
 
 h3 {
@@ -48,6 +54,12 @@ p {
 
 a {
   color: var(--accent);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  color: var(--accent-hover);
 }
 
 button,
@@ -55,6 +67,17 @@ input,
 select {
   font: inherit;
   color: inherit;
+}
+
+/* Text inputs and selects: quiet surfaces with a hairline (§3 of the
+   redesign) — one rule, every view. */
+select,
+input[type='text'],
+input[type='search'] {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 7px 9px;
 }
 
 code {

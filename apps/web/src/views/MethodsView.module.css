@@ -22,8 +22,13 @@
   font-size: var(--text-sm);
 }
 
+/* Methods prose is the one serif body column (§2). */
+.prose {
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+}
+
 .prose :is(h1, h2) {
-  font-size: var(--text-lg);
   margin-top: var(--space-6);
 }
 
@@ -37,10 +42,12 @@
 
 .prose p,
 .prose li {
-  line-height: 1.65;
+  line-height: 1.62;
 }
 
+/* Tables stay in the sans interface voice, like every data surface. */
 .prose table {
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   margin: var(--space-3) 0;
 }
