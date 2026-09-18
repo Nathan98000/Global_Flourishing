@@ -83,3 +83,35 @@ live in `public/`, outside the initial-route count (189.9 kB gz of
 250). Charts keep every ADR-0010 rule: fitted windows with stated
 edges, zero-based bars, direct value labels, `var(--token)` colors
 only.
+
+## Revised — 18 September 2026
+
+A side-by-side against the wireframe canvas found ten differences; the
+owner accepted all ten (`docs/prompts/visual-redesign-followups.md`).
+Five of them reverse a choice recorded above, so they belong here rather
+than in a commit message alone:
+
+- **Segmented groups are framed.** A 1px `--border` outline with 1px
+  dividers between options, not a bare tinted field. The tint-plus-rule
+  selected state is unchanged; the frame is what keeps unselected
+  options reading as separate targets.
+- **The type scale is the system.** `--text-xs/sm/base/prose/deck/h2/
+  brand/h1` replace the old ladder plus the literal pixel sizes that had
+  accumulated at call sites; `--text-lg` and `--text-xl` are gone.
+  Chart-internal sizes stay numeric (Plot needs numbers) but come from
+  the same ladder: 11, 12, 13.5.
+- **Long-label control groups become a native `<select>` under 30rem**
+  rather than wrapping as a segmented row.
+- **Charts fill the column.** `chartWidth` treated its design width as a
+  ceiling, capping dot plots at 660px inside a 960px column; it now
+  fills the measured width, with the design width only as the fallback.
+  A chart that genuinely needs a ceiling carries its own.
+- **Row labels are 13.5px `--ink`, value axes 11px.** The shipped 12px
+  `--ink-secondary` labels sat below the value labels in weight and
+  flattened the row hierarchy the dot plot depends on.
+
+Also settled here: the chart title carries the measure alone (wave and
+scale live in the subtitle), the phone keeps exactly two controls above
+the "More options" disclosure, and the Codebook renders answer types as
+words rather than catalog codes. Nothing in the palette, the fonts or
+the card-free chart block changes.
