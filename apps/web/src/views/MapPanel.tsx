@@ -2,7 +2,7 @@
 // only when the map view is opened — never in the initial route.
 
 import { useEffect, useState } from 'react'
-import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
+import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { Choropleth, MapLegend, mapDomain } from '../charts/Choropleth'
 import { loadWorldFeatures, type WorldFeature } from '../charts/worldTopology'
 import { Skeleton } from '../components/Skeleton'
@@ -11,14 +11,12 @@ export default function MapPanel({
   rows,
   meta,
   responseMeta,
-  variable,
   selected,
   levelLabel,
 }: {
   rows: EstimateRow[]
   meta: Meta
   responseMeta: ResponseMeta
-  variable: VariableSummary
   selected: readonly number[]
   levelLabel?: string
 }) {
@@ -51,8 +49,12 @@ export default function MapPanel({
 
   const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
 
+  // The legend sits under the subtitle, above the map (§6); the figure's
+  // title and subtitle already name the measure, so it carries only the
+  // window's ends.
   return (
     <div>
+      <MapLegend domain={mapDomain(rows, responseMeta)} isShare={isShare} />
       <Choropleth
         rows={rows}
         meta={meta}
@@ -60,15 +62,6 @@ export default function MapPanel({
         features={features}
         selected={selected}
         levelLabel={levelLabel}
-      />
-      <MapLegend
-        domain={mapDomain(rows, responseMeta)}
-        isShare={isShare}
-        title={
-          isShare && levelLabel
-            ? `${variable.display_name} — share answering “${levelLabel}”`
-            : variable.display_name
-        }
       />
     </div>
   )

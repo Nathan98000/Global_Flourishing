@@ -10,7 +10,7 @@ import { groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
-import { FONT_FAMILY, INK_SECONDARY, plotValue } from './theme'
+import { FONT_FAMILY, INK, INK_SECONDARY, plotValue } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
 export type PanelSort = 'estimate' | 'name' | 'gap'
@@ -109,7 +109,7 @@ export function SmallMultiples({
         marginTop: 60,
         style: {
           fontFamily: FONT_FAMILY,
-          fontSize: '12px',
+          fontSize: '11px',
           background: 'transparent',
           color: INK_SECONDARY,
         },
@@ -122,9 +122,12 @@ export function SmallMultiples({
           grid: true,
         },
         y: { domain: levelDomain, label: null, tickSize: 0 },
-        fy: { domain: facets, label: null, paddingInner: 0.12 },
+        fy: { domain: facets, paddingInner: 0.12 },
         ...(seriesColumn ? { fx: { domain: seriesDomain, label: null } } : {}),
         marks: [
+          // Facet (country) labels at 13.5 in ink (§6); panel-level level
+          // labels and the value axis stay the 11px plot size.
+          Plot.axisFy({ label: null, fontSize: 13.5, fill: INK }),
           Plot.frame({ stroke: 'var(--grid)' }),
           // No facet channel → drawn in every panel, like Plot.frame: the
           // shared axis, labelled under each panel.
@@ -134,7 +137,7 @@ export function SmallMultiples({
             frameAnchor: 'bottom',
             dy: -3,
             fill: INK_SECONDARY,
-            fontSize: 10,
+            fontSize: 11,
           }),
           ...dotMarks(entries, color, facetChannel, scale.domain[0]),
         ],

@@ -79,7 +79,7 @@ export function Histogram({
         marginBottom: 44,
         style: {
           fontFamily: FONT_FAMILY,
-          fontSize: '12px',
+          fontSize: '11px',
           background: 'transparent',
           color: INK_SECONDARY,
         },

@@ -124,13 +124,13 @@ export function Choropleth({
         height: Math.round((width * 400) / 720),
         style: {
           fontFamily: FONT_FAMILY,
-          fontSize: '12px',
+          fontSize: '11px',
           background: 'transparent',
           color: INK_SECONDARY,
         },
         projection: 'equal-earth',
         marks: [
-          Plot.sphere({ stroke: 'var(--grid)' }),
+          // No sphere outline (§6): land floats on the page surface.
           Plot.geo(features, { fill: MAP_EMPTY, stroke: SURFACE, strokeWidth: 0.4 }),
           Plot.geo(entries, {
             geometry: (entry: MapEntry) => entry.feature,
@@ -179,32 +179,24 @@ export function Choropleth({
 
 const legendValue = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
 
-/** Discrete legend for the quantized ramp: the measure named, seven
- * swatches over the observed range with both ends labelled by their
- * values, and an explicit swatch for countries with no estimate. */
-export function MapLegend({
-  domain,
-  isShare,
-  title,
-}: {
-  domain: [number, number]
-  isShare: boolean
-  title: string
-}) {
+/** Discrete legend for the quantized ramp (§6): a 140px ramp under the
+ * subtitle with min and max values only — the title and subtitle above
+ * already name the measure — plus an explicit swatch for countries with
+ * no estimate, bordered so it reads apart from non-study land. */
+export function MapLegend({ domain, isShare }: { domain: [number, number]; isShare: boolean }) {
   const render = (value: number) => `${legendValue.format(value)}${isShare ? '%' : ''}`
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap' }}
       aria-hidden="true"
     >
-      <span style={{ fontWeight: 600 }}>{title}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span>{render(domain[0])}</span>
         <span style={{ display: 'flex' }}>
           {SEQUENTIAL_RAMP.map((token) => (
             <span
               key={token}
-              style={{ width: 22, height: 10, background: token, display: 'inline-block' }}
+              style={{ width: 20, height: 10, background: token, display: 'inline-block' }}
             />
           ))}
         </span>
@@ -213,10 +205,10 @@ export function MapLegend({
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <span
           style={{
-            width: 22,
+            width: 20,
             height: 10,
             background: MAP_EMPTY,
-            border: '1px solid var(--grid)',
+            border: '1px solid var(--axis)',
             display: 'inline-block',
           }}
         />

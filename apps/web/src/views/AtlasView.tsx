@@ -29,6 +29,7 @@ import { formatCount } from '../format'
 import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import styles from './AtlasView.module.css'
 
 const MapPanel = lazy(() => import('./MapPanel'))
@@ -36,9 +37,9 @@ const MapPanel = lazy(() => import('./MapPanel'))
 const route = getRouteApi('/')
 
 export const WAVE_TITLES: Record<string, string> = {
-  Y1: 'Wave 1 (2023)',
+  Y1: 'Wave 1, 2023',
   MY: 'Midyear survey',
-  Y2: 'Wave 2 (2024)',
+  Y2: 'Wave 2, 2024',
 }
 
 /** Human chip labels for the wave codes (F6). */
@@ -68,6 +69,7 @@ export function AtlasView() {
 
   const metaForSort = meta.data?.meta
   const dir = search.dir ?? defaultDir(search.sort)
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -115,6 +117,28 @@ export function AtlasView() {
     )
   }
 
+  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
+    if (outcome === undefined) {
+      setSearch({ topic })
+      return
+    }
+    const target = variables.data.byName[outcome]
+    const wave =
+      target && !target.waves_available.includes(search.wave)
+        ? (target.waves_available[0] as AtlasSearch['wave'] | undefined)
+        : search.wave
+    setSearch({
+      outcome,
+      topic: undefined,
+      wave: wave ?? search.wave,
+      stat: undefined,
+      level: undefined,
+      oriented: undefined,
+      invalid: undefined,
+      invalidRaw: undefined,
+    })
+  }
+
   const countryCount = meta.data.meta.countries.length
   const waveOptions: RadioOption<AtlasSearch['wave']>[] = meta.data.meta.waves.map((wave) => ({
     value: wave as AtlasSearch['wave'],
@@ -140,8 +164,11 @@ export function AtlasView() {
           ]
         : null
 
-  const title = `${variable?.display_name ?? search.outcome} — ${WAVE_TITLES[search.wave] ?? search.wave}`
-  const subtitle =
+  // The title is the measure alone; the wave clause rides last in the
+  // subtitle, which therefore always shows (§7).
+  const title = variable?.display_name ?? search.outcome
+  const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
+  const subtitleBase =
     stat === 'proportion'
       ? levelLabel
         ? `share answering “${levelLabel}”`
@@ -151,6 +178,7 @@ export function AtlasView() {
         : variable
           ? scaleSubtitle(variable, stat, search.oriented ?? false)
           : undefined
+  const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =
     stat === 'distribution'
       ? 'bins'
@@ -181,18 +209,103 @@ export function AtlasView() {
             }
           : undefined
 
+  // Statistic, View, Sort, Order, Countries and Answer level fold into a
+  // disclosure under 40rem (§8), Topic + search first inside it; Measure
+  // and Wave stay visible so the chart starts within the first phone
+  // screen.
+  const displayOptions = (
+    <>
+      {statOptions && (
+        <RadioRow
+          legend="Statistic"
+          name="stat"
+          options={statOptions}
+          value={search.stat ?? 'default'}
+          onChange={(value) =>
+            setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
+          }
+          selectOnNarrow
+        />
+      )}
+      {stat !== 'distribution' && (
+        <RadioRow
+          legend="View"
+          name="view"
+          options={[
+            { value: 'bars', label: 'Chart' },
+            { value: 'map', label: 'Map' },
+          ]}
+          value={search.view}
+          onChange={(view) => setSearch({ view })}
+        />
+      )}
+      {search.view === 'bars' && stat !== 'distribution' && (
+        <>
+          <RadioRow
+            legend="Sort"
+            name="sort"
+            options={[
+              { value: 'estimate', label: 'By value' },
+              { value: 'name', label: 'A–Z' },
+            ]}
+            value={search.sort}
+            onChange={(sort) => setSearch({ sort, dir: undefined })}
+          />
+          <RadioRow
+            legend="Order"
+            name="dir"
+            options={
+              search.sort === 'name'
+                ? [
+                    { value: 'asc', label: 'A to Z' },
+                    { value: 'desc', label: 'Z to A' },
+                  ]
+                : [
+                    { value: 'desc', label: 'High to low' },
+                    { value: 'asc', label: 'Low to high' },
+                  ]
+            }
+            value={dir}
+            onChange={(value) => setSearch({ dir: value })}
+          />
+        </>
+      )}
+      <CountryFilter
+        countries={meta.data.meta.countries}
+        selected={search.countries}
+        onChange={(countries) => setSearch({ countries })}
+      />
+      {isCategorical && levels.length > 0 && (
+        <RadioRow
+          legend="Answer level"
+          name="level"
+          wide
+          selectOnNarrow
+          options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+          value={String(activeLevel)}
+          onChange={(value) => setSearch({ level: Number(value) })}
+        />
+      )}
+    </>
+  )
+
   return (
     <section>
       <h2 className="visually-hidden">Atlas</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          How 207,919 people across {formatCount(countryCount)} countries rate their own lives — the
-          Global Flourishing Study, 2023&ndash;2024. Pick a measure below; every number carries its
-          sample size and margin of error.
+          How{' '}
+          <span className={styles.deckCount}>
+            207,919 people across {formatCount(countryCount)} countries
+          </span>{' '}
+          rate their own lives — the Global Flourishing Study, 2023&ndash;2024. Pick a measure
+          below; every number carries its sample size and margin of error.
         </span>
         <span className={styles.deckShort}>
-          207,919 people in {formatCount(countryCount)} countries, 2023&ndash;2024. Every number
-          shows how precise it is.
+          <span className={styles.deckCount}>
+            207,919 people in {formatCount(countryCount)} countries
+          </span>
+          , 2023&ndash;2024. Every number shows how precise it is.
         </span>
       </p>
       <InvalidParamsNotice
@@ -213,27 +326,8 @@ export function AtlasView() {
           variables={variables.data.list}
           value={search.outcome}
           topic={search.topic}
-          onSelect={({ outcome, topic }) => {
-            if (outcome === undefined) {
-              setSearch({ topic })
-              return
-            }
-            const target = variables.data.byName[outcome]
-            const wave =
-              target && !target.waves_available.includes(search.wave)
-                ? (target.waves_available[0] as AtlasSearch['wave'] | undefined)
-                : search.wave
-            setSearch({
-              outcome,
-              topic: undefined,
-              wave: wave ?? search.wave,
-              stat: undefined,
-              level: undefined,
-              oriented: undefined,
-              invalid: undefined,
-              invalidRaw: undefined,
-            })
-          }}
+          onSelect={handlePick}
+          fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
           legend="Wave"
@@ -242,74 +336,22 @@ export function AtlasView() {
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
         />
-        {statOptions && (
-          <RadioRow
-            legend="Statistic"
-            name="stat"
-            options={statOptions}
-            value={search.stat ?? 'default'}
-            onChange={(value) =>
-              setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
-            }
-          />
-        )}
-        {stat !== 'distribution' && (
-          <RadioRow
-            legend="View"
-            name="view"
-            options={[
-              { value: 'bars', label: 'Chart' },
-              { value: 'map', label: 'Map' },
-            ]}
-            value={search.view}
-            onChange={(view) => setSearch({ view })}
-          />
-        )}
-        {search.view === 'bars' && stat !== 'distribution' && (
-          <>
-            <RadioRow
-              legend="Sort"
-              name="sort"
-              options={[
-                { value: 'estimate', label: 'By value' },
-                { value: 'name', label: 'A–Z' },
-              ]}
-              value={search.sort}
-              onChange={(sort) => setSearch({ sort, dir: undefined })}
-            />
-            <RadioRow
-              legend="Order"
-              name="dir"
-              options={
-                search.sort === 'name'
-                  ? [
-                      { value: 'asc', label: 'A→Z' },
-                      { value: 'desc', label: 'Z→A' },
-                    ]
-                  : [
-                      { value: 'desc', label: 'High→low' },
-                      { value: 'asc', label: 'Low→high' },
-                    ]
-              }
-              value={dir}
-              onChange={(value) => setSearch({ dir: value })}
-            />
-          </>
-        )}
-        <CountryFilter
-          countries={meta.data.meta.countries}
-          selected={search.countries}
-          onChange={(countries) => setSearch({ countries })}
-        />
-        {isCategorical && levels.length > 0 && (
-          <RadioRow
-            legend="Answer level"
-            name="level"
-            wide
-            options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
+        {narrow ? (
+          <details className={styles.moreOptions}>
+            <summary>More options — chart, sort, countries</summary>
+            <div className={styles.moreBody}>
+              <OutcomePicker
+                variables={variables.data.list}
+                value={search.outcome}
+                topic={search.topic}
+                onSelect={handlePick}
+                fields="topic-and-search"
+              />
+              {displayOptions}
+            </div>
+          </details>
+        ) : (
+          displayOptions
         )}
         {variable && variable.direction === 'lower_better' && !variable.is_derived && (
           <label className={styles.oriented}>
@@ -405,7 +447,6 @@ export function AtlasView() {
                       }
                       meta={meta.data.meta}
                       responseMeta={response.meta}
-                      variable={variable}
                       selected={search.countries}
                       levelLabel={levelLabel}
                     />

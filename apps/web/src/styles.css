@@ -36,16 +36,16 @@ h4 {
 }
 
 h1 {
-  font-size: 28px;
+  font-size: var(--text-h1);
   line-height: 1.15;
 }
 
 h2 {
-  font-size: 21px;
+  font-size: var(--text-h2);
 }
 
 h3 {
-  font-size: var(--text-md);
+  font-size: var(--text-deck);
 }
 
 p {

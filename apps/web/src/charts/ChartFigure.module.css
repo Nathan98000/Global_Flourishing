@@ -25,7 +25,7 @@
 .title {
   font-family: var(--font-serif);
   font-weight: 600;
-  font-size: 28px;
+  font-size: var(--text-h1);
   line-height: 1.15;
 }
 
@@ -38,18 +38,26 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
 }
 
+/* 13px text links at the end of the title row (§6), whether the export
+   is a real download link or a client-side button. */
 .action {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 0;
+  background: none;
+  padding: 0;
   color: var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
-  text-decoration: none;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
   cursor: pointer;
-  line-height: 1.6;
+}
+
+.action:hover {
+  color: var(--accent-hover);
 }
 
 .exportNote {

@@ -32,6 +32,24 @@ export function topicName(family: string): string {
   return pretty.charAt(0).toUpperCase() + pretty.slice(1)
 }
 
+/** Answer types in words (§9): the catalog's scale_type codes never
+ * reach the page. Same prettify fallback as topicName, so an unknown
+ * type cannot break the codebook. */
+const SCALE_TYPE_NAMES: Record<string, string> = {
+  scale_0_10: '0–10 scale',
+  binary: 'Yes / no',
+  ordinal: 'Ordered scale',
+  nominal: 'Categories',
+  count: 'Count',
+}
+
+export function scaleTypeName(scale: string): string {
+  const named = SCALE_TYPE_NAMES[scale]
+  if (named) return named
+  const pretty = scale.replace(/_/g, ' ')
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1)
+}
+
 export interface Topic {
   family: string
   name: string

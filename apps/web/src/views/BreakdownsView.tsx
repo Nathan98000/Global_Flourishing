@@ -31,6 +31,7 @@ import {
   breakdownsSearchParams,
   type BreakdownsSearch,
 } from '../state/search'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from './AtlasView'
 import styles from './AtlasView.module.css'
 
@@ -82,6 +83,7 @@ export function BreakdownsView() {
   const response = estimates.data?.response
   const dir = search.dir ?? defaultDir(search.sort)
   const metaForSort = meta.data?.meta
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
 
   // Level labels for a variable-valued second dimension come from that
   // variable's own value labels (server truth, fetched once).
@@ -145,6 +147,26 @@ export function BreakdownsView() {
     )
   }
 
+  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
+    if (outcome === undefined) {
+      setSearch({ topic })
+      return
+    }
+    const target = variables.data.byName[outcome]
+    const wave =
+      target && !target.waves_available.includes(search.wave)
+        ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
+        : search.wave
+    setSearch({
+      outcome,
+      topic: undefined,
+      wave: wave ?? search.wave,
+      level: undefined,
+      invalid: undefined,
+      invalidRaw: undefined,
+    })
+  }
+
   const demographics = meta.data.meta.breakdowns.filter((column) => column !== 'country_code')
   const demographicOptions: RadioOption<string>[] = demographics.map((column) => ({
     value: column,
@@ -168,21 +190,23 @@ export function BreakdownsView() {
         : WAVE_TITLES[wave],
   }))
 
-  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)} — ${WAVE_TITLES[search.wave] ?? search.wave}`
+  // The title keeps its × clause but loses the wave, which rides last in
+  // the subtitle instead (§7).
+  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
-  const subtitle =
-    [
-      isCategorical
-        ? levelLabel
-          ? `share answering “${levelLabel}”`
-          : null
-        : variable
-          ? scaleSubtitle(variable, stat)
-          : null,
-      secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
-    ]
-      .filter(Boolean)
-      .join(' · ') || undefined
+  const subtitle = [
+    isCategorical
+      ? levelLabel
+        ? `share answering “${levelLabel}”`
+        : null
+      : variable
+        ? scaleSubtitle(variable, stat)
+        : null,
+    secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
+    WAVE_TITLES[search.wave] ?? search.wave,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const csv: CsvExport | undefined =
     request === null
@@ -199,6 +223,90 @@ export function BreakdownsView() {
                 ),
             }
           : undefined
+
+  // The split, sorts, country filter and answer level fold into a
+  // disclosure under 40rem (§8), Topic + search first inside it;
+  // Measure, Wave and the breakdown itself stay visible.
+  const displayOptions = (
+    <>
+      <label className={styles.oriented}>
+        Second breakdown (needs the live service){' '}
+        <select
+          value={secondary ?? ''}
+          onChange={(event) =>
+            setSearch({
+              by: event.target.value ? [primary, event.target.value] : [primary],
+            })
+          }
+        >
+          <option value="">—</option>
+          <optgroup label="demographics">
+            {demographics
+              .filter((column) => column !== primary)
+              .map((column) => (
+                <option key={column} value={column}>
+                  {columnLabel(column, meta.data.meta)}
+                </option>
+              ))}
+          </optgroup>
+          <optgroup label="survey variables">
+            {categoricalVariables.map((candidate) => (
+              <option key={candidate.name} value={candidate.name}>
+                {candidate.display_name} ({candidate.name})
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </label>
+      <RadioRow
+        legend="Sort countries"
+        name="sort"
+        options={[
+          { value: 'estimate', label: 'By value' },
+          { value: 'name', label: 'A–Z' },
+          { value: 'gap', label: 'By gap' },
+        ]}
+        value={search.sort}
+        onChange={(sort) => setSearch({ sort, dir: undefined })}
+      />
+      <RadioRow
+        legend="Order"
+        name="dir"
+        options={
+          search.sort === 'name'
+            ? [
+                { value: 'asc', label: 'A to Z' },
+                { value: 'desc', label: 'Z to A' },
+              ]
+            : [
+                { value: 'desc', label: 'High to low' },
+                { value: 'asc', label: 'Low to high' },
+              ]
+        }
+        value={dir}
+        onChange={(value) => setSearch({ dir: value })}
+      />
+      <CountryFilter
+        countries={meta.data.meta.countries}
+        selected={search.countries}
+        onChange={(countries) => setSearch({ countries })}
+      />
+      {isCategorical && outcomeLevelOptions.length > 0 && (
+        <RadioRow
+          legend="Answer level"
+          name="outcome-level"
+          wide
+          selectOnNarrow
+          options={outcomeLevelOptions.map((entry) => ({
+            value: String(entry.value),
+            label: entry.label,
+          }))}
+          value={String(activeLevel)}
+          onChange={(value) => setSearch({ level: Number(value) })}
+        />
+      )}
+    </>
+  )
 
   return (
     <section>
@@ -221,25 +329,8 @@ export function BreakdownsView() {
           variables={variables.data.list}
           value={search.outcome}
           topic={search.topic}
-          onSelect={({ outcome, topic }) => {
-            if (outcome === undefined) {
-              setSearch({ topic })
-              return
-            }
-            const target = variables.data.byName[outcome]
-            const wave =
-              target && !target.waves_available.includes(search.wave)
-                ? (target.waves_available[0] as BreakdownsSearch['wave'] | undefined)
-                : search.wave
-            setSearch({
-              outcome,
-              topic: undefined,
-              wave: wave ?? search.wave,
-              level: undefined,
-              invalid: undefined,
-              invalidRaw: undefined,
-            })
-          }}
+          onSelect={handlePick}
+          fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
           legend="Wave"
@@ -252,84 +343,27 @@ export function BreakdownsView() {
           legend="Break down by"
           name="by"
           wide
+          selectOnNarrow
           options={demographicOptions}
           value={primary}
           onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
         />
-        <label className={styles.oriented}>
-          Second breakdown (needs the live service){' '}
-          <select
-            value={secondary ?? ''}
-            onChange={(event) =>
-              setSearch({
-                by: event.target.value ? [primary, event.target.value] : [primary],
-              })
-            }
-          >
-            <option value="">—</option>
-            <optgroup label="demographics">
-              {demographics
-                .filter((column) => column !== primary)
-                .map((column) => (
-                  <option key={column} value={column}>
-                    {columnLabel(column, meta.data.meta)}
-                  </option>
-                ))}
-            </optgroup>
-            <optgroup label="survey variables">
-              {categoricalVariables.map((candidate) => (
-                <option key={candidate.name} value={candidate.name}>
-                  {candidate.display_name} ({candidate.name})
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
-        <RadioRow
-          legend="Sort countries"
-          name="sort"
-          options={[
-            { value: 'estimate', label: 'By value' },
-            { value: 'name', label: 'A–Z' },
-            { value: 'gap', label: 'By gap' },
-          ]}
-          value={search.sort}
-          onChange={(sort) => setSearch({ sort, dir: undefined })}
-        />
-        <RadioRow
-          legend="Order"
-          name="dir"
-          options={
-            search.sort === 'name'
-              ? [
-                  { value: 'asc', label: 'A→Z' },
-                  { value: 'desc', label: 'Z→A' },
-                ]
-              : [
-                  { value: 'desc', label: 'High→low' },
-                  { value: 'asc', label: 'Low→high' },
-                ]
-          }
-          value={dir}
-          onChange={(value) => setSearch({ dir: value })}
-        />
-        <CountryFilter
-          countries={meta.data.meta.countries}
-          selected={search.countries}
-          onChange={(countries) => setSearch({ countries })}
-        />
-        {isCategorical && outcomeLevelOptions.length > 0 && (
-          <RadioRow
-            legend="Answer level"
-            name="outcome-level"
-            wide
-            options={outcomeLevelOptions.map((entry) => ({
-              value: String(entry.value),
-              label: entry.label,
-            }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
+        {narrow ? (
+          <details className={styles.moreOptions}>
+            <summary>More options — split, sort, countries</summary>
+            <div className={styles.moreBody}>
+              <OutcomePicker
+                variables={variables.data.list}
+                value={search.outcome}
+                topic={search.topic}
+                onSelect={handlePick}
+                fields="topic-and-search"
+              />
+              {displayOptions}
+            </div>
+          </details>
+        ) : (
+          displayOptions
         )}
       </div>
 
@@ -365,8 +399,8 @@ export function BreakdownsView() {
                 subtitle={subtitle}
                 ariaLabel={
                   `${title}: one panel per country, ` +
-                  `${levelDomain(primary, meta.data.meta).length} levels each; suppressed cells say ` +
-                  `“withheld” with their n. The data table below carries every number.`
+                  `${levelDomain(primary, meta.data.meta).length} levels each. ` +
+                  `The data table below carries every number, with its n.`
                 }
                 marks="dots"
                 intro={

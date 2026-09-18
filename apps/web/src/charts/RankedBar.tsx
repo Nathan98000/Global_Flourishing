@@ -67,7 +67,7 @@ export function RankedBar({
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       const style = {
         fontFamily: FONT_FAMILY,
-        fontSize: '12px',
+        fontSize: '11px',
         background: 'transparent',
         color: INK_SECONDARY,
       }
@@ -98,8 +98,10 @@ export function RankedBar({
             label: null,
             grid: true,
           },
-          y: { domain, label: null, tickSize: 0 },
+          y: { domain },
           marks: [
+            // Country labels at 13.5 in ink (§6); the value axis stays 11px.
+            Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
             Plot.ruleY(
               valid.filter((entry) => entry.ci !== null),
               {
@@ -155,8 +157,9 @@ export function RankedBar({
           grid: true,
           tickFormat: (d: number) => `${d}%`,
         },
-        y: { domain, label: null, tickSize: 0 },
+        y: { domain },
         marks: [
+          Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
           Plot.barX(valid, {
             y: 'label',
             x: 'value',

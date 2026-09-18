@@ -13,9 +13,10 @@ export function directionPhrase(direction: string): string {
 }
 
 /** The subtitle that names the scale and direction once (decision 2):
- * "Average score on a 0–10 scale · higher is better". The axis then
- * carries only its ticks. Everything comes from the variable's own
- * facts; nothing here re-derives a label. */
+ * "Average score, 0–10 · higher is better" — the callers append the
+ * wave clause last (§7). The axis then carries only its ticks.
+ * Everything comes from the variable's own facts; nothing here
+ * re-derives a label. */
 export function scaleSubtitle(
   variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
   stat: string,
@@ -23,9 +24,7 @@ export function scaleSubtitle(
 ): string {
   const lead = stat === 'quantile' ? 'Median score' : 'Average score'
   const range =
-    variable.min !== null && variable.max !== null
-      ? ` on a ${variable.min}–${variable.max} scale`
-      : ''
+    variable.min !== null && variable.max !== null ? `, ${variable.min}–${variable.max}` : ''
   const direction =
     variable.direction === 'lower_better' && oriented
       ? 'reversed so higher is better'

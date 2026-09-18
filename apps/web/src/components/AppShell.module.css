@@ -1,3 +1,7 @@
+.layout[data-wide] {
+  max-width: 68rem;
+}
+
 .layout {
   max-width: 60rem;
   margin: 0 auto;
@@ -20,7 +24,7 @@
 .brand {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 22px;
+  font-size: var(--text-brand);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.2;
@@ -86,11 +90,13 @@
   }
 }
 
+/* Notices are full-width bands inside the column (§7): top and bottom
+   rules, no radius, bold only on the word that carries the state. */
 .banner {
-  border: 1px solid var(--warning-border);
+  border-top: 1px solid var(--warning-border);
+  border-bottom: 1px solid var(--warning-border);
   background: var(--warning-bg);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
 }
 

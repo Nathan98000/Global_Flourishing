@@ -1,3 +1,13 @@
+/* The page deck under the h1 (§9), in the Atlas deck's voice. */
+.deck {
+  color: var(--ink-secondary);
+  font-family: var(--font-serif);
+  font-size: var(--text-deck);
+  line-height: 1.45;
+  max-width: 34rem;
+  margin: 0 0 var(--space-5);
+}
+
 .controls {
   display: flex;
   align-items: flex-end;
@@ -24,6 +34,10 @@
   font-size: var(--text-sm);
 }
 
+.field select {
+  min-width: 8rem;
+}
+
 .search {
   min-width: 18rem;
 }
@@ -38,6 +52,8 @@
   color: var(--ink-secondary);
 }
 
+/* Hairline rows (§6): a rule above each row, no outer border — the first
+   row's rule separates it from the header. */
 .table {
   width: 100%;
   font-size: var(--text-sm);
@@ -46,26 +62,49 @@
 .table th,
 .table td {
   text-align: left;
-  padding: var(--space-2) var(--space-3) var(--space-2) 0;
-  border-bottom: 1px solid var(--grid);
+  padding: 13px var(--space-3) 13px 0;
+  border: 0;
   vertical-align: baseline;
   font-weight: 400;
+}
+
+.table tbody th,
+.table tbody td {
+  border-top: 1px solid var(--grid);
 }
 
 .table thead th {
   color: var(--ink-secondary);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-/* "chart this →" never wraps to a second line (F11). */
+/* "Chart it →" right-aligns and never wraps (F11). */
 .table td:last-child {
   white-space: nowrap;
+}
+
+.chartCell {
+  text-align: right;
 }
 
 .nameCell {
   display: flex;
   flex-direction: column;
+}
+
+.nameCell a {
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nameCell a:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 .code {

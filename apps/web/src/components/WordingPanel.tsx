@@ -11,14 +11,12 @@ import styles from './WordingPanel.module.css'
 export function WordingPanel({ detail }: { detail: VariableDetail }) {
   const codebookLink = (
     <Link to="/codebook/$name" params={{ name: detail.name }} className={styles.link}>
-      {detail.is_derived ? 'See the full entry →' : 'Answer codes & details →'}
+      {detail.is_derived ? 'See all twelve questions →' : 'Answer codes & details →'}
     </Link>
   )
+  // No mini-label above the sentence (§9): the wording stands alone.
   return (
     <div className={styles.panel}>
-      <p className={styles.kicker}>
-        {detail.is_derived ? 'What this score is' : 'What people were asked'}
-      </p>
       {detail.wording ? (
         <p className={styles.wording}>
           {detail.wording} {codebookLink}

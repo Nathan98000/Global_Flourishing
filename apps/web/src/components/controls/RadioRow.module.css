@@ -13,16 +13,23 @@
   color: var(--ink-secondary);
 }
 
-/* A quiet segmented group (redesign §3): a tinted row, the selected
-   option a slightly deeper tint with an ink rule under it — never a
-   filled accent block competing with the chart. As wide as its labels,
-   never stretched (desktop). */
+/* A quiet segmented group (redesign §3): an outlined tinted row with
+   hairline dividers, the selected option a slightly deeper tint with an
+   ink rule under it — never a filled accent block competing with the
+   chart. As wide as its labels, never stretched (desktop). overflow:
+   hidden clips the 2px selected rule against the 1px frame instead of
+   letting them double up. */
 .row {
   display: inline-flex;
-  background: var(--control-bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: var(--control-bg);
   overflow: hidden;
   width: fit-content;
+}
+
+.option + .option {
+  border-left: 1px solid var(--border);
 }
 
 .option {
@@ -50,18 +57,29 @@
   outline-offset: -2px;
 }
 
-/* Touch sizing on small screens (F2): options clear 40px, long rows
-   wrap instead of overflowing. */
+/* Under 40rem a group is an even grid — three options divide the row in
+   thirds instead of wrapping 2 + 1 (§8) — with 44px touch targets. Wide
+   rows (answer levels, many long labels) keep wrapping: an even grid
+   would crush them. */
 @media (max-width: 40rem) {
   .row {
+    display: grid;
+    grid-template-columns: repeat(var(--options, 3), minmax(0, 1fr));
     width: 100%;
+  }
+
+  .row[data-wide] {
+    display: flex;
     flex-wrap: wrap;
   }
 
-  .option {
+  .row[data-wide] .option {
     flex: 1 1 auto;
+  }
+
+  .option {
     text-align: center;
-    min-height: 40px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
