@@ -5,21 +5,30 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
+// The chart title is the measure alone since §7 (the wave rides last in
+// the subtitle), so title assertions scope to the figure's caption — the
+// bare measure name also labels an <option> in the Measure select.
+const caption = (page: Page) => page.locator('figcaption')
 
 test('1 — Atlas: change topic, measure and wave, share the URL, reload reproduces it', async ({
   page,
   browser,
 }) => {
   await page.goto('/')
+  await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
+  // The subtitle carries the rest, wave last (§7).
   await expect(
-    page.getByText('Secure Flourishing Index — Wave 1 (2023)', { exact: true }),
+    caption(page).getByText('Average score, 0–10 · higher is better · Wave 1, 2023', {
+      exact: true,
+    }),
   ).toBeVisible()
 
   // Two steps, not one list of 161: topic first, then that topic's measures.
   await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
   await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
   await page.getByRole('group', { name: 'Wave' }).getByText('2024', { exact: true }).click()
-  await expect(page.getByText('Happiness — Wave 2 (2024)', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
 
   const shared = page.url()
   expect(shared).toContain('outcome=HAPPY')
@@ -27,26 +36,29 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
 
   // Reload reproduces the view…
   await page.reload()
-  await expect(page.getByText('Happiness — Wave 2 (2024)', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
 
   // …and so does pasting the URL into a fresh browser context.
   const context = await browser.newContext()
   const second = await context.newPage()
   await second.goto(shared)
-  await expect(second.getByText('Happiness — Wave 2 (2024)', { exact: true })).toBeVisible()
+  await expect(caption(second).getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(caption(second).getByText(/Wave 2, 2024/)).toBeVisible()
   // The address bar stays canonical: defaults never reach the URL (§2.2).
   await expect(second).toHaveURL(/\?outcome=HAPPY&wave=Y2$/)
   await context.close()
 
   // Back returns to the previous state (the URL is the state).
   await page.goBack()
-  await expect(page.getByText('Happiness — Wave 1 (2023)', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
 })
 
 test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {
   await page.goto('/codebook')
   await page.getByLabel('Search name, label or wording').fill('service attendance')
-  await expect(page.getByText(/1 of \d+ variables/)).toBeVisible()
+  await expect(page.getByText(/1 of \d+ questions/)).toBeVisible()
 
   await page.getByRole('link', { name: 'Service attendance' }).click()
   await expect(page.getByRole('heading', { name: /Service attendance/ })).toBeVisible()
@@ -54,10 +66,13 @@ test('2 — Codebook: search, open the entry, chart it, read the wording', async
 
   await page.getByRole('link', { name: 'Chart this →' }).click()
   await expect(page).toHaveURL(/outcome=ATTEND_SVCS/)
-  await expect(page.getByText('Service attendance — Wave 1 (2023)', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText('Service attendance', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
 
-  // The question is on the page, not behind a button (decision 3).
-  await expect(page.getByText('What people were asked')).toBeVisible()
+  // The question is on the page, not behind a button (decision 3), and
+  // since §9 the sentence stands alone — no mini-label above it.
+  await expect(page.getByText('What people were asked')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Answer codes & details →' })).toBeVisible()
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
@@ -82,7 +97,8 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   // is byte-compatible with /v1/export.csv (unit-tested against a real
   // server response).
   await page.goto('/?outcome=HAPPY')
-  await expect(page.getByText('Happiness — Wave 1 (2023)', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
 
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'CSV' }).click()
@@ -122,9 +138,8 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
 
   await page.goto('/')
   // The chart renders from the static tier…
-  await expect(
-    page.getByText('Secure Flourishing Index — Wave 1 (2023)', { exact: true }),
-  ).toBeVisible()
+  await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
   // …and the app says so in plain words (F6).
   await expect(page.getByText(/Live data service is offline/)).toBeVisible()

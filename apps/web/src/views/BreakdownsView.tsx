@@ -190,21 +190,23 @@ export function BreakdownsView() {
         : WAVE_TITLES[wave],
   }))
 
-  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)} — ${WAVE_TITLES[search.wave] ?? search.wave}`
+  // The title keeps its × clause but loses the wave, which rides last in
+  // the subtitle instead (§7).
+  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
-  const subtitle =
-    [
-      isCategorical
-        ? levelLabel
-          ? `share answering “${levelLabel}”`
-          : null
-        : variable
-          ? scaleSubtitle(variable, stat)
-          : null,
-      secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
-    ]
-      .filter(Boolean)
-      .join(' · ') || undefined
+  const subtitle = [
+    isCategorical
+      ? levelLabel
+        ? `share answering “${levelLabel}”`
+        : null
+      : variable
+        ? scaleSubtitle(variable, stat)
+        : null,
+    secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
+    WAVE_TITLES[search.wave] ?? search.wave,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const csv: CsvExport | undefined =
     request === null
@@ -273,12 +275,12 @@ export function BreakdownsView() {
         options={
           search.sort === 'name'
             ? [
-                { value: 'asc', label: 'A→Z' },
-                { value: 'desc', label: 'Z→A' },
+                { value: 'asc', label: 'A to Z' },
+                { value: 'desc', label: 'Z to A' },
               ]
             : [
-                { value: 'desc', label: 'High→low' },
-                { value: 'asc', label: 'Low→high' },
+                { value: 'desc', label: 'High to low' },
+                { value: 'asc', label: 'Low to high' },
               ]
         }
         value={dir}

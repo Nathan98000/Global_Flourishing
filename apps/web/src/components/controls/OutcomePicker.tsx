@@ -1,7 +1,7 @@
 // Choosing a measure is two steps, not one list of 161 (owner decision
 // 1): a topic select (the catalog families, with a count on each), then
 // a measure select holding only that topic's items — plus a search
-// field ("or search all …") that matches name, display name and
+// field ("Search all {n} measures") that matches name, display name and
 // question wording and selects a measure directly, setting the topic to
 // match. Native controls only; the search results are plain buttons.
 
@@ -118,7 +118,7 @@ export function OutcomePicker({
       {fields !== 'measure' && (
         <div className={styles.field}>
           <label className={styles.label} htmlFor={searchId}>
-            or search all {servableCount}
+            Or search
           </label>
           <div className={styles.searchWrap}>
             <input
@@ -134,7 +134,7 @@ export function OutcomePicker({
                 }
                 if (event.key === 'Escape') setQuery('')
               }}
-              placeholder="loneliness, prayer, exercise…"
+              placeholder={`Search all ${servableCount} measures`}
             />
             {query.trim() && (
               <ul className={styles.results}>

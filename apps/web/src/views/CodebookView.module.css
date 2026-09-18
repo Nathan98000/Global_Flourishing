@@ -1,3 +1,13 @@
+/* The page deck under the h1 (§9), in the Atlas deck's voice. */
+.deck {
+  color: var(--ink-secondary);
+  font-family: var(--font-serif);
+  font-size: var(--text-deck);
+  line-height: 1.45;
+  max-width: 34rem;
+  margin: 0 0 var(--space-5);
+}
+
 .controls {
   display: flex;
   align-items: flex-end;

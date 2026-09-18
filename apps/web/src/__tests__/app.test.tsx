@@ -164,7 +164,7 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   expect(measureAfter.value).toBe('') // "Choose a measure…"
 
   // The search field selects a measure directly and re-infers its topic.
-  fireEvent.change(screen.getByLabelText(/or search all/), { target: { value: 'happiness' } })
+  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
   fireEvent.click(await screen.findByRole('button', { name: /Happiness/ }))
   expect((await screen.findByLabelText('Topic')) as HTMLSelectElement).toHaveValue('wellbeing')
 })
@@ -257,7 +257,7 @@ test('unknown routes render the not-found page', async () => {
 test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
   // Healthy API → the CSV is a real download link; PNG stays a button
   // whose accessible name carries the verb.
   expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
@@ -267,7 +267,7 @@ test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async ()
 test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
   mockFetch(staticTier)
   await renderAt('/codebook')
-  await screen.findByText(/of \d+ variables/)
+  await screen.findByText(/\d+ questions/)
   // Family cells and the filter render display names, never raw codes.
   expect(screen.getAllByText('Wellbeing').length).toBeGreaterThan(0)
   expect(screen.queryByText('wellbeing')).toBeNull()
@@ -293,7 +293,7 @@ test('under 40rem the display options fold into a disclosure; Measure and Wave s
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
   const summary = screen.getByText('More options — chart, sort, countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
@@ -308,7 +308,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   stubViewport(() => true) // a phone matches both 30rem and 40rem
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Secure Flourishing Index — Wave 1 (2023)')
+  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
   const statistic = screen.getByLabelText('Statistic')
   expect(statistic.tagName).toBe('SELECT')
   expect(statistic).toHaveDisplayValue('Mean')

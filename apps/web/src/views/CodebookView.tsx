@@ -14,7 +14,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount } from '../format'
 import { codebookSearchParams, type CodebookSearch } from '../state/search'
-import { topicName } from '../topics'
+import { scaleTypeName, topicName } from '../topics'
 import styles from './CodebookView.module.css'
 
 const route = getRouteApi('/codebook')
@@ -96,10 +96,16 @@ export function CodebookView() {
   }
 
   const families = [...meta.data.meta.families, 'derived'].sort()
+  const total = variables.data.list.length
+  const isFiltered = Boolean(draft.trim() || search.family || search.wave || search.scale)
 
   return (
     <section>
-      <h2>Codebook</h2>
+      <h1>Codebook</h1>
+      <p className={styles.deck}>
+        Every question in the study, with its exact wording, its answer options and how many people
+        answered it.
+      </p>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
@@ -166,7 +172,7 @@ export function CodebookView() {
             <option value="">any</option>
             {scaleTypes.map((scale) => (
               <option key={scale} value={scale}>
-                {scale}
+                {scaleTypeName(scale)}
               </option>
             ))}
           </select>
@@ -174,7 +180,9 @@ export function CodebookView() {
       </div>
 
       <p role="status" className={styles.count}>
-        {formatCount(rows.length)} of {formatCount(variables.data.list.length)} variables
+        {isFiltered
+          ? `${formatCount(rows.length)} of ${formatCount(total)} questions`
+          : `${formatCount(total)} questions`}
       </p>
 
       {rows.length === 0 ? (
@@ -183,10 +191,10 @@ export function CodebookView() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th scope="col">Variable</th>
-              <th scope="col">Family</th>
-              <th scope="col">Scale</th>
-              <th scope="col">Waves</th>
+              <th scope="col">Question</th>
+              <th scope="col">Topic</th>
+              <th scope="col">Answers</th>
+              <th scope="col">Asked</th>
               {/* The link says it all sighted; screen readers keep the name. */}
               <th scope="col">
                 <span className="visually-hidden">Chartable</span>
@@ -203,7 +211,7 @@ export function CodebookView() {
                   <span className={styles.code}>{variable.name}</span>
                 </th>
                 <td>{topicName(variable.family)}</td>
-                <td>{variable.scale_type}</td>
+                <td>{scaleTypeName(variable.scale_type)}</td>
                 <td>{variable.waves_available.join(', ')}</td>
                 <td className={styles.chartCell}>
                   {variable.servable ? (

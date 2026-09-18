@@ -37,9 +37,9 @@ const MapPanel = lazy(() => import('./MapPanel'))
 const route = getRouteApi('/')
 
 export const WAVE_TITLES: Record<string, string> = {
-  Y1: 'Wave 1 (2023)',
+  Y1: 'Wave 1, 2023',
   MY: 'Midyear survey',
-  Y2: 'Wave 2 (2024)',
+  Y2: 'Wave 2, 2024',
 }
 
 /** Human chip labels for the wave codes (F6). */
@@ -164,8 +164,11 @@ export function AtlasView() {
           ]
         : null
 
-  const title = `${variable?.display_name ?? search.outcome} — ${WAVE_TITLES[search.wave] ?? search.wave}`
-  const subtitle =
+  // The title is the measure alone; the wave clause rides last in the
+  // subtitle, which therefore always shows (§7).
+  const title = variable?.display_name ?? search.outcome
+  const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
+  const subtitleBase =
     stat === 'proportion'
       ? levelLabel
         ? `share answering “${levelLabel}”`
@@ -175,6 +178,7 @@ export function AtlasView() {
         : variable
           ? scaleSubtitle(variable, stat, search.oriented ?? false)
           : undefined
+  const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =
     stat === 'distribution'
       ? 'bins'
@@ -253,12 +257,12 @@ export function AtlasView() {
             options={
               search.sort === 'name'
                 ? [
-                    { value: 'asc', label: 'A→Z' },
-                    { value: 'desc', label: 'Z→A' },
+                    { value: 'asc', label: 'A to Z' },
+                    { value: 'desc', label: 'Z to A' },
                   ]
                 : [
-                    { value: 'desc', label: 'High→low' },
-                    { value: 'asc', label: 'Low→high' },
+                    { value: 'desc', label: 'High to low' },
+                    { value: 'asc', label: 'Low to high' },
                   ]
             }
             value={dir}
