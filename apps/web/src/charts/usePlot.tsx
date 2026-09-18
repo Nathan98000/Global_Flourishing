@@ -1,18 +1,18 @@
 // Mount an Observable Plot render into React: build on a detached node,
 // swap it in, clean up on unmount.
 //
-// The container's width is measured and handed to the build (F2): a
-// chart narrower than its design width re-renders at the real width
-// instead of scaling down, so rows keep their per-row height and labels
-// stay legible on a phone — a 23-row chart scrolls, it never shrinks.
+// The container's width is measured and handed to the build (F2/§10):
+// the chart renders at the real column width — full-bleed in a wide
+// column, honest per-row heights on a phone (a 23-row chart scrolls, it
+// never shrinks). The design width only serves until the first measure.
 
 import { useEffect, useRef, useState } from 'react'
 
-/** The width a chart should render at: its design width, or the real
- * container width when that is narrower (never below 300). */
+/** The width a chart renders at: the measured container width (never
+ * below 300), or the design width until the container is measured. */
 export function chartWidth(designWidth: number, available: number | null): number {
   if (available === null || available <= 0) return designWidth
-  return Math.max(300, Math.min(designWidth, Math.floor(available)))
+  return Math.max(300, Math.floor(available))
 }
 
 /**

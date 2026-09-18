@@ -124,7 +124,7 @@ export function Choropleth({
         height: Math.round((width * 400) / 720),
         style: {
           fontFamily: FONT_FAMILY,
-          fontSize: '12px',
+          fontSize: '11px',
           background: 'transparent',
           color: INK_SECONDARY,
         },

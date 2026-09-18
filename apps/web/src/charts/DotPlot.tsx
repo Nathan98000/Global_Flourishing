@@ -9,6 +9,7 @@ import { groupValueLabel } from '../labels'
 import { ciExtents, fittedScale } from './domain'
 import {
   FONT_FAMILY,
+  INK,
   INK_SECONDARY,
   ROW_HEIGHT,
   WHISKER,
@@ -126,7 +127,7 @@ export function DotPlot({
         marginRight: 40,
         style: {
           fontFamily: FONT_FAMILY,
-          fontSize: '12px',
+          fontSize: '11px',
           background: 'transparent',
           color: INK_SECONDARY,
         },
@@ -137,8 +138,13 @@ export function DotPlot({
           grid: true,
           tickFormat: isShare ? (d: number) => `${scale.format(d)}%` : scale.format,
         },
-        y: { domain: levelDomain, label: null, tickSize: 0 },
-        marks: dotMarks(entries, color, {}, scale.domain[0]),
+        y: { domain: levelDomain },
+        marks: [
+          // Row labels at 13.5 in ink (§6) — identity at comparable weight
+          // to the values, while the value axis stays the 11px plot size.
+          Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
+          ...dotMarks(entries, color, {}, scale.domain[0]),
+        ],
       })
     },
     [rows, meta, responseMeta, variable, color, levelColumn, levelDomain, labeler],
