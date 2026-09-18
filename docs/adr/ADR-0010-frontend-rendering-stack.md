@@ -120,7 +120,10 @@ an SVG string world — per-mark React interactivity would need a
 different approach (fine so far; tips cover it). Revisit the map bytes
 if a lighter topology gains an HKG feature, and the facet-grid choice
 if a Phase 5 view genuinely needs ≥ 4 colored series (the answer will
-still probably be facets).
+still probably be facets). The visual identity the tokens carry —
+palette, serif/sans split, control and surface treatment — is
+ADR-0012's; this ADR keeps owning the rendering stack and the chart
+domain rules.
 
 ## Revised (design review, September 2026)
 
