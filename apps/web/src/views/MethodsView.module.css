@@ -9,8 +9,8 @@
 
 .summary p {
   font-family: var(--font-serif);
-  font-size: 19px;
-  line-height: 1.45;
+  font-size: var(--text-deck);
+  line-height: 1.5;
   margin: 0 0 var(--space-3);
 }
 
@@ -33,7 +33,7 @@
    measure (§6); the lead above spans the full layout column. */
 .prose {
   font-family: var(--font-serif);
-  font-size: 16.5px;
+  font-size: var(--text-prose);
   max-width: 38rem;
 }
 

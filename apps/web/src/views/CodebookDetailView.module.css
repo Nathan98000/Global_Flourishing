@@ -37,7 +37,7 @@
   padding-left: var(--space-3);
   border-left: 3px solid var(--accent);
   font-style: italic;
-  font-size: var(--text-md);
+  font-size: var(--text-deck);
 }
 
 .table {

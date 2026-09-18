@@ -1,7 +1,7 @@
 .deck {
   color: var(--ink-secondary);
   font-family: var(--font-serif);
-  font-size: 19px;
+  font-size: var(--text-deck);
   line-height: 1.45;
   max-width: 34rem;
   margin: 0 0 var(--space-7);

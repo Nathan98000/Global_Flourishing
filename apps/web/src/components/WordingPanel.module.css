@@ -1,7 +1,7 @@
 /* Plain text under the subtitle (§6): no left rule, no tint — the
-   question in quiet 14px secondary ink with the codebook link inline. */
+   question in quiet 13px secondary ink with the codebook link inline. */
 .panel {
-  font-size: 14px;
+  font-size: var(--text-sm);
   max-width: 46rem;
 }
 
