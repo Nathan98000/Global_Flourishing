@@ -1,8 +1,9 @@
 """Write the slim R-parity extract (data/intermediate/verify_extract.csv).
 
-The extract carries exactly what the 30 parity cases (cases.csv) need:
-design columns, weights, eligibility flags, two demographics and the ~10
-items at their waves — for the 12 countries the cases touch. R's only
+The extract carries exactly what the parity cases (cases.csv) need:
+design columns, weights, eligibility flags, the five demographic controls
+of the adjusted models and the ~10 items at their waves — for the 12
+countries the cases touch. R's only
 dependency stays ``survey``: no arrow, no jsonlite (a KEY=VALUE sidecar
 carries the sha256 and data version for reference.R to embed).
 
@@ -41,6 +42,7 @@ ITEMS: tuple[tuple[str, str], ...] = (
     ("BELIEVE_GOD", "Y1"),
     ("WB_TODAY", "Y1"),
     ("SAT_RELATNSHP", "Y2"),
+    ("VOLUNTEERED", "Y1"),
 )
 SFI_WAVES = ("Y1", "Y2")
 
@@ -53,6 +55,9 @@ RESPONDENT_COLUMNS = (
     "psu",
     "age_band",
     "gender",
+    "education_3",
+    "employment",
+    "marital_status",
     "retained_y2",
     "has_midyear",
     "midyear_type",

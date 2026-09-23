@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Compute the 30 reference estimates for the flourish_stats parity check.
+# Compute the reference estimates for the flourish_stats parity check.
 #
 # Reads  stats/verify/cases.csv           (case definitions)
 #        data/intermediate/verify_extract.csv   (built by extract.py)
@@ -9,6 +9,13 @@
 # The only package dependency is `survey` (>= 4.2, for the rewritten
 # svyquantile and its qrule="math"). JSON is emitted with sprintf to keep
 # it that way. Run from the repo root:  Rscript stats/verify/reference.R
+#
+# The regression cases are svyglm with the engine's fixed control set
+# (country_code is constant within a one-country case, so it drops out; a
+# `by` column is a domain and drops out of the controls the same way).
+# glm's default stopping rule (a 1e-8 relative deviance change) leaves the
+# binomial coefficients short of the harness tolerance, so the fits use a
+# tighter control; gaussian fits converge in one step regardless.
 
 .libPaths(c(path.expand(Sys.getenv("R_LIBS_USER")), .libPaths()))
 suppressMessages(library(survey))
@@ -70,6 +77,10 @@ jlevel <- function(x) if (is.character(x)) jstr(x) else jnum(x)
 jobj <- function(...) paste0("{", paste(..., sep = ", "), "}")
 jarr <- function(items) paste0("[", paste(items, collapse = ", "), "]")
 jfield <- function(name, value) sprintf('"%s": %s', name, value)
+
+#: The engine's fixed control set minus country_code (see above).
+glm_controls <- c("age_band", "gender", "education_3", "employment", "marital_status")
+glm_control <- glm.control(epsilon = 1e-14, maxit = 200)
 
 point_expect <- function(est, se, n) {
   jobj(jfield("estimate", jnum(est)), jfield("se", jnum(se)), jfield("n", jint(n)))
@@ -139,6 +150,32 @@ run_case <- function(case) {
     n <- sum(!is.na(d[[case$var1]]) & !is.na(d[[case$var2]]))
     return(jobj(jfield("estimate", jnum(r)), jfield("n", jint(n))))
   }
+  if (case$stat == "regression") {
+    # Binary outcomes enter as the indicator of code 1 ("Yes"), exactly as
+    # the API recodes them; the predictor is numeric.
+    d$yy <- if (case$family == "binomial") as.numeric(d[[case$var1]] == 1) else d[[case$var1]]
+    fam <- if (case$family == "binomial") quasibinomial() else gaussian()
+    controls <- if (is.na(case$by)) glm_controls else setdiff(glm_controls, case$by)
+    rhs <- paste(c(case$var2, sprintf("factor(%s)", controls)), collapse = " + ")
+    model_formula <- as.formula(paste("yy ~", rhs))
+    used <- c("yy", case$var2, controls)
+    des <- make_design(d, case$weight)
+    if (is.na(case$by)) {
+      m <- suppressWarnings(svyglm(model_formula, des, family = fam, control = glm_control))
+      n <- sum(complete.cases(d[, used]))
+      return(point_expect(coef(m)[[case$var2]], SE(m)[[case$var2]], n))
+    }
+    by_column <- d[[case$by]]
+    by_values <- sort(unique(by_column[!is.na(by_column)]))
+    items <- vapply(by_values, function(level) {
+      keep <- !is.na(by_column) & by_column == level
+      sub <- suppressWarnings(des[keep, ])
+      m <- suppressWarnings(svyglm(model_formula, sub, family = fam, control = glm_control))
+      n <- sum(complete.cases(d[, used]) & keep)
+      level_expect(level, coef(m)[[case$var2]], SE(m)[[case$var2]], n)
+    }, "")
+    return(jobj(jfield("levels", jarr(items))))
+  }
   if (case$stat == "transition") {
     pair_ok <- !is.na(d[[case$var1]]) & !is.na(d[[case$var2]])
     d$fromv <- ifelse(pair_ok, d[[case$var1]], NA)
@@ -194,6 +231,7 @@ for (k in seq_len(nrow(cases))) {
     jfield("var2", if (is.na(case$var2)) "null" else jstr(case$var2)),
     jfield("by", if (is.na(case$by)) "null" else jstr(case$by)),
     jfield("p", jnum(case$p)),
+    jfield("family", if (is.na(case$family)) "null" else jstr(case$family)),
     jfield("expect", expect)
   ))
   cat(sprintf("  %-38s done\n", case$id))
