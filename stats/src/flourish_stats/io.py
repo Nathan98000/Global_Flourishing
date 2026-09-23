@@ -14,6 +14,7 @@ assemble analysis frames the same way: one ``(variable, wave)`` slice of
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -40,6 +41,8 @@ DEFAULT_COLUMNS: tuple[str, ...] = (
 )
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
+#: Catalog item names (``responses_long.variable``) are upper-case codes.
+_ITEM_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
 def _column_list(columns: tuple[str, ...]) -> str:
@@ -101,5 +104,78 @@ def derived_frame(
         f"WHERE d.wave = ?"
     )
     frame = pl.from_arrow(con.execute(query, [wave]).arrow())
+    assert isinstance(frame, pl.DataFrame)
+    return frame
+
+
+#: Items per pivot query. A conditional aggregation keeps one state per
+#: respondent per column; 104 columns over 208k respondents needs ~330 MB
+#: of hash table, past the 256 MB the API grants DuckDB (ADR-0007), while
+#: 16 columns need ~50 MB and cost ~0.25 s each on the release.
+PIVOT_CHUNK = 16
+
+
+def wide_frame(
+    con: duckdb.DuckDBPyConnection,
+    items: Sequence[str],
+    wave: str,
+    *,
+    derived: Sequence[str] = (),
+    columns: tuple[str, ...] = DEFAULT_COLUMNS,
+    country_codes: Sequence[int] | None = None,
+) -> pl.DataFrame:
+    """One row per respondent, one column per item and derived score at ``wave``.
+
+    The correlates sweep runs one outcome against every other servable
+    item, so it needs them all on one frame. Each item column is a
+    conditional aggregation over ``responses_long`` (``PIVOT_CHUNK`` items
+    per query, joined back on ``id`` here — one wide hash table would not
+    fit the serving memory limit), the derived scores come from one query
+    on ``derived``, and the long table is never materialised wide in
+    Python. Items appear under their catalog names, derived scores under
+    their column names; a respondent without a row for an item is null
+    there. Every respondent — of ``country_codes`` when given — is kept,
+    whether or not they answered anything at the wave: the eligible rows
+    for a weight spec are the design (ADR-0006), and the caller filters to
+    them.
+    """
+    for name in items:
+        if not _ITEM_NAME.match(name):
+            raise ValueError(f"invalid item name {name!r}")
+    for name in derived:
+        if not _IDENTIFIER.match(name):
+            raise ValueError(f"invalid column name {name!r}")
+    if not items and not derived:
+        raise ValueError("wide_frame needs at least one item or derived score")
+
+    pool_filter = ""
+    if country_codes is not None:
+        codes = ", ".join(str(int(code)) for code in country_codes)
+        pool_filter = f" WHERE r.country_code IN ({codes})" if codes else " WHERE FALSE"
+    pool = f"SELECT r.id{_column_list(columns)} FROM respondents r{pool_filter}"
+    frame = _fetch(con, pool, [])
+    for start in range(0, len(items), PIVOT_CHUNK):
+        chunk = items[start : start + PIVOT_CHUNK]
+        pivots = "".join(
+            f", MAX(CASE WHEN s.variable = '{name}' THEN s.value END) AS \"{name}\""
+            for name in chunk
+        )
+        placeholders = ", ".join("?" for _ in chunk)
+        query = (
+            f"WITH pool AS ({pool}) SELECT s.id{pivots} FROM responses_long s "
+            f"WHERE s.wave = ? AND s.variable IN ({placeholders}) "
+            f"AND s.id IN (SELECT id FROM pool) GROUP BY s.id"
+        )
+        frame = frame.join(_fetch(con, query, [wave, *chunk]), on="id", how="left")
+    if derived:
+        scores = "".join(f", d.{name}" for name in derived)
+        query = f"SELECT d.id{scores} FROM derived d WHERE d.wave = ?"
+        frame = frame.join(_fetch(con, query, [wave]), on="id", how="left")
+    return frame
+
+
+def _fetch(con: duckdb.DuckDBPyConnection, query: str, params: list[object]) -> pl.DataFrame:
+    result = con.execute(query, params)
+    frame = pl.from_arrow(result.to_arrow_table())
     assert isinstance(frame, pl.DataFrame)
     return frame

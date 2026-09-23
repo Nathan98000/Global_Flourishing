@@ -11,7 +11,12 @@ import pytest
 
 duckdb = pytest.importorskip("duckdb")
 
-from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame  # noqa: E402
+from flourish_stats.io import (  # noqa: E402
+    DEFAULT_COLUMNS,
+    analysis_frame,
+    derived_frame,
+    wide_frame,
+)
 
 
 @pytest.fixture()
@@ -105,3 +110,30 @@ def test_invalid_identifiers_rejected(con) -> None:
 
 def test_frames_come_back_as_polars(con) -> None:
     assert isinstance(analysis_frame(con, "HAPPY", "Y1"), pl.DataFrame)
+
+
+def test_wide_frame_puts_every_item_and_score_on_one_row(con) -> None:
+    frame = wide_frame(
+        con, ["HAPPY", "LONELY_TEST"], "Y1", derived=["sfi"], columns=("country_code", "w_c1")
+    )
+    assert frame.columns == ["id", "country_code", "w_c1", "HAPPY", "LONELY_TEST", "sfi"]
+    by_id = {row["id"]: row for row in frame.sort("id").to_dicts()}
+    assert [by_id[i]["HAPPY"] for i in (1, 2, 3)] == [7, None, 4]
+    assert [by_id[i]["LONELY_TEST"] for i in (1, 2, 3)] == [2, None, None]
+    assert [by_id[i]["sfi"] for i in (1, 2, 3)] == [6.5, None, 4.25]
+    # Country subset keeps only that country's respondents.
+    subset = wide_frame(con, ["HAPPY"], "Y1", columns=("country_code",), country_codes=[9])
+    assert subset["country_code"].to_list() == [9, 9]
+    assert wide_frame(con, ["HAPPY"], "Y1", columns=(), country_codes=[]).height == 0
+    # Items only, scores only.
+    assert wide_frame(con, [], "Y1", derived=["sfi"], columns=()).columns == ["id", "sfi"]
+    assert wide_frame(con, ["HAPPY"], "Y1", columns=()).columns == ["id", "HAPPY"]
+
+
+def test_wide_frame_rejects_bad_names(con) -> None:
+    with pytest.raises(ValueError, match="item name"):
+        wide_frame(con, ["happy; drop table"], "Y1")
+    with pytest.raises(ValueError, match="column name"):
+        wide_frame(con, [], "Y1", derived=["SFI"])
+    with pytest.raises(ValueError, match="at least one"):
+        wide_frame(con, [], "Y1")
