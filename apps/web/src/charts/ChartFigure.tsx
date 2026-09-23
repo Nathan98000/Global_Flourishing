@@ -8,6 +8,7 @@ import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
+import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { downloadChartPng } from '../export/png'
 import styles from './ChartFigure.module.css'
 
@@ -61,6 +62,9 @@ export function ChartFigure({
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
   const [pngFailed, setPngFailed] = useState(false)
+  // A refetch keeps the chart (dimmed) and, past the same 600 ms, wears
+  // the thin progress bar on its top rule — never a loading block.
+  const [showProgress] = useDelayedFlags(isRefreshing)
 
   const exportPng = async () => {
     const svg = chartRef.current?.querySelector('svg')
@@ -80,7 +84,8 @@ export function ChartFigure({
   }
 
   return (
-    <figure className={styles.figure}>
+    <figure className={styles.figure} aria-busy={isRefreshing || undefined}>
+      {showProgress && <ProgressBar className={styles.progress} />}
       <figcaption className={styles.caption}>
         <span className={styles.titles}>
           <span className={styles.title}>{title}</span>

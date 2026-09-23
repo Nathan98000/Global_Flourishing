@@ -5,7 +5,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
@@ -115,9 +115,22 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  for (const label of ['Atlas', 'Breakdowns', 'Codebook', 'Methods']) {
-    expect(nav).toHaveTextContent(label)
-  }
+  // Phase 5 nav order — eight items, Correlates (Phase 6) still absent.
+  expect(
+    within(nav)
+      .getAllByRole('link')
+      .map((link) => link.textContent),
+  ).toEqual([
+    'Atlas',
+    'Change',
+    'Compare',
+    'What Matters',
+    'US States',
+    'Breakdowns',
+    'Codebook',
+    'Methods',
+  ])
+  expect(within(nav).queryByText('Correlates')).toBeNull()
   // The deck says what this is, above the fold (F5); the count sits in
   // its own ink-colored span (§6), so match the two parts.
   expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
@@ -312,4 +325,78 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   const statistic = screen.getByLabelText('Statistic')
   expect(statistic.tagName).toBe('SELECT')
   expect(statistic).toHaveDisplayValue('Mean')
+})
+
+test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: query === '(max-width: 40rem)',
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    })),
+  )
+  mockFetch(staticTier)
+  await renderAt('/codebook')
+  const nav = await screen.findByRole('navigation', { name: 'Main' })
+  // The primary four are inline; the rest sit inside the disclosure.
+  const inline = within(nav)
+    .getAllByRole('link')
+    .map((link) => link.textContent)
+  expect(inline).toEqual([
+    'Atlas',
+    'Change',
+    'Compare',
+    'What Matters',
+    'US States',
+    'Breakdowns',
+    'Codebook',
+    'Methods',
+  ])
+  const more = within(nav).getByText('More')
+  expect(more.closest('details')).not.toBeNull()
+  // The current view lives inside "More", so its summary reads active.
+  expect(more).toHaveAttribute('data-status', 'active')
+  expect(within(nav).getByRole('link', { name: 'Codebook' }).closest('details')).not.toBeNull()
+  expect(within(nav).getByRole('link', { name: 'Atlas' }).closest('details')).toBeNull()
+})
+
+test('entering an API-only view fires one warm-up ping; the Atlas does not', async () => {
+  const atlasCalls = mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText(/207,919 people across/)
+  await waitFor(() => expect(atlasCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
+
+  const changeCalls = mockFetch(staticTier)
+  await renderAt('/change')
+  expect(await screen.findByRole('heading', { name: 'Change' })).toBeInTheDocument()
+  // The boot ping (useBootStatus) plus the route's own warm-up.
+  await waitFor(() =>
+    expect(changeCalls.filter((url) => url.endsWith('/health')).length).toBeGreaterThanOrEqual(2),
+  )
+  // The outage banner is scoped to data views: the new routes count.
+  expect(screen.queryByText(/Every view on this deployment/)).toBeNull()
+})
+
+test('the four new routes exist, parse their URL state and say what they are', async () => {
+  mockFetch(staticTier)
+  for (const [path, heading] of [
+    ['/change?via=MY', 'Change'],
+    ['/compare?countries=1,22', 'Compare'],
+    ['/what-matters?by=gender', 'What Matters'],
+    ['/states?wave=Y2&adj=true', 'US States'],
+  ] as const) {
+    const router = await renderAt(path)
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe(path.split('?')[0])
+    cleanup()
+  }
+  // Bad params degrade with the notice, never a crash.
+  await renderAt('/states?adj=true')
+  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
 })

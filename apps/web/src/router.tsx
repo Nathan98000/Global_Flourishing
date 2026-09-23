@@ -11,10 +11,18 @@ import { AppShell } from './components/AppShell'
 import {
   atlasSearchParams,
   breakdownsSearchParams,
+  changeSearchParams,
   codebookSearchParams,
+  compareSearchParams,
   parseAtlasSearch,
   parseBreakdownsSearch,
+  parseChangeSearch,
   parseCodebookSearch,
+  parseCompareSearch,
+  parseStatesSearch,
+  parseWhatMattersSearch,
+  statesSearchParams,
+  whatMattersSearchParams,
 } from './state/search'
 import { parseSearchString, stringifySearch } from './state/searchCodec'
 import { AtlasView } from './views/AtlasView'
@@ -55,6 +63,40 @@ const indexRoute = createRoute({
   component: AtlasView,
 })
 
+// Phase 5: four API-only views, each a lazy chunk (the initial route stays
+// the Atlas alone — budget ≤ 250 kB gz).
+const changeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/change',
+  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseChangeSearch(raw),
+  search: { middlewares: [omitDefaults(changeSearchParams)] },
+  component: lazyRouteComponent(() => import('./views/ChangeView'), 'ChangeView'),
+})
+
+const compareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/compare',
+  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCompareSearch(raw),
+  search: { middlewares: [omitDefaults(compareSearchParams)] },
+  component: lazyRouteComponent(() => import('./views/CompareView'), 'CompareView'),
+})
+
+const whatMattersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/what-matters',
+  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseWhatMattersSearch(raw),
+  search: { middlewares: [omitDefaults(whatMattersSearchParams)] },
+  component: lazyRouteComponent(() => import('./views/WhatMattersView'), 'WhatMattersView'),
+})
+
+const statesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/states',
+  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseStatesSearch(raw),
+  search: { middlewares: [omitDefaults(statesSearchParams)] },
+  component: lazyRouteComponent(() => import('./views/StatesView'), 'StatesView'),
+})
+
 const breakdownsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/breakdowns',
@@ -85,6 +127,10 @@ const methodsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  changeRoute,
+  compareRoute,
+  whatMattersRoute,
+  statesRoute,
   breakdownsRoute,
   codebookRoute,
   codebookDetailRoute,

@@ -2,9 +2,15 @@
    from the controls; only the expanded data table keeps a bordered
    surface. */
 .figure {
+  position: relative;
   margin: 0;
   border-top: 1px solid var(--grid);
   padding: var(--space-6) 0 var(--space-5);
+}
+
+/* The refetch bar rides on the figure's own top rule. */
+.progress {
+  top: -1px;
 }
 
 .caption {

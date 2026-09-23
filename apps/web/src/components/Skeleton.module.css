@@ -18,3 +18,10 @@
     background-position: -80% 0;
   }
 }
+
+/* Reduced motion: the shimmer holds still. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
