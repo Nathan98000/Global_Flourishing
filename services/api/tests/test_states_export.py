@@ -64,3 +64,5 @@ def test_export_values_match_the_json_response(client: TestClient) -> None:
     first = dict(zip(header, lines[header_index + 1].split(","), strict=True))
     assert float(first["estimate"]) == pytest.approx(json_rows[0]["estimate"])
     assert int(first["n"]) == json_rows[0]["n"]
+    # The correlates-only meta fields stay out of an aggregate export.
+    assert not any(line.startswith(("# adjusted", "# controls", "# model")) for line in lines)
