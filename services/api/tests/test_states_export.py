@@ -64,9 +64,5 @@ def test_export_values_match_the_json_response(client: TestClient) -> None:
     first = dict(zip(header, lines[header_index + 1].split(","), strict=True))
     assert float(first["estimate"]) == pytest.approx(json_rows[0]["estimate"])
     assert int(first["n"]) == json_rows[0]["n"]
-
-
-def test_correlates_is_a_loud_phase_6_stub(client: TestClient) -> None:
-    resp = client.get("/v1/correlates")
-    assert resp.status_code == 501
-    assert resp.json()["detail"] == "Not implemented: Phase 6"
+    # The correlates-only meta fields stay out of an aggregate export.
+    assert not any(line.startswith(("# adjusted", "# controls", "# model")) for line in lines)

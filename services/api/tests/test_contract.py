@@ -1,6 +1,6 @@
 """Contract tests: golden responses + the OpenAPI schema's promises.
 
-Golden files pin the full envelope for three canonical queries against the
+Golden files pin the full envelope for five canonical queries against the
 deterministic synthetic data. To regenerate after an intentional contract
 change: UPDATE_GOLDEN=1 uv run pytest services/api/tests/test_contract.py
 """
@@ -57,6 +57,20 @@ CASES: dict[str, dict] = {
     "change_y1_y2": {
         "path": "/v1/change",
         "params": {"outcome": "ATTEND_SVCS", "from": "Y1", "to": "Y2", "filter": "country_code:1"},
+    },
+    "correlates_ranked": {
+        "path": "/v1/correlates",
+        "params": {"outcome": "HAPPY", "wave": "Y1", "filter": "country_code:1", "limit": 5},
+    },
+    "correlates_adjusted": {
+        "path": "/v1/correlates",
+        "params": {
+            "outcome": "HAPPY",
+            "wave": "Y1",
+            "against": "LONELY",
+            "adjusted": "true",
+            "by": "country_code",
+        },
     },
 }
 

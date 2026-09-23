@@ -11,6 +11,7 @@ from flourish_stats import (
     adjusted_association,
     pooled_population_weights,
     weighted_correlation,
+    weighted_correlations,
 )
 
 NO_SUPPRESSION = SuppressionPolicy(threshold=0, flag_below=0)
@@ -111,6 +112,66 @@ def test_suppression_and_method_validation() -> None:
     assert row["suppressed"] is True and row["estimate"] is None
     with pytest.raises(ValueError, match="method"):
         weighted_correlation(TOY, "y", "x2", TAYLOR, method="kendall")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+def test_sweep_matches_the_pairwise_estimator(method: str) -> None:
+    # Two predictors with different missingness, two groups: every
+    # (group, predictor) cell equals the pairwise function's estimate.
+    frame = TOY.with_columns(
+        pl.when(pl.col("psu") == 21).then(None).otherwise(pl.col("x2")).alias("x2"),
+        pl.when(pl.col("psu") == 33)
+        .then(None)
+        .otherwise(pl.col("y") * 2 - pl.col("x2"))
+        .alias("x3"),
+        pl.Series("g", ["a", "a", "a", "b", "b", "a", "b", "b", "a"]),
+    )
+    for by in ((), ("g",)):
+        sweep = weighted_correlations(
+            frame,
+            "y",
+            ["x2", "x3"],
+            TAYLOR,
+            method=method,  # type: ignore[arg-type]
+            by=by,
+            policy=NO_SUPPRESSION,
+        ).to_pylist()
+        assert [r["predictor"] for r in sweep][: len(sweep) // 2 + 1][:2] == ["x2", "x3"] or by
+        for row in sweep:
+            pairwise = weighted_correlation(
+                frame,
+                "y",
+                row["predictor"],
+                TAYLOR,
+                method=method,  # type: ignore[arg-type]
+                by=by,
+                policy=NO_SUPPRESSION,
+            ).to_pylist()
+            expected = next(r for r in pairwise if all(r[k] == row[k] for k in by))
+            assert row["estimate"] == pytest.approx(expected["estimate"], rel=1e-12)
+            assert row["n"] == expected["n"] and row["sum_w"] == pytest.approx(expected["sum_w"])
+            assert row["stat"] == f"{method}_r" and row["ci_method"] == "none"
+            assert row["se"] is None and row["ci_lo"] is None
+
+
+def test_sweep_undefined_and_empty_cells() -> None:
+    frame = TOY.with_columns(pl.lit(3).alias("flat"), pl.lit(None, dtype=pl.Int64).alias("gone"))
+    rows = {
+        r["predictor"]: r
+        for r in weighted_correlations(
+            frame, "y", ["flat", "gone", "x2"], TAYLOR, policy=NO_SUPPRESSION
+        ).to_pylist()
+    }
+    assert rows["flat"]["estimate"] is None and rows["flat"]["n"] == 9
+    assert rows["gone"]["estimate"] is None and rows["gone"]["n"] == 0
+    assert rows["gone"]["sum_w"] == 0.0
+    assert rows["x2"]["estimate"] == pytest.approx(0.925982832432145, rel=1e-12)
+    with pytest.raises(ValueError, match="distinct"):
+        weighted_correlations(TOY, "y", ["x2", "x2"], TAYLOR)
+    with pytest.raises(ValueError, match="distinct"):
+        weighted_correlations(TOY, "y", ["y"], TAYLOR)
+    with pytest.raises(ValueError, match="method"):
+        weighted_correlations(TOY, "y", ["x2"], TAYLOR, method="kendall")  # type: ignore[arg-type]
 
 
 def test_phase_5_stub_raises_loudly() -> None:

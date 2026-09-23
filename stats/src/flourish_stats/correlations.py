@@ -4,7 +4,8 @@ Two flavours of "what travels with X":
 
 - :func:`weighted_correlation` — the unadjusted, point-estimate-only
   Pearson/Spearman coefficient (``ci_method = "none"``: no interval is
-  claimed, so none is drawn).
+  claimed, so none is drawn); :func:`weighted_correlations` is the same
+  estimator for one item against many, in one pass over the frame.
 - :func:`adjusted_association` — the predictor's coefficient in a
   survey-weighted regression of the outcome on the predictor and a fixed
   control set (WLS for continuous outcomes, logistic IRLS for binary
@@ -159,6 +160,109 @@ def weighted_correlation(
     )
 
 
+def weighted_correlations(
+    frame: Frame,
+    x: str,
+    ys: Sequence[str],
+    design: Design,
+    *,
+    method: Method = "pearson",
+    by: Sequence[str] = (),
+    policy: SuppressionPolicy = DEFAULT_POLICY,
+) -> pa.Table:
+    """Weighted correlations of ``x`` with each of ``ys``, in one pass.
+
+    The same estimator as :func:`weighted_correlation` for every pair —
+    complete cases per pair, Spearman ranks taken within the pair's
+    complete cases per group — but all pairs are evaluated in a single
+    polars group-by, so a sweep over a hundred items costs one pass over
+    the frame rather than a hundred. The pair's moments come from the
+    one-pass sums ``Σw, Σwx, Σwy, Σwx², Σwy², Σwxy`` on the valid rows,
+    which agree with the two-pass form to floating-point rounding on the
+    0–10 scales and rank values these items take. One row per (group,
+    ``predictor``), in the order of ``ys``.
+    """
+    if method not in ("pearson", "spearman"):
+        raise ValueError(f"method must be 'pearson' or 'spearman', got {method!r}")
+    if len(set(ys)) != len(ys) or x in ys:
+        raise ValueError("ys must be distinct items other than x")
+    df = to_polars(frame)
+    check_columns(df, design, x, by)
+    for y in ys:
+        check_columns(df, design, y, by)
+    df = with_dummy(df, by)
+    groups = group_keys(by)
+    w = pl.col(design.weight)
+
+    aggregations: list[pl.Expr] = []
+    for i, y in enumerate(ys):
+        valid = pl.col(x).is_not_null() & pl.col(y).is_not_null()
+        wv = w.filter(valid)
+        vx = pl.col(x).filter(valid)
+        vy = pl.col(y).filter(valid)
+        if method == "spearman":
+            vx = vx.rank(method="average").cast(pl.Float64)
+            vy = vy.rank(method="average").cast(pl.Float64)
+        else:
+            vx = vx.cast(pl.Float64)
+            vy = vy.cast(pl.Float64)
+        aggregations.extend(
+            [
+                valid.sum().cast(pl.Int64).alias(f"{i}:n"),
+                wv.sum().alias(f"{i}:sw"),
+                (wv * vx).sum().alias(f"{i}:sx"),
+                (wv * vy).sum().alias(f"{i}:sy"),
+                (wv * vx * vx).sum().alias(f"{i}:sxx"),
+                (wv * vy * vy).sum().alias(f"{i}:syy"),
+                (wv * vx * vy).sum().alias(f"{i}:sxy"),
+            ]
+        )
+    sums = df.group_by(groups).agg(aggregations)
+    parts = [
+        sums.select(
+            [
+                *groups,
+                pl.lit(y).alias("predictor"),
+                pl.col(f"{i}:n").alias("n"),
+                pl.col(f"{i}:sw").alias("sum_w"),
+                pl.col(f"{i}:sx").alias("_sx"),
+                pl.col(f"{i}:sy").alias("_sy"),
+                pl.col(f"{i}:sxx").alias("_sxx"),
+                pl.col(f"{i}:syy").alias("_syy"),
+                pl.col(f"{i}:sxy").alias("_sxy"),
+            ]
+        )
+        for i, y in enumerate(ys)
+    ]
+    sw = pl.col("sum_w")
+    cxx = pl.col("_sxx") - pl.col("_sx").pow(2) / sw
+    cyy = pl.col("_syy") - pl.col("_sy").pow(2) / sw
+    cxy = pl.col("_sxy") - pl.col("_sx") * pl.col("_sy") / sw
+    records = pl.concat(parts).with_columns(
+        pl.when((pl.col("n") > 0) & (cxx > 0) & (cyy > 0))
+        .then(cxy / (cxx * cyy).sqrt())
+        .otherwise(None)
+        .alias("estimate"),
+        pl.lit(None, dtype=pl.Float64).alias("se"),
+        pl.lit(None, dtype=pl.Int64).alias("n_psu"),
+        pl.lit(None, dtype=pl.Int64).alias("n_strata"),
+        pl.lit(None, dtype=pl.Int64).alias("df"),
+    )
+    universe = df.select(groups).unique().join(pl.DataFrame({"predictor": list(ys)}), how="cross")
+    return finalize(
+        records,
+        universe,
+        stat=f"{method}_r",
+        design=design,
+        groups=groups,
+        by=by,
+        extra=["predictor"],
+        ci_level=0.95,
+        ci_method="none",
+        policy=policy,
+    )
+
+
 def adjusted_association(
     frame: Frame,
     outcome: str,
@@ -200,12 +304,15 @@ def adjusted_association(
     particular, grouping by ``country_code`` drops the country fixed
     effect: a per-country model carries no country dummies.
 
-    **Undefined fits never raise.** A group whose design matrix is
-    rank-deficient (a constant predictor, an aliased dummy, too few
-    complete cases for the parameters), whose binary outcome never varies,
-    or whose IRLS does not converge returns a null ``estimate``/``se`` with
-    its ``n`` intact — mirroring :func:`weighted_correlation`'s undefined
-    case.
+    **Undefined fits never raise.** Control dummies aliased with each
+    other or with the intercept are dropped, as R's glm pivots them out
+    (the predictor's coefficient does not depend on which full-rank
+    parametrisation of the controls remains). A group whose predictor is
+    itself not identified (constant, or a function of the controls), that
+    has too few complete cases for its parameters, whose binary outcome
+    never varies, or whose IRLS does not converge returns a null
+    ``estimate``/``se`` with its ``n`` intact — mirroring
+    :func:`weighted_correlation`'s undefined case.
 
     Two rows per group (``measure``): ``beta`` and ``beta_per_sd``, the
     coefficient per one weighted SD of the predictor (comparable across
@@ -327,17 +434,60 @@ class _GroupFit:
         self.influence = influence
 
 
-def _design_matrix(sub: pl.DataFrame, predictor: str, controls: Sequence[str]) -> Matrix:
+#: A column whose squared residual after projection on the columns already
+#: kept falls below this (per unit of its own squared norm, floored at 1)
+#: adds nothing to the design: it is aliased and dropped, as R's glm
+#: pivots it out.
+_ALIAS_TOL = 1e-8
+
+
+def _independent_columns(columns: list[Vector], *, anchored: int) -> list[int]:
+    """Indices of a maximal linearly independent subset, kept in order.
+
+    Greedy Gram–Schmidt on the Gram matrix (k × k, never the n × k data):
+    a column is kept when its residual after projection on the kept ones
+    is non-negligible. The first ``anchored`` columns are kept regardless
+    (the intercept); everything after competes in order.
+    """
+    mat = np.column_stack(columns)
+    gram = mat.T @ mat
+    kept: list[int] = list(range(anchored))
+    for j in range(anchored, mat.shape[1]):
+        gj = gram[kept, j]
+        gs = gram[np.ix_(kept, kept)]
+        try:
+            residual = float(gram[j, j] - gj @ np.linalg.solve(gs, gj))
+        except np.linalg.LinAlgError:  # pragma: no cover - kept columns are independent
+            residual = 0.0
+        if residual > _ALIAS_TOL * max(float(gram[j, j]), 1.0):
+            kept.append(j)
+    return kept
+
+
+def _design_matrix(sub: pl.DataFrame, predictor: str, controls: Sequence[str]) -> Matrix | None:
     """Intercept, the predictor, then each control's dummies (first level
-    dropped; levels are the group's observed values in sorted order)."""
+    dropped; levels are the group's observed values in sorted order).
+
+    Control dummies aliased with the intercept or with each other are
+    dropped — R's glm pivots them out the same way, and the predictor's
+    coefficient is invariant to which full-rank parametrisation of the
+    controls remains. None when the predictor itself is aliased with the
+    controls (a constant, or a function of them): its coefficient is not
+    identified.
+    """
     n = sub.height
-    columns: list[Matrix] = [np.ones(n), sub[predictor].cast(pl.Float64).to_numpy()]
+    dummies: list[Vector] = []
     for control in controls:
         codes = sub.select(pl.col(control).rank("dense").cast(pl.Int64)).to_series().to_numpy()
         n_levels = int(codes.max())
-        if n_levels > 1:
-            columns.append(np.eye(n_levels)[codes - 1][:, 1:])
-    return np.column_stack(columns)
+        for level in range(2, n_levels + 1):
+            dummies.append((codes == level).astype(np.float64))
+    x = sub[predictor].cast(pl.Float64).to_numpy()
+    columns: list[Vector] = [np.ones(n), *dummies, x]
+    kept = _independent_columns(columns, anchored=1)
+    if kept[-1] != len(columns) - 1:
+        return None
+    return np.column_stack([np.ones(n), x, *(columns[j] for j in kept[1:-1])])
 
 
 def _fit_group(
@@ -365,6 +515,8 @@ def _fit_group(
     undefined = _GroupFit(record, None)
 
     xmat = _design_matrix(sub, predictor, controls)
+    if xmat is None:
+        return undefined
     k = xmat.shape[1]
     if n <= k:
         return undefined

@@ -131,7 +131,7 @@
         "type": "object"
       },
       "EstimateRow": {
-        "description": "One estimator record, verbatim from the engine's common record.\n\nEvery number ships with its weight, ``se_method``, unweighted ``n``,\nCI bounds and suppression flags; suppressed rows keep ``n``/``sum_w``\nand null the estimates. The optional key fields identify sub-rows:\n``level`` (proportions/distributions), ``p`` (quantiles), ``leg``\n(three-point panels), ``from_level``/``to_level``/``measure``\n(transition matrices).",
+        "description": "One estimator record, verbatim from the engine's common record.\n\nEvery number ships with its weight, ``se_method``, unweighted ``n``,\nCI bounds and suppression flags; suppressed rows keep ``n``/``sum_w``\nand null the estimates. The optional key fields identify sub-rows:\n``level`` (proportions/distributions), ``p`` (quantiles), ``leg``\n(three-point panels), ``from_level``/``to_level``/``measure``\n(transition matrices; also the ``beta``/``beta_per_sd`` rows of an\nadjusted association) and ``predictor`` (the item an association is\ntaken against, /v1/correlates).",
         "properties": {
           "ci_hi": {
             "anyOf": [
@@ -292,6 +292,17 @@
               }
             ],
             "title": "P"
+          },
+          "predictor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predictor"
           },
           "se": {
             "anyOf": [
@@ -559,6 +570,17 @@
       "ResponseMeta": {
         "description": "What every estimate response says about itself (ADR-0008: the same\nenvelope is emitted by the static exporter, so the front end never\ncares which tier answered).",
         "properties": {
+          "adjusted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjusted"
+          },
           "by": {
             "items": {
               "type": "string"
@@ -569,6 +591,20 @@
           "ci_level": {
             "title": "Ci Level",
             "type": "number"
+          },
+          "controls": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controls"
           },
           "data_version": {
             "anyOf": [
@@ -610,6 +646,17 @@
             },
             "title": "Filters",
             "type": "object"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "n_frame": {
             "title": "N Frame",
@@ -1419,19 +1466,138 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Ranked weighted associations ship in Phase 6 together with the\nadjusted models and the Correlates view (docs/PROPOSAL.md §7); the\nengine's `weighted_correlation` exists but is deliberately not served\nuntil its caveats ship with it.",
+        "description": "Associations, not causes. Unadjusted rows are weighted Pearson or\nSpearman coefficients with no interval (``ci_method = \"none\"``);\n``adjusted=true`` returns the predictor's coefficient in a\nsurvey-weighted regression under the fixed control set (``stat =\n\"beta\"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups). Binary items enter as\nindicators of code 1 (Yes / screen positive). Global scope only.",
         "operationId": "correlates_v1_correlates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": true,
+            "schema": {
+              "title": "Outcome",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "against",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Against"
+            }
+          },
+          {
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "default": "pearson",
+              "title": "Method",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "adjusted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Adjusted",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/EstimateResponse"
+                }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
-        "summary": "Not implemented: Phase 6"
+        "summary": "What travels with an outcome: ranked associations"
       }
     },
     "/v1/export.csv": {

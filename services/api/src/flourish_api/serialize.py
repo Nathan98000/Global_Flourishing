@@ -3,7 +3,8 @@
 The engine's ``pyarrow.Table`` carries the group-key columns plus the
 common record (``flourish_stats.RESULT_COLUMNS``) and, per estimator, one
 of the sub-row keys (``level``, ``p``, ``leg``, ``from_level``/
-``to_level``/``measure``). This module maps them 1:1 into
+``to_level``/``measure``; the correlates route adds ``predictor`` after
+the fact). This module maps them 1:1 into
 :class:`~flourish_api.schemas.EstimateRow` — no numbers are altered or
 dropped on the way through.
 """
@@ -19,7 +20,8 @@ import pyarrow as pa
 
 from flourish_api.schemas import EstimateResponse, EstimateRow
 
-_SUBROW_KEYS = ("level", "p", "leg", "from_level", "to_level", "measure")
+_SUBROW_KEYS = ("predictor", "level", "p", "leg", "from_level", "to_level", "measure")
+_CORRELATES_META = ("adjusted", "controls", "model")
 
 
 def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[EstimateRow]:
@@ -47,6 +49,10 @@ def response_to_csv(response: EstimateResponse) -> str:
     filters = meta.pop("filters")
     suppression = meta.pop("suppression")
     for key, value in meta.items():
+        # The correlates-only fields are absent (None) on every other
+        # response; an aggregate export should not print them.
+        if key in _CORRELATES_META and value is None:
+            continue
         if isinstance(value, list):
             items: list[object] = list(value)  # pyright: ignore[reportUnknownArgumentType]
             rendered = ",".join(str(item) for item in items)

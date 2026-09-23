@@ -1,0 +1,151 @@
+{
+  "meta": {
+    "adjusted": true,
+    "by": [
+      "country_code"
+    ],
+    "ci_level": 0.95,
+    "controls": [
+      "age_band",
+      "gender",
+      "education_3",
+      "employment",
+      "marital_status"
+    ],
+    "data_version": "synthetic.0.0.1",
+    "direction": "higher_better",
+    "filters": {},
+    "model": "continuous",
+    "n_frame": 120,
+    "n_valid": 108,
+    "oriented": false,
+    "outcome": "HAPPY",
+    "scale_type": "scale_0_10",
+    "scope": "global",
+    "se_method": "taylor",
+    "stat": "beta",
+    "suppression": {
+      "flag_below": 0,
+      "threshold": 0
+    },
+    "waves": [
+      "Y1"
+    ],
+    "weight": "w_c1",
+    "weight_key": "y1"
+  },
+  "rows": [
+    {
+      "ci_hi": 0.6772162282969972,
+      "ci_level": 0.95,
+      "ci_lo": 0.3594165281663616,
+      "ci_method": "normal",
+      "df": 4,
+      "estimate": 0.5183163782316794,
+      "flagged": false,
+      "from_level": null,
+      "group": {
+        "country_code": 1
+      },
+      "leg": null,
+      "level": null,
+      "measure": "beta",
+      "n": 54,
+      "n_psu": 6,
+      "n_strata": 2,
+      "p": null,
+      "predictor": "LONELY",
+      "se": 0.08107284180663504,
+      "se_method": "taylor",
+      "stat": "beta",
+      "sum_w": 66.25,
+      "suppressed": false,
+      "to_level": null,
+      "weight": "w_c1"
+    },
+    {
+      "ci_hi": 2.178801282468183,
+      "ci_level": 0.95,
+      "ci_lo": 1.156347352275348,
+      "ci_method": "normal",
+      "df": 4,
+      "estimate": 1.6675743173717654,
+      "flagged": false,
+      "from_level": null,
+      "group": {
+        "country_code": 1
+      },
+      "leg": null,
+      "level": null,
+      "measure": "beta_per_sd",
+      "n": 54,
+      "n_psu": 6,
+      "n_strata": 2,
+      "p": null,
+      "predictor": "LONELY",
+      "se": 0.26083487713494263,
+      "se_method": "taylor",
+      "stat": "beta",
+      "sum_w": 66.25,
+      "suppressed": false,
+      "to_level": null,
+      "weight": "w_c1"
+    },
+    {
+      "ci_hi": 0.7043712500556059,
+      "ci_level": 0.95,
+      "ci_lo": 0.3582108932250154,
+      "ci_method": "normal",
+      "df": 53,
+      "estimate": 0.5312910716403106,
+      "flagged": false,
+      "from_level": null,
+      "group": {
+        "country_code": 22
+      },
+      "leg": null,
+      "level": null,
+      "measure": "beta",
+      "n": 54,
+      "n_psu": 54,
+      "n_strata": 1,
+      "p": null,
+      "predictor": "LONELY",
+      "se": 0.08830783615440367,
+      "se_method": "taylor",
+      "stat": "beta",
+      "sum_w": 68.75,
+      "suppressed": false,
+      "to_level": null,
+      "weight": "w_c1"
+    },
+    {
+      "ci_hi": 2.2114554098499886,
+      "ci_level": 0.95,
+      "ci_lo": 1.1246447347575872,
+      "ci_method": "normal",
+      "df": 53,
+      "estimate": 1.6680500723037879,
+      "flagged": false,
+      "from_level": null,
+      "group": {
+        "country_code": 22
+      },
+      "leg": null,
+      "level": null,
+      "measure": "beta_per_sd",
+      "n": 54,
+      "n_psu": 54,
+      "n_strata": 1,
+      "p": null,
+      "predictor": "LONELY",
+      "se": 0.2772527157807556,
+      "se_method": "taylor",
+      "stat": "beta",
+      "sum_w": 68.75,
+      "suppressed": false,
+      "to_level": null,
+      "weight": "w_c1"
+    }
+  ]
+}

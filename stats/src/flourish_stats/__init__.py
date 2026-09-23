@@ -7,7 +7,7 @@ verified against R's ``survey`` package. See ``docs/METHODS.md`` for the
 plain-language account and ADR-0005/0006 for the design decisions.
 """
 
-from .correlations import adjusted_association, weighted_correlation
+from .correlations import adjusted_association, weighted_correlation, weighted_correlations
 from .design import Design
 from .estimators import (
     RESULT_COLUMNS,
@@ -57,6 +57,7 @@ __all__ = [
     "validate_frame",
     "weight_table_json",
     "weighted_correlation",
+    "weighted_correlations",
     "weighted_distribution",
     "weighted_mean",
     "weighted_proportion",

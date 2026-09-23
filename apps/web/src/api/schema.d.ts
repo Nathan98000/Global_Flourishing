@@ -81,11 +81,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Not implemented: Phase 6
-         * @description Ranked weighted associations ship in Phase 6 together with the
-         *     adjusted models and the Correlates view (docs/PROPOSAL.md §7); the
-         *     engine's `weighted_correlation` exists but is deliberately not served
-         *     until its caveats ship with it.
+         * What travels with an outcome: ranked associations
+         * @description Associations, not causes. Unadjusted rows are weighted Pearson or
+         *     Spearman coefficients with no interval (``ci_method = "none"``);
+         *     ``adjusted=true`` returns the predictor's coefficient in a
+         *     survey-weighted regression under the fixed control set (``stat =
+         *     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
+         *     ``against`` for the ranked sweep over every other servable ordered
+         *     item at the wave, cut to ``limit`` predictors (ranked by the median
+         *     absolute association across the groups). Binary items enter as
+         *     indicators of code 1 (Yes / screen positive). Global scope only.
          */
         get: operations["correlates_v1_correlates_get"];
         put?: never;
@@ -257,7 +262,9 @@ export interface components {
          *     and null the estimates. The optional key fields identify sub-rows:
          *     ``level`` (proportions/distributions), ``p`` (quantiles), ``leg``
          *     (three-point panels), ``from_level``/``to_level``/``measure``
-         *     (transition matrices).
+         *     (transition matrices; also the ``beta``/``beta_per_sd`` rows of an
+         *     adjusted association) and ``predictor`` (the item an association is
+         *     taken against, /v1/correlates).
          */
         EstimateRow: {
             /** Ci Hi */
@@ -294,6 +301,8 @@ export interface components {
             n_strata: number | null;
             /** P */
             p?: number | null;
+            /** Predictor */
+            predictor?: string | null;
             /** Se */
             se: number | null;
             /** Se Method */
@@ -383,10 +392,14 @@ export interface components {
          *     cares which tier answered).
          */
         ResponseMeta: {
+            /** Adjusted */
+            adjusted?: boolean | null;
             /** By */
             by: string[];
             /** Ci Level */
             ci_level: number;
+            /** Controls */
+            controls?: string[] | null;
             /** Data Version */
             data_version: string | null;
             /** Direction */
@@ -395,6 +408,8 @@ export interface components {
             filters: {
                 [key: string]: (string | number | boolean | null)[];
             };
+            /** Model */
+            model?: string | null;
             /** N Frame */
             n_frame: number;
             /** N Valid */
@@ -663,7 +678,16 @@ export interface operations {
     };
     correlates_v1_correlates_get: {
         parameters: {
-            query?: never;
+            query: {
+                outcome: string;
+                wave: string;
+                against?: string[] | null;
+                method?: string;
+                adjusted?: boolean;
+                by?: string[] | null;
+                filter?: string[] | null;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -676,7 +700,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EstimateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
