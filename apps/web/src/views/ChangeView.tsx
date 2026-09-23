@@ -4,9 +4,8 @@
 // individual change for chosen countries, and, for categorical items,
 // where people moved between answers. Every number is the server's;
 // this view chooses, filters, orders and renders. Retention is for the
-// maths (owner decision 2): the longitudinal weights carry it, the
-// interval and the n show it, and the one reserved sentence appears
-// only where a country's follow-up group is small (followUp.ts).
+// maths (owner decision 2): the longitudinal weights carry it, and the
+// interval and the n show it — nothing on the page says more.
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -18,9 +17,8 @@ import {
   useChange,
 } from '../api/change'
 import { NetworkError } from '../api/errors'
-import { useEstimates } from '../api/estimates'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateResponse, EstimateRow, Stat, Wave } from '../api/types'
+import type { EstimateResponse, EstimateRow, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots } from '../charts/ChangeDots'
@@ -44,7 +42,6 @@ import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/s
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, signedLevel } from './changeOrder'
-import { FOLLOW_UP_CAUTION_COPY, earlierNByCountry, lowFollowUpCountries } from './followUp'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/change')
@@ -83,19 +80,6 @@ export function ChangeView() {
   const request = askedTwice ? changeRequest(search) : null
   const change = useChange(request)
   const response = change.data
-  // The earlier wave's n per country, from the cross-section the Atlas
-  // already shows (static tier) — the only input the caution needs.
-  const earlier = useEstimates(
-    askedTwice
-      ? {
-          outcome: search.outcome,
-          wave: search.from,
-          stat: (variable.default_stat as Stat | undefined) ?? 'mean',
-          by: ['country_code'],
-        }
-      : null,
-  )
-
   const metaData = meta.data?.meta
   const legs = useMemo(
     () => (search.via && response ? legsPresent(response.rows) : undefined),
@@ -135,14 +119,6 @@ export function ChangeView() {
   const hasTransitions = response ? transitionRows(response.rows).length > 0 : false
   const levels = useMemo(() => outcomeLevels(detail), [detail])
   const levelLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
-  const lowFollowUp = useMemo(
-    () =>
-      earlier.data
-        ? lowFollowUpCountries(display.rows, earlierNByCountry(earlier.data.response.rows))
-        : [],
-    [display.rows, earlier.data],
-  )
-
   if (meta.isPending || variables.isPending) {
     return (
       <section>
@@ -387,11 +363,6 @@ export function ChangeView() {
             meta={meta.data.meta}
             csv={csvFor(display.rows, 'change')}
             isRefreshing={change.isPlaceholderData}
-            note={
-              lowFollowUp.length > 0 ? (
-                <p className={styles.figureNote}>{FOLLOW_UP_CAUTION_COPY}</p>
-              ) : undefined
-            }
           >
             <ChangeDots
               rows={display.rows}

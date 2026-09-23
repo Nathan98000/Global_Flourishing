@@ -1,9 +1,9 @@
 // The Change view (Phase 5): the same people a year later, rendered from
 // one /v1/change envelope. The guard that keeps owner decision 2 from
-// eroding lives here: the default output shows no retention or coverage
-// figure and none of the jargon; the one reserved sentence appears at
-// most once, only where a country's follow-up group is small, and
-// carries no number.
+// eroding lives here: the default output shows no follow-up rate,
+// retention percentage or coverage figure, none of the jargon, and
+// not the caution sentence that was withdrawn (ADR-0013, revised) —
+// the interval and the n carry the uncertainty.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
@@ -24,12 +24,6 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
-import {
-  FOLLOW_UP_CAUTION_COPY,
-  FOLLOW_UP_CAUTION_RATIO,
-  earlierNByCountry,
-  lowFollowUpCountries,
-} from '../views/followUp'
 import { changeLevels, orderChangeRows } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
@@ -42,6 +36,10 @@ const okHealth: ApiHealth = {
 }
 
 const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage/i
+/** The caution sentence withdrawn by the owner (ADR-0013, revised): it
+ * must not come back in any form. */
+const WITHDRAWN_CAUTION =
+  /In some countries fewer people answered the second time, so those estimates are less certain\./
 
 /** What a reader sees: textContent minus the <style> blocks Plot embeds
  * in its SVGs (jsdom has no innerText). */
@@ -63,20 +61,9 @@ const changeRow = (code: number, estimate: number, n: number, extra: Partial<Est
     ...extra,
   })
 
-// Wave 1 n: Testland 1,000 and the US 2,000. The change rows below put
-// Testland's follow-up group at a fifth of that and the US at three
-// quarters.
-const firstWave = testResponse(
-  [
-    testRow({ group: { country_code: 1 }, n: 1000 }),
-    testRow({ group: { country_code: 22 }, n: 2000 }),
-  ],
-  { outcome: 'HAPPY' },
-)
-
 const happyChange = testResponse(
   [
-    changeRow(1, -0.12, 200),
+    changeRow(1, -0.12, 900),
     changeRow(22, 0.3, 1500),
     ...[-2, -1, 0, 1, 2].map((level) =>
       testRow({
@@ -173,16 +160,7 @@ const tier: Routes = {
   '/data/meta.json': testMeta,
   '/data/variables.json': { variables: [sfiVariable, happyVariable, attendVariable] },
   '/data/v1/HAPPY/variable.json': happyDetail,
-  '/data/v1/HAPPY/Y1/mean_by-country_code.json': firstWave,
   '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
-  '/data/v1/ATTEND_SVCS/Y1/proportion_by-country_code.json': testResponse(
-    [
-      testRow({ group: { country_code: 1 }, stat: 'proportion', level: 1, n: 600 }),
-      testRow({ group: { country_code: 1 }, stat: 'proportion', level: 2, n: 400 }),
-      testRow({ group: { country_code: 22 }, stat: 'proportion', level: 1, n: 2000 }),
-    ],
-    { outcome: 'ATTEND_SVCS', stat: 'proportion' },
-  ),
   '/health': okHealth,
   '/v1/change?outcome=HAPPY': happyChange,
   '/v1/change?outcome=ATTEND_SVCS': attendChange,
@@ -207,46 +185,26 @@ async function renderAt(path: string) {
   return router
 }
 
-describe('the follow-up caution (owner decision 2)', () => {
-  test('flags a country whose complete pairs fall below the ratio of its earlier n', () => {
-    const earlier = earlierNByCountry([
-      // A proportion's rows carry one n per answer level: the country's
-      // n is their sum. A mean row carries it outright.
-      testRow({ group: { country_code: 1 }, level: 1, n: 600 }),
-      testRow({ group: { country_code: 1 }, level: 2, n: 400 }),
-      testRow({ group: { country_code: 22 }, n: 2000 }),
-    ])
-    expect([...earlier.entries()]).toEqual([
-      [1, 1000],
-      [22, 2000],
-    ])
-    expect(FOLLOW_UP_CAUTION_RATIO).toBe(0.5)
-    const rows = [changeRow(1, 0, 499), changeRow(22, 0, 1000), changeRow(24, 0, 5)]
-    // Testland is under half; the US is exactly half (not flagged);
-    // Hong Kong has no earlier n and is never flagged.
-    expect(lowFollowUpCountries(rows, earlier)).toEqual([1])
-    expect(lowFollowUpCountries([changeRow(1, 0, 500)], earlier)).toEqual([])
-    // The sentence itself carries no number and no jargon.
-    expect(FOLLOW_UP_CAUTION_COPY).not.toMatch(/\d/)
-    expect(FOLLOW_UP_CAUTION_COPY).not.toMatch(JARGON)
-  })
-})
-
 describe('Change view', () => {
-  test('default output: no retention or coverage figure, no jargon; the reserved sentence once', async () => {
-    mockFetch(tier)
+  test('default output: no follow-up rate, no coverage figure, no jargon, no caution sentence', async () => {
+    const calls = mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
     const figure = await screen.findByRole('img', { name: /average change among the same people/ })
     expect(figure).toBeInTheDocument()
     const text = visibleText(screen.getByRole('main'))
-    // The guard: no percentage other than the interval level, no jargon.
+    // The guard: no percentage other than the interval level, no jargon,
+    // and the withdrawn sentence (or anything shaped like it) stays gone.
     const percentages = text.match(/\d+(\.\d+)?\s?%/g) ?? []
     expect(percentages.filter((match) => match !== '95%')).toEqual([])
     expect(text).not.toMatch(JARGON)
-    // Testland's follow-up group is a fifth of its first-wave n: one
-    // plain sentence, once, without a number.
-    expect(screen.getAllByText(FOLLOW_UP_CAUTION_COPY)).toHaveLength(1)
-    // Plain-words copy, wave into the subtitle, sign on every change.
+    expect(text).not.toMatch(WITHDRAWN_CAUTION)
+    expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
+    // Only the change request reaches the API; the earlier wave's
+    // cross-section is no longer fetched for anything.
+    expect(calls.filter((url) => url.includes('/v1/change'))).toHaveLength(1)
+    expect(calls.some((url) => url.includes('/Y1/mean_by-country_code'))).toBe(false)
+    // Plain-words copy, wave into the subtitle, sign on every change;
+    // the estimate and its interval are still on the page.
     expect(screen.getAllByText(/How the same people answered a year later/).length).toBeGreaterThan(
       0,
     )
@@ -257,22 +215,10 @@ describe('Change view', () => {
     const table = screen.getAllByRole('table')[0] as HTMLElement
     expect(within(table).getByText('+0.30')).toBeInTheDocument()
     expect(within(table).getByText('−0.12')).toBeInTheDocument()
+    expect(within(table).getByText('[−0.17, −0.07]')).toBeInTheDocument()
     expect(within(table).getByText('1,500')).toBeInTheDocument()
     // The histogram waits for a country choice.
     expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
-  })
-
-  test('no sentence when every follow-up group is large enough', async () => {
-    mockFetch({
-      ...tier,
-      '/v1/change?outcome=HAPPY': testResponse(
-        [changeRow(1, -0.12, 900), changeRow(22, 0.3, 1500)],
-        { outcome: 'HAPPY', stat: 'change' },
-      ),
-    })
-    await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /average change among the same people/ })
-    expect(screen.queryByText(FOLLOW_UP_CAUTION_COPY)).toBeNull()
   })
 
   test('a chosen country adds the histogram of individual change, zero on the axis', async () => {

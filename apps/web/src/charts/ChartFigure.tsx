@@ -53,7 +53,6 @@ export function ChartFigure({
   isRefreshing = false,
   levelLabel,
   groupLabel,
-  note,
   children,
 }: {
   title: string
@@ -74,9 +73,6 @@ export function ChartFigure({
   /** Passed through to the data table (see EstimateTable). */
   levelLabel?: (level: number) => string | undefined
   groupLabel?: (column: string, value: string | number) => string | undefined
-  /** Rendered between the chart and the data table — a figure's own
-   * one-line note (the Change view's reserved sentence). */
-  note?: React.ReactNode
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -149,7 +145,6 @@ export function ChartFigure({
       >
         {children}
       </div>
-      {note}
       <details className={styles.details}>
         <summary>Data table</summary>
         <EstimateTable
