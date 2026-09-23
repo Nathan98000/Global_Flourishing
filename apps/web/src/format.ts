@@ -11,14 +11,28 @@ export function formatCount(value: number): string {
   return count.format(value)
 }
 
-/** Percentages for share stats, two decimals for scores/means. */
+/** Percentages for share stats (the change histogram and transition
+ * cells are shares too), two decimals for scores/means. */
 export function isShareStat(stat: string): boolean {
-  return stat === 'proportion' || stat === 'distribution'
+  return (
+    stat === 'proportion' ||
+    stat === 'distribution' ||
+    stat === 'change_distribution' ||
+    stat === 'transition'
+  )
+}
+
+/** A within-person change carries its sign: +0.12, −0.30, 0.00. */
+export function formatChange(value: number): string {
+  const rendered = two.format(Math.abs(value))
+  if (rendered === '0.00') return rendered
+  return value > 0 ? `+${rendered}` : `−${rendered}`
 }
 
 export function formatEstimate(value: number | null | undefined, stat: string): string {
   if (value === null || value === undefined) return '—'
   if (isShareStat(stat)) return `${one.format(value * 100)}%`
+  if (stat === 'change') return formatChange(value)
   return two.format(value)
 }
 

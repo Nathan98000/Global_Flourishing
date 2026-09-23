@@ -1,36 +1,463 @@
-// Change (Phase 5) — plumbing stub: the route, its URL state and the
-// warm-up ping are wired; the view itself lands in the next PR of the
-// stack. Says so plainly rather than rendering a dead page.
+// Change (Phase 5): how the same people answered later. One /v1/change
+// request answers the page — the mean within-person change per country
+// with its CI (dots on a change axis with zero marked), the histogram of
+// individual change for chosen countries, and, for categorical items,
+// where people moved between answers. Every number is the server's;
+// this view chooses, filters, orders and renders. Retention is for the
+// maths (owner decision 2): the longitudinal weights carry it, the
+// interval and the n show it, and the one reserved sentence appears
+// only where a country's follow-up group is small (followUp.ts).
 
 import { getRouteApi } from '@tanstack/react-router'
+import { useMemo } from 'react'
+import {
+  changeDistributionRows,
+  changeRows,
+  legsPresent,
+  transitionRows,
+  useChange,
+} from '../api/change'
+import { NetworkError } from '../api/errors'
+import { useEstimates } from '../api/estimates'
+import { useBootStatus, useMeta } from '../api/meta'
+import type { EstimateResponse, EstimateRow, Stat, Wave } from '../api/types'
+import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
+import { ChangeDots } from '../charts/ChangeDots'
+import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { Histogram } from '../charts/Histogram'
+import { summarizeExtremes } from '../charts/summary'
+import { outcomeColor } from '../charts/theme'
+import { TransitionTable } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
+import { ErrorState } from '../components/ErrorState'
+import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { WordingPanel } from '../components/WordingPanel'
+import { CountryFilter } from '../components/controls/CountryFilter'
+import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
+import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { groupValueLabel, outcomeLevels } from '../labels'
+import { defaultDir } from '../sortRows'
+import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
+import { WAVE_TITLES, pairTitle } from '../waves'
+import { changeLevels, orderChangeRows, signedLevel } from './changeOrder'
+import { FOLLOW_UP_CAUTION_COPY, earlierNByCountry, lowFollowUpCountries } from './followUp'
+import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/change')
+
+/** The comparisons the API serves, in the order the control offers them. */
+const PAIRS: readonly { from: Wave; to: Wave; via?: 'MY' }[] = [
+  { from: 'Y1', to: 'Y2' },
+  { from: 'Y1', to: 'MY' },
+  { from: 'MY', to: 'Y2' },
+  { from: 'Y1', to: 'Y2', via: 'MY' },
+]
+
+const pairKey = (pair: { from: Wave; to: Wave; via?: 'MY' }) =>
+  `${pair.from}-${pair.via ?? ''}-${pair.to}`
 
 export function ChangeView() {
   useWarmApi()
   const search = route.useSearch()
   const navigate = route.useNavigate()
+  const meta = useMeta()
+  const boot = useBootStatus()
+  const variables = useVariables()
+  const variable = variables.data?.byName[search.outcome]
+  const chartable = variable !== undefined && variable.servable
+  const askedTwice = chartable && variable.waves_available.length >= 2
+  const detailQuery = useVariable(chartable ? search.outcome : null)
+  const detail = detailQuery.data?.detail
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const dir = search.dir ?? defaultDir(search.sort === 'change' ? 'estimate' : 'name')
+  const pair = pairTitle(search.from, search.to, search.via)
+
+  const setSearch = (patch: Partial<ChangeSearch>) => {
+    void navigate({ search: changeSearchParams({ ...search, ...patch }) as never })
+  }
+
+  const request = askedTwice ? changeRequest(search) : null
+  const change = useChange(request)
+  const response = change.data
+  // The earlier wave's n per country, from the cross-section the Atlas
+  // already shows (static tier) — the only input the caution needs.
+  const earlier = useEstimates(
+    askedTwice
+      ? {
+          outcome: search.outcome,
+          wave: search.from,
+          stat: (variable.default_stat as Stat | undefined) ?? 'mean',
+          by: ['country_code'],
+        }
+      : null,
+  )
+
+  const metaData = meta.data?.meta
+  const legs = useMemo(
+    () => (search.via && response ? legsPresent(response.rows) : undefined),
+    [search.via, response],
+  )
+  const display = useMemo(() => {
+    if (!response || !metaData) return { rows: [] as EstimateRow[], countryDomain: [] as string[] }
+    return orderChangeRows(
+      changeRows(response.rows),
+      metaData,
+      search.sort,
+      dir,
+      search.countries,
+      legs,
+    )
+  }, [response, metaData, search.sort, dir, search.countries, legs])
+  const chosen = search.countries.slice(0, 4)
+  const distribution = useMemo(
+    () =>
+      response
+        ? changeDistributionRows(response.rows).filter((row) =>
+            chosen.includes(Number(row.group['country_code'])),
+          )
+        : [],
+    [response, chosen],
+  )
+  const hasDistribution = response ? changeDistributionRows(response.rows).length > 0 : false
+  const transitions = useMemo(
+    () =>
+      response
+        ? transitionRows(response.rows).filter((row) =>
+            chosen.includes(Number(row.group['country_code'])),
+          )
+        : [],
+    [response, chosen],
+  )
+  const hasTransitions = response ? transitionRows(response.rows).length > 0 : false
+  const levels = useMemo(() => outcomeLevels(detail), [detail])
+  const levelLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
+  const lowFollowUp = useMemo(
+    () =>
+      earlier.data
+        ? lowFollowUpCountries(display.rows, earlierNByCountry(earlier.data.response.rows))
+        : [],
+    [display.rows, earlier.data],
+  )
+
+  if (meta.isPending || variables.isPending) {
+    return (
+      <section>
+        <h2>Change</h2>
+        <LoadingBlock height={420} label="Loading the Change view" />
+      </section>
+    )
+  }
+  if (meta.isError || variables.isError || !meta.data || !variables.data) {
+    return (
+      <section>
+        <h2>Change</h2>
+        <ErrorState error={meta.error ?? variables.error} />
+      </section>
+    )
+  }
+
+  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
+    if (outcome === undefined) {
+      setSearch({ topic })
+      return
+    }
+    const target = variables.data.byName[outcome]
+    const waves = target?.waves_available ?? []
+    // Keep the comparison when the new measure supports it; otherwise
+    // the first pair it does support (2023 → 2024 first).
+    const keep = [search.from, search.via, search.to].every(
+      (wave) => wave === undefined || waves.includes(wave),
+    )
+    const fallback = PAIRS.find((candidate) =>
+      [candidate.from, candidate.via, candidate.to].every(
+        (wave) => wave === undefined || waves.includes(wave),
+      ),
+    )
+    setSearch({
+      outcome,
+      topic: undefined,
+      from: keep ? search.from : (fallback?.from ?? search.from),
+      to: keep ? search.to : (fallback?.to ?? search.to),
+      via: keep ? search.via : fallback?.via,
+      invalid: undefined,
+      invalidRaw: undefined,
+    })
+  }
+
+  const pairOptions: RadioOption<string>[] = PAIRS.map((candidate) => {
+    const missing = [candidate.from, candidate.via, candidate.to].filter(
+      (wave): wave is Wave =>
+        wave !== undefined && !(variable?.waves_available ?? []).includes(wave),
+    )
+    return {
+      value: pairKey(candidate),
+      label: pairTitle(candidate.from, candidate.to, candidate.via),
+      disabled: missing.length > 0,
+      title:
+        missing.length > 0
+          ? `Not asked in ${missing.map((wave) => WAVE_TITLES[wave] ?? wave).join(' or ')}`
+          : undefined,
+    }
+  })
+
+  const title = variable?.display_name ?? search.outcome
+  const directionNote =
+    variable?.direction === 'higher_better'
+      ? 'a rise is better'
+      : variable?.direction === 'lower_better'
+        ? 'a rise is worse'
+        : ''
+  const range =
+    variable && variable.min !== null && variable.max !== null
+      ? ` on the ${variable.min}–${variable.max} scale`
+      : ''
+  const subtitle = [
+    `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
+    pair,
+  ].join(' · ')
+  const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
+  const version = response?.meta.data_version ?? null
+  const csvFor = (rows: EstimateRow[], stat: string): CsvExport | undefined =>
+    response
+      ? {
+          kind: 'client',
+          onDownload: () =>
+            downloadTextFile(
+              csvFilename(search.outcome, `${search.from}-${search.to}`, stat, version),
+              responseToCsv({ ...response, rows }),
+            ),
+        }
+      : undefined
+  const withRows = (rows: EstimateRow[]): EstimateResponse =>
+    response ? { ...response, rows } : { meta: meta.data.meta as never, rows }
+
+  const displayOptions = (
+    <>
+      <RadioRow
+        legend="Sort"
+        name="sort"
+        options={[
+          { value: 'change', label: 'By change' },
+          { value: 'name', label: 'A–Z' },
+        ]}
+        value={search.sort}
+        onChange={(sort) => setSearch({ sort, dir: undefined })}
+      />
+      <RadioRow
+        legend="Order"
+        name="dir"
+        options={
+          search.sort === 'name'
+            ? [
+                { value: 'asc', label: 'A to Z' },
+                { value: 'desc', label: 'Z to A' },
+              ]
+            : [
+                { value: 'desc', label: 'High to low' },
+                { value: 'asc', label: 'Low to high' },
+              ]
+        }
+        value={dir}
+        onChange={(value) => setSearch({ dir: value })}
+      />
+      <CountryFilter
+        countries={meta.data.meta.countries}
+        selected={search.countries}
+        onChange={(countries) => setSearch({ countries })}
+      />
+    </>
+  )
+
   return (
     <section>
-      <h2>Change</h2>
+      <h2 className="visually-hidden">Change</h2>
+      <p className={styles.deck}>
+        <span className={styles.deckLong}>
+          How the same people answered a year later. Each number is the average change within one
+          country&rsquo;s respondents who answered both times, with its margin of error.
+        </span>
+        <span className={styles.deckShort}>How the same people answered a year later.</span>
+      </p>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
           void navigate({
-            search: { invalid: undefined, invalidRaw: undefined } as never,
+            search: changeSearchParams({
+              ...search,
+              invalid: undefined,
+              invalidRaw: undefined,
+            }) as never,
             replace: true,
           })
         }
       />
-      <EmptyState title="Being built">
-        <p>
-          This view — how the same people answered a year later — is on its way; its charts arrive
-          in the next release.
-        </p>
-      </EmptyState>
+      <div className={styles.controls}>
+        <OutcomePicker
+          variables={variables.data.list}
+          value={search.outcome}
+          topic={search.topic}
+          onSelect={handlePick}
+          fields={narrow ? 'measure' : 'all'}
+        />
+        <RadioRow
+          legend="Compare"
+          name="pair"
+          wide
+          selectOnNarrow
+          options={pairOptions}
+          value={pairKey(search)}
+          onChange={(value) => {
+            const candidate = PAIRS.find((entry) => pairKey(entry) === value)
+            if (candidate) setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
+          }}
+        />
+        {narrow ? (
+          <details className={styles.moreOptions}>
+            <summary>More options — sort, countries</summary>
+            <div className={styles.moreBody}>
+              <OutcomePicker
+                variables={variables.data.list}
+                value={search.outcome}
+                topic={search.topic}
+                onSelect={handlePick}
+                fields="topic-and-search"
+              />
+              {displayOptions}
+            </div>
+          </details>
+        ) : (
+          displayOptions
+        )}
+      </div>
+
+      {!chartable ? (
+        <EmptyState title="Choose a measure to begin">
+          <p>
+            {variable === undefined
+              ? `The link asked for “${search.outcome}”, which isn't in this release's codebook — `
+              : `“${search.outcome}” can't be charted (its codebook entry says why) — `}
+            pick a topic and measure above, or search all the measures.
+          </p>
+        </EmptyState>
+      ) : !askedTwice ? (
+        <EmptyState title="Asked only once">
+          <p>
+            {title} was asked in{' '}
+            {WAVE_TITLES[variable.waves_available[0] ?? ''] ?? variable.waves_available[0]} only, so
+            there is no later answer from the same people to compare. Pick another measure.
+          </p>
+        </EmptyState>
+      ) : change.isPending ? (
+        <LoadingBlock height={420} label="Loading estimates" />
+      ) : change.isError ? (
+        change.error instanceof NetworkError && boot.state !== 'ready' ? (
+          <p className={styles.hint} role="status">
+            This view needs the live data service, which is offline right now — the Atlas and
+            Breakdowns still work.
+          </p>
+        ) : (
+          <ErrorState error={change.error} />
+        )
+      ) : response ? (
+        <>
+          <p role="status" className="visually-hidden">
+            Updated: {title}, {display.countryDomain.length} countries shown.
+          </p>
+          <ChartFigure
+            title={title}
+            subtitle={subtitle}
+            ariaLabel={summarizeExtremes(
+              legs ? display.rows.filter((row) => row.leg === 'y1_y2') : display.rows,
+              meta.data.meta,
+              `${title}: average change among the same people, ${pair}, by country.`,
+            )}
+            marks="dots"
+            intro={
+              detail && (
+                <div className={styles.wording}>
+                  <WordingPanel detail={detail} />
+                </div>
+              )
+            }
+            response={withRows(display.rows)}
+            meta={meta.data.meta}
+            csv={csvFor(display.rows, 'change')}
+            isRefreshing={change.isPlaceholderData}
+            note={
+              lowFollowUp.length > 0 ? (
+                <p className={styles.figureNote}>{FOLLOW_UP_CAUTION_COPY}</p>
+              ) : undefined
+            }
+          >
+            <ChangeDots
+              rows={display.rows}
+              meta={meta.data.meta}
+              color={color}
+              countryDomain={display.countryDomain}
+              legs={legs}
+            />
+          </ChartFigure>
+
+          {hasDistribution &&
+            (chosen.length === 0 ? (
+              <p className={styles.hint}>
+                Pick up to four countries above to see how individual answers moved.
+              </p>
+            ) : (
+              <ChartFigure
+                title="How individual answers moved"
+                subtitle={`Share of people by the change in their own answer · ${pair}`}
+                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries. The data table below carries every number.`}
+                marks="bins"
+                response={withRows(distribution)}
+                meta={meta.data.meta}
+                csv={csvFor(distribution, 'change_distribution')}
+                isRefreshing={change.isPlaceholderData}
+              >
+                <Histogram
+                  rows={distribution}
+                  meta={meta.data.meta}
+                  responseMeta={response.meta}
+                  variable={variable}
+                  color={color}
+                  levels={changeLevels(variable)}
+                  xLabel="Change in the answer (later minus earlier)"
+                  levelLabel={signedLevel}
+                />
+                {search.countries.length > 4 && (
+                  <p className={styles.hint}>Showing the first four selected countries.</p>
+                )}
+              </ChartFigure>
+            ))}
+
+          {hasTransitions && chosen.length > 0 && (
+            <ChartFigure
+              title="Where people moved between answers"
+              subtitle={`Of the people who gave each answer first, the share giving each answer later · ${pair}`}
+              ariaLabel={`${title}: for each first answer, the share of the same people giving each later answer, ${pair}. Each row sums to 100%. The data table below carries every number.`}
+              marks="table"
+              response={withRows(transitions)}
+              meta={meta.data.meta}
+              csv={csvFor(transitions, 'transition')}
+              isRefreshing={change.isPlaceholderData}
+              levelLabel={levelLabel}
+            >
+              {chosen.map((code) => (
+                <TransitionTable
+                  key={code}
+                  rows={transitions.filter((row) => Number(row.group['country_code']) === code)}
+                  levelLabel={(level) => levelLabel(level) ?? String(level)}
+                  caption={`${groupValueLabel('country_code', code, meta.data.meta)} — each row sums to 100%`}
+                />
+              ))}
+            </ChartFigure>
+          )}
+        </>
+      ) : null}
     </section>
   )
 }

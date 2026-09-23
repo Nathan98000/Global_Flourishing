@@ -6,7 +6,7 @@
 // (≤ 24px), hairline solid grid, 2px surface gaps and rings.
 
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { ciLabel, formatCount, formatEstimate, isShareStat } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
@@ -97,13 +97,11 @@ export function tipText(row: EstimateRow, label: string): string {
 /** Percent-scaled value for share stats (Plot draws 0–100, not 0–1). */
 export function plotValue(row: EstimateRow): number | null {
   if (row.estimate === null) return null
-  return row.stat === 'proportion' || row.stat === 'distribution'
-    ? row.estimate * 100
-    : row.estimate
+  return isShareStat(row.stat) ? row.estimate * 100 : row.estimate
 }
 
 export function plotCI(row: EstimateRow): [number, number] | null {
   if (!hasCI(row)) return null
-  const scale = row.stat === 'proportion' || row.stat === 'distribution' ? 100 : 1
+  const scale = isShareStat(row.stat) ? 100 : 1
   return [(row.ci_lo as number) * scale, (row.ci_hi as number) * scale]
 }

@@ -31,24 +31,12 @@ import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
+import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
 const MapPanel = lazy(() => import('./MapPanel'))
 
 const route = getRouteApi('/')
-
-export const WAVE_TITLES: Record<string, string> = {
-  Y1: 'Wave 1, 2023',
-  MY: 'Midyear survey',
-  Y2: 'Wave 2, 2024',
-}
-
-/** Human chip labels for the wave codes (F6). */
-export const WAVE_CHIPS: Record<string, string> = {
-  Y1: '2023',
-  MY: 'Midyear',
-  Y2: '2024',
-}
 
 export function AtlasView() {
   const search = route.useSearch()

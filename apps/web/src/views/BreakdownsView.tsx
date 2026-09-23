@@ -33,7 +33,7 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from './AtlasView'
+import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/breakdowns')

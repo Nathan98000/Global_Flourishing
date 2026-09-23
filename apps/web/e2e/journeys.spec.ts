@@ -1,8 +1,46 @@
-// The six Phase 4 journeys (§2.11) over the built app + fixture tier.
-// No API runs in this suite: every view exercised here is static-first,
-// and journey 6 blocks the API at the network level to prove it.
+// The six Phase 4 journeys (§2.11) over the built app + fixture tier,
+// plus the Phase 5 launch-checklist journeys. No API runs in this suite:
+// every Phase 4 view is static-first (journey 6 blocks the API at the
+// network level to prove it), and the API-only Phase 5 views are served
+// their real synthetic responses back through route interception from
+// public/data/_fixtures (written by `make web-fixtures`).
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+
+const API = 'http://localhost:8080'
+
+const okHealth = {
+  status: 'ok',
+  service: 'flourish-atlas-api',
+  version: '0.2.0',
+  git_sha: 'abc1234def',
+  data: 'ok',
+  data_version: 'synthetic.0.0.1',
+}
+
+interface FixtureRow {
+  stat: string
+  n: number
+  group: Record<string, string | number | boolean | null>
+}
+
+function apiFixture(name: string): { meta: Record<string, unknown>; rows: FixtureRow[] } {
+  return JSON.parse(
+    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', name), 'utf8'),
+  ) as { meta: Record<string, unknown>; rows: FixtureRow[] }
+}
+
+/** Serve the live-API routes from fixtures: health says the data is up. */
+async function serveApi(page: Page, routes: Record<string, unknown>) {
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  for (const [path, body] of Object.entries(routes)) {
+    await page.route(`${API}${path}**`, (route) => route.fulfill({ json: body }))
+  }
+}
+
+const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage/i
 
 const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
 // The chart title is the measure alone since §7 (the wave rides last in
@@ -144,6 +182,52 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   // …and the app says so in plain words (F6).
   await expect(page.getByText(/Live data service is offline/)).toBeVisible()
   await expect(page.getByText(/standard views still work/)).toBeVisible()
+})
+
+test('7 — Change with a country where fewer people answered again: one plain sentence, no rates', async ({
+  page,
+}) => {
+  // The synthetic Testland keeps two thirds of its first-wave group;
+  // shrink its follow-up group to a fifth so the reserved sentence
+  // (owner decision 2) has a reason to appear — fixture rows, never
+  // real data.
+  const change = apiFixture('change-HAPPY-Y1-Y2.json')
+  for (const row of change.rows) {
+    if (row.stat === 'change' && row.group['country_code'] === 1) row.n = 10
+  }
+  await serveApi(page, { '/v1/change': change })
+
+  await page.goto('/change?outcome=HAPPY')
+  await expect(caption(page).first().getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(
+    caption(page)
+      .first()
+      .getByText(/2023 → 2024/),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('img', { name: /average change among the same people/ }),
+  ).toBeVisible()
+
+  // The one reserved sentence: once, no number, no jargon anywhere.
+  const sentence = page.getByText(
+    'In some countries fewer people answered the second time, so those estimates are less certain.',
+  )
+  await expect(sentence).toHaveCount(1)
+  const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(JARGON)
+  // No retention or coverage percentage: the only "%" on the page is the
+  // interval level in the footnote.
+  expect((text.match(/\d+(\.\d+)?\s?%/g) ?? []).filter((match) => match !== '95%')).toEqual([])
+
+  // Full numbers stay one click away: the n rides on every table row.
+  await page.getByText('Data table', { exact: true }).first().click()
+  const table = page.getByRole('table').first()
+  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
+  await expect(table.getByText('10', { exact: true })).toBeVisible()
+
+  // The URL is the state.
+  await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
 async function streamToString(download: {
