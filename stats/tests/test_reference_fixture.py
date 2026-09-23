@@ -12,8 +12,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERIFY_DIR = REPO_ROOT / "stats" / "verify"
 
-STATS = {"mean", "proportion", "quantile", "change", "correlation", "transition"}
+STATS = {"mean", "proportion", "quantile", "change", "correlation", "transition", "regression"}
 FILTERS = {"y1", "y2", "my", "y1_y2", "my_y2"}
+FAMILIES = {"gaussian", "binomial"}
+CASE_COUNT = 36
 
 
 def load() -> dict:
@@ -27,8 +29,8 @@ def test_harness_files_are_present() -> None:
     for name in ("cases.csv", "extract.py", "reference.R", "reference.json", "test_parity.py"):
         assert (VERIFY_DIR / name).exists(), name
     header = (VERIFY_DIR / "cases.csv").read_text().splitlines()
-    assert header[0] == "id,stat,country,filter,weight,var1,var2,by,p"
-    assert len(header) == 31  # header + 30 cases
+    assert header[0] == "id,stat,country,filter,weight,var1,var2,by,p,family"
+    assert len(header) == CASE_COUNT + 1  # header + cases
 
 
 def test_meta_records_the_provenance() -> None:
@@ -43,12 +45,12 @@ def test_meta_records_the_provenance() -> None:
     assert meta["data_version"]
 
 
-def test_thirty_well_formed_cases() -> None:
+def test_every_case_is_well_formed() -> None:
     reference = load()
     cases = reference["cases"]
-    assert len(cases) == 30
+    assert len(cases) == CASE_COUNT
     ids = [case["id"] for case in cases]
-    assert len(set(ids)) == 30
+    assert len(set(ids)) == CASE_COUNT
 
     def finite(x: object) -> bool:
         return isinstance(x, int | float) and math.isfinite(x)
@@ -85,6 +87,14 @@ def test_thirty_well_formed_cases() -> None:
             assert case["p"] is not None and 0 < case["p"] < 1
         elif case["stat"] == "correlation":
             assert -1 <= expect["estimate"] <= 1 and expect["n"] > 0
+        elif case["stat"] == "regression":
+            assert case["family"] in FAMILIES, case["id"]
+            if case["by"] is None:
+                check_point(expect, min_se=1e-12)
+            else:
+                assert len(expect["levels"]) >= 2, case["id"]
+                for level in expect["levels"]:
+                    check_point(level, min_se=1e-12)
         elif case["stat"] == "transition":
             joint, conditional = expect["joint"], expect["conditional"]
             assert len(joint) == len(conditional)
@@ -111,3 +121,11 @@ def test_case_list_covers_the_required_designs() -> None:
     assert any(case["by"] == "age_band" for case in cases)
     assert any(case["by"] == "gender" for case in cases)
     assert any(case["weight"] == "w_l1m2" for case in cases)
+    # svyglm parity: both families, with and without a domain, in a
+    # clustered design and the self-representing US.
+    regressions = [case for case in cases if case["stat"] == "regression"]
+    assert {case["family"] for case in regressions} == FAMILIES
+    for family in FAMILIES:
+        assert any(case["family"] == family and case["by"] is None for case in regressions)
+        assert any(case["family"] == family and case["by"] is not None for case in regressions)
+    assert {9, 22} <= {case["country"] for case in regressions}

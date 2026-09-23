@@ -12,12 +12,14 @@ Tolerances (recorded here per statistic, as ADR-0006 documents):
 - standard errors: relative Δ ≤ 1e-6
 - quantiles: exact
 - correlations: |Δ| ≤ 1e-9
+- regression coefficients (svyglm): |Δ| ≤ 1e-9, SE relative Δ ≤ 1e-6
 - unweighted n: exact
 
 ``CASE_TOLERANCES`` may loosen a single case only together with a comment
 explaining the mechanism (none needed for survey 4.5).
 """
 
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -27,6 +29,7 @@ import pytest
 from flourish_stats import (
     Design,
     SuppressionPolicy,
+    adjusted_association,
     get,
     paired_change,
     transition_matrix,
@@ -36,6 +39,7 @@ from flourish_stats import (
     weighted_proportion,
     weighted_quantile,
 )
+from flourish_stats.correlations import DEFAULT_CONTROLS
 from flourish_stats.weights import eligibility_expr
 
 VERIFY_DIR = Path(__file__).resolve().parent
@@ -141,6 +145,34 @@ def test_parity(case_id: str, extract: pl.DataFrame) -> None:
         ).to_pylist()
         assert rows[0]["n"] == case["expect"]["n"]
         assert rows[0]["estimate"] == pytest.approx(case["expect"]["estimate"], abs=CORRELATION_ABS)
+    elif case["stat"] == "regression":
+        # The API's recode: binary items enter as the indicator of code 1.
+        if case["family"] == "binomial":
+            frame = frame.with_columns(
+                (pl.col(case["var1"]) == 1).cast(pl.Int8).alias(case["var1"])
+            )
+        rows = [
+            row
+            for row in adjusted_association(
+                frame,
+                case["var1"],
+                case["var2"],
+                design,
+                family=case["family"],
+                controls=DEFAULT_CONTROLS,
+                by=[case["by"]] if case["by"] else [],
+                policy=NO_SUPPRESSION,
+            ).to_pylist()
+            if row["measure"] == "beta"
+        ]
+        if case["by"] is None:
+            check_point(rows[0], case["expect"], estimate_abs=estimate_abs, se_rel=se_rel)
+        else:
+            by_level = {row[case["by"]]: row for row in rows}
+            for expect in case["expect"]["levels"]:
+                check_point(
+                    by_level[expect["level"]], expect, estimate_abs=estimate_abs, se_rel=se_rel
+                )
     elif case["stat"] == "transition":
         rows = transition_matrix(
             frame, case["var1"], case["var2"], design, policy=NO_SUPPRESSION
@@ -154,6 +186,8 @@ def test_parity(case_id: str, extract: pl.DataFrame) -> None:
         pytest.fail(f"unknown stat {case['stat']!r}")
 
 
-def test_reference_covers_thirty_cases(extract: pl.DataFrame) -> None:
-    assert len(CASES) == 30
+def test_reference_covers_every_case(extract: pl.DataFrame) -> None:
+    with (VERIFY_DIR / "cases.csv").open(newline="") as handle:
+        ids = {row["id"] for row in csv.DictReader(handle)}
+    assert set(CASES) == ids and len(ids) == 36
     assert extract.height == REFERENCE["meta"]["extract_rows"]
