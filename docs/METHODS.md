@@ -148,6 +148,39 @@ and transition matrices ("of the people who said X in 2023, what did
 they say in 2024?") come with the same per-cell uncertainty, and every
 cell is shown with its n.
 
+## The same people a year later
+
+The Change view shows how the **same people** answered a year later —
+never the difference between the 2023 average and the 2024 average, which
+would mix real change with changes in who answered. Each country's figure
+is the average of (2024 answer − 2023 answer) across the respondents who
+answered the question both times, weighted with the longitudinal weight
+`w_l2` (or `w_l1m2` for the three-point 2023 → mid-2024 → 2024 panel),
+which re-balances the retained group back toward the original Wave 1
+population. Zero on the chart means no average change.
+
+**Why fewer second answers widen the interval.** Only respondents
+retained at Wave 2 who answered both times form a pair, so a country's
+follow-up group is always smaller than its Wave 1 sample — sometimes much
+smaller (retention runs from 23% of the Wave 1 sample in Hong Kong to 90%
+in China). A smaller group means a larger standard error, and the
+confidence interval widens accordingly; the attrition adjustment in the
+weight corrects who the retained group stands for, but cannot add back
+the people who were not interviewed. The interval, not a rate, is the
+app's signal of that uncertainty. Where a country's follow-up group falls
+below half of its Wave 1 n, the figure carries one plain sentence saying
+that its estimates are less certain (ADR-0013); no retention percentage
+is shown in the views.
+
+**Where to find the n.** Every row of every data table carries the
+unweighted n behind it — for a change figure, the number of complete
+pairs — and the CSV export repeats it, alongside the Wave 1 n in the
+Atlas's own table for the same measure. The Codebook's "Answered, by
+country and wave" table gives the full per-variable picture. The
+histogram of individual change and the transition matrix ("of the people
+who said X in 2023, what did they say in 2024?") are estimated on the same
+pairs, with the same per-cell interval and n.
+
 ## Medians and correlations
 
 **Quantiles** (like medians) are computed from the weighted cumulative

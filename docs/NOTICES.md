@@ -9,6 +9,7 @@ we ship directly.
 |---|---|---|
 | **Source Serif 4** (Adobe / Frank Grießhammer) | Two self-hosted static latin-subset WOFF2 files (400, 600) in `apps/web/public/fonts/` — no font CDN request at runtime | [SIL OFL 1.1](../apps/web/public/fonts/OFL.txt) (copy ships beside the fonts) |
 | **Natural Earth** country geometries (via `world-atlas`) | The 1:50m countries topology, bundled as a lazy chunk for the map view | Public domain |
+| **US Census Bureau** state geometries (via `us-atlas` 3.0.1, © 2013–2019 Michael Bostock) | `states-10m.json`, vendored as `apps/web/src/charts/assets/us-states-10m.json` and fetched only inside the lazy US States map chunk | Geometry public domain; the us-atlas build [ISC](https://github.com/topojson/us-atlas/blob/main/LICENSE) |
 
 Data citation lives in the app footer and `README.md` (Global Flourishing
 Study, DOI 10.17605/OSF.IO/3JTZ8) — it is a data-use term, not a licence

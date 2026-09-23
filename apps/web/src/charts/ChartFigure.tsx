@@ -15,7 +15,7 @@ import styles from './ChartFigure.module.css'
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
-export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'table'
+export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'state-map' | 'table'
 
 /** The footnote under every chart (round-2 item 7): what the lines are
  * — 95% confidence intervals, the level from the response — the
@@ -26,16 +26,19 @@ export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks): string {
   const interval =
     marks === 'map'
       ? `Hover a country for its ${level}% confidence interval`
-      : marks === 'table'
-        ? `Hover a cell for its ${level}% confidence interval`
-        : `Lines are ${level}% confidence intervals`
+      : marks === 'state-map'
+        ? `Hover a state for its ${level}% confidence interval`
+        : marks === 'table'
+          ? `Hover a cell for its ${level}% confidence interval`
+          : `Lines are ${level}% confidence intervals`
   const where =
-    marks === 'map'
+    marks === 'map' || marks === 'state-map'
       ? 'n in the data table'
       : marks === 'table'
         ? 'n in every cell and in the data table'
         : 'n shown per row in the data table'
-  return `${interval} · weighted so each country's sample stands for its adult population · ${where}.`
+  const unit = marks === 'state-map' ? 'state' : 'country'
+  return `${interval} · weighted so each ${unit}'s sample stands for its adult population · ${where}.`
 }
 
 export function ChartFigure({

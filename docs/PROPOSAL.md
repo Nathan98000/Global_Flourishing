@@ -315,6 +315,8 @@ Define design tokens and the chart component library (ranked bar with CI, dot pl
 
 Implement Change (paired shift with CI, histogram of individual change, transition matrix, retention banner; wave pairs Y1→Y2 and, for standalone-midyear respondents, Y1→MY→Y2), Compare (2–5 countries or segments across domains), What Matters (midyear importance rankings by country and age; priorities × Wave 2 flourishing; social media time × mental health; food insecurity × financial domain), and US States (state choropleth using state weights for annual and midyear items). Add the population-rescaled "all countries" option with its warning label. **Exit:** every Y1, MY, and Y2 variable can be reached through at least one view; coverage is displayed wherever Wave 2 or midyear data appear.
 
+*Revised 23 September 2026 ([ADR-0013](adr/ADR-0013-phase-5-serving-and-display.md)):* the exit criterion is narrowed — retention is for the maths, not the interface. No coverage or follow-up figure is displayed with Wave 2 or midyear estimates; the interval and the unweighted n carry the signal, and a single plain sentence appears only where a country's follow-up group is small. The population-rescaled "all countries" option is deferred until the owner decides it.
+
 ### Phase 6 — Correlates and modelling (weeks 12–14)
 
 Add weighted correlations and adjusted associations (weighted OLS/logit with the fixed control set and country fixed effects) to the engine and API; build the Correlates view with a per-country heatmap and a ranked list; write model cards describing specification, controls, and limitations; place "associations, not causes" copy in the UI and expand the Methods page. **Exit:** view live; methods reviewed by at least one person with a statistics background.
