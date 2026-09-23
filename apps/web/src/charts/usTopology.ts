@@ -1,7 +1,8 @@
 // The US states topology for the state choropleth (Phase 5): us-atlas
-// states-10m, vendored under charts/assets (no new dependency — see the
-// README there) and fetched only inside the lazy US States map chunk,
-// exactly the way the world map loads.
+// states-10m, the same author's build as the world map's world-atlas,
+// pinned to 3.0.1. The JSON rides as a hashed Vite asset (~115 KB raw /
+// 36 KB gz) fetched only inside the lazy US States map chunk, never in
+// the initial route — exactly the way the world topology loads.
 //
 // The release keys states by two-letter code — plus four pooled groups
 // of small states (ME_NH_RI_VT, DE_MS_WV, AK_HI_MT, ND_SD_WY) so state
@@ -13,7 +14,7 @@
 import { feature } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
 import type { EstimateRow } from '../api/types'
-import topologyUrl from './assets/us-states-10m.json?url'
+import topologyUrl from 'us-atlas/states-10m.json?url'
 import { plotValue } from './theme'
 
 export interface UsFeature {

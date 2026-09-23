@@ -1,5 +1,5 @@
-// US States (Phase 5): the vendored topology resolves every state and
-// DC, pooled groups fill each member, the choropleth wears token fills
+// US States (Phase 5): the shipped topology (us-atlas states-10m)
+// resolves every state and DC, pooled groups fill each member, the choropleth wears token fills
 // with the "no estimate" swatch for absent states, the adjusted-weight
 // control is unavailable on Wave 1 with its reason, and the states are
 // read beside the US overall figure.
@@ -32,7 +32,7 @@ import {
 import { sortStateRows } from '../views/stateRows'
 
 const topology = JSON.parse(
-  readFileSync(join(process.cwd(), 'src', 'charts', 'assets', 'us-states-10m.json'), 'utf8'),
+  readFileSync(join(process.cwd(), 'node_modules', 'us-atlas', 'states-10m.json'), 'utf8'),
 ) as unknown
 const features = featuresFromUsTopology(topology)
 
@@ -116,7 +116,7 @@ const tier: Routes = {
     ...statesResponse,
     meta: { ...statesResponse.meta, waves: ['Y2'] },
   },
-  'us-states-10m': topology,
+  'states-10m': topology,
 }
 
 afterEach(() => {
