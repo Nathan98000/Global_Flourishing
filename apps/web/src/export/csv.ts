@@ -6,7 +6,7 @@
 
 import type { EstimateResponse, EstimateRow } from '../api/types'
 
-const SUBROW_KEYS = ['level', 'p', 'leg', 'from_level', 'to_level', 'measure'] as const
+const SUBROW_KEYS = ['predictor', 'level', 'p', 'leg', 'from_level', 'to_level', 'measure'] as const
 
 const RECORD_FIELDS = [
   'stat',

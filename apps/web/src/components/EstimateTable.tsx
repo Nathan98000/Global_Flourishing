@@ -11,15 +11,20 @@ import type { Meta } from '../api/types'
 import { legTitle } from '../waves'
 import styles from './EstimateTable.module.css'
 
-/** The transition measures in words (the engine's names never reach the page). */
+/** The sub-row measures in words (the engine's names never reach the
+ * page): the transition matrix's two shares, and the adjusted model's
+ * two coefficients — per unit of the measure, and per one standard
+ * deviation of it. */
 const MEASURE_WORDS: Record<string, string> = {
   transition_joint: 'share of all pairs',
   transition_conditional: 'share within the first answer',
+  beta: 'per unit of the measure',
+  beta_per_sd: 'per one standard deviation of the measure',
 }
 
 function present(
   rows: readonly EstimateRow[],
-  key: 'level' | 'p' | 'leg' | 'from_level' | 'to_level' | 'measure',
+  key: 'predictor' | 'level' | 'p' | 'leg' | 'from_level' | 'to_level' | 'measure',
 ) {
   return rows.some((row) => row[key] !== null && row[key] !== undefined)
 }
@@ -30,6 +35,7 @@ export function EstimateTable({
   caption,
   levelLabel,
   groupLabel,
+  predictorLabel,
 }: {
   response: EstimateResponse
   meta: Meta
@@ -40,14 +46,24 @@ export function EstimateTable({
   /** Labels for a group column meta cannot name (e.g. a measure code in
    * the Compare view); falls back to meta's labels. */
   groupLabel?: (column: string, value: string | number) => string | undefined
+  /** Display names for the `predictor` sub-row key (the Correlates view's
+   * catalog names); absent = the code. */
+  predictorLabel?: (name: string) => string | undefined
 }) {
   const by = response.meta.by
   const rows = response.rows
+  const hasPredictor = present(rows, 'predictor')
   const hasLevel = present(rows, 'level')
   const hasP = present(rows, 'p')
   const hasLeg = present(rows, 'leg')
   const hasTransition = present(rows, 'from_level') || present(rows, 'to_level')
   const hasMeasure = present(rows, 'measure')
+  // The adjusted model's rows distinguish two units of the same
+  // coefficient; the transition matrix's rows distinguish two shares.
+  const measureHeader = rows.some((row) => row.stat === 'beta') ? 'Unit' : 'Measure'
+  // A response of point estimates (plain correlations) has no interval to
+  // tabulate: the column goes, rather than a column of dashes under "95% CI".
+  const hasIntervals = !(rows.length > 0 && rows.every((row) => row.ci_method === 'none'))
   const level = (value: number | null | undefined) =>
     value === null || value === undefined ? '—' : (levelLabel?.(value) ?? String(value))
   return (
@@ -62,6 +78,7 @@ export function EstimateTable({
         </caption>
         <thead>
           <tr>
+            {hasPredictor && <th scope="col">Measure</th>}
             {by.map((column) => (
               <th key={column} scope="col">
                 {columnLabel(column, meta)}
@@ -71,18 +88,23 @@ export function EstimateTable({
             {hasLevel && <th scope="col">Level</th>}
             {hasTransition && <th scope="col">First answer</th>}
             {hasTransition && <th scope="col">Later answer</th>}
-            {hasMeasure && <th scope="col">Measure</th>}
+            {hasMeasure && <th scope="col">{measureHeader}</th>}
             {hasP && <th scope="col">p</th>}
             <th scope="col">Estimate</th>
-            <th scope="col" className={styles.ci}>
-              {ciLabel(response.meta.ci_level)}
-            </th>
+            {hasIntervals && (
+              <th scope="col" className={styles.ci}>
+                {ciLabel(response.meta.ci_level)}
+              </th>
+            )}
             <th scope="col">n</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
             <tr key={index}>
+              {hasPredictor && (
+                <td>{row.predictor ? (predictorLabel?.(row.predictor) ?? row.predictor) : '—'}</td>
+              )}
               {by.map((column) => (
                 <td key={column}>
                   {groupValueLabel(column, row.group[column] ?? null, meta, groupLabel)}
@@ -97,7 +119,7 @@ export function EstimateTable({
               )}
               {hasP && <td>{row.p ?? '—'}</td>}
               <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
-              <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>
+              {hasIntervals && <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>}
               <td className={styles.number}>{formatCount(row.n)}</td>
             </tr>
           ))}

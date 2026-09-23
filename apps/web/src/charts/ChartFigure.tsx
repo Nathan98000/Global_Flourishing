@@ -20,11 +20,16 @@ export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'state-map' | 'table
 /** The footnote under every chart (round-2 item 7): what the lines are
  * — 95% confidence intervals, the level from the response — the
  * weighting in one clause, and where the n lives. No sentence explains
- * what a confidence interval means; that is the Methods page's job. */
-export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks): string {
+ * what a confidence interval means; that is the Methods page's job. A
+ * response of point estimates (`ci_method = "none"`: plain correlations)
+ * says so instead of naming an interval that does not exist. */
+export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks, intervals = true): string {
   const level = Math.round(meta.ci_level * 100)
-  const interval =
-    marks === 'map'
+  const interval = !intervals
+    ? marks === 'table'
+      ? 'Cells are point estimates — no confidence interval is computed for a correlation'
+      : 'Dots are point estimates — no confidence interval is computed for a correlation'
+    : marks === 'map'
       ? `Hover a country for its ${level}% confidence interval`
       : marks === 'state-map'
         ? `Hover a state for its ${level}% confidence interval`
@@ -53,6 +58,8 @@ export function ChartFigure({
   isRefreshing = false,
   levelLabel,
   groupLabel,
+  predictorLabel,
+  footnote,
   children,
 }: {
   title: string
@@ -73,6 +80,10 @@ export function ChartFigure({
   /** Passed through to the data table (see EstimateTable). */
   levelLabel?: (level: number) => string | undefined
   groupLabel?: (column: string, value: string | number) => string | undefined
+  predictorLabel?: (name: string) => string | undefined
+  /** Extra plain sentences in the footnote, before the Methods link (a
+   * caveat the view owes its reader — never a callout box). */
+  footnote?: React.ReactNode
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -80,6 +91,11 @@ export function ChartFigure({
   // A refetch keeps the chart (dimmed) and, past the same 600 ms, wears
   // the thin progress bar on its top rule — never a loading block.
   const [showProgress] = useDelayedFlags(isRefreshing)
+  // Plain correlations ship no interval at all; the footnote must not
+  // describe lines that are not drawn.
+  const intervals = !(
+    response.rows.length > 0 && response.rows.every((row) => row.ci_method === 'none')
+  )
 
   const exportPng = async () => {
     const svg = chartRef.current?.querySelector('svg')
@@ -152,10 +168,12 @@ export function ChartFigure({
           meta={meta}
           levelLabel={levelLabel}
           groupLabel={groupLabel}
+          predictorLabel={predictorLabel}
         />
       </details>
       <p className={styles.provenance}>
-        {footnoteCopy(response.meta, marks)} <Link to="/methods">How these numbers are made</Link>
+        {footnoteCopy(response.meta, marks, intervals)} {footnote}
+        <Link to="/methods">How these numbers are made</Link>
       </p>
     </figure>
   )
