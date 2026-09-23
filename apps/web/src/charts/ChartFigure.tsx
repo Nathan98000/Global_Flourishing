@@ -15,7 +15,7 @@ import styles from './ChartFigure.module.css'
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
-export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map'
+export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'table'
 
 /** The footnote under every chart (round-2 item 7): what the lines are
  * — 95% confidence intervals, the level from the response — the
@@ -26,8 +26,15 @@ export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks): string {
   const interval =
     marks === 'map'
       ? `Hover a country for its ${level}% confidence interval`
-      : `Lines are ${level}% confidence intervals`
-  const where = marks === 'map' ? 'n in the data table' : 'n shown per row in the data table'
+      : marks === 'table'
+        ? `Hover a cell for its ${level}% confidence interval`
+        : `Lines are ${level}% confidence intervals`
+  const where =
+    marks === 'map'
+      ? 'n in the data table'
+      : marks === 'table'
+        ? 'n in every cell and in the data table'
+        : 'n shown per row in the data table'
   return `${interval} · weighted so each country's sample stands for its adult population · ${where}.`
 }
 
@@ -41,6 +48,9 @@ export function ChartFigure({
   meta,
   csv,
   isRefreshing = false,
+  levelLabel,
+  groupLabel,
+  note,
   children,
 }: {
   title: string
@@ -58,6 +68,12 @@ export function ChartFigure({
   csv?: CsvExport
   /** Refetch keeps the frame: previous render held at reduced opacity. */
   isRefreshing?: boolean
+  /** Passed through to the data table (see EstimateTable). */
+  levelLabel?: (level: number) => string | undefined
+  groupLabel?: (column: string, value: string | number) => string | undefined
+  /** Rendered between the chart and the data table — a figure's own
+   * one-line note (the Change view's reserved sentence). */
+  note?: React.ReactNode
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -130,9 +146,15 @@ export function ChartFigure({
       >
         {children}
       </div>
+      {note}
       <details className={styles.details}>
         <summary>Data table</summary>
-        <EstimateTable response={response} meta={meta} />
+        <EstimateTable
+          response={response}
+          meta={meta}
+          levelLabel={levelLabel}
+          groupLabel={groupLabel}
+        />
       </details>
       <p className={styles.provenance}>
         {footnoteCopy(response.meta, marks)} <Link to="/methods">How these numbers are made</Link>

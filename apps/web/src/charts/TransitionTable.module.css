@@ -1,0 +1,56 @@
+/* A small heatmap table: hairline rows, tabular numerals, ink text over
+   graded accent tints (both themes). Scrolls sideways under the column
+   rather than breaking it. */
+.scroll {
+  overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+
+.table {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+}
+
+.caption {
+  text-align: left;
+  caption-side: top;
+  color: var(--ink);
+  font-weight: 600;
+  padding-bottom: var(--space-2);
+}
+
+.table th,
+.table td {
+  padding: var(--space-1) var(--space-3);
+  border-top: 1px solid var(--grid);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table th[scope='row'] {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.table thead th {
+  color: var(--ink-secondary);
+  font-weight: 500;
+  border-top: 0;
+  vertical-align: bottom;
+}
+
+.corner {
+  text-align: left;
+}
+
+.axis {
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.cell {
+  color: var(--ink);
+  min-width: 4.5rem;
+}

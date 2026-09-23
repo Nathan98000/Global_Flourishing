@@ -46,12 +46,22 @@ export function Histogram({
   responseMeta,
   variable,
   color,
+  levels: levelsProp,
+  xLabel,
+  levelLabel,
 }: {
   rows: EstimateRow[]
   meta: Meta
   responseMeta: ResponseMeta
   variable: VariableSummary
   color: string
+  /** The bin grid; defaults to the variable's [min, max]. The change
+   * histogram passes the signed −span…+span buckets instead. */
+  levels?: number[]
+  /** Axis title; defaults to "Answer (min–max)". */
+  xLabel?: string
+  /** Tick and tip rendering of a bin (signed for change buckets). */
+  levelLabel?: (level: number) => string
 }) {
   const container = usePlot(
     (available) => {
@@ -61,12 +71,14 @@ export function Histogram({
       const facetChannel: Record<string, string> = faceted ? { fx: 'facet' } : {}
       const valid = entries.filter((entry) => entry.value !== null)
       const levels =
-        variable.min !== null && variable.max !== null
+        levelsProp ??
+        (variable.min !== null && variable.max !== null
           ? Array.from(
               { length: variable.max - variable.min + 1 },
               (_, i) => (variable.min ?? 0) + i,
             )
-          : [...new Set(entries.map((entry) => entry.level))].sort((a, b) => a - b)
+          : [...new Set(entries.map((entry) => entry.level))].sort((a, b) => a - b))
+      const label = levelLabel ?? ((level: number) => String(level))
       // Fit the y-domain to the tallest bin (CI included) across the
       // countries in view; bars keep their zero baseline.
       const scale = fittedScale(
@@ -85,9 +97,13 @@ export function Histogram({
         },
         x: {
           domain: levels,
-          label: `Answer (${variable.min ?? '·'}–${variable.max ?? '·'})`,
+          label: xLabel ?? `Answer (${variable.min ?? '·'}–${variable.max ?? '·'})`,
           labelAnchor: 'center',
           tickSize: 0,
+          tickFormat: label,
+          // Twenty-one signed buckets would collide on a phone: thin the
+          // tick labels while every bar stays.
+          ...(levels.length > 12 ? { ticks: levels.filter((level) => level % 2 === 0) } : {}),
         },
         y: {
           domain: scale.domain,
@@ -125,14 +141,17 @@ export function Histogram({
               x: 'level',
               y: (entry: BinEntry) => entry.value ?? 0,
               title: (entry: BinEntry) =>
-                tipText(entry.row, `${entry.facet} · answer ${entry.level}`),
+                tipText(
+                  entry.row,
+                  `${entry.facet} · ${levelsProp ? 'change' : 'answer'} ${label(entry.level)}`,
+                ),
               fontFamily: FONT_FAMILY,
             }),
           ),
         ],
       })
     },
-    [rows, meta, responseMeta, variable, color],
+    [rows, meta, responseMeta, variable, color, levelsProp, xLabel, levelLabel],
   )
 
   return <div ref={container} />

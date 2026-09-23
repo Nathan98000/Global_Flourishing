@@ -8,7 +8,10 @@ Playwright and Lighthouse all consume it, so CI never needs real data and
 no file derived from the release is ever committed (CLAUDE.md).
 
 Also drops `_fixtures/export-sample.csv` (a real /v1/export.csv response
-over the synthetic data) for the client-side CSV parity test.
+over the synthetic data) for the client-side CSV parity test, and — for
+the Phase 5 views, which the static tier never precomputes — real
+/v1/change and /v1/states responses the Playwright journeys serve back
+through route interception (no API process runs in that suite).
 """
 
 from __future__ import annotations
@@ -35,6 +38,33 @@ FIXTURE_OUTCOMES = ("HAPPY", "LONELY", "ATTEND_SVCS", "BALANCE", "MONEY", "sfi",
 
 DATA_VERSION = "synthetic.0.0.1"
 
+#: API-only responses for the Phase 5 journeys: a 0-10 pair (change +
+#: histogram), an ordinal pair (adds the transition matrix), the
+#: three-point panel, and two state cross-sections (plain and adjusted).
+API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
+    (
+        "change-HAPPY-Y1-Y2.json",
+        "/v1/change",
+        {"outcome": "HAPPY", "from": "Y1", "to": "Y2", "by": "country_code"},
+    ),
+    (
+        "change-ATTEND_SVCS-Y1-Y2.json",
+        "/v1/change",
+        {"outcome": "ATTEND_SVCS", "from": "Y1", "to": "Y2", "by": "country_code"},
+    ),
+    (
+        "change-BALANCE-Y1-MY-Y2.json",
+        "/v1/change",
+        {"outcome": "BALANCE", "from": "Y1", "via": "MY", "to": "Y2", "by": "country_code"},
+    ),
+    ("states-HAPPY-Y1.json", "/v1/states", {"outcome": "HAPPY", "wave": "Y1", "stat": "mean"}),
+    (
+        "states-HAPPY-Y2-adj.json",
+        "/v1/states",
+        {"outcome": "HAPPY", "wave": "Y2", "stat": "mean", "adj": "true"},
+    ),
+)
+
 
 def main() -> int:
     target = REPO_ROOT / "apps" / "web" / "public" / "data"
@@ -54,6 +84,10 @@ def main() -> int:
         fixtures = target / "_fixtures"
         fixtures.mkdir()
         (fixtures / "export-sample.csv").write_text(sample.text)
+        for name, path, params in API_FIXTURES:
+            response = client.get(path, params=params)
+            response.raise_for_status()
+            (fixtures / name).write_text(response.text)
 
     print(
         f"web-fixtures: {index['file_count']} static files + catalog tier "
