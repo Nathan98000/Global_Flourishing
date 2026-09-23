@@ -9,14 +9,20 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 5 complete — panel, midyear and US views.** Atlas
-(ranked dots, a world choropleth, distributions, medians), **Change**
-(how the same people answered a year later: within-person change with
-its interval and a marked zero, the histogram of individual change, and
-where people moved between answers), **Compare** (two to five countries
-across the six flourishing domains, one panel per domain — never a
-radar), **What Matters** (the midyear survey: what people said mattered
-most by country and by age), **US States** (a state choropleth on the
+**Status: Phase 6 complete — correlates and adjusted models (statistics
+review pending).** Atlas (ranked dots, a world choropleth, distributions,
+medians), **Change** (how the same people answered a year later:
+within-person change with its interval and a marked zero, the histogram
+of individual change, and where people moved between answers),
+**Compare** (two to five countries across the six flourishing domains,
+one panel per domain — never a radar), **What Matters** (the midyear
+survey: what people said mattered most by country and by age),
+**Correlates** (what travels with a measure: the strongest associations
+in one country, ranked, and the same measures across every country as a
+tinted matrix — plain weighted correlations shown as point estimates, or
+adjusted associations from survey-weighted models under a fixed control
+set with design-based intervals and a model card per family; associations,
+not causes, said on the page), **US States** (a state choropleth on the
 state-calibrated weights beside the national figure), Breakdowns (small
 multiples by country × demographic), a searchable Codebook with exact
 question wording, and a Methods page rendered from
@@ -76,7 +82,7 @@ flowchart TB
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TS + Vite: Atlas, Change, Compare, What Matters, US States, Breakdowns, Codebook, Methods; Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
+| `apps/web/` | React 18 + TS + Vite: Atlas, Change, Compare, What Matters, Correlates, US States, Breakdowns, Codebook, Methods, model cards; Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
 | `services/api/` | FastAPI service (Phase 0: `/health`; Phase 3: `/v1/*`) |
 | `stats/` | Statistics engine: survey-weighted estimators with design-based CIs, verified against R `survey` (`stats/verify/`) |
 | `pipeline/` | Data pipeline (Phase 1: ingest → clean → reshape → derive → validate → aggregate) |
@@ -134,7 +140,7 @@ deploy jobs with a notice.
 | 3 API ✅ | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
 | 4 Front-end MVP ✅ | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
 | 5 Panel, midyear & US ✅ | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI; retention off the screen (ADR-0013) |
-| 6 Correlates | 12–14 | Correlates view, adjusted models, model cards | Methods page updated; caveats shown in-product |
+| 6 Correlates ✅ | 12–14 | Correlates view, adjusted models, model cards | Methods page updated; caveats shown in-product; statistics review pending (owner, ADR-0014) |
 | 7 Hardening | 14–15 | E2E, load test, monitoring, docs | Launch checklists complete |
 | 8 Launch & packaging | 16 | v1.0 tag, case study, demo video, README | Published and linked from portfolio |
 
