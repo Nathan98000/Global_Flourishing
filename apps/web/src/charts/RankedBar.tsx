@@ -34,14 +34,27 @@ interface Entry {
 }
 
 /** Rows arrive already ordered (src/sortRows.ts — the same order the
- * data table renders); the chart never re-sorts. */
-export function rankEntries(rows: EstimateRow[], meta: Meta): Entry[] {
+ * data table renders); the chart never re-sorts. Rows are countries
+ * unless another group column is named (the US States view's `state`,
+ * whose codes are the server's own labels). */
+export function rankEntries(
+  rows: EstimateRow[],
+  meta: Meta,
+  labelColumn = 'country_code',
+): Entry[] {
   return rows.map((row) => ({
     row,
-    label: groupValueLabel('country_code', row.group['country_code'] ?? null, meta),
+    label: groupValueLabel(labelColumn, row.group[labelColumn] ?? null, meta),
     value: plotValue(row),
     ci: plotCI(row),
   }))
+}
+
+/** A reference estimate drawn as a dashed rule with its label (the US
+ * overall figure behind the states). */
+export interface Reference {
+  value: number
+  label: string
 }
 
 export function RankedBar({
@@ -51,6 +64,8 @@ export function RankedBar({
   variable,
   color,
   levelLabel,
+  labelColumn = 'country_code',
+  reference,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -58,10 +73,27 @@ export function RankedBar({
   variable: VariableSummary
   color: string
   levelLabel?: string
+  /** The group column that names each row (country by default). */
+  labelColumn?: string
+  /** A reference figure to draw as a dashed rule (already plot-scaled). */
+  reference?: Reference
 }) {
   const container = usePlot(
     (available) => {
-      const entries = rankEntries(rows, meta)
+      const entries = rankEntries(rows, meta, labelColumn)
+      const referenceMarks = reference
+        ? [
+            Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
+            Plot.text([reference.value], {
+              x: (value: number) => value,
+              text: () => reference.label,
+              frameAnchor: 'bottom',
+              dy: 14,
+              fill: INK_SECONDARY,
+              fontSize: 11,
+            }),
+          ]
+        : []
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -81,10 +113,12 @@ export function RankedBar({
 
       if (!isShare) {
         // Location stats on a bounded scale: dot + CI on a fitted window.
-        const scale = fittedScale(ciExtents(valid), { targetTicks: narrow ? 5 : 7 })
+        const scale = fittedScale([...ciExtents(valid), ...(reference ? [reference.value] : [])], {
+          targetTicks: narrow ? 5 : 7,
+        })
         const [lo, hi] = scale.domain
         return Plot.plot({
-          height: height + 16,
+          height: height + 16 + (reference ? 18 : 0),
           width,
           marginLeft,
           marginRight,
@@ -139,14 +173,19 @@ export function RankedBar({
                 fontFamily: FONT_FAMILY,
               }),
             ),
+            ...referenceMarks,
           ],
         })
       }
 
       // Shares: zero-based bars (a length encoding needs its baseline).
-      const xMax = Math.max(10, ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05))
+      const xMax = Math.max(
+        10,
+        ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05),
+        (reference?.value ?? 0) * 1.05,
+      )
       return Plot.plot({
-        height,
+        height: height + (reference ? 18 : 0),
         width,
         marginLeft,
         marginRight,
@@ -197,10 +236,11 @@ export function RankedBar({
               fontFamily: FONT_FAMILY,
             }),
           ),
+          ...referenceMarks,
         ],
       })
     },
-    [rows, meta, responseMeta, variable, color, levelLabel],
+    [rows, meta, responseMeta, variable, color, levelLabel, labelColumn, reference],
   )
 
   return <div ref={container} />

@@ -280,6 +280,31 @@ test('8 — What Matters with a combined-midyear country: the ranking, the split
   await expect(page.getByRole('img', { name: /one panel per gender/ })).toBeVisible()
 })
 
+test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({
+  page,
+}) => {
+  await serveApi(page, { '/v1/states': apiFixture('states-HAPPY-Y1.json') })
+  await page.goto('/states?outcome=HAPPY')
+  await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+  await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
+  await expect(page.getByText(/US overall, on the national weight/)).toBeVisible()
+  // The map's own topology arrives as a lazy asset, never in the initial route.
+  const figure = page.getByRole('img', { name: /Happiness by US state/ })
+  await expect(figure).toBeVisible()
+  await expect(figure.locator('svg path').first()).toBeVisible()
+  await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
+  // Adjusted weights are unavailable on Wave 1, with the reason.
+  await expect(page.getByLabel(/Adjusted state weights/)).toBeDisabled()
+  await expect(page.getByText(/no adjusted state weight for Wave 1, 2023/)).toBeVisible()
+  // The chart view and the table carry the server's state codes.
+  await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
+  await page.getByText('Data table', { exact: true }).click()
+  const table = page.getByRole('table')
+  await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
+  await expect(table.getByText('CA', { exact: true })).toBeVisible()
+})
+
 async function streamToString(download: {
   createReadStream: () => Promise<NodeJS.ReadableStream>
 }): Promise<string> {

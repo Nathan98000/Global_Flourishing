@@ -9,10 +9,17 @@ the midyear survey. Pick an outcome, slice it by country and demographics,
 follow the same people across waves, and read the exact question wording
 behind every number.
 
-**Status: Phase 4 complete — front-end MVP.** Atlas (ranked bars, a
-world choropleth, distributions, medians), Breakdowns (small multiples
-by country × demographic), a searchable Codebook with exact question
-wording, and a Methods page rendered from
+**Status: Phase 5 complete — panel, midyear and US views.** Atlas
+(ranked dots, a world choropleth, distributions, medians), **Change**
+(how the same people answered a year later: within-person change with
+its interval and a marked zero, the histogram of individual change, and
+where people moved between answers), **Compare** (two to five countries
+across the six flourishing domains, one panel per domain — never a
+radar), **What Matters** (the midyear survey: what people said mattered
+most by country and by age), **US States** (a state choropleth on the
+state-calibrated weights beside the national figure), Breakdowns (small
+multiples by country × demographic), a searchable Codebook with exact
+question wording, and a Methods page rendered from
 [docs/METHODS.md](docs/METHODS.md). The URL is the state — every view
 survives reload and pastes into another browser — with CSV/PNG export,
 dark mode, and every cell shown with its n — small cells included
@@ -20,19 +27,23 @@ dark mode, and every cell shown with its n — small cells included
 **static-first** ([ADR-0009](docs/adr/ADR-0009-static-first-fetch-layer.md)):
 the common views load from 2,158 precomputed JSON files on the app's own
 origin and the Atlas renders with the API cold, down or data-less;
-custom cuts (filters, second breakdowns, medians, `oriented`) fall back
-to the live `/v1` API, which stays envelope-identical by CI contract
-([ADR-0008](docs/adr/ADR-0008-one-envelope-two-tiers.md)). Measured:
-initial route 187.5 kB gzipped (budget 250), Lighthouse 0.98/1.00
-(Atlas) and 0.97/1.00 (Codebook) for performance/accessibility, six
-Playwright journeys in CI — including one with the API blocked at the
-network level ([ADR-0010](docs/adr/ADR-0010-frontend-rendering-stack.md)
-has the stack and the Hong Kong map story). The full plan is
+custom cuts (filters, second breakdowns, medians, `oriented`) and the
+Phase 5 change and state views fall back to the live `/v1` API, which
+stays envelope-identical by CI contract
+([ADR-0008](docs/adr/ADR-0008-one-envelope-two-tiers.md)) and answers a
+cold start behind a skeleton that grows a progress bar, never a spinner
+([ADR-0013](docs/adr/ADR-0013-phase-5-serving-and-display.md), which
+also records why retention stays off the screen). Measured: initial
+route 195.8 kB gzipped (budget 250), Lighthouse 0.98/1.00 (Atlas)
+and 0.97/1.00 (Codebook) for performance/accessibility, nine Playwright
+journeys in CI — including one with the API blocked at the network level
+([ADR-0010](docs/adr/ADR-0010-frontend-rendering-stack.md) has the stack
+and the Hong Kong map story). The full plan is
 [docs/PROPOSAL.md](docs/PROPOSAL.md); decisions live in
 [docs/adr/](docs/adr/); the owner's one-time cloud setup is
 [docs/SETUP.md](docs/SETUP.md).
 
-![The Atlas: Secure Flourishing Index by country as dots with confidence intervals on a fitted 5.5–8.5 window, every value labelled, topic and measure pickers above](docs/atlas-screenshot.png)
+![The Atlas: Secure Flourishing Index by country as dots with confidence intervals on a fitted window, every value labelled, topic and measure pickers above, the eight-view navigation across the top](docs/atlas-screenshot.png)
 
 Try it locally (with the built data present):
 
@@ -65,7 +76,7 @@ flowchart TB
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TS + Vite: Atlas/Breakdowns/Codebook/Methods, Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
+| `apps/web/` | React 18 + TS + Vite: Atlas, Change, Compare, What Matters, US States, Breakdowns, Codebook, Methods; Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
 | `services/api/` | FastAPI service (Phase 0: `/health`; Phase 3: `/v1/*`) |
 | `stats/` | Statistics engine: survey-weighted estimators with design-based CIs, verified against R `survey` (`stats/verify/`) |
 | `pipeline/` | Data pipeline (Phase 1: ingest → clean → reshape → derive → validate → aggregate) |
@@ -91,8 +102,9 @@ make help         # everything else
 ```
 
 The web test pyramid runs entirely against that synthetic fixture tier —
-vitest (97 tests), six Playwright journeys and Lighthouse CI never touch
-real data. To browse the app over the real build locally, stage the real
+vitest (186 tests), nine Playwright journeys and Lighthouse CI never
+touch real data (the API-only views are served their synthetic responses
+back through route interception). To browse the app over the real build locally, stage the real
 tier instead: `rsync -a --delete data/static/ apps/web/public/data/`
 (both paths stay git-ignored; `make web-fixtures` restores the synthetic
 tier).
@@ -121,7 +133,7 @@ deploy jobs with a notice.
 | 2 Statistics engine ✅ | 4–5 | Weighted estimators with design-based CIs | 30 estimates match R `survey` within tolerance |
 | 3 API ✅ | 5–7 | FastAPI on Cloud Run; static aggregate export | Contract tests pass; p95 < 300 ms on hot queries |
 | 4 Front-end MVP ✅ | 7–10 | Atlas, Breakdowns, Codebook, Methods; URL state | Public MVP; Lighthouse ≥ 90 / a11y ≥ 95 |
-| 5 Panel, midyear & US | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI |
+| 5 Panel, midyear & US ✅ | 10–12 | Change, Compare, What Matters, US States views | All Y1/MY/Y2 data reachable through the UI; retention off the screen (ADR-0013) |
 | 6 Correlates | 12–14 | Correlates view, adjusted models, model cards | Methods page updated; caveats shown in-product |
 | 7 Hardening | 14–15 | E2E, load test, monitoring, docs | Launch checklists complete |
 | 8 Launch & packaging | 16 | v1.0 tag, case study, demo video, README | Published and linked from portfolio |
