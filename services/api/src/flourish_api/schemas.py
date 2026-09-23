@@ -154,10 +154,13 @@ class EstimateRow(BaseModel):
     and null the estimates. The optional key fields identify sub-rows:
     ``level`` (proportions/distributions), ``p`` (quantiles), ``leg``
     (three-point panels), ``from_level``/``to_level``/``measure``
-    (transition matrices).
+    (transition matrices; also the ``beta``/``beta_per_sd`` rows of an
+    adjusted association) and ``predictor`` (the item an association is
+    taken against, /v1/correlates).
     """
 
     group: dict[str, GroupValue]
+    predictor: str | None = None
     level: int | None = None
     p: float | None = None
     leg: str | None = None
@@ -206,6 +209,15 @@ class ResponseMeta(BaseModel):
     n_valid: int
     by: list[str]
     filters: dict[str, list[GroupValue]]
+    #: /v1/correlates only (absent from every other response and from the
+    #: static tier): whether the rows are adjusted-model coefficients
+    #: (``stat = "beta"``) rather than plain correlations; the control set
+    #: actually in the model (country fixed effects only when several
+    #: countries share the frame); and which model card applies
+    #: (``continuous`` | ``binary``).
+    adjusted: bool | None = None
+    controls: list[str] | None = None
+    model: str | None = None
 
 
 class EstimateResponse(BaseModel):

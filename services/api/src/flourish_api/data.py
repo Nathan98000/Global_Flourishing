@@ -19,6 +19,7 @@ the image without any data — honestly green.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -26,7 +27,7 @@ import duckdb
 import polars as pl
 from fastapi import HTTPException, Request
 from flourish_stats import SuppressionPolicy
-from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame
+from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame, wide_frame
 
 # The servable allow-list and the derived-score registry are shared data
 # semantics (flourish_stats.outcomes): the pipeline's static exporter
@@ -175,6 +176,40 @@ class DataStore:
             return analysis_frame(cursor, outcome.name, wave, oriented=oriented, columns=columns)
         finally:
             cursor.close()
+
+    def wide_frame(
+        self,
+        variables: Sequence[VariableInfo],
+        wave: str,
+        *,
+        extra_columns: tuple[str, ...] = (),
+        country_codes: Sequence[int] | None = None,
+    ) -> pl.DataFrame:
+        """One frame with a column per variable at ``wave`` — the correlates
+        sweep's single pass (one query, not one per predictor; see
+        :func:`flourish_stats.io.wide_frame`). Items keep their catalog
+        names, derived scores their column names; derived booleans become
+        0/1 so they estimate as indicators."""
+        assert self.con is not None
+        columns = tuple(dict.fromkeys((*DEFAULT_COLUMNS, *extra_columns)))
+        items = [v.name for v in variables if not v.is_derived]
+        derived = [DERIVED_OUTCOMES[v.name].column for v in variables if v.is_derived]
+        cursor = self.con.cursor()
+        try:
+            frame = wide_frame(
+                cursor,
+                items,
+                wave,
+                derived=derived,
+                columns=columns,
+                country_codes=country_codes,
+            )
+        finally:
+            cursor.close()
+        booleans = [c for c in derived if frame.schema[c] == pl.Boolean]
+        if booleans:
+            frame = frame.with_columns([pl.col(c).cast(pl.Int8) for c in booleans])
+        return frame
 
 
 def suppression_policy(request: Request) -> SuppressionPolicy:

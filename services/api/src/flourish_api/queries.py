@@ -408,3 +408,185 @@ def parse_change_query(
         scope=scope,
         rect=rect,
     )
+
+
+# --- /v1/correlates ---------------------------------------------------------
+
+CORRELATION_METHODS = ("pearson", "spearman")
+#: A ranked sweep returns this many predictors unless `limit` says otherwise.
+CORRELATES_DEFAULT_LIMIT = 20
+CORRELATES_MAX_LIMIT = 200
+#: Scale types with an order (or exactly two levels) — what a correlation
+#: or a regression coefficient can be taken over. Nominal codes have none.
+ORDERED_SCALE_TYPES = frozenset({"scale_0_10", "ordinal", "binary", "count"})
+
+
+@dataclass(frozen=True)
+class CorrelatesQuery:
+    """A validated /v1/correlates request (global scope).
+
+    ``against`` names the predictors to report, in order (a view asks for
+    the ranked list's own items across countries this way); empty means
+    the ranked sweep over every other servable ordered item at the wave.
+    The weight comes from the wave table (``resolve``), never from the
+    caller.
+    """
+
+    outcome: VariableInfo
+    wave: str
+    against: tuple[VariableInfo, ...]
+    method: str
+    adjusted: bool
+    by: tuple[str, ...]
+    countries: tuple[int, ...]
+    filters: tuple[DomainFilter, ...]
+    limit: int
+
+    @property
+    def family(self) -> str:
+        """The adjusted model's family, from the catalog's scale_type."""
+        return "binomial" if self.outcome.scale_type == "binary" else "gaussian"
+
+
+def _ordered_item(problems: _Problems, info: VariableInfo, role: str) -> None:
+    if info.scale_type not in ORDERED_SCALE_TYPES:
+        problems.add(
+            f"{role} {info.name!r} has scale_type {info.scale_type!r}, which has no "
+            f"order; associations need one of {sorted(ORDERED_SCALE_TYPES)}"
+        )
+
+
+def _parse_country_and_domain_filters(
+    catalog: Catalog, filters: list[str], allowed_columns: set[str], problems: _Problems
+) -> tuple[list[int], dict[str, list[str | int]]]:
+    """``column:value`` items → (country subset, domain filters by column)."""
+    countries: list[int] = []
+    domain_filters: dict[str, list[str | int]] = {}
+    for item in filters:
+        column, sep, raw = item.partition(":")
+        if not sep or not raw:
+            problems.add(f"filter {item!r} must look like column:value")
+            continue
+        if column == "country_code":
+            try:
+                code = int(raw)
+            except ValueError:
+                problems.add(f"filter country_code: {raw!r} is not an integer code")
+                continue
+            if code not in catalog.country_codes():
+                problems.add(f"filter country_code: unknown country {code}")
+            elif code not in countries:
+                countries.append(code)
+            continue
+        if column not in allowed_columns:
+            problems.add(
+                f"filter column {column!r} is not filterable; use one of "
+                f"{sorted({*allowed_columns, 'country_code'})}"
+            )
+            continue
+        value = _parse_filter_value(column, raw, problems)
+        if value is not None:
+            domain_filters.setdefault(column, []).append(value)
+    return countries, domain_filters
+
+
+def parse_correlates_query(
+    catalog: Catalog,
+    *,
+    outcome: str,
+    wave: str,
+    against: list[str],
+    method: str,
+    adjusted: bool,
+    by: list[str],
+    filters: list[str],
+    limit: int,
+) -> CorrelatesQuery:
+    """Validate a correlates request; every problem is reported at once
+    as a 422, in the same shape as the other routes."""
+    problems = _Problems()
+
+    info = catalog.outcome(outcome)
+    if info is None:
+        problems.add(
+            f"unknown or non-servable outcome {outcome!r} — see /v1/variables "
+            f"(country-specific and design variables cannot be aggregated)"
+        )
+        problems.raise_if_any()
+        raise AssertionError("unreachable")
+    _ordered_item(problems, info, "outcome")
+
+    if wave not in WAVES:
+        problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    elif wave not in info.waves:
+        problems.add(
+            f"{info.name} is not asked at {wave}; it is available at {', '.join(info.waves)}"
+        )
+
+    predictors: list[VariableInfo] = []
+    for name in against:
+        if any(p.name == name for p in predictors):
+            problems.add(f"duplicate against={name!r}")
+            continue
+        predictor = catalog.outcome(name)
+        if predictor is None:
+            problems.add(
+                f"against={name!r} is not a servable variable — see /v1/variables "
+                f"(pick an outcome-grade item; country-specific and design variables "
+                f"cannot be correlated)"
+            )
+            continue
+        _ordered_item(problems, predictor, "against")
+        if predictor.name == info.name:
+            problems.add("against= cannot be the outcome itself")
+        elif wave in WAVES and wave not in predictor.waves:
+            problems.add(
+                f"against={name!r} is not asked at {wave} (available: {', '.join(predictor.waves)})"
+            )
+        else:
+            predictors.append(predictor)
+
+    if method not in CORRELATION_METHODS:
+        problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
+    if not 1 <= limit <= CORRELATES_MAX_LIMIT:
+        problems.add(f"limit must be between 1 and {CORRELATES_MAX_LIMIT}, got {limit}")
+
+    seen: list[str] = []
+    for name in by:
+        if name in seen:
+            problems.add(f"duplicate by={name!r}")
+        elif name not in BREAKDOWNS:
+            problems.add(
+                f"by={name!r} is not a demographic breakdown ({sorted(BREAKDOWNS)}); "
+                f"correlates break down by demographics only"
+            )
+        else:
+            seen.append(name)
+    if len(seen) > MAX_BY:
+        problems.add(f"at most {MAX_BY} by= dimensions are supported")
+
+    countries, domain_filters = _parse_country_and_domain_filters(
+        catalog, filters, set(BREAKDOWNS), problems
+    )
+    if "country_code" not in seen and not countries:
+        problems.add(
+            "global-scope estimates must group by country (by=country_code) or "
+            "filter to countries (filter=country_code:N) — weights are "
+            "normalised within country, so pooling countries is not "
+            "meaningful until the population-rescaled option (Phase 5)"
+        )
+
+    problems.raise_if_any()
+    return CorrelatesQuery(
+        outcome=info,
+        wave=wave,
+        against=tuple(predictors),
+        method=method,
+        adjusted=adjusted,
+        by=tuple(seen),
+        countries=tuple(countries),
+        filters=tuple(
+            DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
+        ),
+        limit=limit,
+    )

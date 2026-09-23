@@ -23,11 +23,16 @@ from dataclasses import dataclass
 
 import polars as pl
 from flourish_stats import Design, WeightSpec, eligibility_expr, resolve, validate_frame
+from flourish_stats.correlations import DEFAULT_CONTROLS
 
-from flourish_api.data import DataStore
-from flourish_api.queries import AggregateQuery, ChangeQuery, DomainFilter
+from flourish_api.data import DataStore, VariableInfo
+from flourish_api.queries import AggregateQuery, ChangeQuery, CorrelatesQuery, DomainFilter
 
 VALUE_COLUMN = "value"
+#: Binary items enter associations as 0/1 indicators of this code: the
+#: release codes every yes/no item 1 = Yes, 2 = No, and the derived
+#: screeners code "positive" as 1 — so "1" is the event in both worlds.
+BINARY_EVENT_CODE = 1
 
 
 def wave_column(wave: str) -> str:
@@ -140,5 +145,53 @@ def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFram
         spec=spec,
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
         value=wave_column(query.waves[-1]),
+        groups=query.by,
+    )
+
+
+def assemble_correlates_frame(
+    store: DataStore, query: CorrelatesQuery, predictors: Sequence[VariableInfo]
+) -> AssembledFrame:
+    """The outcome and every predictor on one eligible frame.
+
+    One wide query (never one frame per predictor); the eligible rows for
+    the wave's weight spec are the design; a country filter subsets, every
+    other filter nulls the **outcome** outside the domain — which removes
+    the row from every complete-case set while it stays in the variance
+    design. Binary items become indicators of :data:`BINARY_EVENT_CODE`.
+    The adjusted models' control columns ride along when ``adjusted``.
+    """
+    spec = resolve((query.wave,), "global")
+    extra: list[str] = [c for c in query.by if c != "country_code"]
+    extra.extend(item.column for item in query.filters)
+    extra.append(spec.weight)
+    if query.adjusted:
+        extra.extend(c for c in DEFAULT_CONTROLS if c != "country_code")
+    variables = [query.outcome, *predictors]
+    frame = store.wide_frame(
+        variables,
+        query.wave,
+        extra_columns=tuple(dict.fromkeys(extra)),
+        country_codes=query.countries or None,
+    )
+    frame = frame.filter(eligibility_expr(spec))
+    frame = apply_domain_filters(frame, query.outcome.name, query.filters)
+    binaries = [v.name for v in variables if v.scale_type == "binary"]
+    if binaries:
+        frame = frame.with_columns(
+            [
+                pl.when(pl.col(name).is_null())
+                .then(None)
+                .otherwise((pl.col(name) == BINARY_EVENT_CODE).cast(pl.Int8))
+                .alias(name)
+                for name in binaries
+            ]
+        )
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=query.outcome.name,
         groups=query.by,
     )
