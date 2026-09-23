@@ -160,17 +160,27 @@ which re-balances the retained group back toward the original Wave 1
 population. Zero on the chart means no average change.
 
 **Why fewer second answers widen the interval.** Only respondents
-retained at Wave 2 who answered both times form a pair, so a country's
-follow-up group is always smaller than its Wave 1 sample — sometimes much
-smaller (retention runs from 23% of the Wave 1 sample in Hong Kong to 90%
-in China). A smaller group means a larger standard error, and the
-confidence interval widens accordingly; the attrition adjustment in the
-weight corrects who the retained group stands for, but cannot add back
-the people who were not interviewed. The interval, not a rate, is the
-app's signal of that uncertainty. Where a country's follow-up group falls
-below half of its Wave 1 n, the figure carries one plain sentence saying
-that its estimates are less certain (ADR-0013); no retention percentage
-is shown in the views.
+retained at Wave 2 who answered the question both times form a pair, so
+a country's follow-up group is always smaller than its Wave 1 sample —
+and how much smaller varies a great deal. Retention runs from 23% of the
+Wave 1 sample in Hong Kong to 90% in China; several countries kept
+fewer than half of their Wave 1 respondents, and item non-response
+thins the pairs a little further. This is why a Change figure can rest
+on a few hundred people in one country and many thousands in another
+while the two sit side by side on the same chart. A smaller group means
+a larger standard error, and the confidence interval widens
+accordingly — that widening is the app's signal of the uncertainty, not
+a rate or a warning. The attrition adjustment built into the
+longitudinal weights corrects *who* the retained group stands for (the
+people who were not re-interviewed differ, on average, from those who
+were), but it cannot add back the people who were not interviewed, so
+it narrows the bias, not the interval. Read a country's change together
+with its interval and its n: a wide interval around a small change is a
+country whose follow-up group was thin, and a comparison between two
+such countries deserves the same caution as any comparison of two
+uncertain numbers. No follow-up rate is shown in the views — the
+interval and the n carry it — and this section is where the picture is
+spelled out.
 
 **Where to find the n.** Every row of every data table carries the
 unweighted n behind it — for a change figure, the number of complete

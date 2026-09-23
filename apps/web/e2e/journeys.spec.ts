@@ -184,13 +184,14 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await expect(page.getByText(/standard views still work/)).toBeVisible()
 })
 
-test('7 — Change with a country where fewer people answered again: one plain sentence, no rates', async ({
+test('7 — Change with a country where fewer people answered again: the interval and n carry it, no sentence, no rate', async ({
   page,
 }) => {
   // The synthetic Testland keeps two thirds of its first-wave group;
-  // shrink its follow-up group to a fifth so the reserved sentence
-  // (owner decision 2) has a reason to appear — fixture rows, never
-  // real data.
+  // shrink its follow-up group to a fifth — fixture rows, never real
+  // data. The view must show its estimate and interval like any other
+  // country's: no caution sentence (withdrawn — ADR-0013, revised), no
+  // rate, no jargon; the n rides in the data table.
   const change = apiFixture('change-HAPPY-Y1-Y2.json')
   for (const row of change.rows) {
     if (row.stat === 'change' && row.group['country_code'] === 1) row.n = 10
@@ -204,26 +205,33 @@ test('7 — Change with a country where fewer people answered again: one plain s
       .first()
       .getByText(/2023 → 2024/),
   ).toBeVisible()
-  await expect(
-    page.getByRole('img', { name: /average change among the same people/ }),
-  ).toBeVisible()
+  const figure = page.getByRole('img', { name: /average change among the same people/ })
+  await expect(figure).toBeVisible()
 
-  // The one reserved sentence: once, no number, no jargon anywhere.
-  const sentence = page.getByText(
-    'In some countries fewer people answered the second time, so those estimates are less certain.',
-  )
-  await expect(sentence).toHaveCount(1)
+  // The withdrawn sentence is absent, and nothing shaped like it.
+  await expect(
+    page.getByText(
+      'In some countries fewer people answered the second time, so those estimates are less certain.',
+    ),
+  ).toHaveCount(0)
   const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
   expect(text).not.toMatch(JARGON)
   // No retention or coverage percentage: the only "%" on the page is the
   // interval level in the footnote.
   expect((text.match(/\d+(\.\d+)?\s?%/g) ?? []).filter((match) => match !== '95%')).toEqual([])
+  expect(await figure.innerText()).not.toMatch(/%/)
 
-  // Full numbers stay one click away: the n rides on every table row.
+  // The estimate and its interval still appear, and the n is one click
+  // away on every table row.
+  await expect(figure.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
   await page.getByText('Data table', { exact: true }).first().click()
   const table = page.getByRole('table').first()
+  await expect(table.getByRole('columnheader', { name: 'Estimate' })).toBeVisible()
+  await expect(table.getByRole('columnheader', { name: '95% CI' })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
   await expect(table.getByText('10', { exact: true })).toBeVisible()
+  await expect(table.getByText(/^\[[+−]\d\.\d\d, [+−]\d\.\d\d\]$/).first()).toBeVisible()
 
   // The URL is the state.
   await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()

@@ -139,3 +139,39 @@ re-litigated:
   owner; the view is catalog-driven and explains itself until then.
 - Revisit if the API moves off a scale-to-zero tier (the affordance
   would rarely fire), or if the owner wants a sparser caution line.
+
+## Revised — after the Phase 5 review
+
+Two of the calls above were reversed by the owner once the views were
+in hand. The original text stands as the record of what was decided;
+this section records what changed and why.
+
+**The reserved exception is withdrawn.** The caution line — a country's
+complete pairs under half of its earlier-wave n — fired for roughly ten
+of the 23 countries on a 2023 → 2024 index change, so the sentence
+appeared on most default Change figures. An exception that applies to
+nearly half the cases is not an exception, and tuning the constant
+would only have moved the line, not answered the objection. The
+sentence, its threshold (`FOLLOW_UP_CAUTION_RATIO`), the module behind
+it and the extra request it existed for (the earlier wave's
+cross-section, fetched only to compute the ratio) are gone; a Change
+view load makes one request to the API. What carries the uncertainty
+is unchanged and now stands alone: the confidence interval, which
+widens as the follow-up group shrinks; the unweighted n on every table
+row and in every CSV; and the plain-language account in
+`docs/METHODS.md`. No replacement warning, badge, icon, tooltip or
+colour cue takes its place, and the guard test and journey now assert
+the sentence's absence along with the absence of any rate.
+
+**The US states topology is a dependency.** `world-atlas` is a
+dependency imported as `world-atlas/countries-50m.json?url`; the US
+topology had been vendored as a 218 kB file in the repo — two patterns
+for one job. `us-atlas` (pinned to the 3.0.1 that was vendored) is now
+imported the same way, `us-atlas/states-10m.json?url`, and still rides
+as a hashed Vite asset inside the lazy US States chunk, never in the
+initial route. The vendored file and its README are removed; the notice
+in `docs/NOTICES.md` now reads like the `world-atlas` row.
+
+Everything else in this record — API-only serving, the progress
+affordance, the retention-display rule itself, the dumbbell-not-radar
+call and the blocked crossings — stands.

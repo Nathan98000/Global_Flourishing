@@ -99,15 +99,6 @@
   color: var(--ink-muted);
 }
 
-/* A figure's own one-line note, between the chart and its data table
-   (the Change view's reserved sentence): quiet secondary ink, no band. */
-.figureNote {
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-  margin: var(--space-3) 0 0;
-  max-width: 46rem;
-}
-
 /* The disclosure the display options fold into under 40rem (§8) — only
    rendered there, so no media guard needed. */
 .moreOptions {
