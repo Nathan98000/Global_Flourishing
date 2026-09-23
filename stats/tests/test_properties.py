@@ -7,6 +7,7 @@ import pytest
 from flourish_stats import (
     Design,
     SuppressionPolicy,
+    adjusted_association,
     kish_n_eff,
     suppress,
     weighted_mean,
@@ -218,3 +219,35 @@ def test_spearman_invariant_under_monotone_transforms(sample, ys: list[int]) -> 
         assert after["estimate"] is None
     else:
         assert after["estimate"] == pytest.approx(base["estimate"], rel=1e-9, abs=1e-12)
+
+
+@given(sample=simple_samples(min_rows=4), xs=st.lists(VALUES, min_size=4, max_size=30))
+def test_unit_weight_sandwich_is_the_textbook_robust_variance(
+    sample: tuple[list[int], list[float]], xs: list[int]
+) -> None:
+    """One stratum, every row its own PSU, unit weights: the coefficient is
+    OLS and its Taylor SE is the with-replacement sandwich
+    n/(n−1) · Σ e_i²(x_i − x̄)² / (Σ(x_i − x̄)²)²."""
+    ys, _ = sample
+    n = min(len(ys), len(xs))
+    ys, xs = ys[:n], xs[:n]
+    frame = pl.DataFrame(
+        {"strata": [1] * n, "psu": list(range(n)), "w": [1.0] * n, "x": xs, "y": ys}
+    )
+    row = next(
+        r
+        for r in adjusted_association(
+            frame, "y", "x", TAYLOR, controls=[], policy=NO_SUPPRESSION
+        ).to_pylist()
+        if r["measure"] == "beta"
+    )
+    x_mean, y_mean = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - x_mean) ** 2 for x in xs)
+    if sxx == 0:
+        assert row["estimate"] is None and row["se"] is None and row["n"] == n
+        return
+    beta = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys, strict=True)) / sxx
+    alpha = y_mean - beta * x_mean
+    meat = sum((y - alpha - beta * x) ** 2 * (x - x_mean) ** 2 for x, y in zip(xs, ys, strict=True))
+    assert row["estimate"] == pytest.approx(beta, abs=1e-10)
+    assert row["se"] == pytest.approx(math.sqrt(n / (n - 1) * meat) / sxx, abs=1e-10)
