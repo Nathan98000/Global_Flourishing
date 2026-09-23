@@ -49,10 +49,21 @@ class Collector {
     this.raw[key] = value
   }
 
-  take<T>(key: string, raw: Raw, parse: (value: unknown) => T | undefined, fallback: T): T {
-    const value = first(raw, key)
+  /** `whole`: hand the parser the key's full raw value (a repeated key
+   * arrives as an array) instead of its first element. The parser must
+   * judge from that value alone — the carried-raw re-check below feeds
+   * it the typed value, not the raw object — or a rejection is lost on
+   * the router's rebuild. */
+  take<T>(
+    key: string,
+    raw: Raw,
+    parse: (value: unknown) => T | undefined,
+    fallback: T,
+    whole = false,
+  ): T {
+    const value = whole ? (raw as Record<string, unknown>)[key] : first(raw, key)
     let out = fallback
-    if (value !== undefined) {
+    if (value !== undefined && !(Array.isArray(value) && value.length === 0)) {
       const parsed = parse(value)
       if (parsed === undefined) this.reject(key, (raw as Record<string, unknown>)[key])
       else out = parsed
@@ -61,7 +72,7 @@ class Collector {
     if (
       !(key in this.raw) &&
       carried !== undefined &&
-      parse(first({ [key]: carried }, key)) === undefined
+      parse(whole ? carried : first({ [key]: carried }, key)) === undefined
     ) {
       this.reject(key, carried)
     }
@@ -119,10 +130,12 @@ const parseIntCode = (value: unknown): number | undefined => {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
 }
 
-/** `countries=1,22` (or repeated) → sorted unique positive ints. */
-function parseCountries(raw: Raw): number[] | undefined {
-  const pieces = all(raw, 'countries').flatMap((value) =>
-    String(value)
+/** `countries=1,22` (or repeated) → sorted unique positive ints. Takes
+ * the raw value itself (string or array), never the raw object. */
+function parseCountries(value: unknown): number[] | undefined {
+  const values = value === undefined ? [] : Array.isArray(value) ? value : [value]
+  const pieces = values.flatMap((entry) =>
+    String(entry)
       .split(',')
       .map((piece) => piece.trim())
       .filter(Boolean),
@@ -173,7 +186,7 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
     view: collect.take('view', raw, parseEnum('bars', 'map'), ATLAS_DEFAULTS.view),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name'), ATLAS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
-    countries: collect.take('countries', raw, () => parseCountries(raw), ATLAS_DEFAULTS.countries),
+    countries: collect.take('countries', raw, parseCountries, ATLAS_DEFAULTS.countries, true),
     topic: collect.take('topic', raw, parseName, undefined),
     stat: collect.take('stat', raw, parseStat, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
@@ -259,12 +272,7 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
     by: collect.take('by', raw, () => parseBy(raw), BREAKDOWNS_DEFAULTS.by),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name', 'gap'), BREAKDOWNS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
-    countries: collect.take(
-      'countries',
-      raw,
-      () => parseCountries(raw),
-      BREAKDOWNS_DEFAULTS.countries,
-    ),
+    countries: collect.take('countries', raw, parseCountries, BREAKDOWNS_DEFAULTS.countries, true),
     topic: collect.take('topic', raw, parseName, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
   }
@@ -396,7 +404,7 @@ export function parseChangeSearch(raw: Raw): ChangeSearch {
     via: collect.take('via', raw, parseVia, undefined),
     sort: collect.take('sort', raw, parseEnum('change', 'name'), CHANGE_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
-    countries: collect.take('countries', raw, () => parseCountries(raw), CHANGE_DEFAULTS.countries),
+    countries: collect.take('countries', raw, parseCountries, CHANGE_DEFAULTS.countries, true),
   }
   return collect.finish(search)
 }
@@ -456,8 +464,8 @@ export const COMPARE_DEFAULTS = {
   wave: 'Y1' as Wave,
 }
 
-function parseCappedCountries(raw: Raw): number[] | undefined {
-  const codes = parseCountries(raw)
+function parseCappedCountries(value: unknown): number[] | undefined {
+  const codes = parseCountries(value)
   if (codes === undefined || codes.length > COMPARE_MAX_COUNTRIES) return undefined
   return codes
 }
@@ -473,8 +481,9 @@ export function parseCompareSearch(raw: Raw): CompareSearch {
     countries: collect.take(
       'countries',
       raw,
-      () => parseCappedCountries(raw),
+      parseCappedCountries,
       COMPARE_DEFAULTS.countries,
+      true,
     ),
     wave: collect.take('wave', raw, parseWave, COMPARE_DEFAULTS.wave),
     by: collect.take('by', raw, parseBreakdownColumn, undefined),
@@ -522,6 +531,8 @@ export interface WhatMattersSearch {
   by: string
   /** A chartable (non-ranking) midyear item to show by country. */
   item?: string
+  /** Categorical items: which answer level the item chart shows. */
+  level?: number
   sort: 'estimate' | 'name'
   dir?: SortDir
   invalid?: string[]
@@ -544,6 +555,7 @@ export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
     country: collect.take('country', raw, parseCountryCode, undefined),
     by: collect.take('by', raw, parseBreakdownColumn, WHAT_MATTERS_DEFAULTS.by),
     item: collect.take('item', raw, parseName, undefined),
+    level: collect.take('level', raw, parseIntCode, undefined),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name'), WHAT_MATTERS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
   }
@@ -558,6 +570,7 @@ export function whatMattersSearchParams(
       country: search.country,
       by: search.by === WHAT_MATTERS_DEFAULTS.by ? undefined : search.by,
       item: search.item,
+      level: search.level,
       sort: search.sort === WHAT_MATTERS_DEFAULTS.sort ? undefined : search.sort,
       dir:
         search.dir === defaultDir(search.sort ?? WHAT_MATTERS_DEFAULTS.sort)

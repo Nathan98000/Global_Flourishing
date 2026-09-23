@@ -2,7 +2,7 @@
 // request per keystroke into a 60/min rate limit). Static tier first,
 // API fallback, one generated type either way.
 
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL, STATIC_BASE_URL } from '../config'
 import { STATIC_MISS, fetchApiJson, fetchStaticJson } from './http'
 import type { Tier } from './meta'
@@ -53,5 +53,20 @@ export function useVariable(name: string | null) {
     queryKey: ['variable', name],
     enabled: name !== null,
     queryFn: () => fetchVariableDetail(name as string),
+  })
+}
+
+/** Several details at once (the crossings' split variables), on the
+ * same cache keys as useVariable. */
+export function useVariableDetails(names: readonly string[]) {
+  return useQueries({
+    queries: names.map((name) => ({
+      queryKey: ['variable', name],
+      queryFn: () => fetchVariableDetail(name),
+    })),
+    combine: (results) => ({
+      details: results.map((result) => result.data?.detail),
+      isPending: results.some((result) => result.isPending),
+    }),
   })
 }

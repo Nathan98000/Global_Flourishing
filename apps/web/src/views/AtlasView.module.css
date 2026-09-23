@@ -56,6 +56,37 @@
   margin-bottom: var(--space-3);
 }
 
+/* Compare's "Add a measure" group: a small label over the picker and a
+   text button to remove the added item. */
+.addMeasure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.addLabel {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.textButton {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Section headings inside a multi-figure view (What Matters): serif,
+   with the section rhythm above. */
+.sectionTitle {
+  margin: var(--space-7) 0 var(--space-3);
+}
+
 /* A figure's own one-line note, between the chart and its data table
    (the Change view's reserved sentence): quiet secondary ink, no band. */
 .figureNote {

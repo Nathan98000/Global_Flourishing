@@ -2,7 +2,9 @@
 // means all countries; the trigger reports the state ("All 23
 // countries" / "3 countries"). Select all and Clear are explicit
 // controls (round-2 items 2/10); the panel closes on Escape (focus back
-// to the trigger) and on a click outside it (focus left alone).
+// to the trigger) and on a click outside it (focus left alone). A
+// capped filter (Compare: up to five) disables the rest at the cap and
+// says so in plain words; there an empty selection means "choose".
 
 import { useEffect, useRef } from 'react'
 import type { Country } from '../../api/types'
@@ -12,10 +14,15 @@ export function CountryFilter({
   countries,
   selected,
   onChange,
+  max,
+  capMessage = 'That is the most this view compares at once — clear one to add another.',
 }: {
   countries: Country[]
   selected: readonly number[]
   onChange: (codes: number[]) => void
+  /** The most that can be selected; unset = any number (empty = all). */
+  max?: number
+  capMessage?: string
 }) {
   const details = useRef<HTMLDetailsElement | null>(null)
   const summary = useRef<HTMLElement | null>(null)
@@ -39,10 +46,15 @@ export function CountryFilter({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [])
 
+  const atCap = max !== undefined && selected.length >= max
   const label =
-    selected.length === 0 || selected.length === countries.length
-      ? `All ${countries.length} countries`
-      : `${selected.length} ${selected.length === 1 ? 'country' : 'countries'}`
+    max !== undefined
+      ? selected.length === 0
+        ? `Choose up to ${max} countries`
+        : `${selected.length} of ${max} countries`
+      : selected.length === 0 || selected.length === countries.length
+        ? `All ${countries.length} countries`
+        : `${selected.length} ${selected.length === 1 ? 'country' : 'countries'}`
 
   return (
     // The keydown is a bubbling Escape-to-close for the disclosure
@@ -64,14 +76,18 @@ export function CountryFilter({
       </summary>
       <div className={styles.panel}>
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.clear}
-            onClick={() => onChange(countries.map((country) => country.code).sort((a, b) => a - b))}
-            disabled={selected.length === countries.length}
-          >
-            Select all
-          </button>
+          {max === undefined && (
+            <button
+              type="button"
+              className={styles.clear}
+              onClick={() =>
+                onChange(countries.map((country) => country.code).sort((a, b) => a - b))
+              }
+              disabled={selected.length === countries.length}
+            >
+              Select all
+            </button>
+          )}
           <button
             type="button"
             className={styles.clear}
@@ -81,6 +97,11 @@ export function CountryFilter({
             Clear
           </button>
         </div>
+        {atCap && (
+          <p className={styles.cap} role="status">
+            {capMessage}
+          </p>
+        )}
         <ul className={styles.list}>
           {[...countries]
             .sort((a, b) => a.name.localeCompare(b.name))
@@ -90,6 +111,7 @@ export function CountryFilter({
                   <input
                     type="checkbox"
                     checked={set.has(country.code)}
+                    disabled={atCap && !set.has(country.code)}
                     onChange={() => toggle(country.code)}
                   />{' '}
                   {country.name}

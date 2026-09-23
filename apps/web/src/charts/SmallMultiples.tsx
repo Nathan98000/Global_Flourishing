@@ -2,7 +2,8 @@
 // plots with shared scales, sortable by estimate, name, or the gap
 // between levels. A second breakdown becomes a facet-column grid — one
 // hue everywhere, so identity never rides on color for 4+ levels.
-// Every cell is shown (ADR-0011).
+// Every cell is shown (ADR-0011). The facet column defaults to country;
+// What Matters facets a single country's items by age band instead.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
@@ -60,6 +61,9 @@ export function SmallMultiples({
   sort,
   dir,
   labeler,
+  facetColumn = 'country_code',
+  facetDomain,
+  labelWidth,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -69,6 +73,13 @@ export function SmallMultiples({
   /** The demographic on each panel's y axis. */
   levelColumn: string
   levelDomain: string[]
+  /** One panel per value of this group column (country by default). */
+  facetColumn?: string
+  /** Panel order when it is served, not sorted (a demographic's levels). */
+  facetDomain?: string[]
+  /** Room for the row labels, when they run longer than a demographic's
+   * levels (What Matters' item names); the phone keeps its own margin. */
+  labelWidth?: number
   /** Optional second breakdown → facet columns (one hue, no legend). */
   seriesColumn?: string
   seriesDomain?: string[]
@@ -78,13 +89,13 @@ export function SmallMultiples({
 }) {
   const container = usePlot(
     (available) => {
-      const entries = dotEntries(rows, meta, levelColumn, 'country_code', labeler).map((entry) => ({
+      const entries = dotEntries(rows, meta, levelColumn, facetColumn, labeler).map((entry) => ({
         ...entry,
         series: seriesColumn
           ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
           : '',
       }))
-      const facets = facetOrder(rows, meta, 'country_code', sort, dir)
+      const facets = facetDomain ?? facetOrder(rows, meta, facetColumn, sort, dir)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       // One shared, data-fitted window across every panel (F1): shared so
       // panels stay comparable, fitted so the variation is visible — and
@@ -104,7 +115,7 @@ export function SmallMultiples({
       return Plot.plot({
         height: 76 + facets.length * panelHeight,
         width,
-        marginLeft: narrow ? 90 : 150,
+        marginLeft: narrow ? 90 : (labelWidth ?? 150),
         marginRight: narrow ? 92 : 110,
         marginTop: 60,
         style: {
@@ -156,6 +167,9 @@ export function SmallMultiples({
       sort,
       dir,
       labeler,
+      facetColumn,
+      facetDomain,
+      labelWidth,
     ],
   )
 
