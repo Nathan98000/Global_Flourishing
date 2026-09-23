@@ -1,0 +1,60 @@
+/* The loading block keeps the skeleton's shimmer (composed from
+   Skeleton.module.css) and positions the bar and the note inside its
+   fixed height, so the layout never shifts when the data lands. */
+.block {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 2px track in --grid, accent sweep. A figure mounts the same bar on its
+   own top rule during a refetch. */
+.bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--grid);
+  overflow: hidden;
+}
+
+.sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  background: var(--accent);
+  animation: sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    left: -40%;
+  }
+
+  to {
+    left: 100%;
+  }
+}
+
+.note {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Reduced motion: no sweep — the bar is a static filled rule (the
+   global rule shortens animations; this removes it outright so the
+   sweep cannot end parked off-screen). */
+@media (prefers-reduced-motion: reduce) {
+  .sweep {
+    animation: none;
+    left: 0;
+    width: 100%;
+  }
+}

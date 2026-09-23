@@ -82,6 +82,66 @@
   }
 }
 
+/* Phase 5: eight items. Under 40rem the secondary four collapse into a
+   "More" disclosure (the type never shrinks); the panel drops below the
+   row like the country filter's. */
+.more {
+  position: relative;
+}
+
+.moreSummary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  padding: var(--space-2) var(--space-1) var(--space-3);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.moreSummary::-webkit-details-marker {
+  display: none;
+}
+
+.moreSummary::after {
+  content: '';
+  display: inline-block;
+  width: 0.4em;
+  height: 0.4em;
+  margin-left: 0.4em;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+
+.more[open] .moreSummary,
+.moreSummary[data-status='active'] {
+  color: var(--ink);
+}
+
+.moreSummary[data-status='active'] {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 1px;
+}
+
+.morePanel {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+
 /* The rhythm compresses on a phone so the chart still starts within the
    first screen (§8). */
 @media (max-width: 40rem) {

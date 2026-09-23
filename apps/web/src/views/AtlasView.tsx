@@ -18,6 +18,7 @@ import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
@@ -386,7 +387,7 @@ export function AtlasView() {
               </p>
             </EmptyState>
           ) : estimates.isPending ? (
-            <Skeleton height={420} label="Loading estimates" />
+            <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && boot.state !== 'ready' ? (
               <p className={styles.hint} role="status">

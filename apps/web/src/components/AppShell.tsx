@@ -2,23 +2,19 @@
 // views, and a footer that carries the citation — nothing else (owner
 // decision 5: the data version lives in the CSV header and Methods; the
 // causation caveat lives on Methods, where it is explained rather than
-// asserted). Later-phase views (Change, Compare, What Matters, US
-// States, Correlates) are omitted from the nav, not stubbed as dead
-// links (CLAUDE.md phase discipline).
+// asserted). Phase 5 adds Change, Compare, What Matters and US States to
+// the nav; Correlates (Phase 6) stays omitted, not stubbed as a dead
+// link (CLAUDE.md phase discipline).
 
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useBootStatus } from '../api/meta'
+import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView } from '../nav'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { ThemeToggle } from './ThemeToggle'
 import styles from './AppShell.module.css'
 
 const DATA_CITATION_URL = 'https://doi.org/10.17605/OSF.IO/3JTZ8'
-
-/** The views that load data — the only places an outage banner can
- * matter (F13: it used to show on Methods and the 404 page too). */
-function isDataView(pathname: string): boolean {
-  return pathname === '/' || pathname.startsWith('/breakdowns') || pathname.startsWith('/codebook')
-}
 
 function BootBanner() {
   const boot = useBootStatus()
@@ -54,8 +50,54 @@ function BootBanner() {
   )
 }
 
+function NavLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Link to={to} activeOptions={{ exact: to === '/' }}>
+      {label}
+    </Link>
+  )
+}
+
+/** The phone nav: the primary four inline, the rest behind "More". The
+ * disclosure closes on navigation and on Escape; its summary reads as
+ * active when the current view lives inside it. */
+function NarrowNav({ pathname }: { pathname: string }) {
+  const details = useRef<HTMLDetailsElement | null>(null)
+  const primary = NAV_ITEMS.slice(0, NAV_PRIMARY_COUNT)
+  const secondary = NAV_ITEMS.slice(NAV_PRIMARY_COUNT)
+  const insideMore = secondary.some((item) => pathname.startsWith(item.to))
+  useEffect(() => {
+    if (details.current) details.current.open = false
+  }, [pathname])
+  return (
+    <>
+      {primary.map((item) => (
+        <NavLink key={item.to} {...item} />
+      ))}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <details
+        ref={details}
+        className={styles.more}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && details.current?.open) details.current.open = false
+        }}
+      >
+        <summary className={styles.moreSummary} data-status={insideMore ? 'active' : undefined}>
+          More
+        </summary>
+        <div className={styles.morePanel}>
+          {secondary.map((item) => (
+            <NavLink key={item.to} {...item} />
+          ))}
+        </div>
+      </details>
+    </>
+  )
+}
+
 export function AppShell() {
   const { pathname } = useLocation()
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
   // The codebook table is the one surface allowed the old 68rem (§6);
   // detail pages and everything else keep the 60rem reading column.
   const wide = pathname === '/codebook'
@@ -69,10 +111,11 @@ export function AppShell() {
           <Link to="/">Flourish Atlas</Link>
         </h1>
         <nav aria-label="Main" className={styles.nav}>
-          <Link to="/">Atlas</Link>
-          <Link to="/breakdowns">Breakdowns</Link>
-          <Link to="/codebook">Codebook</Link>
-          <Link to="/methods">Methods</Link>
+          {narrow ? (
+            <NarrowNav pathname={pathname} />
+          ) : (
+            NAV_ITEMS.map((item) => <NavLink key={item.to} {...item} />)
+          )}
         </nav>
         <ThemeToggle />
       </header>
