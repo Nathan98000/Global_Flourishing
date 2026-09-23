@@ -14,11 +14,13 @@ import {
   changeSearchParams,
   codebookSearchParams,
   compareSearchParams,
+  correlatesSearchParams,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
   parseCodebookSearch,
   parseCompareSearch,
+  parseCorrelatesSearch,
   parseStatesSearch,
   parseWhatMattersSearch,
   statesSearchParams,
@@ -89,6 +91,21 @@ const whatMattersRoute = createRoute({
   component: lazyRouteComponent(() => import('./views/WhatMattersView'), 'WhatMattersView'),
 })
 
+// Phase 6: the Correlates view and the model cards it links to, both lazy.
+const correlatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/correlates',
+  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCorrelatesSearch(raw),
+  search: { middlewares: [omitDefaults(correlatesSearchParams)] },
+  component: lazyRouteComponent(() => import('./views/CorrelatesView'), 'CorrelatesView'),
+})
+
+const modelCardsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/model-cards',
+  component: lazyRouteComponent(() => import('./views/ModelCardsView'), 'ModelCardsView'),
+})
+
 const statesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/states',
@@ -130,6 +147,8 @@ const routeTree = rootRoute.addChildren([
   changeRoute,
   compareRoute,
   whatMattersRoute,
+  correlatesRoute,
+  modelCardsRoute,
   statesRoute,
   breakdownsRoute,
   codebookRoute,

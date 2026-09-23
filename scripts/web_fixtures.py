@@ -9,9 +9,10 @@ no file derived from the release is ever committed (CLAUDE.md).
 
 Also drops `_fixtures/export-sample.csv` (a real /v1/export.csv response
 over the synthetic data) for the client-side CSV parity test, and — for
-the Phase 5 views, which the static tier never precomputes — real
-/v1/change and /v1/states responses the Playwright journeys serve back
-through route interception (no API process runs in that suite).
+the Phase 5/6 views, which the static tier never precomputes — real
+/v1/change, /v1/states and /v1/correlates responses the Playwright
+journeys serve back through route interception (no API process runs in
+that suite).
 """
 
 from __future__ import annotations
@@ -38,9 +39,11 @@ FIXTURE_OUTCOMES = ("HAPPY", "LONELY", "ATTEND_SVCS", "BALANCE", "MONEY", "sfi",
 
 DATA_VERSION = "synthetic.0.0.1"
 
-#: API-only responses for the Phase 5 journeys: a 0-10 pair (change +
+#: API-only responses for the Phase 5/6 journeys: a 0-10 pair (change +
 #: histogram), an ordinal pair (adds the transition matrix), the
-#: three-point panel, and two state cross-sections (plain and adjusted).
+#: three-point panel, two state cross-sections (plain and adjusted), and
+#: the Correlates view's four shapes for two outcomes — the ranked list
+#: for Testland and the cross-country sweep, plain and adjusted.
 API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     (
         "change-HAPPY-Y1-Y2.json",
@@ -62,6 +65,21 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
         "states-HAPPY-Y2-adj.json",
         "/v1/states",
         {"outcome": "HAPPY", "wave": "Y2", "stat": "mean", "adj": "true"},
+    ),
+    *(
+        (
+            f"correlates-{outcome}-Y1-{shape}{'-adjusted' if adjusted else ''}.json",
+            "/v1/correlates",
+            {
+                "outcome": outcome,
+                "wave": "Y1",
+                **({"filter": "country_code:1"} if shape == "ranked" else {"by": "country_code"}),
+                **({"adjusted": "true"} if adjusted else {}),
+            },
+        )
+        for outcome in ("sfi", "HAPPY")
+        for shape in ("ranked", "across")
+        for adjusted in (False, True)
     ),
 )
 

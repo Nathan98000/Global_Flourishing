@@ -115,7 +115,7 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  // Phase 5 nav order — eight items, Correlates (Phase 6) still absent.
+  // Phase 6 nav order — nine items, Correlates after What Matters.
   expect(
     within(nav)
       .getAllByRole('link')
@@ -125,12 +125,12 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
     'Change',
     'Compare',
     'What Matters',
+    'Correlates',
     'US States',
     'Breakdowns',
     'Codebook',
     'Methods',
   ])
-  expect(within(nav).queryByText('Correlates')).toBeNull()
   // The deck says what this is, above the fold (F5); the count sits in
   // its own ink-colored span (§6), so match the two parts.
   expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
@@ -327,7 +327,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   expect(statistic).toHaveDisplayValue('Mean')
 })
 
-test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
+test('on a phone the secondary five nav items collapse behind "More" (type unchanged)', async () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -353,6 +353,7 @@ test('on a phone the secondary four nav items collapse behind "More" (type uncha
     'Change',
     'Compare',
     'What Matters',
+    'Correlates',
     'US States',
     'Breakdowns',
     'Codebook',

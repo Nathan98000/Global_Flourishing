@@ -7,6 +7,7 @@ import {
   CHANGE_DEFAULTS,
   COMPARE_MAX_COUNTRIES,
   COMPARE_MIN_COUNTRIES,
+  CORRELATES_DEFAULTS,
   atlasRequest,
   atlasSearchParams,
   breakdownsRequest,
@@ -15,11 +16,15 @@ import {
   changeSearchParams,
   compareRequest,
   compareSearchParams,
+  correlatesAcrossCountries,
+  correlatesRequest,
+  correlatesSearchParams,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
   parseCodebookSearch,
   parseCompareSearch,
+  parseCorrelatesSearch,
   parseStatesSearch,
   parseWhatMattersSearch,
   statesRequest,
@@ -319,5 +324,84 @@ describe('states search (Phase 5)', () => {
     expect(y1.adj).toBeUndefined()
     expect(y1.invalid).toEqual(['adj'])
     expect(parseStatesSearch({ view: 'globe' }).invalid).toEqual(['view'])
+  })
+})
+
+describe('correlates search (Phase 6)', () => {
+  test('defaults apply and are omitted from the URL', () => {
+    const search = parseCorrelatesSearch({})
+    expect(search).toEqual(CORRELATES_DEFAULTS)
+    expect(stringifySearch(correlatesSearchParams(search))).toBe('')
+  })
+
+  test('a full URL round-trips exactly', () => {
+    const raw = parseSearchString(
+      '?outcome=HAPPY&wave=Y2&country=22&adjusted=true&method=spearman&topic=wellbeing',
+    )
+    const search = parseCorrelatesSearch(raw)
+    expect(search).toMatchObject({
+      outcome: 'HAPPY',
+      wave: 'Y2',
+      country: 22,
+      adjusted: true,
+      method: 'spearman',
+      topic: 'wellbeing',
+    })
+    expect(search.invalid).toBeUndefined()
+    expect(stringifySearch(correlatesSearchParams(search))).toBe(
+      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&adjusted=true&method=spearman',
+    )
+  })
+
+  test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {
+    const raw = parseSearchString(
+      '?outcome=HAPPY&country=abc&adjusted=maybe&method=kendall&wave=Y9',
+    )
+    const search = parseCorrelatesSearch(raw)
+    expect(search.outcome).toBe('HAPPY')
+    expect(search.country).toBeUndefined()
+    expect(search.adjusted).toBeUndefined()
+    expect(search.method).toBeUndefined()
+    expect(search.wave).toBe(CORRELATES_DEFAULTS.wave)
+    expect(search.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    // The rejected raws ride along, so a re-parse reports the same notice.
+    const again = parseCorrelatesSearch(correlatesSearchParams(search))
+    expect(again.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    // Dismissed: they drop out.
+    expect(
+      stringifySearch(
+        correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+      ),
+    ).toBe('?outcome=HAPPY')
+    // country=0 and an unknown name are rejected too.
+    expect(parseCorrelatesSearch({ country: '0' }).invalid).toEqual(['country'])
+    expect(parseCorrelatesSearch({ outcome: '9lives' }).invalid).toEqual(['outcome'])
+  })
+
+  test('the requests carry the API vocabulary; adjusted drops the method', () => {
+    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman' })
+    expect(correlatesRequest(search, 9)).toEqual({
+      outcome: 'HAPPY',
+      wave: 'Y1',
+      by: [],
+      countries: [9],
+      adjusted: undefined,
+      method: 'spearman',
+    })
+    expect(correlatesAcrossCountries(search, ['LONELY', 'BALANCE'])).toEqual({
+      outcome: 'HAPPY',
+      wave: 'Y1',
+      against: ['LONELY', 'BALANCE'],
+      by: ['country_code'],
+      adjusted: undefined,
+      method: 'spearman',
+    })
+    const adjusted = parseCorrelatesSearch({
+      outcome: 'HAPPY',
+      method: 'spearman',
+      adjusted: 'true',
+    })
+    expect(correlatesRequest(adjusted, 9).method).toBeUndefined()
+    expect(correlatesRequest(adjusted, 9).adjusted).toBe(true)
   })
 })

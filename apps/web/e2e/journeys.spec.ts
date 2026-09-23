@@ -1,9 +1,10 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
-// plus the Phase 5 launch-checklist journeys. No API runs in this suite:
-// every Phase 4 view is static-first (journey 6 blocks the API at the
-// network level to prove it), and the API-only Phase 5 views are served
-// their real synthetic responses back through route interception from
-// public/data/_fixtures (written by `make web-fixtures`).
+// plus the Phase 5 launch-checklist journeys and the Phase 6 Correlates
+// journey. No API runs in this suite: every Phase 4 view is static-first
+// (journey 6 blocks the API at the network level to prove it), and the
+// API-only Phase 5/6 views are served their real synthetic responses back
+// through route interception from public/data/_fixtures (written by
+// `make web-fixtures`).
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -311,6 +312,62 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   const table = page.getByRole('table')
   await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
   await expect(table.getByText('CA', { exact: true })).toBeVisible()
+})
+
+test('10 — Correlates: pick an outcome, read the ranked list, switch to adjusted, open the model card', async ({
+  page,
+}) => {
+  // The view makes two requests per state — the ranked list for one
+  // country and its measures across countries — plain or adjusted; the
+  // fixture is chosen from the request's own parameters.
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await page.route(`${API}/v1/correlates**`, (route) => {
+    const url = new URL(route.request().url())
+    const outcome = url.searchParams.get('outcome') === 'HAPPY' ? 'HAPPY' : 'sfi'
+    const shape = url.searchParams.getAll('by').includes('country_code') ? 'across' : 'ranked'
+    const adjusted = url.searchParams.get('adjusted') === 'true' ? '-adjusted' : ''
+    return route.fulfill({ json: apiFixture(`correlates-${outcome}-Y1-${shape}${adjusted}.json`) })
+  })
+
+  await page.goto('/correlates')
+  await expect(
+    caption(page).first().getByText('What travels with Secure Flourishing Index', { exact: true }),
+  ).toBeVisible()
+  // The caveat is a sentence in the deck, not a box.
+  await expect(page.getByText(/These are associations, not causes/)).toBeVisible()
+
+  // Pick an outcome: topic first, then its measure.
+  await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
+  await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
+  await expect(
+    caption(page).first().getByText('What travels with Happiness', { exact: true }),
+  ).toBeVisible()
+  await expect(page).toHaveURL(/outcome=HAPPY$/)
+
+  // Read the ranked list: measures named from the catalog, signed values,
+  // no interval drawn or described — a correlation is a point estimate.
+  const ranked = page.getByRole('img', { name: /most strongly associated with it in Testland/ })
+  await expect(ranked).toBeVisible()
+  await expect(ranked.getByText('Loneliness', { exact: true })).toBeVisible()
+  await expect(ranked.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
+  await expect(page.getByText(/Dots are point estimates/).first()).toBeVisible()
+  expect(await page.locator('main').innerText()).not.toContain('95%')
+  // The same measures across every country, as a tinted matrix.
+  const matrix = page.getByRole('img', { name: /as a matrix/ })
+  await expect(matrix).toBeVisible()
+  await expect(matrix.getByRole('columnheader', { name: 'Testland' })).toBeVisible()
+  await expect(matrix.getByRole('rowheader', { name: 'Loneliness' })).toBeVisible()
+
+  // Switch to adjusted: intervals appear, the control set is spelled out,
+  // and the figure links to the model card.
+  await page.getByRole('group', { name: 'Model' }).getByText('Adjusted', { exact: true }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&adjusted=true$/)
+  await expect(page.getByText(/Lines are 95% confidence intervals/).first()).toBeVisible()
+  await expect(page.getByText(/The model holds age band, gender/).first()).toBeVisible()
+  await page.getByRole('link', { name: 'Read the model card' }).first().click()
+  await expect(page).toHaveURL(/\/model-cards#continuous$/)
+  await expect(page.getByRole('heading', { name: 'Model card: continuous outcomes' })).toBeVisible()
+  await expect(page.getByText(/No causal claim/).first()).toBeVisible()
 })
 
 async function streamToString(download: {

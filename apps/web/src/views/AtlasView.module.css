@@ -37,6 +37,16 @@
   margin-bottom: var(--space-5);
 }
 
+/* A single-country choice (Correlates): a native select under a 13px
+   label, the quiet control voice of the segmented rows. */
+.countrySelect {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+}
+
 .oriented {
   font-size: var(--text-sm);
   color: var(--ink-secondary);
