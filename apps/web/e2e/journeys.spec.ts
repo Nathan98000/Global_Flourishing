@@ -230,6 +230,56 @@ test('7 — Change with a country where fewer people answered again: one plain s
   await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
+test('8 — What Matters with a combined-midyear country: the ranking, the split by age, no jargon', async ({
+  page,
+}) => {
+  // The synthetic release administers the midyear survey both ways in
+  // every country (half its midyear respondents answered inside the Wave
+  // 2 interview), so the United States stands for a combined-midyear
+  // country here; its midyear answers are ordinary cross-sections on the
+  // midyear weight, and the view must show them without a word about
+  // administration modes. The synthetic midyear family holds one
+  // importance item and no chartable item; the crossings' variables are
+  // not in its codebook, so both explain themselves.
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await page.goto('/what-matters?country=22')
+
+  await expect(
+    caption(page).first().getByText('What matters most, by country', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    caption(page)
+      .first()
+      .getByText(/Midyear survey, 2024/),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('img', { name: /How important people rate 1 things, one panel per country/ }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('img', {
+      name: /United States: how important people rate 1 things, one panel per age band/,
+    }),
+  ).toBeVisible()
+  // The crossings say why they cannot be made from this release, in plain words.
+  await expect(page.getByText(/Time on social media and mental health: not possible/)).toBeVisible()
+  await expect(page.getByText(/Associated with, not caused by/)).toBeVisible()
+
+  const text = await page.locator('main').innerText()
+  expect(text).not.toMatch(JARGON)
+  expect(text).not.toMatch(/midyear_type|standalone|combined/i)
+
+  // The n rides on every row of the data table.
+  await page.getByText('Data table', { exact: true }).first().click()
+  const table = page.getByRole('table').first()
+  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
+  await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
+
+  // The URL is the state: the split column round-trips.
+  await page.getByLabel('Split by').selectOption('gender')
+  await expect(page).toHaveURL(/country=22&by=gender$/)
+  await expect(page.getByRole('img', { name: /one panel per gender/ })).toBeVisible()
+})
+
 async function streamToString(download: {
   createReadStream: () => Promise<NodeJS.ReadableStream>
 }): Promise<string> {

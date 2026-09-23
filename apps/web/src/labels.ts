@@ -36,6 +36,8 @@ export function scaleSubtitle(
 
 export function columnLabel(column: string, meta: Meta): string {
   if (column === 'country_code') return 'Country'
+  // A synthesized group column (Compare, What Matters): one measure per row.
+  if (column === 'outcome') return 'Measure'
   const labels = meta.breakdown_labels[column]
   if (labels) return labels.display_name
   return column
@@ -79,6 +81,21 @@ export function highestLevel(rows: EstimateRow[]): number | undefined {
     }
   }
   return highest
+}
+
+/** Level display order for a breakdown column, from meta's labels — or,
+ * for a survey-variable split, from that variable's own value labels. */
+export function levelDomain(
+  column: string,
+  meta: {
+    breakdown_labels: Record<string, { levels: { value: number | string; label: string }[] }>
+  },
+  detail?: VariableDetail,
+): string[] {
+  const labels = meta.breakdown_labels[column]
+  if (labels) return labels.levels.map((level) => level.label)
+  if (detail) return outcomeLevels(detail).map((level) => level.label)
+  return []
 }
 
 /** Answer levels a categorical outcome can be ranked/mapped/split by —

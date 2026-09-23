@@ -6,7 +6,7 @@
 // tier answered. Misses are cached per (data_version, path) so they cost
 // one round trip, not one per render.
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL, STATIC_BASE_URL } from '../config'
 import { STATIC_MISS, fetchApiJson, fetchStaticJson } from './http'
 import { type Tier, useMeta } from './meta'
@@ -151,5 +151,51 @@ export function useEstimates(request: AggregateRequest | null) {
         dataVersion,
       })
     },
+  })
+}
+
+export interface EstimatesManyResult {
+  /** One entry per request, in order; undefined until that one answers. */
+  results: (EstimatesResult | undefined)[]
+  isPending: boolean
+  isError: boolean
+  error: unknown
+  isPlaceholderData: boolean
+  isSuccess: boolean
+}
+
+/** Several cross-sections at once (Compare's six domains, What Matters'
+ * seven items) — the same fetcher and cache keys as useEstimates, so a
+ * view that later asks for one of them alone finds it already loaded.
+ * The list may change length between renders (it comes from the
+ * catalog); useQueries keeps the hook count constant. */
+export function useEstimatesMany(requests: readonly AggregateRequest[]): EstimatesManyResult {
+  const meta = useMeta()
+  const variables = useVariables()
+  const dataVersion = meta.data?.meta.data_version ?? null
+  const enabled = meta.isSuccess && variables.isSuccess
+  return useQueries({
+    queries: requests.map((request) => ({
+      queryKey: ['estimates', dataVersion, canonicalKey(request)],
+      enabled,
+      placeholderData: keepPreviousData,
+      queryFn: () => {
+        if (meta.data === undefined || variables.data === undefined)
+          throw new Error('estimates query ran before its inputs')
+        return fetchEstimates(request, {
+          variable: variables.data.byName[request.outcome],
+          breakdowns: meta.data.meta.breakdowns,
+          dataVersion,
+        })
+      },
+    })),
+    combine: (results) => ({
+      results: results.map((result) => result.data),
+      isPending: results.some((result) => result.isPending),
+      isError: results.some((result) => result.isError),
+      error: results.find((result) => result.error)?.error,
+      isPlaceholderData: results.some((result) => result.isPlaceholderData),
+      isSuccess: results.length > 0 && results.every((result) => result.isSuccess),
+    }),
   })
 }

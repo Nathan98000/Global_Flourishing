@@ -82,3 +82,78 @@ export function topicsOf(variables: VariableSummary[]): Topic[] {
     ),
   }))
 }
+
+// --- What Matters (Phase 5) --------------------------------------------------
+// Navigation copy for the midyear family: which of its items form the
+// ranking, and the two prepared crossings. Codes only — every display
+// name, wording and value label still comes from the catalog.
+
+export const MIDYEAR_FAMILY = 'midyear'
+
+/** The seven importance items that form the What Matters ranking; the
+ * family's other items are chartable on their own. */
+export const IMPORTANCE_ITEMS: readonly string[] = [
+  'MONEY',
+  'GOOD_RELATION',
+  'MEANINGFUL',
+  'HEALTHY',
+  'REL_LIFE',
+  'HAPPY_IMPORT',
+  'GOOD_PERSON',
+]
+
+/** The midyear family as the catalog serves it, split into the ranking
+ * set (in the brief's order) and the chartable rest (A–Z). */
+export function splitMidyear(variables: readonly VariableSummary[]): {
+  ranking: VariableSummary[]
+  chartable: VariableSummary[]
+} {
+  const midyear = variables.filter(
+    (variable) => variable.family === MIDYEAR_FAMILY && variable.servable,
+  )
+  const byName = new Map(midyear.map((variable) => [variable.name, variable]))
+  const ranking = IMPORTANCE_ITEMS.map((name) => byName.get(name)).filter(
+    (variable): variable is VariableSummary => variable !== undefined,
+  )
+  const chartable = midyear
+    .filter((variable) => !IMPORTANCE_ITEMS.includes(variable.name))
+    .sort((a, b) => a.display_name.localeCompare(b.display_name))
+  return { ranking, chartable }
+}
+
+/** The two prepared crossings — each an ordinary breakdown request of
+ * `outcome` by `by`, made only when the catalog offers both at one
+ * wave. The framing is the Methods page's: associated with, not caused
+ * by. */
+export interface Crossing {
+  key: string
+  title: string
+  outcome: string
+  by: string
+}
+
+export const WHAT_MATTERS_CROSSINGS: readonly Crossing[] = [
+  {
+    key: 'media',
+    title: 'Time on social media and mental health',
+    outcome: 'MENTAL_HEALTH',
+    by: 'TIME_MEDIA',
+  },
+  {
+    key: 'food',
+    title: 'Running out of food and financial stability',
+    outcome: 'sfi_financial',
+    by: 'FOOD_INSECURE',
+  },
+]
+
+/** The wave at which both sides of a crossing were asked, if any. */
+export function crossingWave(
+  crossing: Crossing,
+  byName: Record<string, VariableSummary | undefined>,
+): string | undefined {
+  const outcome = byName[crossing.outcome]
+  const by = byName[crossing.by]
+  if (!outcome || !by) return undefined
+  return outcome.waves_available.find((wave) => by.waves_available.includes(wave))
+}

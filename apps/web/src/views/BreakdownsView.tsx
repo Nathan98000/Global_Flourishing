@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
-import type { Stat, VariableDetail } from '../api/types'
+import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import type { LevelLabeler } from '../charts/DotPlot'
@@ -24,7 +24,14 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import {
+  columnLabel,
+  groupValueLabel,
+  highestLevel,
+  levelDomain,
+  outcomeLevels,
+  scaleSubtitle,
+} from '../labels'
 import { defaultDir, sortBreakdownRows } from '../sortRows'
 import {
   BREAKDOWNS_DEFAULTS,
@@ -37,20 +44,6 @@ import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/breakdowns')
-
-/** Level display order for a breakdown column, from meta's labels. */
-export function levelDomain(
-  column: string,
-  meta: {
-    breakdown_labels: Record<string, { levels: { value: number | string; label: string }[] }>
-  },
-  detail?: VariableDetail,
-): string[] {
-  const labels = meta.breakdown_labels[column]
-  if (labels) return labels.levels.map((level) => level.label)
-  if (detail) return outcomeLevels(detail).map((level) => level.label)
-  return []
-}
 
 export function BreakdownsView() {
   const search = route.useSearch()

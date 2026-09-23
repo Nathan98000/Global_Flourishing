@@ -91,6 +91,18 @@ describe('atlas search', () => {
     expect(parseAtlasSearch({ invalid: 'wave' }).invalid).toBeUndefined()
   })
 
+  test('a rejected countries value survives the router rebuild (the re-parse sees the typed value)', () => {
+    // The rebuild feeds the parser the validated state plus the carried
+    // raw: the notice must be recomputed from the raw alone.
+    const rebuilt = parseAtlasSearch({ countries: [], invalidRaw: { countries: 'x,y' } })
+    expect(rebuilt.invalid).toEqual(['countries'])
+    expect(
+      parseCompareSearch({ countries: [], invalidRaw: { countries: '1,2,3,4,5,6' } }).invalid,
+    ).toEqual(['countries'])
+    // Repeated keys still combine.
+    expect(parseAtlasSearch({ countries: ['1', '22'] }).countries).toEqual([1, 22])
+  })
+
   test('oriented is an explicit opt-in', () => {
     expect(parseAtlasSearch({ oriented: 'true' }).oriented).toBe(true)
     expect(parseAtlasSearch({ oriented: 'yes' }).invalid).toEqual(['oriented'])
