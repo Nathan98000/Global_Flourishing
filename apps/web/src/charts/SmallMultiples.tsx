@@ -10,8 +10,15 @@ import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/ty
 import { groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
-import { ciExtents, fittedScale } from './domain'
-import { FONT_FAMILY, INK, INK_SECONDARY, plotValue } from './theme'
+import { ciExtents, fittedScale, measureBounds } from './domain'
+import {
+  FACET_PADDING,
+  FONT_FAMILY,
+  INK,
+  INK_SECONDARY,
+  PANEL_AXIS_INSET,
+  plotValue,
+} from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
 export type PanelSort = 'estimate' | 'name' | 'gap'
@@ -89,12 +96,13 @@ export function SmallMultiples({
 }) {
   const container = usePlot(
     (available) => {
-      const entries = dotEntries(rows, meta, levelColumn, facetColumn, labeler).map((entry) => ({
-        ...entry,
-        series: seriesColumn
+      const entries = dotEntries(rows, meta, levelColumn, facetColumn, labeler).map((entry) => {
+        const series = seriesColumn
           ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
-          : '',
-      }))
+          : ''
+        // `column` rides into the tip with the facet and the level.
+        return { ...entry, series, column: series || undefined }
+      })
       const facets = facetDomain ?? facetOrder(rows, meta, facetColumn, sort, dir)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       // One shared, data-fitted window across every panel (F1): shared so
@@ -106,9 +114,12 @@ export function SmallMultiples({
       const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
         // Fewer ticks when a second breakdown splits the width into columns.
         targetTicks: seriesColumn || narrow ? 4 : 5,
+        bounds: measureBounds(responseMeta.stat, variable),
       })
       const tickLabel = (tick: number) => (isShare ? `${scale.format(tick)}%` : scale.format(tick))
-      const panelHeight = levelDomain.length * 22 + 48
+      // Each panel keeps its own axis strip under the last row, so the
+      // in-panel tick labels never sit on a row label or a dot.
+      const panelHeight = levelDomain.length * 22 + 48 + PANEL_AXIS_INSET
       const facetChannel: Record<string, string> = seriesColumn
         ? { fy: 'facet', fx: 'series' }
         : { fy: 'facet' }
@@ -132,9 +143,11 @@ export function SmallMultiples({
           label: null,
           grid: true,
         },
-        y: { domain: levelDomain, label: null, tickSize: 0 },
-        fy: { domain: facets, paddingInner: 0.12 },
-        ...(seriesColumn ? { fx: { domain: seriesDomain, label: null } } : {}),
+        y: { domain: levelDomain, label: null, tickSize: 0, insetBottom: PANEL_AXIS_INSET },
+        fy: { domain: facets, paddingInner: 0.14 },
+        ...(seriesColumn
+          ? { fx: { domain: seriesDomain, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          : {}),
         marks: [
           // Facet (country) labels at 13.5 in ink (§6); panel-level level
           // labels and the value axis stay the 11px plot size.

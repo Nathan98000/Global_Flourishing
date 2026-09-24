@@ -90,6 +90,9 @@ variables_schema = pa.DataFrameSchema(
         "direction": pa.Column(
             pl.String, pa.Check.isin(["higher_better", "lower_better", "none"]), nullable=False
         ),
+        "polarity": pa.Column(
+            pl.String, pa.Check.isin(["ascending", "descending"]), nullable=False
+        ),
         "review_status": pa.Column(pl.String, pa.Check.isin(["reviewed", "draft"]), nullable=False),
         "restricted": pa.Column(pl.Boolean, pa.Check.isin([False]), nullable=False),
     },
@@ -104,6 +107,8 @@ value_labels_schema = pa.DataFrameSchema(
         "code": pa.Column(pl.Int16, pa.Check.in_range(-9998, 9999), nullable=False),
         "label": pa.Column(pl.String, nullable=False),
         "is_nonresponse": pa.Column(pl.Boolean, nullable=False),
+        # A curated short display label (the overrides' short_labels), else null.
+        "short_label": pa.Column(pl.String, nullable=True),
     },
     strict=True,
 )

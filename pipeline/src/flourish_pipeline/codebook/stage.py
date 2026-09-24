@@ -261,6 +261,7 @@ def value_labels_frame(catalog: Catalog) -> pl.DataFrame:
             "code": pl.Int16,
             "label": pl.String,
             "is_nonresponse": pl.Boolean,
+            "short_label": pl.String,
         },
     )
 

@@ -1,17 +1,28 @@
 // Compare (Phase 5): two to five countries — or one demographic's levels
 // within each of them — across the six SFI domains, one panel per
-// domain reading down the page, each in its fixed hue (proposal §4.4),
-// dots with CI whiskers on one shared, fitted window. A dumbbell per
-// domain beats a radar: a radar distorts magnitude and has no honest
-// place for an interval. Rows are synthesized by the view with a
-// `outcome` group column; every cell is shown (ADR-0011). Never fetches.
+// domain reading down the page, each in its fixed hue (proposal §4.4;
+// a split reads in one ink hue, with the country as the column), dots
+// with CI whiskers and a value label on one shared, fitted window. A
+// dumbbell per domain beats a radar: a radar distorts magnitude and has
+// no honest place for an interval. Rows are synthesized by the view with
+// a `outcome` group column; every cell is shown (ADR-0011). Never fetches.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta } from '../api/types'
+import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
 import { dotMarks, type DotEntry, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
-import { FONT_FAMILY, INK, INK_SECONDARY, outcomeColor, plotCI, plotValue } from './theme'
+import {
+  FACET_PADDING,
+  FONT_FAMILY,
+  INK,
+  INK_SECONDARY,
+  PANEL_AXIS_INSET,
+  outcomeColor,
+  plotCI,
+  plotValue,
+} from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
 export function compareEntries(
@@ -44,6 +55,7 @@ export function CompareDomains({
   split,
   splitDomain,
   labeler,
+  bounds,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -57,6 +69,8 @@ export function CompareDomains({
   split?: string
   splitDomain?: string[]
   labeler?: LevelLabeler
+  /** The measure's own limits, clamping the fitted window. */
+  bounds?: readonly [number, number]
 }) {
   const container = usePlot(
     (available) => {
@@ -66,13 +80,24 @@ export function CompareDomains({
       const narrow = width < 480
       const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
         targetTicks: split || narrow ? 4 : 6,
+        bounds,
       })
       const yDomain = split ? (splitDomain ?? []) : units
-      const panelHeight = yDomain.length * 22 + 64
+      const panelHeight = yDomain.length * 22 + 64 + PANEL_AXIS_INSET
       const facetChannel: Record<string, string> = split
         ? { fy: 'facet', fx: 'column' }
         : { fy: 'facet' }
-      const color = (entry: DotEntry) => outcomeColor(String(entry.row.group['outcome'] ?? ''))
+      // Six hues tell the domains apart down the page; a split reads in
+      // one ink hue, since the column already names the country.
+      const color = split
+        ? INK
+        : (entry: DotEntry) => outcomeColor(String(entry.row.group['outcome'] ?? ''))
+      const [, hi] = scale.domain
+      const valueFontSize = split || narrow ? 12 : 13
+      // The value labels live in an inset strip at the right of each
+      // panel (Atlas puts them in the right margin; a split has columns).
+      const insetRight = split || narrow ? 40 : 48
+      const firstColumn = units[0]
       return Plot.plot({
         height: 60 + panels.length * panelHeight,
         width,
@@ -92,17 +117,28 @@ export function CompareDomains({
           axis: 'top',
           label: null,
           grid: true,
+          insetRight,
         },
-        // Room at the top of each panel for its domain name.
-        y: { domain: yDomain, label: null, tickSize: 0, insetTop: 24 },
+        // Room at the top of each panel for its domain name, and under
+        // the last row for the in-panel ticks.
+        y: {
+          domain: yDomain,
+          label: null,
+          tickSize: 0,
+          insetTop: 24,
+          insetBottom: PANEL_AXIS_INSET,
+        },
         fy: { domain: panels, axis: null, paddingInner: 0.14 },
-        ...(split ? { fx: { domain: units, label: null } } : {}),
+        ...(split
+          ? { fx: { domain: units, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          : {}),
         marks: [
           Plot.frame({ stroke: 'var(--grid)' }),
-          // The panel's name, inside its frame, in ink — the server's
-          // display name verbatim.
+          // The panel's name, once per row, inside the first frame, in
+          // ink — the server's display name verbatim.
           Plot.text(panels, {
             fy: (panel: string) => panel,
+            ...(split && firstColumn !== undefined ? { fx: () => firstColumn } : {}),
             text: (panel: string) => panel,
             frameAnchor: 'top-left',
             dx: 6,
@@ -122,10 +158,22 @@ export function CompareDomains({
           }),
           Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
           ...dotMarks(entries, color, facetChannel, scale.domain[0]),
+          // A value label per row, like Atlas.
+          Plot.text(entries, {
+            ...facetChannel,
+            y: 'level',
+            x: hi,
+            text: (entry: DotEntry) => formatEstimate(entry.row.estimate, entry.row.stat),
+            dx: 6,
+            textAnchor: 'start',
+            fill: INK,
+            fontSize: valueFontSize,
+            fontWeight: 500,
+          }),
         ],
       })
     },
-    [rows, meta, outcomes, outcomeLabel, units, split, splitDomain, labeler],
+    [rows, meta, outcomes, outcomeLabel, units, split, splitDomain, labeler, bounds],
   )
 
   return <div ref={container} />

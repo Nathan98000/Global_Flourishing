@@ -93,6 +93,10 @@ class VariableOverride:
     min: int | None = None
     max: int | None = None
     special_codes: dict[int, str] = field(default_factory=dict[int, str])
+    #: Short display labels (code → label) for answers whose codebook
+    #: wording runs too long for a chart axis or a control; the codebook
+    #: keeps the full wording, the breakdown labels use these.
+    short_labels: dict[int, str] = field(default_factory=dict[int, str])
     extra_value_labels: tuple[ExtraValueLabel, ...] = ()
     codebook_headings: tuple[str, ...] = ()
     notes: str | None = None
@@ -168,6 +172,9 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         if str(treatment) not in SPECIAL_TREATMENTS:
             raise OverridesError(f"{name}: special code {code}: unknown treatment {treatment!r}")
         special_codes[int(code)] = str(treatment)
+    short_labels: dict[int, str] = {}
+    for code, label in dict(entry.get("short_labels") or {}).items():
+        short_labels[int(code)] = _require_str(label, f"{name}.short_labels[{code}]")
     extra_value_labels: list[ExtraValueLabel] = []
     for raw_extra in list(entry.get("extra_value_labels") or []):
         wave = raw_extra.get("wave")
@@ -191,6 +198,7 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         min=None if entry.get("min") is None else int(entry["min"]),
         max=None if entry.get("max") is None else int(entry["max"]),
         special_codes=special_codes,
+        short_labels=short_labels,
         extra_value_labels=tuple(extra_value_labels),
         codebook_headings=tuple(str(h) for h in entry.get("codebook_headings", [])),
         notes=None if entry.get("notes") is None else str(entry["notes"]),

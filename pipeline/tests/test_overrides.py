@@ -96,3 +96,20 @@ def test_polarity_follows_the_label_not_the_direction() -> None:
     # The SFI items and every 0–10 scale run upward as coded.
     assert all(v.polarity == "ascending" for v in variables.values() if v.sfi_domain)
     assert sum(v.polarity == "descending" for v in variables.values()) == 46
+
+
+def test_short_labels_shorten_the_long_breakdown_answers() -> None:
+    """Answers whose codebook wording runs past ~30 characters carry a
+    short display label for controls and axes (the codebook keeps the
+    full wording)."""
+    overrides = load_overrides()
+    assert overrides.variables["EDUCATION_3"].short_labels == {
+        1: "Primary or less",
+        2: "Secondary",
+        3: "Tertiary",
+    }
+    assert overrides.variables["EMPLOYMENT"].short_labels == {
+        6: "Unemployed, looking",
+        8: "Out of work (reserve duty)",
+    }
+    assert overrides.variables["GENDER"].short_labels == {}

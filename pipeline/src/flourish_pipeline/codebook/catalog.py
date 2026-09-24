@@ -31,6 +31,9 @@ class ValueLabelRecord:
     code: int
     label: str
     is_nonresponse: bool
+    #: a short display label from the overrides (chart axes, controls);
+    #: None means the codebook wording is short enough to use as is
+    short_label: str | None = None
 
 
 @dataclass(slots=True)
@@ -252,6 +255,7 @@ def _classify_labels(
                 code=vl.code,
                 label=label,
                 is_nonresponse=kind is not None,
+                short_label=None if kind is not None else override.short_labels.get(vl.code),
             )
         )
     for codes in nonresponse.values():

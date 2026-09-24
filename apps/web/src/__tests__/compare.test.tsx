@@ -208,10 +208,28 @@ describe('Compare view', () => {
     mockFetch(tier)
     await renderAt('/compare?countries=1,22&by=gender')
     const figure = await screen.findByRole('img', { name: /the levels of Gender in each country/ })
-    const text = figure.querySelector('svg')?.textContent ?? ''
+    const svg = figure.querySelector('svg')
+    const text = svg?.textContent ?? ''
     expect(text).toContain('Male')
     expect(text).toContain('Female')
     expect(text).toContain('Testland')
+    // The domain name reads once per row, not once per column; the dots
+    // wear one ink hue (the column already names the country); every
+    // row carries its value label, like Atlas.
+    const happiness = DOMAIN_NAMES['sfi_happiness'] as string
+    expect(text.split(happiness).length - 1).toBe(1)
+    expect(svg?.innerHTML).not.toContain('var(--sfi-happiness)')
+    expect(svg?.innerHTML).toContain('var(--ink)')
+    expect(text).toContain('6.01') // Testland, Male: the fixture's 5 + gender + code / 100
+  })
+
+  test('without a split the six domains keep their hues and the value labels', async () => {
+    mockFetch(tier)
+    await renderAt('/compare?countries=1,22')
+    const figure = await screen.findByRole('img', { name: /a row per country/ })
+    const svg = figure.querySelector('svg')
+    expect(svg?.innerHTML).toContain('var(--sfi-happiness)')
+    expect(svg?.textContent).toContain('7.00') // the United States row of the first domain
   })
 
   test('an added measure becomes a second figure; removing it drops the param', async () => {

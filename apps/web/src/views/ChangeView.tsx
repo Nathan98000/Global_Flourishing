@@ -25,7 +25,7 @@ import { useBootStatus, useMeta } from '../api/meta'
 import type { EstimateResponse, EstimateRow, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
-import { ChangeDots } from '../charts/ChangeDots'
+import { ChangeDots, changeBounds } from '../charts/ChangeDots'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { Histogram } from '../charts/Histogram'
 import { summarizeExtremes } from '../charts/summary'
@@ -404,6 +404,7 @@ export function ChangeView() {
               color={color}
               countryDomain={display.countryDomain}
               legs={legs}
+              bounds={changeBounds(variable, isCategorical)}
             />
           </ChartFigure>
 

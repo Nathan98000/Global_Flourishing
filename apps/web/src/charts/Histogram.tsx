@@ -11,6 +11,7 @@ import { groupValueLabel } from '../labels'
 import { fittedScale } from './domain'
 import {
   BAR_RADIUS,
+  FACET_PADDING,
   FONT_FAMILY,
   INK_SECONDARY,
   WHISKER,
@@ -83,7 +84,7 @@ export function Histogram({
       // countries in view; bars keep their zero baseline.
       const scale = fittedScale(
         valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0),
-        { targetTicks: 5, zeroBaseline: true },
+        { targetTicks: 5, zeroBaseline: true, bounds: [0, 100] },
       )
       return Plot.plot({
         height: 300,
@@ -112,7 +113,9 @@ export function Histogram({
           grid: true,
           tickFormat: (d: number) => `${scale.format(d)}%`,
         },
-        ...(faceted ? { fx: { domain: facets, label: null } } : {}),
+        ...(faceted
+          ? { fx: { domain: facets, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          : {}),
         marks: [
           Plot.barY(valid, {
             ...facetChannel,
@@ -132,6 +135,7 @@ export function Histogram({
               y2: (entry: BinEntry) => entry.ci?.[1],
               stroke: WHISKER,
               strokeWidth: 1.5,
+              clip: true,
             },
           ),
           Plot.tip(

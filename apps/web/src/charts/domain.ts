@@ -31,7 +31,18 @@ function decimalsOf(step: number): number {
 
 export function fittedScale(
   values: readonly number[],
-  { targetTicks = 6, zeroBaseline = false }: { targetTicks?: number; zeroBaseline?: boolean } = {},
+  {
+    targetTicks = 6,
+    zeroBaseline = false,
+    bounds,
+  }: {
+    targetTicks?: number
+    zeroBaseline?: boolean
+    /** The measure's own limits (a 0–10 scale, 0–100 for shares, −1…1
+     * for a correlation): the niced window is clamped to them, so an
+     * axis never runs past what the measure can be (no 2–12 or 0–15). */
+    bounds?: readonly [number, number]
+  } = {},
 ): FittedScale {
   const finite = values.filter((value) => Number.isFinite(value))
   if (finite.length === 0) {
@@ -50,15 +61,39 @@ export function fittedScale(
   const step = niceStep((hi - lo) / Math.max(2, targetTicks - 1))
   const decimals = decimalsOf(step)
   const snap = (value: number) => Number(value.toFixed(Math.min(10, decimals + 2)))
-  const start = snap(Math.floor(lo / step) * step)
-  const end = snap(Math.ceil(hi / step) * step)
-  const ticks: number[] = []
+  let start = snap(Math.floor(lo / step) * step)
+  let end = snap(Math.ceil(hi / step) * step)
+  let ticks: number[] = []
   for (let tick = start; tick <= end + step / 2; tick += step) ticks.push(snap(tick))
+  if (bounds && bounds[0] < bounds[1]) {
+    // Clamp after niceing; the clamped edges stay ticks (the window
+    // always states where it starts and ends).
+    start = Math.max(start, bounds[0])
+    end = Math.min(end, bounds[1])
+    if (end <= start) [start, end] = [Math.max(bounds[0], lo), Math.min(bounds[1], hi)]
+    ticks = ticks.filter((tick) => tick >= start - 1e-9 && tick <= end + 1e-9)
+    if (ticks.length === 0 || (ticks[0] ?? 0) > start + 1e-9) ticks.unshift(snap(start))
+    if ((ticks[ticks.length - 1] ?? 0) < end - 1e-9) ticks.push(snap(end))
+  }
   return {
     domain: [start, end],
     ticks,
     format: (value) => value.toFixed(decimals),
   }
+}
+
+/** A measure's own limits for a fitted window: 0–100 for a share, −1…1
+ * for a correlation, the catalog's min–max for a mean or median, none
+ * for a model coefficient (unbounded). */
+export function measureBounds(
+  stat: string,
+  variable: { min: number | null; max: number | null },
+): [number, number] | undefined {
+  if (stat === 'proportion' || stat === 'distribution' || stat === 'transition') return [0, 100]
+  if (stat === 'pearson_r' || stat === 'spearman_r') return [-1, 1]
+  if (stat === 'beta') return undefined
+  if (variable.min !== null && variable.max !== null) return [variable.min, variable.max]
+  return undefined
 }
 
 /** The plot-space extents a row occupies: its CI when present, else its value. */

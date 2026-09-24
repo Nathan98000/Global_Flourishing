@@ -116,6 +116,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "code",
                         "label",
                         "is_nonresponse",
+                        "short_label",
                     ],
                     "additionalProperties": False,
                     "properties": {
@@ -125,6 +126,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "code": {"type": "integer"},
                         "label": {"type": "string"},
                         "is_nonresponse": {"type": "boolean"},
+                        "short_label": _NULLABLE_STR,
                     },
                 },
             },

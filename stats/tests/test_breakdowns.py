@@ -52,6 +52,23 @@ def test_catalog_sourced_labels() -> None:
     assert labels["education_3"]["display_name"] == "Education (three levels)"
 
 
+def test_short_labels_win_over_the_codebook_wording() -> None:
+    """A curated short label (EDUCATION_3's sentence-long answers) is the
+    breakdown label; levels without one keep the codebook wording, and a
+    catalog without the column at all still works."""
+    variables, value_labels = catalog_frames()
+    shortened = value_labels.with_columns(
+        pl.when((pl.col("variable") == "EDUCATION_3") & (pl.col("code") == 1))
+        .then(pl.lit("Primary or less"))
+        .otherwise(pl.lit(None, dtype=pl.String))
+        .alias("short_label")
+    )
+    labels = breakdown_labels(variables, shortened)["education_3"]["levels"]
+    assert [level["label"] for level in labels] == ["Primary or less", "Secondary", "Tertiary"]
+    plain = breakdown_labels(variables, value_labels)["education_3"]["levels"]
+    assert [level["label"] for level in plain] == ["Elementary", "Secondary", "Tertiary"]
+
+
 def test_missing_catalog_source_falls_back_to_codes() -> None:
     labels = breakdown_labels(*catalog_frames())
     employment = labels["employment"]  # not in the tiny catalog above

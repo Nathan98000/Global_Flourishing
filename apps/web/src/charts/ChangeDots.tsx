@@ -15,7 +15,16 @@ import { groupValueLabel } from '../labels'
 import { legTitle } from '../waves'
 import { dotMarks, type DotEntry } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
-import { FONT_FAMILY, INK, INK_SECONDARY, ROW_HEIGHT, plotCI, plotValue } from './theme'
+import {
+  FACET_PADDING,
+  FONT_FAMILY,
+  INK,
+  INK_SECONDARY,
+  MIN_ROWS,
+  ROW_HEIGHT,
+  plotCI,
+  plotValue,
+} from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
 /** Entries keyed by country (y) and, for a three-point panel, by leg (fx). */
@@ -32,10 +41,27 @@ export function changeEntries(rows: EstimateRow[], meta: Meta): DotEntry[] {
 /** The fitted window, widened to contain zero: with zero among the
  * fitted values the nice-step ticks always include it, so the zero rule
  * lands on a labelled tick. */
-export function changeScale(entries: readonly DotEntry[], targetTicks = 6) {
+export function changeScale(
+  entries: readonly DotEntry[],
+  targetTicks = 6,
+  bounds?: readonly [number, number],
+) {
   return fittedScale([0, ...ciExtents(entries.filter((entry) => entry.value !== null))], {
     targetTicks,
+    bounds,
   })
+}
+
+/** The widest a change can be: ±the measure's span for a mean change,
+ * ±100 points for a share change. */
+export function changeBounds(
+  variable: { min: number | null; max: number | null },
+  shareChange: boolean,
+): [number, number] | undefined {
+  if (shareChange) return [-100, 100]
+  if (variable.min === null || variable.max === null) return undefined
+  const span = variable.max - variable.min
+  return [-span, span]
 }
 
 export function ChangeDots({
@@ -44,6 +70,7 @@ export function ChangeDots({
   color,
   countryDomain,
   legs,
+  bounds,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -53,6 +80,8 @@ export function ChangeDots({
   /** Present legs of a three-point response, in panel order; absent
    * for a plain pair. */
   legs?: readonly ChangeLeg[]
+  /** The widest the change can be (see `changeBounds`). */
+  bounds?: readonly [number, number]
 }) {
   const container = usePlot(
     (available) => {
@@ -61,13 +90,15 @@ export function ChangeDots({
       const facetChannel: Record<string, string> = faceted ? { fx: 'facet' } : {}
       const width = chartWidth(faceted ? 820 : 660, available)
       const narrow = width < 480
-      const scale = changeScale(entries, faceted || narrow ? 4 : 6)
+      const scale = changeScale(entries, faceted || narrow ? 4 : 6, bounds)
       // 'United Kingdom' at 13.5px needs the extra 8px on a phone.
       const marginLeft = narrow ? 112 : 128
       const marginRight = faceted ? 24 : narrow ? 60 : 72
       const [lo, hi] = scale.domain
       return Plot.plot({
-        height: 60 + countryDomain.length * ROW_HEIGHT,
+        // Never shorter than four rows: the ticks clear the first row and
+        // the zero rule is never a stub.
+        height: 60 + Math.max(countryDomain.length, MIN_ROWS) * ROW_HEIGHT,
         width,
         marginLeft,
         marginRight,
@@ -87,7 +118,16 @@ export function ChangeDots({
           grid: true,
         },
         y: { domain: countryDomain },
-        ...(faceted ? { fx: { domain: legs.map(legTitle), label: null } } : {}),
+        ...(faceted
+          ? {
+              fx: {
+                domain: legs.map(legTitle),
+                label: null,
+                axis: 'top',
+                paddingInner: FACET_PADDING,
+              },
+            }
+          : {}),
         marks: [
           // Country labels at 13.5 in ink (§6); the value axis stays 11px.
           Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
@@ -112,7 +152,7 @@ export function ChangeDots({
         ],
       })
     },
-    [rows, meta, color, countryDomain, legs],
+    [rows, meta, color, countryDomain, legs, bounds],
   )
 
   return <div ref={container} />

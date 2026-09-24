@@ -16,6 +16,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { CompareDomains } from '../charts/CompareDomains'
+import { measureBounds } from '../charts/domain'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SFI_DOMAINS } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
@@ -247,6 +248,7 @@ export function CompareView() {
     rows: EstimateRow[],
     source: EstimatesManyResult,
     stem: string,
+    bounds: readonly [number, number] | undefined,
   ) => {
     const response = responseFor(rows, outcomes, source)
     return (
@@ -274,6 +276,7 @@ export function CompareView() {
           split={search.by}
           splitDomain={splitDomain}
           labeler={labeler}
+          bounds={bounds}
         />
       </ChartFigure>
     )
@@ -352,6 +355,7 @@ export function CompareView() {
             domainRows,
             domains,
             'sfi-domains',
+            measureBounds('mean', firstDomain ?? { min: 0, max: 10 }),
           )}
           {extra &&
             (extraQuery.isPending ? (
@@ -366,6 +370,7 @@ export function CompareView() {
                 extraRows,
                 extraQuery,
                 extra.name,
+                measureBounds(extraStat, extra),
               )
             ))}
         </>

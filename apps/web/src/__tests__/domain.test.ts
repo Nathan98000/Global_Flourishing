@@ -4,7 +4,7 @@
 // way the change could mislead.
 
 import { describe, expect, test } from 'vitest'
-import { ciExtents, fittedScale } from '../charts/domain'
+import { ciExtents, fittedScale, measureBounds } from '../charts/domain'
 
 describe('fittedScale', () => {
   test('the domain covers the data with padding, edges are ticks', () => {
@@ -48,6 +48,32 @@ describe('fittedScale', () => {
   test('no finite values fall back to a unit window', () => {
     expect(fittedScale([]).domain).toEqual([0, 1])
     expect(fittedScale([Number.NaN]).domain).toEqual([0, 1])
+  })
+
+  test('bounds clamp the niced window to what the measure can be, edges still ticks', () => {
+    // Values hugging the top of a 0–10 scale no longer nice out to 12.
+    const top = fittedScale([9.4, 9.8, 10], { bounds: [0, 10] })
+    expect(top.domain[1]).toBe(10)
+    expect(top.ticks[top.ticks.length - 1]).toBe(10)
+    expect(top.ticks[0]).toBe(top.domain[0])
+    // Shares near zero never go negative; correlations never past ±1.
+    expect(fittedScale([0.2, 0.9, 1.5], { bounds: [0, 100] }).domain[0]).toBe(0)
+    const r = fittedScale([-0.97, -0.5, 0.95], { bounds: [-1, 1], targetTicks: 5 })
+    expect(r.domain).toEqual([-1, 1])
+    expect(r.ticks[0]).toBe(-1)
+    expect(r.ticks[r.ticks.length - 1]).toBe(1)
+    // Well inside the bounds, the window is the fitted one.
+    expect(fittedScale([6.8, 7.5], { bounds: [0, 10] }).domain).toEqual(
+      fittedScale([6.8, 7.5]).domain,
+    )
+  })
+
+  test('measureBounds knows shares, correlations, means and unbounded coefficients', () => {
+    expect(measureBounds('proportion', { min: 1, max: 3 })).toEqual([0, 100])
+    expect(measureBounds('pearson_r', { min: null, max: null })).toEqual([-1, 1])
+    expect(measureBounds('mean', { min: 0, max: 10 })).toEqual([0, 10])
+    expect(measureBounds('mean', { min: null, max: null })).toBeUndefined()
+    expect(measureBounds('beta', { min: 0, max: 10 })).toBeUndefined()
   })
 })
 

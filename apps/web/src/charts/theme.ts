@@ -94,6 +94,14 @@ export function outcomeColor(outcome: string): string {
 export const BAR_THICKNESS = 20
 export const BAR_RADIUS = 4
 export const ROW_HEIGHT = 26
+/** Row charts are never laid out shorter than this many rows: with one
+ * to three rows the top ticks would touch the first row and a zero rule
+ * would be a stub. */
+export const MIN_ROWS = 4
+/** Facet padding: enough that adjacent panels' tick labels never touch. */
+export const FACET_PADDING = 0.16
+/** Room under the last row of a panel for its in-panel tick labels. */
+export const PANEL_AXIS_INSET = 18
 
 /** Marches with docs/METHODS.md: quantiles ship without CIs for now. */
 export function hasCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi'>): boolean {

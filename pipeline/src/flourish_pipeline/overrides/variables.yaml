@@ -40,6 +40,11 @@
 # scale_type overrides mark consecutive 1..k codes that are NOT ordered
 # ("Agree / Disagree / Not relevant / Unsure" and similar), which the
 # inference would otherwise call ordinal.
+#
+# short_labels (code → label) shorten answers whose codebook wording runs
+# past ~30 characters, for the breakdown controls and chart axes; the
+# codebook keeps the full wording. Only the demographic breakdown sources
+# carry them today (EDUCATION_3, EMPLOYMENT).
 
 aliases:
   # Codebook heading -> CSV base name, where mechanical suffix stripping
@@ -631,11 +636,20 @@ variables:
   EDUCATION_3:
     display_name: Education (three levels)
     family: demographics
+    # The codebook's three answers run to 73–127 characters; the chart
+    # axes and controls use these (the codebook keeps the full wording).
+    short_labels:
+      1: Primary or less
+      2: Secondary
+      3: Tertiary
     notes: "Refused is printed as (RF) here, not (Refused)."
   EMPLOYMENT:
     display_name: Employment status
     family: demographics
     scale_type: nominal
+    short_labels:
+      6: Unemployed, looking
+      8: Out of work (reserve duty)
   MARITAL_STATUS:
     display_name: Marital status
     family: demographics
