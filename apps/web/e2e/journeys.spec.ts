@@ -346,7 +346,9 @@ test('10 — Correlates: pick an outcome, read the ranked list, switch to adjust
 
   // Read the ranked list: measures named from the catalog, signed values,
   // no interval drawn or described — a correlation is a point estimate.
-  const ranked = page.getByRole('img', { name: /most strongly associated with it in Testland/ })
+  const ranked = page.getByRole('img', {
+    name: /most strongly associated with it in United States/,
+  })
   await expect(ranked).toBeVisible()
   await expect(ranked.getByText('Loneliness', { exact: true })).toBeVisible()
   await expect(ranked.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
@@ -360,7 +362,10 @@ test('10 — Correlates: pick an outcome, read the ranked list, switch to adjust
 
   // Switch to adjusted: intervals appear, the control set is spelled out,
   // and the figure links to the model card.
-  await page.getByRole('group', { name: 'Model' }).getByText('Adjusted', { exact: true }).click()
+  await page
+    .getByRole('group', { name: 'Model' })
+    .getByText('Adjusted difference', { exact: true })
+    .click()
   await expect(page).toHaveURL(/outcome=HAPPY&adjusted=true$/)
   await expect(page.getByText(/Lines are 95% confidence intervals/).first()).toBeVisible()
   await expect(page.getByText(/The model holds age band, gender/).first()).toBeVisible()

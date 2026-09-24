@@ -286,7 +286,10 @@ describe('Change view', () => {
       name: /share of the same people giving each later answer/,
     })
     const table = within(moves).getByRole('table')
-    expect(within(table).getByText(/Testland — each row sums to 100%/)).toBeInTheDocument()
+    // The caption sits above the scrolling table, so a wide matrix never
+    // widens the page to fit it; the table is labelled by it.
+    expect(within(moves).getByText(/Testland — each row sums to 100%/)).toBeInTheDocument()
+    expect(table).toHaveAttribute('aria-labelledby')
     expect(
       within(table)
         .getAllByRole('columnheader')

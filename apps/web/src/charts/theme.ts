@@ -46,30 +46,38 @@ export const SEQUENTIAL_RAMP = [
 ] as const
 
 /** The diverging ramp (Phase 6): rust for negative associations, the
- * page tone at zero, teal for positive — seven tints designed for ink
- * text on top (the correlates matrix), quantized like the map ramp. */
+ * page tone at zero, teal for positive — five tints per sign with a
+ * stronger end step, every one designed for ink text on top (the
+ * correlates matrix), quantized like the map ramp. */
 export const DIVERGING_RAMP = [
-  'var(--div-100)',
-  'var(--div-200)',
-  'var(--div-300)',
-  'var(--div-400)',
-  'var(--div-500)',
-  'var(--div-600)',
-  'var(--div-700)',
+  'var(--div-n5)',
+  'var(--div-n4)',
+  'var(--div-n3)',
+  'var(--div-n2)',
+  'var(--div-n1)',
+  'var(--div-0)',
+  'var(--div-p1)',
+  'var(--div-p2)',
+  'var(--div-p3)',
+  'var(--div-p4)',
+  'var(--div-p5)',
 ] as const
+
+/** Tint steps per sign of the diverging ramp. */
+export const DIVERGING_STEPS = 5
 
 /** Mark-grade hues for a negative / positive association (dots, bars). */
 export const NEGATIVE_MARK = 'var(--div-neg-mark)'
 export const POSITIVE_MARK = 'var(--div-pos-mark)'
 
 /** The diverging tint for a value in [−extent, extent], quantized onto
- * the seven ramp tokens (no interpolation, no resolved colors — the
+ * the eleven ramp tokens (no interpolation, no resolved colors — the
  * theme switch recolors live); null → transparent. */
 export function divergingTint(value: number | null | undefined, extent = 1): string {
   if (value === null || value === undefined || !Number.isFinite(value) || extent <= 0)
     return 'transparent'
   const unit = Math.max(-1, Math.min(1, value / extent))
-  const step = Math.round(unit * 3) + 3
+  const step = Math.round(unit * DIVERGING_STEPS) + DIVERGING_STEPS
   return DIVERGING_RAMP[step] ?? 'transparent'
 }
 

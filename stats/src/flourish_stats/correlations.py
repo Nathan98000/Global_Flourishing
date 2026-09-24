@@ -63,6 +63,13 @@ DEFAULT_CONTROLS: tuple[str, ...] = (
 #: costs nothing and needs no approximation).
 MEASURES: tuple[str, ...] = ("beta", "beta_per_sd")
 
+#: A predictor enters the ranked list only where at least this many
+#: complete cases support its association (ADR-0015 — a deliberate
+#: exception to ADR-0011's "every cell shown": the cells are still served,
+#: but an ordering of noise is not an ordering). The API reads it as its
+#: default and lets ``FA_CORRELATES_MIN_N`` override it.
+CORRELATES_MIN_N = 100
+
 #: IRLS stopping rule for the logistic fit — R's glm rule, a relative
 #: change in the deviance below the tolerance, so that a control level
 #: with no events (whose dummy coefficient walks off to −∞ while the

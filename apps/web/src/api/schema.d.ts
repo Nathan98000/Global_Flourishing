@@ -93,8 +93,10 @@ export interface paths {
          *     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
          *     ``against`` for the ranked sweep over every other servable ordered
          *     item at the wave, cut to ``limit`` predictors (ranked by the median
-         *     absolute association across the groups). Binary items enter as
-         *     indicators of code 1 (Yes / screen positive). Global scope only.
+         *     absolute association across the groups with at least ``meta.min_n``
+         *     complete cases; ``meta.n_excluded`` candidates fell below it and are
+         *     not ranked). Binary items enter as indicators of code 1 (Yes / screen
+         *     positive). Global scope only.
          */
         get: operations["correlates_v1_correlates_get"];
         put?: never;
@@ -412,8 +414,12 @@ export interface components {
             filters: {
                 [key: string]: (string | number | boolean | null)[];
             };
+            /** Min N */
+            min_n?: number | null;
             /** Model */
             model?: string | null;
+            /** N Excluded */
+            n_excluded?: number | null;
             /** N Frame */
             n_frame: number;
             /** N Valid */

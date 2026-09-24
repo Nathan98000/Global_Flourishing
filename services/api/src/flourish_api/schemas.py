@@ -224,6 +224,12 @@ class ResponseMeta(BaseModel):
     adjusted: bool | None = None
     controls: list[str] | None = None
     model: str | None = None
+    #: /v1/correlates only: the complete-case n a predictor needs in a
+    #: group to be ranked (``FA_CORRELATES_MIN_N``, ADR-0015), and how
+    #: many candidates the ranked sweep left out for falling below it in
+    #: every group (0 when the predictors were named).
+    min_n: int | None = None
+    n_excluded: int | None = None
 
 
 class EstimateResponse(BaseModel):

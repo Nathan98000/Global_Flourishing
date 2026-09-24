@@ -94,7 +94,9 @@ def main() -> int:
         db_path = build_synthetic_db(Path(tmp))
         index = export_static(db_path, target, data_version=DATA_VERSION, only=FIXTURE_OUTCOMES)
 
-        client = TestClient(create_app(Settings(data_path=db_path)))
+        # 60 synthetic people per country: rank at a lower floor than the
+        # serving default (100) so the fixtures carry a ranked list.
+        client = TestClient(create_app(Settings(data_path=db_path, correlates_min_n=20)))
         sample = client.get(
             "/v1/export.csv", params={"outcome": "HAPPY", "wave": "Y1", "by": "country_code"}
         )

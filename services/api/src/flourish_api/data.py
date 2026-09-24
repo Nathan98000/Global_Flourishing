@@ -226,6 +226,11 @@ def suppression_policy(request: Request) -> SuppressionPolicy:
     return policy
 
 
+def correlates_min_n(request: Request) -> int:
+    """FastAPI dependency: the ranked sweep's minimum n (FA_CORRELATES_MIN_N)."""
+    return int(request.app.state.correlates_min_n)
+
+
 def require_data(request: Request) -> DataStore:
     """FastAPI dependency: the store, or an honest 503 when data is absent."""
     store: DataStore = request.app.state.store

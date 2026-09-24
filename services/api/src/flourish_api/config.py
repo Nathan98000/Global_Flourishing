@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
+from flourish_stats.correlations import CORRELATES_MIN_N
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +36,12 @@ class Settings(BaseSettings):
     # machinery in flourish_stats.suppression is untouched either way.
     suppression_threshold: int = 0
     suppression_flag_below: int = 0
+
+    # The ranked correlates sweep leaves out predictors with fewer complete
+    # cases than this in the country (ADR-0015; the default lives with the
+    # other correlates constants in flourish_stats.correlations). Named
+    # predictors are always served — the matrix mutes such cells instead.
+    correlates_min_n: int = CORRELATES_MIN_N
 
     # In-process LRU over /v1 GET responses (entries, not bytes; responses
     # are small aggregates). 0 disables.

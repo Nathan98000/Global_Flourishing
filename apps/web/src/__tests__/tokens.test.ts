@@ -70,15 +70,20 @@ const MARKS = [
   '--div-pos-mark',
 ]
 
-/** The diverging tints (Phase 6), negative → neutral → positive. */
+/** The diverging tints (Phase 6), negative → neutral → positive: five
+ * steps per sign around the page tone. */
 const DIVERGING = [
-  '--div-100',
-  '--div-200',
-  '--div-300',
-  '--div-400',
-  '--div-500',
-  '--div-600',
-  '--div-700',
+  '--div-n5',
+  '--div-n4',
+  '--div-n3',
+  '--div-n2',
+  '--div-n1',
+  '--div-0',
+  '--div-p1',
+  '--div-p2',
+  '--div-p3',
+  '--div-p4',
+  '--div-p5',
 ]
 
 // Sub-3:1 in light mode by design (validated palette, relief rule):
@@ -127,12 +132,16 @@ describe.each([
     expect(new Set(hues).size).toBe(6)
   })
 
-  test('the diverging ramp keeps ink text AA on every tint and has seven distinct steps', () => {
+  test('the diverging ramp keeps ink text AA on every tint and has eleven distinct steps', () => {
     for (const tint of DIVERGING) assertContrast(vars, '--ink', tint, 4.5, theme)
-    expect(new Set(DIVERGING.map((name) => vars[name])).size).toBe(7)
+    expect(new Set(DIVERGING.map((name) => vars[name])).size).toBe(11)
     // Both ends are visible against the neutral middle (the map ramp's floor).
-    assertContrast(vars, '--div-100', '--div-400', 1.15, theme)
-    assertContrast(vars, '--div-700', '--div-400', 1.15, theme)
+    assertContrast(vars, '--div-n5', '--div-0', 1.15, theme)
+    assertContrast(vars, '--div-p5', '--div-0', 1.15, theme)
+    // The end step is a stronger step than the one before it, both ways.
+    const step = (a: string, b: string) => contrast(vars[a] as string, vars[b] as string)
+    expect(step('--div-n5', '--div-n4')).toBeGreaterThan(step('--div-n4', '--div-n3'))
+    expect(step('--div-p5', '--div-p4')).toBeGreaterThan(step('--div-p4', '--div-p3'))
     // The two signed marks are told apart (rust vs teal, not one hue).
     expect(vars['--div-neg-mark']).not.toBe(vars['--div-pos-mark'])
   })

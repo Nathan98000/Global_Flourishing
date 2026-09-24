@@ -76,6 +76,7 @@ export function RankedBar({
   labelWidth,
   labelFontSize = 13.5,
   reference,
+  axisTitle,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -100,6 +101,8 @@ export function RankedBar({
   labelFontSize?: number
   /** A reference figure to draw as a dashed rule (already plot-scaled). */
   reference?: Reference
+  /** A title for the value axis (fitted-window charts; absent = none). */
+  axisTitle?: string
 }) {
   const container = usePlot(
     (available) => {
@@ -156,7 +159,9 @@ export function RankedBar({
             ticks: scale.ticks,
             tickFormat: scale.format,
             axis: 'top',
-            label: null,
+            label: axisTitle ?? null,
+            labelAnchor: 'center',
+            labelOffset: 44,
             grid: true,
           },
           y: { domain },
@@ -282,6 +287,7 @@ export function RankedBar({
       labelWidth,
       labelFontSize,
       reference,
+      axisTitle,
     ],
   )
 

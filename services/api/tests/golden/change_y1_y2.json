@@ -11,7 +11,9 @@
         1
       ]
     },
+    "min_n": null,
     "model": null,
+    "n_excluded": null,
     "n_frame": 40,
     "n_valid": 40,
     "oriented": false,

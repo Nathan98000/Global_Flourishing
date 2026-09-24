@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         threshold=settings.suppression_threshold,
         flag_below=settings.suppression_flag_below,
     )
+    app.state.correlates_min_n = settings.correlates_min_n
 
     init_sentry(settings)
     install_middleware(app, settings)
