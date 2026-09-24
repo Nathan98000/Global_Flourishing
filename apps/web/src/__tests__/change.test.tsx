@@ -10,7 +10,7 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
-import type { ApiHealth, EstimateRow, VariableDetail } from '../api/types'
+import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
 import { ChangeDots, changeScale } from '../charts/ChangeDots'
 import { cellTint, transitionGrid, TransitionTable } from '../charts/TransitionTable'
 import { formatChange, formatEstimate } from '../format'
@@ -24,7 +24,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
-import { changeLevels, orderChangeRows, signedLevel } from '../views/changeOrder'
+import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -149,6 +149,33 @@ const attendChange = testResponse(
   { outcome: 'ATTEND_SVCS', stat: 'change', waves: ['Y1', 'Y2'] },
 )
 
+/** A directional yes/no item (the owner's CLOSE_TO: Yes = 1 is better). */
+const closeToVariable: VariableSummary = {
+  ...attendVariable,
+  name: 'CLOSE_TO',
+  display_name: 'Someone to count on',
+  scale_type: 'binary',
+  direction: 'lower_better',
+  min: 1,
+  max: 2,
+}
+
+const closeToDetail: VariableDetail = {
+  ...closeToVariable,
+  value_labels: [
+    { code: 1, label: 'Yes', wave: null, country_code: null, is_nonresponse: false },
+    { code: 2, label: 'No', wave: null, country_code: null, is_nonresponse: false },
+  ],
+  missingness: [],
+  scoring: null,
+  components: [],
+}
+
+const closeToChange = testResponse(
+  [shareRow(1, 1, 0.05, 800), shareRow(1, 2, -0.05, 800), shareRow(22, 1, 0.012, 1800)],
+  { outcome: 'CLOSE_TO', stat: 'change', waves: ['Y1', 'Y2'] },
+)
+
 type Routes = Record<string, unknown | Response>
 
 function mockFetch(routes: Routes) {
@@ -175,9 +202,13 @@ function mockFetch(routes: Routes) {
 
 const tier: Routes = {
   '/data/meta.json': testMeta,
-  '/data/variables.json': { variables: [sfiVariable, happyVariable, attendVariable] },
+  '/data/variables.json': {
+    variables: [sfiVariable, happyVariable, attendVariable, closeToVariable],
+  },
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+  '/data/v1/CLOSE_TO/variable.json': closeToDetail,
+  '/v1/change?outcome=CLOSE_TO': closeToChange,
   '/health': okHealth,
   '/v1/change?outcome=HAPPY': happyChange,
   '/v1/change?outcome=ATTEND_SVCS': attendChange,
@@ -277,6 +308,30 @@ describe('Change view', () => {
     expect(within(table).queryByText('−3.0 pp')).toBeNull() // another level's row
     // The chart's value labels carry the unit too.
     expect(figure.querySelector('svg')?.textContent).toContain('+5.0 pp')
+  })
+
+  test('a directional yes/no item says whether a rise in the share is better', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=CLOSE_TO')
+    const figure = await screen.findByRole('img', {
+      name: /change in the share of the same people/,
+    })
+    const caption = figure.closest('figure') as HTMLElement
+    // Yes is the better end of a lower_better item: a rise in "Yes" is better…
+    expect(
+      within(caption).getByText(
+        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024',
+      ),
+    ).toBeInTheDocument()
+    // …and a rise in "No", the other end, is worse.
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Answer level' })).getByLabelText('No'),
+    )
+    expect(
+      await within(caption).findByText(
+        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024',
+      ),
+    ).toBeInTheDocument()
   })
 
   test('a categorical item gets the transition heatmap for chosen countries, labels from the codebook', async () => {
@@ -439,6 +494,18 @@ describe('change chart helpers', () => {
     // Signed bucket labels wear a true minus.
     expect(signedLevel(-3)).toBe('−3')
     expect(signedLevel(2)).toBe('+2')
+  })
+
+  test('whether a rise in a share is better comes from the coded ends of a directional item', () => {
+    // CLOSE_TO (Yes = 1 is better): a rise in Yes is better, in No worse.
+    expect(shareRiseIsBetter(closeToVariable, 1)).toBe(true)
+    expect(shareRiseIsBetter(closeToVariable, 2)).toBe(false)
+    // HEALTH_PROB (No = 2 is better): a rise in Yes is worse.
+    expect(shareRiseIsBetter({ direction: 'higher_better', min: 1, max: 2 }, 1)).toBe(false)
+    // A middle level of an ordinal item, an undirected item, no level: no note.
+    expect(shareRiseIsBetter({ direction: 'higher_better', min: 1, max: 3 }, 2)).toBeUndefined()
+    expect(shareRiseIsBetter(attendVariable, 1)).toBeUndefined()
+    expect(shareRiseIsBetter(closeToVariable, undefined)).toBeUndefined()
     expect(signedLevel(0)).toBe('0')
   })
 

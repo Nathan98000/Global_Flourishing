@@ -45,7 +45,7 @@ import { defaultDir } from '../sortRows'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_TITLES, pairTitle } from '../waves'
-import { changeLevels, orderChangeRows, signedLevel } from './changeOrder'
+import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/change')
@@ -216,14 +216,18 @@ export function ChangeView() {
   })
 
   const title = variable?.display_name ?? search.outcome
-  // The change is taken on values aligned to the label (a rise = more of
-  // what the measure names), so whether a rise is better follows from
-  // the server's direction and polarity together: better when the
-  // better end and the "more" end of the coded scale coincide.
+  // A numeric change is taken on values aligned to the label (a rise =
+  // more of what the measure names), so whether a rise is better follows
+  // from the server's direction and polarity together: better when the
+  // better end and the "more" end of the coded scale coincide. A share
+  // is never re-coded: its rise is better or worse only when the chosen
+  // answer is the better or the worse end of a directional item.
   const riseIsBetter =
     variable === undefined || variable.direction === 'none'
       ? undefined
-      : (variable.direction === 'higher_better') === (variable.polarity === 'ascending')
+      : isCategorical
+        ? shareRiseIsBetter(variable, activeLevel)
+        : (variable.direction === 'higher_better') === (variable.polarity === 'ascending')
   const directionNote =
     riseIsBetter === undefined ? '' : riseIsBetter ? 'a rise is better' : 'a rise is worse'
   const range =
@@ -233,8 +237,11 @@ export function ChangeView() {
   const subtitle = isCategorical
     ? [
         `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`,
+        directionNote,
         pair,
-      ].join(' · ')
+      ]
+        .filter(Boolean)
+        .join(' · ')
     : [
         `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
         pair,
