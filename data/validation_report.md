@@ -1,6 +1,6 @@
 # Validation report
 
-Pipeline `flourish-pipeline 0.1.0` — regenerate with `make data`.
+Pipeline `flourish-pipeline 0.2.0` — regenerate with `make data`.
 **62 / 62 checks passed.**
 
 ## Checks
@@ -171,12 +171,12 @@ Weighted means of the 12-item Secure Flourishing Index; unweighted n.
 
 | Stage | Seconds |
 |---|---|
-| aggregate | 538.0 |
+| aggregate | 188.9 |
 | codebook | 5.3 |
-| derive | 6.0 |
-| ingest | 1.0 |
+| derive | 5.9 |
+| ingest | 1.6 |
 | manifest | 0.5 |
-| reshape | 5.5 |
-| validate | 4.2 |
+| reshape | 6.0 |
+| validate | 1.8 |
 
 All figures above are aggregates; no raw microdata appears in this report.
