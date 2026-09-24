@@ -45,6 +45,39 @@ export const SEQUENTIAL_RAMP = [
   'var(--seq-700)',
 ] as const
 
+/** The diverging ramp (Phase 6): rust for negative associations, the
+ * page tone at zero, teal for positive — seven tints designed for ink
+ * text on top (the correlates matrix), quantized like the map ramp. */
+export const DIVERGING_RAMP = [
+  'var(--div-100)',
+  'var(--div-200)',
+  'var(--div-300)',
+  'var(--div-400)',
+  'var(--div-500)',
+  'var(--div-600)',
+  'var(--div-700)',
+] as const
+
+/** Mark-grade hues for a negative / positive association (dots, bars). */
+export const NEGATIVE_MARK = 'var(--div-neg-mark)'
+export const POSITIVE_MARK = 'var(--div-pos-mark)'
+
+/** The diverging tint for a value in [−extent, extent], quantized onto
+ * the seven ramp tokens (no interpolation, no resolved colors — the
+ * theme switch recolors live); null → transparent. */
+export function divergingTint(value: number | null | undefined, extent = 1): string {
+  if (value === null || value === undefined || !Number.isFinite(value) || extent <= 0)
+    return 'transparent'
+  const unit = Math.max(-1, Math.min(1, value / extent))
+  const step = Math.round(unit * 3) + 3
+  return DIVERGING_RAMP[step] ?? 'transparent'
+}
+
+/** The hue a signed mark wears. */
+export function signMark(value: number | null | undefined): string {
+  return value !== null && value !== undefined && value < 0 ? NEGATIVE_MARK : POSITIVE_MARK
+}
+
 /** The one hue an outcome's marks wear, everywhere. */
 export function outcomeColor(outcome: string): string {
   return SFI_HUES[outcome] ?? SERIES[0]
@@ -84,13 +117,16 @@ export function axisLabel(
 }
 
 /** Tooltip text: value leads, context follows. A missing interval says
- * so (no computable SE — read the n). */
+ * why: none is computed for the statistic (a plain correlation), or no
+ * SE was computable (a single sampling unit — read the n). */
 export function tipText(row: EstimateRow, label: string): string {
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
   if (hasCI(row)) {
     lines.push(
       `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
     )
+  } else if (row.ci_method === 'none') {
+    lines.push('point estimate — no interval is computed for this statistic')
   } else {
     lines.push('no interval (single sampling unit)')
   }

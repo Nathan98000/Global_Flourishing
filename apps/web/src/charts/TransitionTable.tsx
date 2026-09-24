@@ -1,11 +1,14 @@
-// Where people moved between answers (Phase 5): the transition matrix
-// of an ordinal/nominal item as a small heatmap table — rows are the
+// The tinted matrix (Phase 5, generalised in Phase 6): a small heatmap
+// table whose cells carry a number over a token-only tint, with the CI
+// and n in the tooltip and in the data table beneath the figure
+// (ADR-0011: every cell is shown). `HeatTable` is the matrix itself —
+// row keys, column keys, one cell lookup — and `TransitionTable` is the
+// transition matrix of an ordinal/nominal item built on it: rows are the
 // earlier answer, columns the later one, each cell the share of the
 // row's people who gave that later answer (the engine's conditional
-// measure; each row sums to 100%). Cells are tinted by share with the
-// accent token at graded opacity, so both themes keep ink text on top;
-// every cell is shown with its CI and n in the tooltip and in the data
-// table beneath the figure (ADR-0011). Never fetches.
+// measure; each row sums to 100%), tinted with the accent at graded
+// opacity. The Correlates view builds its measures × countries matrix on
+// the same component with the diverging ramp. Never fetches.
 
 import type { EstimateRow } from '../api/types'
 import { ciLabel, formatCount, formatEstimate } from '../format'
@@ -43,6 +46,97 @@ export function cellTint(share: number | null): string {
   return `color-mix(in srgb, var(--accent) ${percent}%, transparent)`
 }
 
+/** The interval clause of a cell's tooltip: the CI, or why there is none. */
+export function intervalText(row: EstimateRow): string {
+  if (row.ci_lo !== null && row.ci_hi !== null) {
+    return `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`
+  }
+  return row.ci_method === 'none'
+    ? 'point estimate — no interval is computed for this statistic'
+    : 'no interval (single sampling unit)'
+}
+
+export interface HeatCell {
+  /** The number in the cell (formatted by the caller). */
+  text: string
+  /** The tooltip: value, context, interval, n. */
+  title: string
+  /** A token-only background (`var(--…)` or a color-mix of one). */
+  tint: string
+  /** Read by assistive tech after the number (the n, typically). */
+  hidden?: string
+}
+
+export interface HeatAxis {
+  key: string
+  label: string
+}
+
+/** The matrix: rows × columns, one cell lookup; an absent cell reads "—". */
+export function HeatTable({
+  caption,
+  corner,
+  rows,
+  columns,
+  cellAt,
+}: {
+  caption: string
+  /** The corner label naming both axes ("First answer ↓ · later answer →"). */
+  corner: string
+  rows: readonly HeatAxis[]
+  columns: readonly HeatAxis[]
+  cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
+}) {
+  if (rows.length === 0 || columns.length === 0) return null
+  return (
+    <div className={styles.scroll}>
+      <table className={styles.table}>
+        <caption className={styles.caption}>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={styles.corner}>
+              <span className={styles.axis}>{corner}</span>
+            </th>
+            {columns.map((column) => (
+              <th key={column.key} scope="col">
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <th scope="row">{row.label}</th>
+              {columns.map((column) => {
+                const cell = cellAt(row, column)
+                if (!cell) {
+                  return (
+                    <td key={column.key} className={styles.cell}>
+                      —
+                    </td>
+                  )
+                }
+                return (
+                  <td
+                    key={column.key}
+                    className={styles.cell}
+                    style={{ background: cell.tint }}
+                    title={cell.title}
+                  >
+                    {cell.text}
+                    {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function TransitionTable({
   rows,
   levelLabel,
@@ -55,56 +149,23 @@ export function TransitionTable({
   caption: string
 }) {
   const grid = transitionGrid(rows)
-  if (grid.levels.length === 0) return null
+  const axis = grid.levels.map((level) => ({ key: String(level), label: levelLabel(level) }))
   return (
-    <div className={styles.scroll}>
-      <table className={styles.table}>
-        <caption className={styles.caption}>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={styles.corner}>
-              <span className={styles.axis}>First answer ↓ · later answer →</span>
-            </th>
-            {grid.levels.map((level) => (
-              <th key={level} scope="col">
-                {levelLabel(level)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {grid.levels.map((from) => (
-            <tr key={from}>
-              <th scope="row">{levelLabel(from)}</th>
-              {grid.levels.map((to) => {
-                const cell = grid.cells.get(`${from}:${to}`)
-                if (!cell) {
-                  return (
-                    <td key={to} className={styles.cell}>
-                      —
-                    </td>
-                  )
-                }
-                const interval =
-                  cell.ci_lo !== null && cell.ci_hi !== null
-                    ? `${ciLabel(cell.ci_level)} ${formatEstimate(cell.ci_lo, cell.stat)} to ${formatEstimate(cell.ci_hi, cell.stat)}`
-                    : 'no interval (single sampling unit)'
-                return (
-                  <td
-                    key={to}
-                    className={styles.cell}
-                    style={{ background: cellTint(cell.estimate) }}
-                    title={`${formatEstimate(cell.estimate, cell.stat)} of those who first said “${levelLabel(from)}” later said “${levelLabel(to)}”\n${interval}\nn = ${formatCount(cell.n)}`}
-                  >
-                    {formatEstimate(cell.estimate, cell.stat)}
-                    <span className="visually-hidden">, n = {formatCount(cell.n)}</span>
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <HeatTable
+      caption={caption}
+      corner="First answer ↓ · later answer →"
+      rows={axis}
+      columns={axis}
+      cellAt={(from, to) => {
+        const cell = grid.cells.get(`${from.key}:${to.key}`)
+        if (!cell) return undefined
+        return {
+          text: formatEstimate(cell.estimate, cell.stat),
+          title: `${formatEstimate(cell.estimate, cell.stat)} of those who first said “${from.label}” later said “${to.label}”\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+          tint: cellTint(cell.estimate),
+          hidden: `, n = ${formatCount(cell.n)}`,
+        }
+      }}
+    />
   )
 }

@@ -66,6 +66,19 @@ const MARKS = [
   '--series-1',
   '--series-2',
   '--series-3',
+  '--div-neg-mark',
+  '--div-pos-mark',
+]
+
+/** The diverging tints (Phase 6), negative → neutral → positive. */
+const DIVERGING = [
+  '--div-100',
+  '--div-200',
+  '--div-300',
+  '--div-400',
+  '--div-500',
+  '--div-600',
+  '--div-700',
 ]
 
 // Sub-3:1 in light mode by design (validated palette, relief rule):
@@ -112,6 +125,16 @@ describe.each([
   test('sfi hues stay six distinct values', () => {
     const hues = MARKS.slice(0, 6).map((name) => vars[name])
     expect(new Set(hues).size).toBe(6)
+  })
+
+  test('the diverging ramp keeps ink text AA on every tint and has seven distinct steps', () => {
+    for (const tint of DIVERGING) assertContrast(vars, '--ink', tint, 4.5, theme)
+    expect(new Set(DIVERGING.map((name) => vars[name])).size).toBe(7)
+    // Both ends are visible against the neutral middle (the map ramp's floor).
+    assertContrast(vars, '--div-100', '--div-400', 1.15, theme)
+    assertContrast(vars, '--div-700', '--div-400', 1.15, theme)
+    // The two signed marks are told apart (rust vs teal, not one hue).
+    expect(vars['--div-neg-mark']).not.toBe(vars['--div-pos-mark'])
   })
 })
 

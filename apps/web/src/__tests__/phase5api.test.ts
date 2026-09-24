@@ -165,3 +165,32 @@ describe('warmApi', () => {
     await expect(warmApi()).resolves.toBeUndefined()
   })
 })
+
+describe('correlates fetch layer (Phase 6)', () => {
+  test('canonical params: API names, stable order, the method only when not Pearson', async () => {
+    const { canonicalCorrelatesKey } = await import('../api/correlates')
+    expect(
+      canonicalCorrelatesKey({
+        outcome: 'HAPPY',
+        wave: 'Y1',
+        by: [],
+        countries: [9],
+        adjusted: true,
+        method: 'pearson',
+      }),
+    ).toBe('outcome=HAPPY&wave=Y1&adjusted=true&filter=country_code%3A9')
+    expect(
+      canonicalCorrelatesKey({
+        outcome: 'sfi',
+        wave: 'Y2',
+        against: ['LONELY', 'BALANCE'],
+        method: 'spearman',
+        by: ['country_code'],
+        filters: [{ column: 'gender', values: [1] }],
+        limit: 10,
+      }),
+    ).toBe(
+      'outcome=sfi&wave=Y2&against=LONELY&against=BALANCE&method=spearman&by=country_code&filter=gender%3A1&limit=10',
+    )
+  })
+})

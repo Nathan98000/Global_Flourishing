@@ -6,6 +6,7 @@
 // parse — it can never be forged into or trapped in a shared URL.
 
 import type { ChangeRequest } from '../api/change'
+import type { CorrelatesRequest } from '../api/correlates'
 import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
 import type { Stat, VariableSummary, Wave } from '../api/types'
@@ -667,5 +668,85 @@ export function statesRequest(
     wave: search.wave,
     stat: search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean',
     adj: search.adj,
+  }
+}
+
+// --- Correlates (Phase 6) ----------------------------------------------------
+// What travels with an outcome: the ranked list for one country, and the
+// same items across every country. `adjusted` swaps plain correlations
+// for the adjusted models; `method=spearman` asks for rank correlations
+// (unadjusted only). The country is absent when it is the catalog's
+// first — the view resolves that from meta, so the URL never carries it.
+
+export interface CorrelatesSearch {
+  outcome: string
+  topic?: string
+  wave: Wave
+  /** The country whose ranked list is shown; absent = the catalog's first. */
+  country?: number
+  /** The adjusted models instead of plain correlations. */
+  adjusted?: boolean
+  /** Rank correlation instead of Pearson (ignored when adjusted). */
+  method?: 'spearman'
+  invalid?: string[]
+  invalidRaw?: RawParams
+}
+
+export const CORRELATES_DEFAULTS = {
+  outcome: 'sfi',
+  wave: 'Y1' as Wave,
+}
+
+export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
+  const collect = new Collector()
+  const search: CorrelatesSearch = {
+    outcome: collect.take('outcome', raw, parseName, CORRELATES_DEFAULTS.outcome),
+    topic: collect.take('topic', raw, parseName, undefined),
+    wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
+    country: collect.take('country', raw, parseCountryCode, undefined),
+    adjusted: collect.take('adjusted', raw, parseTrue, undefined) ? true : undefined,
+    method: collect.take('method', raw, parseEnum('spearman'), undefined),
+  }
+  return collect.finish(search)
+}
+
+export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Record<string, unknown> {
+  return withInvalidRaw(
+    {
+      outcome: search.outcome === CORRELATES_DEFAULTS.outcome ? undefined : search.outcome,
+      topic: search.topic,
+      wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
+      country: search.country,
+      adjusted: search.adjusted ? true : undefined,
+      method: search.method,
+    },
+    search.invalidRaw,
+  )
+}
+
+/** The ranked list for one country: the server sweeps, ranks and cuts. */
+export function correlatesRequest(search: CorrelatesSearch, country: number): CorrelatesRequest {
+  return {
+    outcome: search.outcome,
+    wave: search.wave,
+    by: [],
+    countries: [country],
+    adjusted: search.adjusted,
+    method: search.adjusted ? undefined : search.method,
+  }
+}
+
+/** The ranked list's own items, across every country. */
+export function correlatesAcrossCountries(
+  search: CorrelatesSearch,
+  predictors: readonly string[],
+): CorrelatesRequest {
+  return {
+    outcome: search.outcome,
+    wave: search.wave,
+    against: predictors,
+    by: ['country_code'],
+    adjusted: search.adjusted,
+    method: search.adjusted ? undefined : search.method,
   }
 }

@@ -126,6 +126,18 @@
   --seq-700: #1e4a48;
   --map-empty: #e8e3d7;
 
+  /* Diverging ramp (correlates matrix): rust ← page tone → teal, seven
+     tints that keep ink text AA on top; mark-grade hues for signed dots */
+  --div-100: #e9c0a8;
+  --div-200: #f1d6c6;
+  --div-300: #f8eae1;
+  --div-400: #f6f4ee;
+  --div-500: #dfe8de;
+  --div-600: #c5d8d2;
+  --div-700: #a9c6be;
+  --div-neg-mark: #b4531f;
+  --div-pos-mark: #1f5d55;
+
   /* Banners */
   --notice-bg: #eef1ea;
   --notice-border: #c8d3c8;
@@ -186,6 +198,16 @@
     --seq-700: #d9cfb0;
     --map-empty: #26241f;
 
+    --div-100: #6a3a22;
+    --div-200: #4e2f20;
+    --div-300: #362820;
+    --div-400: #141310;
+    --div-500: #1e2b28;
+    --div-600: #24403b;
+    --div-700: #2f5a52;
+    --div-neg-mark: #d98b5a;
+    --div-pos-mark: #7fb8ad;
+
     --notice-bg: #17201c;
     --notice-border: #2f4a42;
     --warning-bg: #2a2313;
@@ -243,6 +265,16 @@
   --seq-600: #b3c0a4;
   --seq-700: #d9cfb0;
   --map-empty: #26241f;
+
+  --div-100: #6a3a22;
+  --div-200: #4e2f20;
+  --div-300: #362820;
+  --div-400: #141310;
+  --div-500: #1e2b28;
+  --div-600: #24403b;
+  --div-700: #2f5a52;
+  --div-neg-mark: #d98b5a;
+  --div-pos-mark: #7fb8ad;
 
   --notice-bg: #17201c;
   --notice-border: #2f4a42;

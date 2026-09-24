@@ -29,10 +29,16 @@ export function formatChange(value: number): string {
   return value > 0 ? `+${rendered}` : `−${rendered}`
 }
 
+/** Correlations and model coefficients are signed quantities around
+ * zero, so they carry their sign the way a change does. */
+export function isAssociationStat(stat: string): boolean {
+  return stat === 'pearson_r' || stat === 'spearman_r' || stat === 'beta'
+}
+
 export function formatEstimate(value: number | null | undefined, stat: string): string {
   if (value === null || value === undefined) return '—'
   if (isShareStat(stat)) return `${one.format(value * 100)}%`
-  if (stat === 'change') return formatChange(value)
+  if (stat === 'change' || isAssociationStat(stat)) return formatChange(value)
   return two.format(value)
 }
 

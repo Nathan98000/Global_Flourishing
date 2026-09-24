@@ -36,15 +36,20 @@ interface Entry {
 /** Rows arrive already ordered (src/sortRows.ts — the same order the
  * data table renders); the chart never re-sorts. Rows are countries
  * unless another group column is named (the US States view's `state`,
- * whose codes are the server's own labels). */
+ * whose codes are the server's own labels) or the caller labels rows
+ * itself (the Correlates view: one measure per row, named from the
+ * catalog). */
 export function rankEntries(
   rows: EstimateRow[],
   meta: Meta,
   labelColumn = 'country_code',
+  labelOf?: (row: EstimateRow) => string,
 ): Entry[] {
   return rows.map((row) => ({
     row,
-    label: groupValueLabel(labelColumn, row.group[labelColumn] ?? null, meta),
+    label: labelOf
+      ? labelOf(row)
+      : groupValueLabel(labelColumn, row.group[labelColumn] ?? null, meta),
     value: plotValue(row),
     ci: plotCI(row),
   }))
@@ -65,6 +70,11 @@ export function RankedBar({
   color,
   levelLabel,
   labelColumn = 'country_code',
+  labelOf,
+  colorOf,
+  zeroRule = false,
+  labelWidth,
+  labelFontSize = 13.5,
   reference,
 }: {
   rows: EstimateRow[]
@@ -75,12 +85,26 @@ export function RankedBar({
   levelLabel?: string
   /** The group column that names each row (country by default). */
   labelColumn?: string
+  /** Names rows itself (takes precedence over `labelColumn`). */
+  labelOf?: (row: EstimateRow) => string
+  /** Per-row hue (a signed quantity: rust below zero, teal above). */
+  colorOf?: (row: EstimateRow) => string
+  /** A signed quantity: keep zero in the window and rule it in ink. */
+  zeroRule?: boolean
+  /** Room for the row labels; the default fits country names, measure
+   * names (the Correlates view) need more. */
+  labelWidth?: number
+  /** Row-label size: 13.5 by default; 12 (the chart ladder's small step)
+   * lets long measure names fit a phone column without the chart
+   * shrinking or scrolling. */
+  labelFontSize?: number
   /** A reference figure to draw as a dashed rule (already plot-scaled). */
   reference?: Reference
 }) {
   const container = usePlot(
     (available) => {
-      const entries = rankEntries(rows, meta, labelColumn)
+      const entries = rankEntries(rows, meta, labelColumn, labelOf)
+      const fillOf = (entry: Entry) => (colorOf ? colorOf(entry.row) : color)
       const referenceMarks = reference
         ? [
             Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
@@ -105,17 +129,20 @@ export function RankedBar({
       }
       const width = chartWidth(660, available)
       const narrow = width < 480
-      const marginLeft = narrow ? 104 : 128
-      // Sized for the 14px value column, 16px off the plot's right edge (§5).
-      const marginRight = narrow ? 60 : 72
+      const marginLeft = labelWidth ?? (narrow ? 104 : 128)
+      // Sized for the value column (14px, 12px on a phone), 16px off the
+      // plot's right edge (§5).
+      const marginRight = narrow ? 56 : 72
+      const valueFontSize = narrow ? 12 : 14
       const height = 44 + entries.length * ROW_HEIGHT
       const valueOf = (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat)
 
       if (!isShare) {
         // Location stats on a bounded scale: dot + CI on a fitted window.
-        const scale = fittedScale([...ciExtents(valid), ...(reference ? [reference.value] : [])], {
-          targetTicks: narrow ? 5 : 7,
-        })
+        const scale = fittedScale(
+          [...ciExtents(valid), ...(reference ? [reference.value] : []), ...(zeroRule ? [0] : [])],
+          { targetTicks: narrow ? 5 : 7 },
+        )
         const [lo, hi] = scale.domain
         return Plot.plot({
           height: height + 16 + (reference ? 18 : 0),
@@ -135,7 +162,7 @@ export function RankedBar({
           y: { domain },
           marks: [
             // Country labels at 13.5 in ink (§6); the value axis stays 11px.
-            Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
+            Plot.axisY({ tickSize: 0, label: null, fontSize: labelFontSize, fill: INK }),
             Plot.ruleY(
               valid.filter((entry) => entry.ci !== null),
               {
@@ -146,10 +173,11 @@ export function RankedBar({
                 strokeWidth: 1.5,
               },
             ),
+            ...(zeroRule ? [Plot.ruleX([0], { stroke: INK })] : []),
             Plot.dot(valid, {
               y: 'label',
               x: 'value',
-              fill: color,
+              fill: fillOf,
               r: 4.5,
               stroke: 'var(--surface)',
               strokeWidth: 2,
@@ -161,7 +189,7 @@ export function RankedBar({
               dx: 16,
               textAnchor: 'start',
               fill: INK,
-              fontSize: 14,
+              fontSize: valueFontSize,
               fontWeight: 500,
             }),
             Plot.tip(
@@ -198,7 +226,7 @@ export function RankedBar({
         },
         y: { domain },
         marks: [
-          Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
+          Plot.axisY({ tickSize: 0, label: null, fontSize: labelFontSize, fill: INK }),
           Plot.barX(valid, {
             y: 'label',
             x: 'value',
@@ -224,7 +252,7 @@ export function RankedBar({
             dx: 16,
             textAnchor: 'start',
             fill: INK,
-            fontSize: 14,
+            fontSize: valueFontSize,
             fontWeight: 500,
           }),
           Plot.tip(
@@ -240,7 +268,21 @@ export function RankedBar({
         ],
       })
     },
-    [rows, meta, responseMeta, variable, color, levelLabel, labelColumn, reference],
+    [
+      rows,
+      meta,
+      responseMeta,
+      variable,
+      color,
+      levelLabel,
+      labelColumn,
+      labelOf,
+      colorOf,
+      zeroRule,
+      labelWidth,
+      labelFontSize,
+      reference,
+    ],
   )
 
   return <div ref={container} />
