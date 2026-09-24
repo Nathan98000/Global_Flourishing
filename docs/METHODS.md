@@ -202,17 +202,77 @@ quantiles (Woodruff intervals) are a recorded backlog item.
 **Correlations** are weighted Pearson coefficients (or Spearman: ranks
 first, then weighted Pearson on the ranks — one of several defensible
 definitions of a weighted rank correlation; it reduces to the classical
-one when weights are equal). They are shown as point estimates without
-CIs in this phase.
+one when weights are equal). They are shown as **point estimates without
+confidence intervals**: no interval is computed for a correlation, and
+the Correlates view draws none — its footnote says so rather than naming
+an interval level. A design-based interval (a delta method over the four
+totals R's `svyvar` estimates) is the recorded backlog item; a textbook
+Fisher-z interval would assume simple random sampling and is not offered.
+
+## Adjusted and unadjusted associations
+
+The Correlates view answers "what travels with this measure?" in two
+ways, and the difference between them is the most important thing on
+the page.
+
+**Unadjusted** means the plain weighted correlation above: how far two
+answers move together across everyone in a country, on a −1 to 1 scale.
+A correlation of +0.5 between two 0–10 items says people who score high
+on one tend to score high on the other; it says nothing about why.
+
+**Adjusted** means a regression of the outcome on the measure *and a
+fixed set of controls*: age band, gender, education (three levels),
+employment status and marital status — each entered as a set of
+indicator variables — plus a country fixed effect whenever more than one
+country is in the frame. The number shown is the measure's coefficient:
+for a 0–10 outcome, the change in the outcome (in points of its scale)
+associated with a one-unit change in the measure *among people who are
+alike on every control*; for a yes/no outcome, the same thing on the
+log-odds scale (the model is a weighted logistic regression). Because
+measures live on different scales, the view charts the coefficient per
+one standard deviation of the measure — the fit you would get by
+standardising the measure first, an exact rescaling — so a 0–10 item and
+a three-level item can share one ranked list; the data table carries
+both quantities. Standard errors are design-based (the same Taylor
+linearisation as every mean in the app, applied to the coefficient's
+influence values — R `svyglm`'s number), and the interval is a 95%
+normal interval.
+
+**"Controlling for" is not "accounting for".** Holding five demographics
+fixed removes the part of an association that runs through those five
+things — a measure that only tracks the outcome because older people
+answer both differently will shrink toward zero once age is held fixed.
+It does nothing about the hundred things the survey did not ask or the
+model does not include: an adjusted coefficient is *still* an
+association, among people who happen to be alike on five recorded facts.
+Residual confounding remains; the survey is cross-sectional, so nothing
+about order in time is learned; and a country fixed effect absorbs every
+difference *between* countries, so the pooled coefficient is a
+within-country association and says nothing about why countries differ.
+The set of controls is the same for every outcome and every measure — it
+is never chosen per pair — and each model family has a card
+(`docs/model-cards/`, rendered in the app) stating the specification, the
+weight, the standard error and the limitations in full.
+
+Two smaller rules the view follows. Yes/no items enter every model as
+0/1 indicators of "Yes" (the release codes Yes as 1, No as 2; the derived
+screeners code "positive" as 1). And a ranked list leaves out any
+measure built from the same answers as the outcome — the flourishing
+index and one of its component questions, or two screeners that share an
+item — because they are associated by construction, not by anything in
+the world; items with no order (nominal codes) have no correlation and
+are left out too.
 
 ## Associations, not causes
 
 Nothing in this app is a causal estimate. "People who attend services
 weekly report higher meaning" is a statement about who reports what, in
 one survey, at one time — attendance, meaning, and a hundred unmeasured
-things travel together. Adjusted associations (Phase 6) will control for
-a fixed set of demographics, which narrows, but does not close, that gap.
-The app says "associated with", and means exactly that.
+things travel together. Adjusted associations control for a fixed set of
+demographics, which narrows, but does not close, that gap (see the
+section above). The app says "associated with", and means exactly that —
+in the deck of the Correlates view and in the footnote of every figure
+on it.
 
 ## How the API applies all of this
 
@@ -232,17 +292,21 @@ the same engine at build time.
 
 ## Verified against R
 
-The engine is cross-checked against R's `survey` package on **30
+The engine is cross-checked against R's `survey` package on **36
 estimates** spanning the designs that make survey inference hard:
 self-representing countries, countries with lonely PSUs (Brazil, Israel),
 genuinely clustered samples (Egypt, Kenya, India, Nigeria, the
 Philippines), subgroup estimates, all five weights, the standalone-midyear
-restriction, proportions, a median, a correlation and a full transition
-matrix. The case list is `stats/verify/cases.csv`; the committed
-reference (`stats/verify/reference.json`, aggregates only) records the R
-and `survey` versions and the data version it was computed from; `make
-parity` regenerates and re-checks it. Tolerances: point estimates agree
-within 10⁻⁹, standard errors within one part in 10⁶, medians exactly.
+restriction, proportions, a median, a correlation, a full transition
+matrix, and six `svyglm` coefficients — the adjusted models above, a
+continuous and a binary outcome, with and without a subgroup, in a
+clustered design and the self-representing United States. The case list
+is `stats/verify/cases.csv`; the committed reference
+(`stats/verify/reference.json`, aggregates only) records the R and
+`survey` versions and the data version it was computed from; `make
+parity` regenerates and re-checks it. Tolerances: point estimates and
+coefficients agree within 10⁻⁹, standard errors within one part in 10⁶,
+medians exactly.
 
 ## Data
 
