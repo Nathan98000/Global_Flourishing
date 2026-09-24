@@ -102,14 +102,17 @@ export function CompareView() {
   )
   const extraRows = useMemo(
     () =>
-      extra
+      // A categorical item waits for its detail: the level shown is the
+      // first labelled answer (Atlas's default), never a guess.
+      extra && (extra.default_stat !== 'proportion' || extraDetail)
         ? combineRows(
             extraQuery.results.map((result) => result?.response),
             [extra.name],
             countries,
+            { [extra.name]: extraDetail },
           )
         : [],
-    [extra, extraQuery.results, countries],
+    [extra, extraDetail, extraQuery.results, countries],
   )
   // Level labels for a survey-variable split come from its own value
   // labels (server truth); demographics are labelled by meta.

@@ -40,7 +40,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { groupValueLabel, outcomeLevels } from '../labels'
+import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
 import { defaultDir } from '../sortRows'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -121,8 +121,8 @@ export function ChangeView() {
     [search.via, response],
   )
   const levels = useMemo(() => outcomeLevels(detail), [detail])
-  // Atlas's default level is the first labelled answer; the same here.
-  const activeLevel = search.level ?? levels[0]?.value
+  // Atlas's default level, from the one shared rule.
+  const activeLevel = search.level ?? defaultLevel(detail)
   const activeLevelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   const display = useMemo(() => {
     if (!response || !metaData) return { rows: [] as EstimateRow[], countryDomain: [] as string[] }

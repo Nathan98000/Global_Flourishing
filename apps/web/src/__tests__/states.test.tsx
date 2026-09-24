@@ -271,7 +271,9 @@ describe('US States view', () => {
     // figure is in the footnote, in words.
     expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
-    expect(screen.getByText(/n = 38,142 · w_state_c1/)).toBeInTheDocument()
+    // The n, and no weight code: the footnote says the weighting in words.
+    expect(screen.getByText('n = 38,142')).toBeInTheDocument()
+    expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
     expect(
       screen.getByText(/On the national weight, the US overall figure is 7\.21 \[7\.10, 7\.32\]/),
     ).toBeInTheDocument()

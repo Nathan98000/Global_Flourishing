@@ -86,7 +86,7 @@ export function rowGroupLabels(row: EstimateRow, by: readonly string[], meta: Me
 /** For proportion responses with no labelled levels (derived binaries:
  * phq2_positive's {0, 1}), show the highest level — the "positive" share
  * the score's own display name describes. */
-export function highestLevel(rows: EstimateRow[]): number | undefined {
+export function highestLevel(rows: readonly EstimateRow[]): number | undefined {
   let highest: number | undefined
   for (const row of rows) {
     if (row.level !== null && row.level !== undefined) {
@@ -94,6 +94,17 @@ export function highestLevel(rows: EstimateRow[]): number | undefined {
     }
   }
   return highest
+}
+
+/** The answer level a categorical outcome shows until the URL names one
+ * — Atlas's rule, shared by every view that shows one level: the first
+ * labelled answer; for a proportion with no labelled levels (derived
+ * binaries: phq2_positive's {0, 1}), the highest level present. */
+export function defaultLevel(
+  detail: VariableDetail | undefined,
+  rows: readonly EstimateRow[] = [],
+): number | undefined {
+  return outcomeLevels(detail)[0]?.value ?? highestLevel(rows)
 }
 
 /** Level display order for a breakdown column, from meta's labels — or,

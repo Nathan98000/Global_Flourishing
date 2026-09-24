@@ -8,7 +8,7 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
-import type { ApiHealth, VariableSummary } from '../api/types'
+import type { ApiHealth, VariableDetail, VariableSummary } from '../api/types'
 import { SFI_DOMAINS } from '../charts/theme'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { createAppRouter } from '../router'
@@ -45,6 +45,35 @@ const domainVariables: VariableSummary[] = SFI_DOMAINS.map((domain) => ({
   name: domain,
   display_name: DOMAIN_NAMES[domain] ?? domain,
 }))
+
+const attendDetail: VariableDetail = {
+  ...attendVariable,
+  value_labels: [
+    { code: 1, label: 'Weekly', wave: null, country_code: null, is_nonresponse: false },
+    { code: 2, label: 'Sometimes', wave: null, country_code: null, is_nonresponse: false },
+    { code: 3, label: 'Never', wave: null, country_code: null, is_nonresponse: false },
+  ],
+  missingness: [],
+  scoring: null,
+  components: [],
+}
+
+/** A categorical item's shares by country: one row per answer level. */
+const attendByCountry = testResponse(
+  [1, 22].flatMap((code) =>
+    [1, 2, 3].map((level) =>
+      testRow({
+        group: { country_code: code },
+        stat: 'proportion',
+        level,
+        estimate: 0.2 + level * 0.1,
+        ci_lo: 0.15 + level * 0.1,
+        ci_hi: 0.25 + level * 0.1,
+      }),
+    ),
+  ),
+  { outcome: 'ATTEND_SVCS', stat: 'proportion' },
+)
 
 type Routes = Record<string, unknown | Response>
 
@@ -111,6 +140,8 @@ const tier: Routes = {
     components: [],
   },
   '/data/v1/HAPPY/Y1/mean_by-country_code.json': byCountry('HAPPY', 1),
+  '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+  '/data/v1/ATTEND_SVCS/Y1/proportion_by-country_code.json': attendByCountry,
   '/health': okHealth,
   ...Object.fromEntries(
     SFI_DOMAINS.flatMap((domain, index) => [
@@ -140,7 +171,13 @@ async function renderAt(path: string) {
 }
 
 describe('compare helpers', () => {
-  test('units read A–Z; rows are stamped with their outcome, proportions keep their highest level', () => {
+  test('units read A–Z; rows are stamped with their outcome; a proportion keeps the default level', () => {
+    // With the item's labelled answers: the first one, Atlas's default.
+    const labelled = combineRows([attendByCountry], ['ATTEND_SVCS'], [1], {
+      ATTEND_SVCS: attendDetail,
+    })
+    expect(labelled.map((row) => row.level)).toEqual([1])
+    // Without any (a derived binary): the highest level, its positive share.
     expect(compareUnits([22, 1], testMeta)).toEqual(['Testland', 'United States'])
     const rows = combineRows(
       [
@@ -255,6 +292,16 @@ describe('Compare view', () => {
     const svg = figure.querySelector('svg')
     expect(svg?.innerHTML).toContain('var(--sfi-happiness)')
     expect(svg?.textContent).toContain('7.00') // the United States row of the first domain
+  })
+
+  test('an added categorical measure shows its first answer, as Atlas does', async () => {
+    mockFetch(tier)
+    await renderAt('/compare?countries=1,22&outcome=ATTEND_SVCS')
+    expect(
+      await screen.findByRole('img', { name: /^Service attendance for Testland, United States/ }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText(/[Ss]hare answering “Weekly”/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/[Ss]hare answering “Never”/)).toBeNull()
   })
 
   test('an added measure becomes a second figure; removing it drops the param', async () => {

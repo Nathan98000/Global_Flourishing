@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { CompareDomains } from '../charts/CompareDomains'
-import { Histogram } from '../charts/Histogram'
+import { Histogram, thinnedTicks } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
@@ -240,6 +240,61 @@ describe('Histogram', () => {
     expect(svg?.textContent).toContain('Score (0–10), 1-point bins')
     expect(svg?.textContent).toContain('0–1')
     expect(svg?.textContent).toContain('9–10')
+  })
+
+  test('bin labels thin out when a facet is too narrow for all of them, so none touch', () => {
+    // Three countries at the design width leave ~200 px per facet for
+    // ten bins: "8–9" and "9–10" ran together. Every bar stays.
+    const bins = [7, 22, 9].flatMap((code) =>
+      Array.from({ length: 10 }, (_, level) =>
+        testRow({
+          group: { country_code: code },
+          stat: 'distribution',
+          level,
+          estimate: 0.1,
+          ci_lo: 0.08,
+          ci_hi: 0.12,
+          n: 100,
+        }),
+      ),
+    )
+    const meta = {
+      ...testMeta,
+      countries: [
+        ...testMeta.countries,
+        { code: 7, name: 'Indonesia', iso3: 'IDN' },
+        { code: 9, name: 'Japan', iso3: 'JPN' },
+      ],
+    }
+    const label = (level: number) => `${level}–${level + 1}`
+    const { container } = render(
+      <Histogram
+        rows={bins}
+        meta={meta}
+        responseMeta={testResponseMeta({ stat: 'distribution', outcome: 'sfi' })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        levels={Array.from({ length: 10 }, (_, level) => level)}
+        levelLabel={label}
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.querySelectorAll('[aria-label="bar"] :is(rect, path)').length).toBe(30)
+    const ticks = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
+      (node) => node.textContent,
+    )
+    // Every other bin is labelled, in each of the three facets.
+    expect(ticks).toEqual([...Array(3)].flatMap(() => ['0–1', '2–3', '4–5', '6–7', '8–9']))
+    // The rule itself: every bin when the widest label fits its bin; the
+    // signed change buckets keep zero labelled whatever the stride.
+    const levels = Array.from({ length: 10 }, (_, level) => level)
+    expect(thinnedTicks(levels, label, 360)).toEqual(levels)
+    expect(thinnedTicks(levels, label, 200)).toEqual([0, 2, 4, 6, 8])
+    expect(thinnedTicks(levels, label, 100)).toEqual([0, 4, 8])
+    const signed = Array.from({ length: 21 }, (_, index) => index - 10)
+    const thinned = thinnedTicks(signed, (level) => (level > 0 ? `+${level}` : String(level)), 360)
+    expect(thinned).toContain(0)
+    expect(thinned).toEqual(signed.filter((level) => level % 2 === 0))
   })
 })
 

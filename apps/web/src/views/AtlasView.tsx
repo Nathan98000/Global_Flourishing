@@ -27,7 +27,7 @@ import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { formatCount } from '../format'
-import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -62,7 +62,7 @@ export function AtlasView() {
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
-  const activeLevel = search.level ?? levels[0]?.value
+  const activeLevel = search.level ?? defaultLevel(detail)
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   // A derived score's distribution bins arrive as its value labels
   // ("0–1" … "9–10", the server's rule — ADR-0015); an item's own answer
@@ -78,7 +78,7 @@ export function AtlasView() {
     if (!response) return []
     let rows = response.rows
     if (stat === 'proportion') {
-      const level = activeLevel ?? highestLevel(rows)
+      const level = search.level ?? defaultLevel(detail, rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
@@ -444,7 +444,8 @@ export function AtlasView() {
                       rows={
                         stat === 'proportion'
                           ? response.rows.filter(
-                              (row) => row.level === (activeLevel ?? highestLevel(response.rows)),
+                              (row) =>
+                                row.level === (search.level ?? defaultLevel(detail, response.rows)),
                             )
                           : response.rows
                       }

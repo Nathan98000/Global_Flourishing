@@ -11,11 +11,12 @@ import { Stat } from '../components/Stat'
 import { attendVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 
 describe('Stat', () => {
-  test('an estimate never appears without CI, n and weight', () => {
+  test('an estimate never appears without CI and n — and never with a weight code', () => {
     render(<Stat row={testRow()} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
     expect(screen.getByText(/\[7\.10, 7\.32\]/)).toBeInTheDocument()
-    expect(screen.getByText(/n = 1,204 · w_c1/)).toBeInTheDocument()
+    expect(screen.getByText('n = 1,204')).toBeInTheDocument()
+    expect(screen.queryByText(/w_c1/)).toBeNull()
   })
 
   test('a small cell appears with its n and no flag (ADR-0011)', () => {
