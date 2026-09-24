@@ -12,6 +12,7 @@ import {
   type AggregateRequest,
 } from '../api/estimates'
 import { ApiError, NetworkError } from '../api/errors'
+import { fetchApiJson } from '../api/http'
 import {
   attendVariable,
   happyVariable,
@@ -176,6 +177,21 @@ describe('fetchEstimates', () => {
     await fetchEstimates({ ...byCountry, oriented: true }, context)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/v1/aggregate?')
+  })
+
+  test('API calls revalidate a stored response; static files are fetched plainly', async () => {
+    // The API URL carries no data_version, so a cached envelope must be
+    // checked with If-None-Match before reuse — or a deploy leaves the
+    // browser replaying the previous release's shape for a day.
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse(payload),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await fetchApiJson('/v1/aggregate?outcome=HAPPY')
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual({ cache: 'no-cache' })
+    await fetchEstimates(byCountry, context)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/data/v1/HAPPY/Y1/mean_by-country_code.json')
+    expect(fetchMock.mock.calls[1]?.[1]).toBeUndefined()
   })
 
   test('422s surface the server messages verbatim', async () => {

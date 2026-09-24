@@ -19,7 +19,10 @@ class TestCaching:
         assert again.headers["x-cache"] == "hit"
         assert first.headers["etag"] == again.headers["etag"]
         assert first.json() == again.json()
-        assert "max-age" in first.headers["cache-control"]
+        # Every reuse revalidates: no fixed max-age, or a browser replays a
+        # previous release's envelope shape for a day after a deploy.
+        assert first.headers["cache-control"] == "public, no-cache"
+        assert again.headers["cache-control"] == "public, no-cache"
 
     def test_if_none_match_returns_304_before_any_work(self, client: TestClient) -> None:
         etag = client.get("/v1/aggregate", params=PARAMS).headers["etag"]

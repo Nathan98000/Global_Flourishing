@@ -6,6 +6,12 @@
 // `${API_BASE_URL}` and turn HTTP failures into typed ApiErrors. Neither
 // ever appends cache-busting parameters — the browser cache, the edge
 // cache and the API's request-keyed ETag all depend on stable URLs.
+//
+// API calls are fetched with `cache: 'no-cache'`: the URL carries no
+// data_version, so a stored response is reused only after an
+// If-None-Match round trip (a 304 when the data version is unchanged).
+// That also covers entries a browser stored under the API's old fixed
+// max-age. The static tier is served with revalidation and stays as is.
 
 import { NetworkError, errorFromResponse } from './errors'
 
@@ -37,7 +43,7 @@ export async function fetchStaticJson<T>(url: string): Promise<T | typeof STATIC
 export async function fetchApiJson<T>(url: string): Promise<T> {
   let response: Response
   try {
-    response = await fetch(url)
+    response = await fetch(url, { cache: 'no-cache' })
   } catch (cause) {
     throw new NetworkError(cause)
   }

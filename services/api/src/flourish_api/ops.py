@@ -29,7 +29,12 @@ from flourish_api.config import Settings
 
 logger = logging.getLogger("flourish_api.access")
 
-CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
+# "no-cache" means "reuse only after revalidating": the request URLs carry
+# no data_version, so a fixed max-age let browsers replay a previous
+# release's envelope shape for a day after a deploy. Revalidation is an
+# If-None-Match round trip that returns 304 before any work happens
+# (ADR-0008, revised 24 Sept).
+CACHE_CONTROL = "public, no-cache"
 
 
 def canonical_key(request: Request, data_version: str | None) -> str:

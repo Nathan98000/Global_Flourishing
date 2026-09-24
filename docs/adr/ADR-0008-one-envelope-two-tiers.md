@@ -42,6 +42,19 @@ keys are chosen right.
    304 *before any work happens*. `Cache-Control: public, max-age=86400,
    stale-while-revalidate=604800` lets Cloudflare hold responses at the
    edge for the life of a data version.
+
+   **Revised (24 Sept):** the fixed `max-age` served stale envelope
+   *shapes* across releases. The request URL carries no `data_version`,
+   so after a deploy a browser kept replaying day-old responses without
+   asking the server — the ETag changes with the data version, but only
+   a revalidation lets it act (`/change?outcome=CLOSE_TO` rendered
+   "0 countries shown" from an old-shaped cached body while the API
+   served the new one). The header is now `Cache-Control: public,
+   no-cache`, so every reuse is revalidated with `If-None-Match` — a
+   cheap 304 when nothing changed — and the web client fetches API
+   URLs with `cache: 'no-cache'`, which makes browsers still holding
+   entries stored under the old header revalidate too. The static tier
+   is unchanged: it is served with revalidation already.
 4. **A small in-process LRU** (`FA_CACHE_SIZE` entries, default 256) sits
    behind the ETag check, keyed the same way, storing response bytes +
    content type. Measured effect: warm p95 drops from ~90 ms to ~3 ms
