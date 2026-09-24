@@ -45,6 +45,19 @@ export const SEQUENTIAL_RAMP = [
   'var(--seq-700)',
 ] as const
 
+/** A value in [lo, hi] onto the seven sequential ramp tokens (the map's
+ * quantized scale; the What Matters matrix uses the same). */
+export function quantizeSequential(domain: [number, number]): (value: number) => string {
+  const [lo, hi] = domain
+  const steps = SEQUENTIAL_RAMP.length
+  return (value: number) => {
+    if (hi <= lo) return SEQUENTIAL_RAMP[0]
+    const t = Math.min(1, Math.max(0, (value - lo) / (hi - lo)))
+    const index = Math.min(steps - 1, Math.floor(t * steps))
+    return SEQUENTIAL_RAMP[index] as string
+  }
+}
+
 /** The diverging ramp (Phase 6): rust for negative associations, the
  * page tone at zero, teal for positive — five tints per sign with a
  * stronger end step, every one designed for ink text on top (the

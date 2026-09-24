@@ -538,7 +538,9 @@ export interface WhatMattersSearch {
   item?: string
   /** Categorical items: which answer level the item chart shows. */
   level?: number
-  sort: 'estimate' | 'name'
+  /** Country order of the matrix: 'name' (A–Z) or one importance item's
+   * code (by that item's value); an unknown code reads as 'name'. */
+  sort: string
   dir?: SortDir
   invalid?: string[]
   invalidRaw?: RawParams
@@ -546,7 +548,7 @@ export interface WhatMattersSearch {
 
 export const WHAT_MATTERS_DEFAULTS = {
   by: 'age_band',
-  sort: 'name' as const,
+  sort: 'name',
 }
 
 const parseCountryCode = (value: unknown): number | undefined => {
@@ -561,7 +563,7 @@ export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
     by: collect.take('by', raw, parseBreakdownColumn, WHAT_MATTERS_DEFAULTS.by),
     item: collect.take('item', raw, parseName, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
-    sort: collect.take('sort', raw, parseEnum('estimate', 'name'), WHAT_MATTERS_DEFAULTS.sort),
+    sort: collect.take('sort', raw, parseName, WHAT_MATTERS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
   }
   return collect.finish(search)

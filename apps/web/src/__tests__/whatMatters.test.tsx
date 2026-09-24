@@ -1,18 +1,22 @@
 // What Matters (Phase 5): the midyear family from the catalog — the
-// ranking set in the brief's order, the rest chartable — the split
-// within one country, the crossings made only when both sides share a
-// wave (and explained in plain words when they do not), and no jargon.
+// ranking set as one countries × items matrix, the rest chartable — the
+// split within one country, the anchor links, and no jargon.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
 import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
-import { IMPORTANCE_ITEMS, WHAT_MATTERS_CROSSINGS, crossingWave, splitMidyear } from '../topics'
-import { crossingUnavailableCopy, rankingRows } from '../views/whatMattersRows'
+import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
+import {
+  matrixCountryOrder,
+  matrixRange,
+  orderMatrixRows,
+  rankingRows,
+} from '../views/whatMattersRows'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -183,7 +187,7 @@ function visibleText(element: HTMLElement): string {
 }
 
 describe('the midyear family from the catalog', () => {
-  test('splits into the ranking set (brief order) and the chartable rest (A–Z)', () => {
+  test('splits into the ranking set (catalog order) and the chartable rest (A–Z)', () => {
     const { ranking, chartable } = splitMidyear([
       relation,
       timeMedia,
@@ -191,33 +195,40 @@ describe('the midyear family from the catalog', () => {
       foodInsecure,
       happyVariable,
     ])
-    expect(ranking.map((item) => item.name)).toEqual(['MONEY', 'GOOD_RELATION'])
+    expect(ranking.map((item) => item.name)).toEqual(['GOOD_RELATION', 'MONEY'])
     expect(chartable.map((item) => item.name)).toEqual(['TIME_MEDIA', 'FOOD_INSECURE'])
     expect(IMPORTANCE_ITEMS).toHaveLength(7)
     expect(splitMidyear([]).ranking).toEqual([])
   })
 
-  test('a crossing is made only when both sides share a wave, and explains itself otherwise', () => {
-    const byName = {
-      MENTAL_HEALTH: mentalHealth,
-      TIME_MEDIA: timeMedia,
-      FOOD_INSECURE: foodInsecure,
-      sfi_financial: financial,
-    }
-    for (const crossing of WHAT_MATTERS_CROSSINGS)
-      expect(crossingWave(crossing, byName)).toBeUndefined()
-    const shared = { ...byName, MENTAL_HEALTH: { ...mentalHealth, waves_available: ['Y1', 'MY'] } }
-    expect(
-      crossingWave(WHAT_MATTERS_CROSSINGS[0] as (typeof WHAT_MATTERS_CROSSINGS)[number], shared),
-    ).toBe('MY')
-    const copy = crossingUnavailableCopy(
-      WHAT_MATTERS_CROSSINGS[0] as (typeof WHAT_MATTERS_CROSSINGS)[number],
-      byName,
+  test('the matrix orders countries A–Z or by one item, nulls last; its tints span the range', () => {
+    const rows = rankingRows(
+      [byCountry('MONEY', 0), byCountry('GOOD_RELATION', 1)],
+      [money, relation],
     )
-    expect(copy).toContain('Daily social media time was asked in the Midyear survey')
-    expect(copy).toContain('Mental health was asked in the Wave 1, 2023 and the Wave 2, 2024')
-    expect(copy).toContain('never in the same interview')
-    expect(copy).not.toMatch(JARGON)
+    expect(matrixCountryOrder(rows, testMeta, 'name', 'asc')).toEqual([1, 22])
+    expect(matrixCountryOrder(rows, testMeta, 'name', 'desc')).toEqual([22, 1])
+    expect(matrixCountryOrder(rows, testMeta, 'MONEY', 'desc')).toEqual([22, 1])
+    expect(matrixCountryOrder(rows, testMeta, 'MONEY', 'asc')).toEqual([1, 22])
+    const withNull = rows.map((row) =>
+      row.group['country_code'] === 22 && row.group['outcome'] === 'MONEY'
+        ? { ...row, estimate: null }
+        : row,
+    )
+    expect(matrixCountryOrder(withNull, testMeta, 'MONEY', 'desc')).toEqual([1, 22])
+    expect(matrixRange(rows)).toEqual([6, 8])
+    expect(matrixRange([])).toEqual([0, 1])
+    expect(
+      orderMatrixRows(rows, [22, 1], [money, relation]).map((row) => [
+        row.group['country_code'],
+        row.group['outcome'],
+      ]),
+    ).toEqual([
+      [22, 'MONEY'],
+      [22, 'GOOD_RELATION'],
+      [1, 'MONEY'],
+      [1, 'GOOD_RELATION'],
+    ])
   })
 
   test('rankingRows stamps each item and can keep one country', () => {
@@ -234,26 +245,55 @@ describe('the midyear family from the catalog', () => {
 })
 
 describe('What Matters view', () => {
-  test('the ranking by country, the crossings explained, the first chartable item — no jargon', async () => {
+  test('the ranking by country as one matrix, the anchors, the first chartable item — no jargon', async () => {
     const calls = mockFetch(tier)
     await renderAt('/what-matters')
     const ranking = await screen.findByRole('img', {
-      name: /How important people rate 2 things, one panel per country/,
+      name: /How important people rate 2 things in each of 2 countries, as a matrix/,
     })
-    const text = ranking.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('Importance: money')
-    expect(text).toContain('Importance: good relationships')
-    expect(text).toContain('Testland')
+    // One matrix: a row per country, a column per item (catalog order),
+    // every cell a mean with the interval and n in its tooltip.
+    const matrix = within(ranking).getByRole('table')
+    expect(
+      within(matrix)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Country ↓ · what matters →', 'Importance: money', 'Importance: good relationships'])
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Testland', 'United States'])
+    const cells = within(matrix).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent?.replace(/, n = .*/, ''))).toEqual([
+      '6.00',
+      '7.00',
+      '7.00',
+      '8.00',
+    ])
+    expect(cells[0]?.getAttribute('title')).toContain('95% CI')
+    expect(cells[0]?.getAttribute('title')).toContain('n = 1,204')
+    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-')
+    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
+    // The sort control: A–Z or by one of the items.
+    const sort = screen.getByLabelText(/^Sort countries/) as HTMLSelectElement
+    expect([...sort.options].map((option) => option.textContent)).toEqual([
+      'A–Z',
+      'By Importance: money',
+      'By Importance: good relationships',
+    ])
+    // Three anchors under the lede, one per section.
+    const anchors = screen.getByRole('navigation', { name: 'On this page' })
+    expect(
+      within(anchors)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(['#by-country', '#within-country', '#other-questions'])
+    expect(document.getElementById('within-country')).not.toBeNull()
     // Static requests only for the midyear cross-sections.
     expect(calls.filter((url) => url.includes('/MY/mean_by-country_code.json')).length).toBe(2)
-    // Both crossings say why they cannot be made from this release.
-    expect(
-      screen.getByText(/Time on social media and mental health: not possible/),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/Running out of food and financial stability: not possible/),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/Associated with, not caused by/)).toBeInTheDocument()
+    // The crossings section is gone.
+    expect(screen.queryByText(/Two things that travel together/)).toBeNull()
     // The first chartable item, with its answer levels from the codebook.
     expect(
       await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
@@ -263,6 +303,17 @@ describe('What Matters view', () => {
       screen.getByText(/Choose a country to see how the ranking shifts by age band/),
     ).toBeInTheDocument()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
+  })
+
+  test('sorting by an item reorders the rows, high to low', async () => {
+    mockFetch(tier)
+    await renderAt('/what-matters?sort=MONEY')
+    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    expect(
+      within(within(ranking).getByRole('table'))
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['United States', 'Testland'])
   })
 
   test('a chosen country adds the split by age band; the level control re-renders the item', async () => {
@@ -280,49 +331,5 @@ describe('What Matters view', () => {
     ).toBeInTheDocument()
     const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
     expect(country.value).toBe('22')
-  })
-
-  test('a crossing the catalog allows is charted through the API with the split variable’s labels', async () => {
-    const calls = mockFetch({
-      ...tier,
-      '/data/variables.json': {
-        variables: [
-          sfiVariable,
-          happyVariable,
-          money,
-          relation,
-          timeMedia,
-          foodInsecure,
-          { ...mentalHealth, waves_available: ['Y1', 'MY'] },
-          financial,
-        ],
-      },
-      '/v1/aggregate?outcome=MENTAL_HEALTH': testResponse(
-        [1, 22].flatMap((code) =>
-          [1, 2, 3].map((level) =>
-            testRow({ group: { country_code: code, TIME_MEDIA: level }, estimate: 8 - level }),
-          ),
-        ),
-        { outcome: 'MENTAL_HEALTH', waves: ['MY'], by: ['country_code', 'TIME_MEDIA'] },
-      ),
-    })
-    await renderAt('/what-matters')
-    const figure = await screen.findByRole('img', {
-      name: /Time on social media and mental health: Mental health for each answer/,
-    })
-    const text = figure.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('Up to an hour')
-    expect(text).toContain('More than an hour')
-    expect(
-      calls.some(
-        (url) =>
-          url.includes('/v1/aggregate?outcome=MENTAL_HEALTH&wave=MY') &&
-          url.includes('by=TIME_MEDIA'),
-      ),
-    ).toBe(true)
-    fireEvent.click(within(figure.closest('figure') as HTMLElement).getByText('Data table'))
-    expect(
-      within(figure.closest('figure') as HTMLElement).getAllByText('Up to an hour').length,
-    ).toBeGreaterThan(0)
   })
 })
