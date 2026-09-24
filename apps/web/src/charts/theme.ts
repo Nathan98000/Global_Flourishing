@@ -141,6 +141,10 @@ export const ROW_HEIGHT = 26
 export const MIN_ROWS = 4
 /** Facet padding: enough that adjacent panels' tick labels never touch. */
 export const FACET_PADDING = 0.16
+/** Column (facet) labels sit one text line above the top axis's tick
+ * labels: Plot puts both on the top edge otherwise (tick size + padding
+ * = 9 px up), and "Indonesia" over "8" read as "Indo8esia". */
+export const FACET_LABEL_DY = -25
 /** Room under the last row of a panel for its in-panel tick labels. */
 export const PANEL_AXIS_INSET = 18
 

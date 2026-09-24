@@ -12,6 +12,7 @@ import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale, measureBounds } from './domain'
 import {
+  FACET_LABEL_DY,
   FACET_PADDING,
   FONT_FAMILY,
   INK,
@@ -146,12 +147,17 @@ export function SmallMultiples({
         y: { domain: levelDomain, label: null, tickSize: 0, insetBottom: PANEL_AXIS_INSET },
         fy: { domain: facets, paddingInner: 0.14 },
         ...(seriesColumn
-          ? { fx: { domain: seriesDomain, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          ? { fx: { domain: seriesDomain, label: null, axis: null, paddingInner: FACET_PADDING } }
           : {}),
         marks: [
           // Facet (country) labels at 13.5 in ink (§6); panel-level level
-          // labels and the value axis stay the 11px plot size.
+          // labels and the value axis stay the 11px plot size. The column
+          // labels of a second breakdown sit a line above the top axis's
+          // tick labels, which would otherwise share their baseline.
           Plot.axisFy({ label: null, fontSize: 13.5, fill: INK }),
+          ...(seriesColumn
+            ? [Plot.axisFx({ anchor: 'top', label: null, dy: FACET_LABEL_DY })]
+            : []),
           Plot.frame({ stroke: 'var(--grid)' }),
           // No facet channel → drawn in every panel, like Plot.frame: the
           // shared axis, labelled under each panel.

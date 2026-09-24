@@ -5,6 +5,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
+import { CompareDomains } from '../charts/CompareDomains'
 import { Histogram } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
@@ -32,6 +33,32 @@ const rows = [
     n: 3,
   }),
 ]
+
+/** A text's y in the SVG: the translate() of it and of its ancestors —
+ * Plot positions axis labels through nested transforms. */
+function absoluteY(node: Element): number {
+  let y = 0
+  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
+    if (match) y += Number(match[2])
+  }
+  return y
+}
+
+/** Every column (fx) label sits at least one text line above the
+ * highest top-axis tick label — the two shared a baseline before. */
+function expectColumnLabelsAboveTicks(svg: SVGSVGElement | null) {
+  const columnLabels = [...(svg?.querySelectorAll('[aria-label="fx-axis tick label"] text') ?? [])]
+  const tickLabels = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])]
+  expect(columnLabels.length).toBeGreaterThan(0)
+  expect(tickLabels.length).toBeGreaterThan(0)
+  const highestTick = Math.min(...tickLabels.map(absoluteY))
+  for (const label of columnLabels) {
+    expect(absoluteY(label), `${label.textContent} above the ticks`).toBeLessThanOrEqual(
+      highestTick - 12,
+    )
+  }
+}
 
 const metaWithHK = {
   ...testMeta,
@@ -308,6 +335,78 @@ describe('SmallMultiples', () => {
       (node) => node.textContent === '6.0',
     )
     expect(inPanelTicks.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('column labels and the top axis', () => {
+  const ageBands = testMeta.breakdown_labels['age_band']?.levels ?? []
+  const gridRows = [1, 22].flatMap((code) =>
+    ageBands.flatMap((band) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, age_band: band.value, gender },
+          estimate: 6 + gender * 0.2 + Number(band.value) * 0.1,
+          ci_lo: 5.9,
+          ci_hi: 7.5,
+        }),
+      ),
+    ),
+  )
+
+  test('a second breakdown puts its column labels a line above the top ticks', () => {
+    const { container } = render(
+      <SmallMultiples
+        rows={gridRows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ by: ['country_code', 'age_band', 'gender'] })}
+        variable={happyVariable}
+        color="var(--series-1)"
+        levelColumn="age_band"
+        levelDomain={ageBands.map((band) => band.label)}
+        seriesColumn="gender"
+        seriesDomain={['Male', 'Female']}
+        sort="estimate"
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.textContent).toContain('Female')
+    expectColumnLabelsAboveTicks(svg)
+  })
+
+  test('a Compare split puts its country labels a line above the top ticks; the row header is haloed', () => {
+    const rows = [1, 22].flatMap((code) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, gender, outcome: 'sfi_happiness' },
+          estimate: 6 + gender * 0.2,
+          ci_lo: 5.9,
+          ci_hi: 7.5,
+        }),
+      ),
+    )
+    const { container } = render(
+      <CompareDomains
+        rows={rows}
+        meta={testMeta}
+        outcomes={['sfi_happiness']}
+        outcomeLabel={() => 'SFI: happiness & life satisfaction'}
+        units={['Testland', 'United States']}
+        split="gender"
+        splitDomain={['Male', 'Female']}
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expectColumnLabelsAboveTicks(svg)
+    // The row header reads across the row, with a surface halo so the
+    // next column's frame line never cuts through it.
+    const header = [...(svg?.querySelectorAll('text') ?? [])].find((node) =>
+      node.textContent?.startsWith('SFI: happiness'),
+    )
+    expect(header).toBeDefined()
+    // Plot puts a mark's styles on its per-facet group.
+    const group = header?.parentElement
+    expect(group?.getAttribute('stroke')).toBe('var(--surface)')
+    expect(group?.getAttribute('paint-order')).toBe('stroke')
   })
 })
 

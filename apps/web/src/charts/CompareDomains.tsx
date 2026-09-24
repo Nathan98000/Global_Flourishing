@@ -14,16 +14,21 @@ import { groupValueLabel } from '../labels'
 import { dotMarks, type DotEntry, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
 import {
+  FACET_LABEL_DY,
   FACET_PADDING,
   FONT_FAMILY,
   INK,
   INK_SECONDARY,
   PANEL_AXIS_INSET,
+  SURFACE,
   outcomeColor,
   plotCI,
   plotValue,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
+
+/** The row header's size: the figure's panel-title size. */
+const HEADER_FONT = 13.5
 
 export function compareEntries(
   rows: EstimateRow[],
@@ -83,7 +88,18 @@ export function CompareDomains({
         bounds,
       })
       const yDomain = split ? (splitDomain ?? []) : units
-      const panelHeight = yDomain.length * 22 + 64 + PANEL_AXIS_INSET
+      const marginLeft = narrow ? 96 : 140
+      const marginRight = narrow ? 24 : 40
+      // The row header spans the whole row (a split's columns included),
+      // wrapping when the row is narrower than the name; the panel's top
+      // inset makes room for the lines it needs.
+      const rowWidth = width - marginLeft - marginRight
+      const headerLines = Math.max(
+        1,
+        ...panels.map((panel) => Math.ceil((panel.length * HEADER_FONT * 0.58 + 12) / rowWidth)),
+      )
+      const insetTop = 8 + headerLines * 17
+      const panelHeight = yDomain.length * 22 + 40 + insetTop + PANEL_AXIS_INSET
       const facetChannel: Record<string, string> = split
         ? { fy: 'facet', fx: 'column' }
         : { fy: 'facet' }
@@ -101,8 +117,8 @@ export function CompareDomains({
       return Plot.plot({
         height: 60 + panels.length * panelHeight,
         width,
-        marginLeft: narrow ? 96 : 140,
-        marginRight: narrow ? 24 : 40,
+        marginLeft,
+        marginRight,
         marginTop: split ? 44 : 30,
         style: {
           fontFamily: FONT_FAMILY,
@@ -125,17 +141,22 @@ export function CompareDomains({
           domain: yDomain,
           label: null,
           tickSize: 0,
-          insetTop: 24,
+          insetTop,
           insetBottom: PANEL_AXIS_INSET,
         },
         fy: { domain: panels, axis: null, paddingInner: 0.14 },
         ...(split
-          ? { fx: { domain: units, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          ? { fx: { domain: units, label: null, axis: null, paddingInner: FACET_PADDING } }
           : {}),
         marks: [
+          // A split's country labels sit a line above the top axis's tick
+          // labels, which would otherwise share their baseline.
+          ...(split ? [Plot.axisFx({ anchor: 'top', label: null, dy: FACET_LABEL_DY })] : []),
           Plot.frame({ stroke: 'var(--grid)' }),
-          // The panel's name, once per row, inside the first frame, in
-          // ink — the server's display name verbatim.
+          // The panel's name, once per row, from the first frame's top-left
+          // across the row, in ink — the server's display name verbatim.
+          // A surface halo keeps the next column's frame line from cutting
+          // through it; a name longer than the row wraps.
           Plot.text(panels, {
             fy: (panel: string) => panel,
             ...(split && firstColumn !== undefined ? { fx: () => firstColumn } : {}),
@@ -144,8 +165,12 @@ export function CompareDomains({
             dx: 6,
             dy: 6,
             textAnchor: 'start',
+            lineWidth: (rowWidth - 12) / HEADER_FONT,
             fill: INK,
-            fontSize: 13.5,
+            stroke: SURFACE,
+            strokeWidth: 4,
+            paintOrder: 'stroke',
+            fontSize: HEADER_FONT,
             fontWeight: 600,
           }),
           Plot.text(scale.ticks, {
