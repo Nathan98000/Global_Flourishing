@@ -40,6 +40,15 @@ export function transitionGrid(rows: readonly EstimateRow[]): TransitionGrid {
   return { levels: [...levels].sort((a, b) => a - b), cells }
 }
 
+/** The ink a ramp tint's text wears: every `--seq-*` and `--div-*` step
+ * names its own `-ink` companion in tokens.css (dark ink on the light
+ * steps, light ink on the dark ones, ≥ 4.5:1 each — the near-black ink
+ * on the deep teal read at 1.9:1). Any other tint keeps the default ink. */
+export function tintInk(tint: string): string | undefined {
+  const match = /^var\((--(?:seq|div)-[\w-]+)\)$/.exec(tint)
+  return match ? `var(${match[1]}-ink)` : undefined
+}
+
 /** Accent at graded opacity — a token-only heat scale. */
 export function cellTint(share: number | null): string {
   if (share === null) return 'transparent'
@@ -164,7 +173,11 @@ export function HeatTable({
                     <td
                       key={column.key}
                       className={cell.muted ? styles.cellMuted : styles.cell}
-                      style={cell.muted ? undefined : { background: cell.tint }}
+                      style={
+                        cell.muted
+                          ? undefined
+                          : { background: cell.tint, color: tintInk(cell.tint) }
+                      }
                       title={cell.title}
                     >
                       {cell.text}

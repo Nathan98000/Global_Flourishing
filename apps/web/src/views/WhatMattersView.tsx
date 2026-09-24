@@ -344,7 +344,6 @@ export function WhatMattersView() {
                 items={ranking}
                 countryOrder={countryOrder}
                 served={served}
-                subtitle={rankingSubtitle}
               />
             </ChartFigure>
           )}
@@ -508,13 +507,11 @@ function ImportanceMatrix({
   items,
   countryOrder,
   served,
-  subtitle,
 }: {
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
   countryOrder: readonly number[]
   served: Meta
-  subtitle: string
 }) {
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
@@ -523,7 +520,7 @@ function ImportanceMatrix({
   const tint = quantizeSequential([lo, hi])
   return (
     <HeatTable
-      caption={`${subtitle} — deeper tint, higher importance (${formatEstimate(lo, 'mean')} to ${formatEstimate(hi, 'mean')})`}
+      caption={`Deeper tint, higher importance (${formatEstimate(lo, 'mean')}–${formatEstimate(hi, 'mean')})`}
       corner="Country ↓ · what matters →"
       columnNoun="things"
       rows={countryOrder.map((code) => ({

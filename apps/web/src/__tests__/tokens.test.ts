@@ -39,6 +39,18 @@ function contrast(a: string, b: string): number {
   return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05)
 }
 
+/** Follow `var(--x)` references to the token a value finally names. */
+function resolveToken(vars: Record<string, string>, name: string): string {
+  let current = name
+  for (let hops = 0; hops < 4; hops += 1) {
+    const value = vars[current]
+    const ref = value === undefined ? null : /^var\((--[\w-]+)\)$/.exec(value)
+    if (!ref) return current
+    current = ref[1] as string
+  }
+  return current
+}
+
 function assertContrast(
   vars: Record<string, string>,
   fg: string,
@@ -68,6 +80,17 @@ const MARKS = [
   '--series-3',
   '--div-neg-mark',
   '--div-pos-mark',
+]
+
+/** The sequential ramp (the map and the What Matters matrix), light → dark. */
+const SEQUENTIAL = [
+  '--seq-100',
+  '--seq-200',
+  '--seq-300',
+  '--seq-400',
+  '--seq-500',
+  '--seq-600',
+  '--seq-700',
 ]
 
 /** The diverging tints (Phase 6), negative → neutral → positive: five
@@ -160,8 +183,20 @@ describe.each([
     expect(new Set(hues).size).toBe(6)
   })
 
-  test('the diverging ramp keeps ink text AA on every tint and has eleven distinct steps', () => {
-    for (const tint of DIVERGING) assertContrast(vars, '--ink', tint, 4.5, theme)
+  test('every ramp step names an ink that reads AA on it (the tinted matrices)', () => {
+    // A cell's number wears the ink its tint token names — dark ink on
+    // the light steps, light ink on the dark ones — so no step falls to
+    // the 1.9:1 the page ink read at on the deep teal.
+    for (const step of [...SEQUENTIAL, ...DIVERGING]) {
+      const ink = resolveToken(vars, `${step}-ink`)
+      expect(ink, `${theme} ${step}-ink`).toMatch(/^--tint-ink-(dark|light)$/)
+      assertContrast(vars, ink, step, 4.5, theme)
+    }
+    // Both inks are used: the sequential ramp crosses from one to the other.
+    expect(new Set(SEQUENTIAL.map((step) => resolveToken(vars, `${step}-ink`))).size).toBe(2)
+  })
+
+  test('the diverging ramp has eleven distinct steps', () => {
     expect(new Set(DIVERGING.map((name) => vars[name])).size).toBe(11)
     // Both ends are visible against the neutral middle (the map ramp's floor).
     assertContrast(vars, '--div-n5', '--div-0', 1.15, theme)

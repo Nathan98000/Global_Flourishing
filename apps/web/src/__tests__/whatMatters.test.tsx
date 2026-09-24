@@ -8,6 +8,7 @@ import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
+import { tintInk } from '../charts/TransitionTable'
 import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
@@ -231,6 +232,14 @@ describe('the midyear family from the catalog', () => {
     ])
   })
 
+  test('a ramp tint names its ink; the accent tints and "no cell" keep the page ink', () => {
+    expect(tintInk('var(--seq-700)')).toBe('var(--seq-700-ink)')
+    expect(tintInk('var(--div-n5)')).toBe('var(--div-n5-ink)')
+    expect(tintInk('var(--div-0)')).toBe('var(--div-0-ink)')
+    expect(tintInk('color-mix(in srgb, var(--accent) 20%, transparent)')).toBeUndefined()
+    expect(tintInk('transparent')).toBeUndefined()
+  })
+
   test('rankingRows stamps each item and can keep one country', () => {
     const rows = rankingRows(
       [byCountry('MONEY', 0), byCountry('GOOD_RELATION', 1)],
@@ -275,6 +284,15 @@ describe('What Matters view', () => {
     expect(cells[0]?.getAttribute('title')).toContain('n = 1,204')
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-')
     expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
+    // The number wears the ink its tint step names (light ink on the
+    // deep teal), never the page ink at 1.9:1.
+    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
+    expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
+    // The caption names the tint rule and the range, not the subtitle again.
+    expect(
+      within(ranking).getByText('Deeper tint, higher importance (6.00–8.00)'),
+    ).toBeInTheDocument()
+    expect(within(ranking).queryByText(/— deeper tint/)).toBeNull()
     // The sort control: A–Z or by one of the items.
     const sort = screen.getByLabelText(/^Sort countries/) as HTMLSelectElement
     expect([...sort.options].map((option) => option.textContent)).toEqual([

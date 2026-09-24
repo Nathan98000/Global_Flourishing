@@ -127,11 +127,23 @@
   --seq-200: #d9cfb0;
   --seq-300: #b3c0a4;
   --seq-400: #83a596;
-  --seq-500: #558a80;
+  --seq-500: #598e84;
   --seq-600: #356a65;
   --seq-700: #1e4a48;
   --map-empty: #dedad1;
   --map-empty-outline: #8f8a7e;
+  /* Text over a tint (the tinted matrices): dark ink on the light steps,
+     light ink on the dark ones — each step names its ink, and every
+     pairing is ≥ 4.5:1 (tokens.test.ts) */
+  --tint-ink-dark: #1b1a17;
+  --tint-ink-light: #fbfaf5;
+  --seq-100-ink: var(--tint-ink-dark);
+  --seq-200-ink: var(--tint-ink-dark);
+  --seq-300-ink: var(--tint-ink-dark);
+  --seq-400-ink: var(--tint-ink-dark);
+  --seq-500-ink: var(--tint-ink-dark);
+  --seq-600-ink: var(--tint-ink-light);
+  --seq-700-ink: var(--tint-ink-light);
 
   /* Diverging ramp (correlates matrix): rust ← page tone → teal, five
      tints per sign with a stronger end step, every one keeping ink text
@@ -149,6 +161,17 @@
   --div-p5: #648d86;
   --div-neg-mark: #b4531f;
   --div-pos-mark: #1f5d55;
+  --div-n5-ink: var(--tint-ink-dark);
+  --div-n4-ink: var(--tint-ink-dark);
+  --div-n3-ink: var(--tint-ink-dark);
+  --div-n2-ink: var(--tint-ink-dark);
+  --div-n1-ink: var(--tint-ink-dark);
+  --div-0-ink: var(--tint-ink-dark);
+  --div-p1-ink: var(--tint-ink-dark);
+  --div-p2-ink: var(--tint-ink-dark);
+  --div-p3-ink: var(--tint-ink-dark);
+  --div-p4-ink: var(--tint-ink-dark);
+  --div-p5-ink: var(--tint-ink-dark);
 
   /* Banners */
   --notice-bg: #eef1ea;
@@ -205,12 +228,21 @@
     --seq-100: #1f3f3c;
     --seq-200: #24504c;
     --seq-300: #356a65;
-    --seq-400: #558a80;
+    --seq-400: #598e84;
     --seq-500: #83a596;
     --seq-600: #b3c0a4;
     --seq-700: #d9cfb0;
     --map-empty: #34322c;
     --map-empty-outline: #6d6960;
+    --tint-ink-dark: #1b1a16;
+    --tint-ink-light: #ece8de;
+    --seq-100-ink: var(--tint-ink-light);
+    --seq-200-ink: var(--tint-ink-light);
+    --seq-300-ink: var(--tint-ink-light);
+    --seq-400-ink: var(--tint-ink-dark);
+    --seq-500-ink: var(--tint-ink-dark);
+    --seq-600-ink: var(--tint-ink-dark);
+    --seq-700-ink: var(--tint-ink-dark);
 
     --div-n5: #8a5b3c;
     --div-n4: #5d3f2b;
@@ -225,6 +257,17 @@
     --div-p5: #4e6c65;
     --div-neg-mark: #d98b5a;
     --div-pos-mark: #7fb8ad;
+    --div-n5-ink: var(--tint-ink-light);
+    --div-n4-ink: var(--tint-ink-light);
+    --div-n3-ink: var(--tint-ink-light);
+    --div-n2-ink: var(--tint-ink-light);
+    --div-n1-ink: var(--tint-ink-light);
+    --div-0-ink: var(--tint-ink-light);
+    --div-p1-ink: var(--tint-ink-light);
+    --div-p2-ink: var(--tint-ink-light);
+    --div-p3-ink: var(--tint-ink-light);
+    --div-p4-ink: var(--tint-ink-light);
+    --div-p5-ink: var(--tint-ink-light);
 
     --notice-bg: #17201c;
     --notice-border: #2f4a42;
@@ -285,12 +328,21 @@
   --seq-100: #1f3f3c;
   --seq-200: #24504c;
   --seq-300: #356a65;
-  --seq-400: #558a80;
+  --seq-400: #598e84;
   --seq-500: #83a596;
   --seq-600: #b3c0a4;
   --seq-700: #d9cfb0;
   --map-empty: #34322c;
   --map-empty-outline: #6d6960;
+  --tint-ink-dark: #1b1a16;
+  --tint-ink-light: #ece8de;
+  --seq-100-ink: var(--tint-ink-light);
+  --seq-200-ink: var(--tint-ink-light);
+  --seq-300-ink: var(--tint-ink-light);
+  --seq-400-ink: var(--tint-ink-dark);
+  --seq-500-ink: var(--tint-ink-dark);
+  --seq-600-ink: var(--tint-ink-dark);
+  --seq-700-ink: var(--tint-ink-dark);
 
   --div-n5: #8a5b3c;
   --div-n4: #5d3f2b;
@@ -305,6 +357,17 @@
   --div-p5: #4e6c65;
   --div-neg-mark: #d98b5a;
   --div-pos-mark: #7fb8ad;
+  --div-n5-ink: var(--tint-ink-light);
+  --div-n4-ink: var(--tint-ink-light);
+  --div-n3-ink: var(--tint-ink-light);
+  --div-n2-ink: var(--tint-ink-light);
+  --div-n1-ink: var(--tint-ink-light);
+  --div-0-ink: var(--tint-ink-light);
+  --div-p1-ink: var(--tint-ink-light);
+  --div-p2-ink: var(--tint-ink-light);
+  --div-p3-ink: var(--tint-ink-light);
+  --div-p4-ink: var(--tint-ink-light);
+  --div-p5-ink: var(--tint-ink-light);
 
   --notice-bg: #17201c;
   --notice-border: #2f4a42;

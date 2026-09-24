@@ -1,5 +1,7 @@
-/* A small heatmap table: hairline rows, tabular numerals, ink text over
-   graded accent tints (both themes). Scrolls sideways inside its own
+/* A small heatmap table: hairline rows, tabular numerals, text over
+   graded tints (both themes) — a ramp step's cell wears the ink its
+   token names (light on the dark steps), set inline by the component;
+   the accent tints keep the page ink. Scrolls sideways inside its own
    container rather than breaking the column or widening the page; the
    caption sits above the scroll container so it wraps at the column's
    width, not the table's. */
