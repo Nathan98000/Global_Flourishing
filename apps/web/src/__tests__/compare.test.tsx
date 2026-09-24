@@ -20,7 +20,7 @@ import {
   testResponse,
   testRow,
 } from '../test-utils/fixtures'
-import { combineRows, compareUnits } from '../views/compareRows'
+import { combineRows, compareUnits, defaultCompareCountries } from '../views/compareRows'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -170,8 +170,33 @@ describe('Compare view', () => {
     const calls = mockFetch(tier)
     await renderAt('/compare')
     expect(await screen.findByText('Choose two to five countries')).toBeInTheDocument()
-    expect(screen.getByText('Choose up to 5 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: choose up to 5')).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/data/v1/sfi_'))).toBe(false)
+  })
+
+  test('with no countries in the URL and the three defaults in the release, it starts on them', async () => {
+    const calls = mockFetch({
+      ...tier,
+      '/data/meta.json': {
+        ...testMeta,
+        countries: [
+          { code: 7, name: 'Indonesia', iso3: 'IDN' },
+          { code: 9, name: 'Japan', iso3: 'JPN' },
+          { code: 22, name: 'United States', iso3: 'USA' },
+        ],
+      },
+    })
+    const router = await renderAt('/compare')
+    expect(
+      await screen.findByRole('img', {
+        name: /Six domains of flourishing for Indonesia, Japan, United States/,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Countries: 3 of 5')).toBeInTheDocument()
+    expect(calls.filter((url) => url.includes('/data/v1/sfi_')).length).toBe(6)
+    // The defaults never reach the URL.
+    expect(router.state.location.searchStr).toBe('')
+    expect(defaultCompareCountries(testMeta.countries)).toEqual([])
   })
 
   test('two countries: six panels named by the catalog, one table with a Measure column', async () => {
@@ -255,7 +280,7 @@ describe('CountryFilter at its cap', () => {
         capMessage="Up to 2 countries at a time — clear one to add another."
       />,
     )
-    expect(screen.getByText('2 of 2 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: 2 of 2')).toBeInTheDocument()
     expect(screen.getByText(/Up to 2 countries at a time/)).toBeInTheDocument()
     expect(screen.getByLabelText('Hong Kong')).toBeDisabled()
     expect(screen.getByLabelText('Testland')).not.toBeDisabled()

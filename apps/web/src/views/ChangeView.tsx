@@ -58,8 +58,13 @@ const PAIRS: readonly { from: Wave; to: Wave; via?: 'MY' }[] = [
   { from: 'Y1', to: 'Y2', via: 'MY' },
 ]
 
-const pairKey = (pair: { from: Wave; to: Wave; via?: 'MY' }) =>
-  `${pair.from}-${pair.via ?? ''}-${pair.to}`
+type Pair = (typeof PAIRS)[number]
+
+const pairKey = (pair: Pair) => `${pair.from}-${pair.via ?? ''}-${pair.to}`
+
+/** Whether a measure asked at `waves` can make this comparison. */
+const pairSupported = (pair: Pair, waves: readonly string[]) =>
+  [pair.from, pair.via, pair.to].every((wave) => wave === undefined || waves.includes(wave))
 
 export function ChangeView() {
   useWarmApi()
@@ -71,6 +76,29 @@ export function ChangeView() {
   const variable = variables.data?.byName[search.outcome]
   const chartable = variable !== undefined && variable.servable
   const askedTwice = chartable && variable.waves_available.length >= 2
+  // Only the comparisons at least one servable measure can make are
+  // offered (today: 2023 → 2024 alone — the midyear survey asked
+  // different questions); more reappear by themselves if the data
+  // changes. The picker lists only measures asked at both waves of one.
+  const allVariables = variables.data?.list
+  const supportedPairs = useMemo(
+    () =>
+      PAIRS.filter((pair) =>
+        (allVariables ?? []).some(
+          (candidate) => candidate.servable && pairSupported(pair, candidate.waves_available),
+        ),
+      ),
+    [allVariables],
+  )
+  const changeable = useMemo(
+    () =>
+      (allVariables ?? []).filter(
+        (candidate) =>
+          candidate.servable &&
+          supportedPairs.some((pair) => pairSupported(pair, candidate.waves_available)),
+      ),
+    [allVariables, supportedPairs],
+  )
   // A categorical item (the server's default stat is a share) changes
   // in the share answering a level; a numeric one in its mean.
   const isCategorical = chartable && variable.default_stat === 'proportion'
@@ -158,11 +186,7 @@ export function ChangeView() {
     const keep = [search.from, search.via, search.to].every(
       (wave) => wave === undefined || waves.includes(wave),
     )
-    const fallback = PAIRS.find((candidate) =>
-      [candidate.from, candidate.via, candidate.to].every(
-        (wave) => wave === undefined || waves.includes(wave),
-      ),
-    )
+    const fallback = supportedPairs.find((candidate) => pairSupported(candidate, waves))
     setSearch({
       outcome,
       topic: undefined,
@@ -175,7 +199,7 @@ export function ChangeView() {
     })
   }
 
-  const pairOptions: RadioOption<string>[] = PAIRS.map((candidate) => {
+  const pairOptions: RadioOption<string>[] = supportedPairs.map((candidate) => {
     const missing = [candidate.from, candidate.via, candidate.to].filter(
       (wave): wave is Wave =>
         wave !== undefined && !(variable?.waves_available ?? []).includes(wave),
@@ -260,11 +284,16 @@ export function ChangeView() {
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
       />
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
-      />
+      <div className={styles.countryPrompt}>
+        <CountryFilter
+          countries={meta.data.meta.countries}
+          selected={search.countries}
+          onChange={(countries) => setSearch({ countries })}
+        />
+        <span className={styles.hint}>
+          Pick up to four countries to see how individual answers moved.
+        </span>
+      </div>
     </>
   )
 
@@ -293,24 +322,36 @@ export function ChangeView() {
       />
       <div className={styles.controls}>
         <OutcomePicker
-          variables={variables.data.list}
+          variables={changeable}
           value={search.outcome}
           topic={search.topic}
           onSelect={handlePick}
           fields={narrow ? 'measure' : 'all'}
         />
-        <RadioRow
-          legend="Compare"
-          name="pair"
-          wide
-          selectOnNarrow
-          options={pairOptions}
-          value={pairKey(search)}
-          onChange={(value) => {
-            const candidate = PAIRS.find((entry) => pairKey(entry) === value)
-            if (candidate) setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
-          }}
-        />
+        {supportedPairs.length > 1 ? (
+          <RadioRow
+            legend="Compare"
+            name="pair"
+            wide
+            selectOnNarrow
+            options={pairOptions}
+            value={pairKey(search)}
+            onChange={(value) => {
+              const candidate = supportedPairs.find((entry) => pairKey(entry) === value)
+              if (candidate)
+                setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
+            }}
+          />
+        ) : (
+          <p className={styles.hint}>
+            Comparing {pairTitle(search.from, search.to, search.via)}. The midyear survey asked
+            different questions, so change is measured{' '}
+            {supportedPairs[0]
+              ? pairTitle(supportedPairs[0].from, supportedPairs[0].to, supportedPairs[0].via)
+              : pair}
+            .
+          </p>
+        )}
         {isCategorical && levels.length > 0 && (
           <RadioRow
             legend="Answer level"
@@ -327,7 +368,7 @@ export function ChangeView() {
             <summary>More options — sort, countries</summary>
             <div className={styles.moreBody}>
               <OutcomePicker
-                variables={variables.data.list}
+                variables={changeable}
                 value={search.outcome}
                 topic={search.topic}
                 onSelect={handlePick}
@@ -408,11 +449,6 @@ export function ChangeView() {
             />
           </ChartFigure>
 
-          {(hasDistribution || hasTransitions) && chosen.length === 0 && (
-            <p className={styles.hint}>
-              Pick up to four countries above to see how individual answers moved.
-            </p>
-          )}
           {hasDistribution &&
             (chosen.length === 0 ? null : (
               <ChartFigure

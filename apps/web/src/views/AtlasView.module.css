@@ -62,6 +62,18 @@
   margin: var(--space-2) 0 0;
 }
 
+/* A control with its prompt beside it ("pick up to four countries"). */
+.countryPrompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.countryPrompt .hint {
+  margin: 0;
+}
+
 .wording {
   margin-bottom: var(--space-3);
 }

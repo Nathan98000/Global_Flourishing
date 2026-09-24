@@ -37,7 +37,7 @@ import {
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
-import { combineRows, compareUnits } from './compareRows'
+import { combineRows, compareUnits, defaultCompareCountries } from './compareRows'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/compare')
@@ -51,7 +51,16 @@ export function CompareView() {
   const variables = useVariables()
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const byName = useMemo(() => variables.data?.byName ?? {}, [variables.data])
-  const ready = search.countries.length >= COMPARE_MIN_COUNTRIES
+  // With no countries in the URL, three stand in — Indonesia, the United
+  // States and Japan, found by ISO code in meta (never by a code the
+  // front end owns); a release without all three starts empty.
+  const metaCountries = meta.data?.meta.countries
+  const defaultCountries = useMemo(
+    () => (metaCountries ? defaultCompareCountries(metaCountries) : []),
+    [metaCountries],
+  )
+  const countries = search.countries.length ? search.countries : defaultCountries
+  const ready = countries.length >= COMPARE_MIN_COUNTRIES
 
   const setSearch = (patch: Partial<CompareSearch>) => {
     void navigate({ search: compareSearchParams({ ...search, ...patch }) as never })
@@ -79,17 +88,17 @@ export function CompareView() {
 
   const metaData = meta.data?.meta
   const units = useMemo(
-    () => (metaData ? compareUnits(search.countries, metaData) : []),
-    [search.countries, metaData],
+    () => (metaData ? compareUnits(countries, metaData) : []),
+    [countries, metaData],
   )
   const domainRows = useMemo(
     () =>
       combineRows(
         domains.results.map((result) => result?.response),
         SFI_DOMAINS,
-        search.countries,
+        countries,
       ),
-    [domains.results, search.countries],
+    [domains.results, countries],
   )
   const extraRows = useMemo(
     () =>
@@ -97,10 +106,10 @@ export function CompareView() {
         ? combineRows(
             extraQuery.results.map((result) => result?.response),
             [extra.name],
-            search.countries,
+            countries,
           )
         : [],
-    [extra, extraQuery.results, search.countries],
+    [extra, extraQuery.results, countries],
   )
   // Level labels for a survey-variable split come from its own value
   // labels (server truth); demographics are labelled by meta.
@@ -310,7 +319,7 @@ export function CompareView() {
       <div className={styles.controls}>
         <CountryFilter
           countries={served.countries}
-          selected={search.countries}
+          selected={countries}
           onChange={(countries) => setSearch({ countries })}
           max={COMPARE_MAX_COUNTRIES}
           capMessage={`Up to ${COMPARE_MAX_COUNTRIES} countries at a time — clear one to add another.`}

@@ -316,8 +316,54 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
   })
 
-  test('comparisons the measure cannot make are disabled with a reason', async () => {
-    mockFetch(tier)
+  test('one supported comparison reads as text, and the picker lists only measures asked twice', async () => {
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          { ...happyVariable, name: 'LONELY', display_name: 'Loneliness', waves_available: ['Y1'] },
+        ],
+      },
+    })
+    await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('img', { name: /average change among the same people/ })
+    // No measure spans the midyear survey: no radio group, one sentence.
+    expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
+    expect(
+      screen.getByText(
+        /The midyear survey asked different questions, so change is measured 2023 → 2024\./,
+      ),
+    ).toBeInTheDocument()
+    // Loneliness (asked once) is not offered; the count follows.
+    const measure = screen.getByLabelText('Measure', { exact: true })
+    expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
+    expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
+    // The prompt sits beside the country control, which reads its state.
+    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
+    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
+  })
+
+  test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          {
+            ...happyVariable,
+            name: 'BALANCE',
+            display_name: 'Life balance',
+            waves_available: ['Y1', 'MY', 'Y2'],
+          },
+        ],
+      },
+    })
     await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('img', { name: /average change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })

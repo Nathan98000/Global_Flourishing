@@ -128,10 +128,10 @@ describe('CountryFilter', () => {
     const { unmount } = render(
       <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-    expect(screen.getByText('All 2 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
     unmount()
     render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
-    expect(screen.getByText('1 country')).toBeInTheDocument()
+    expect(screen.getByText('Countries: 1')).toBeInTheDocument()
   })
 
   test('Select all checks every country', () => {

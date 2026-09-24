@@ -376,7 +376,8 @@ export function AtlasView() {
             <EmptyState title="Choose countries to compare">
               <p>
                 The distribution view shows the full shape of answers for up to four countries —
-                pick them with the Countries control above.
+                pick them with the control above that reads “Countries: all{' '}
+                {meta.data.meta.countries.length}”.
               </p>
             </EmptyState>
           ) : estimates.isPending ? (
