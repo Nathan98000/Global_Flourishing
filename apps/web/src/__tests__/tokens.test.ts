@@ -108,6 +108,16 @@ describe.each([
     assertContrast(vars, '--ink', '--control-selected', 4.5, theme)
   })
 
+  test('tooltip text reads on the tooltip fill (Plot’s --plot-background is the surface)', () => {
+    expect(vars['--plot-background']).toBe(vars['--surface'])
+    // The tip's text is the plot's current colour (secondary ink), and a
+    // value in ink; both clear AA on the fill.
+    assertContrast(vars, '--ink-secondary', '--plot-background', 4.5, theme)
+    assertContrast(vars, '--ink', '--plot-background', 4.5, theme)
+    // The tip stroke is the hairline rule, visible on the fill.
+    assertContrast(vars, '--grid', '--plot-background', 1.1, theme)
+  })
+
   test('focus ring is visible (3:1 non-text)', () => {
     assertContrast(vars, '--focus-ring', '--page', 3, theme)
   })
@@ -167,6 +177,15 @@ describe.each([
 
 test('the dark media block and the dark stamp define identical tokens', () => {
   expect(darkMedia).toEqual(darkStamped)
+})
+
+test('native controls follow the stamped theme, not the OS', () => {
+  // A stamped light theme forces light form controls and scrollbars
+  // under an OS dark preference, and vice versa.
+  const lightStamp = css.slice(css.indexOf(":root[data-theme='light']"))
+  expect(lightStamp.slice(0, lightStamp.indexOf('}'))).toContain('color-scheme: light')
+  const darkStamp = css.slice(css.indexOf(":root[data-theme='dark']"))
+  expect(darkStamp.slice(0, darkStamp.indexOf('}'))).toContain('color-scheme: dark')
 })
 
 test('the relief exception list matches reality (light marks below 3:1)', () => {

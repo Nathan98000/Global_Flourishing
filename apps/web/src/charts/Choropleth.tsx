@@ -15,6 +15,7 @@ import {
   MAP_EMPTY_OUTLINE,
   SEQUENTIAL_RAMP,
   SURFACE,
+  TIP_OPTIONS,
   plotValue,
   quantizeSequential,
 } from './theme'
@@ -143,7 +144,7 @@ export function Choropleth({
             fill: MAP_EMPTY,
             stroke: MAP_EMPTY_OUTLINE,
             strokeWidth: 0.8,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           Plot.geo(valued, {
@@ -151,7 +152,7 @@ export function Choropleth({
             fill: fillOf,
             stroke: SURFACE,
             strokeWidth: 0.4,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           Plot.geo(highlighted, {
@@ -167,7 +168,7 @@ export function Choropleth({
             fill: fillOf,
             stroke: SURFACE,
             strokeWidth: 2,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           Plot.text(small, {

@@ -13,6 +13,7 @@ import {
   INK_SECONDARY,
   MIN_ROWS,
   ROW_HEIGHT,
+  TIP_OPTIONS,
   WHISKER,
   plotCI,
   plotValue,
@@ -97,7 +98,7 @@ export function dotMarks(
         // Every facet value rides in the tip: country, column, level.
         title: (entry: DotEntry) =>
           tipText(entry.row, [entry.facet, entry.column, entry.level].filter(Boolean).join(' · ')),
-        fontFamily: FONT_FAMILY,
+        ...TIP_OPTIONS,
       }),
     ),
   ]

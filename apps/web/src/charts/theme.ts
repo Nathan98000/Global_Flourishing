@@ -10,6 +10,16 @@ import { ciLabel, formatCount, formatEstimate, isShareChangeStat, isShareStat } 
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
+/** Every tooltip: the plot font at the 12px token, the hairline rule as
+ * its stroke; its fill is Plot's --plot-background, which tokens.css
+ * sets to the surface in both themes (the text is the plot's current
+ * colour, secondary ink, AA on that fill). */
+export const TIP_OPTIONS = {
+  fontFamily: FONT_FAMILY,
+  fontSize: 12,
+  stroke: 'var(--grid)',
+} as const
+
 export const INK = 'var(--ink)'
 export const INK_SECONDARY = 'var(--ink-secondary)'
 export const INK_MUTED = 'var(--ink-muted)'

@@ -11,7 +11,15 @@ import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { ciLabel, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
 import { mapDomain, quantizeColor } from './Choropleth'
-import { FONT_FAMILY, INK, INK_SECONDARY, MAP_EMPTY, MAP_EMPTY_OUTLINE, SURFACE } from './theme'
+import {
+  FONT_FAMILY,
+  INK,
+  INK_SECONDARY,
+  MAP_EMPTY,
+  MAP_EMPTY_OUTLINE,
+  SURFACE,
+  TIP_OPTIONS,
+} from './theme'
 import { chartWidth, usePlot } from './usePlot'
 import { joinStates, type StateEntry, type UsFeature } from './usTopology'
 
@@ -80,7 +88,7 @@ export function StateChoropleth({
             fill: fillOf,
             stroke: SURFACE,
             strokeWidth: 0.6,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           // States without an estimate: the neutral, outlined so it never

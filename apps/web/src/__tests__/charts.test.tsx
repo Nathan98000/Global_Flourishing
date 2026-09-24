@@ -5,6 +5,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { Histogram } from '../charts/Histogram'
+import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import {
@@ -211,6 +212,14 @@ describe('Histogram', () => {
     expect(svg?.textContent).toContain('Score (0–10), 1-point bins')
     expect(svg?.textContent).toContain('0–1')
     expect(svg?.textContent).toContain('9–10')
+  })
+})
+
+describe('tooltips', () => {
+  test('every tip uses the 12px token size and the rule token as its stroke', () => {
+    expect(TIP_OPTIONS.fontSize).toBe(12)
+    expect(TIP_OPTIONS.stroke).toBe('var(--grid)')
+    expect(TIP_OPTIONS.fontFamily).toContain('system-ui')
   })
 })
 

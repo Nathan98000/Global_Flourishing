@@ -73,6 +73,9 @@
   --page: #f6f4ee;
   --surface: #fbfaf5;
   --surface-raised: #fffefb;
+  /* Plot's own variable, re-asserted on every figure (styles.css): the
+     tooltip fill — the surface, so the tip's text keeps its contrast */
+  --plot-background: #fbfaf5;
   --ink: #1b1a17;
   --ink-secondary: #57544c;
   /* Hairline-only (axis ticks, decorations): below AA for body text — never
@@ -162,6 +165,7 @@
     --page: #141310;
     --surface: #1b1a16;
     --surface-raised: #23211c;
+    --plot-background: #1b1a16;
     --ink: #ece8de;
     --ink-secondary: #b6b1a4;
     --ink-muted: #7d7970;
@@ -229,11 +233,18 @@
   }
 }
 
+/* …an explicit light stamp keeps native controls (selects, checkboxes,
+   scrollbars) light whatever the OS prefers… */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 /* …and an explicit dark stamp wins over an OS light preference. */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --page: #141310;
   --surface: #1b1a16;
+  --plot-background: #1b1a16;
   --surface-raised: #23211c;
   --ink: #ece8de;
   --ink-secondary: #b6b1a4;
