@@ -296,7 +296,11 @@ test('8 — What Matters with a combined-midyear country: the matrix, the split 
 test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({
   page,
 }) => {
-  await serveApi(page, { '/v1/states': apiFixture('states-HAPPY-Y1.json') })
+  await serveApi(page, {
+    '/v1/states': apiFixture('states-HAPPY-Y1.json'),
+    // The whole US on the state weight, which the states are read against.
+    '/v1/aggregate': apiFixture('states-HAPPY-Y1-overall.json'),
+  })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
