@@ -86,6 +86,10 @@ def test_polarity_follows_the_label_not_the_direction() -> None:
     # Every 1 = Yes / 2 = No item: the named thing is the Yes.
     for name in ("CLOSE_TO", "DONATED", "VOLUNTEERED", "HELP_STRANGER", "ABUSED"):
         assert variables[name].polarity == "descending", name
+    # Owner decision (24 Sept): Yes is better for these three, No for HEALTH_PROB.
+    for name in ("CLOSE_TO", "ACHIEVING", "BEAUTY"):
+        assert variables[name].direction == "lower_better", name
+    assert variables["HEALTH_PROB"].direction == "higher_better"
     # 1 = Always … 4 = Never and 1 = More than once a week … 5 = Never.
     for name in ("CAPABLE", "LIFE_BALANCE", "PEACE", "ATTEND_SVCS", "TRUST_PEOPLE"):
         assert variables[name].polarity == "descending", name

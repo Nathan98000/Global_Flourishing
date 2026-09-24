@@ -238,6 +238,8 @@ variables:
     display_name: Limiting health problems
     family: physical_health
     polarity: descending
+    direction: higher_better
+    notes: "1 = Yes, 2 = No; having no limiting health problem is the better outcome, so higher is better."
   DAYS_EXERCISE:
     display_name: Days exercised last week
     family: physical_health
@@ -267,6 +269,8 @@ variables:
     display_name: Has someone to confide in
     family: social_civic
     polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; having someone to confide in is the better outcome, so lower is better."
   PEOPLE_HELP:
     display_name: Can count on people for help
     family: social_civic
@@ -769,6 +773,8 @@ variables:
     display_name: Regularly experiences beauty
     family: midyear
     polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; regularly experiencing beauty is the better outcome, so lower is better."
   ENGAGE_ARTS:
     display_name: Arts and cultural activities
     family: midyear
@@ -789,6 +795,8 @@ variables:
     display_name: Happy with what you're achieving
     family: midyear
     polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; being happy with what you are achieving is the better outcome, so lower is better."
 
   # ------------------------------------------------- System & design
   ID:
