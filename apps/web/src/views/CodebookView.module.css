@@ -52,6 +52,13 @@
   color: var(--ink-secondary);
 }
 
+/* The table scrolls sideways inside its own box on a phone (the columns
+   never break); the page keeps its width. */
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* Hairline rows (§6): a rule above each row, no outer border — the first
    row's rule separates it from the header. */
 .table {

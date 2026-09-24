@@ -258,7 +258,7 @@ test('8 — What Matters with a combined-midyear country: the matrix, the split 
   await expect(
     caption(page)
       .first()
-      .getByText(/Midyear survey, 2024/),
+      .getByText(/Midyear survey, Nov 2023–Dec 2024/),
   ).toBeVisible()
   // One matrix: countries down, the importance items across.
   const matrix = page.getByRole('img', {

@@ -172,7 +172,8 @@ export function tipText(row: EstimateRow, label: string): string {
   } else {
     lines.push('no interval (single sampling unit)')
   }
-  lines.push(`n = ${formatCount(row.n)} · ${row.weight}`)
+  // The n, never the weight's column name (the figure names the weight once).
+  lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
 

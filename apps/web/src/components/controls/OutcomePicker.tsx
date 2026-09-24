@@ -147,7 +147,6 @@ export function OutcomePicker({
                       onClick={() => pick(match.name)}
                     >
                       <span>{match.display_name}</span>
-                      <span className={styles.code}>{match.name}</span>
                     </button>
                   </li>
                 ))}

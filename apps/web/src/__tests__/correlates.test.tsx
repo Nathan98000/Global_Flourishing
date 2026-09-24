@@ -368,6 +368,12 @@ describe('Correlates view', () => {
     expect(document.getElementById('continuous')).not.toBeNull()
     expect(document.getElementById('binary')).not.toBeNull()
     expect(screen.getAllByText(/No causal claim/).length).toBe(2)
+    // The way back, and the tab's name.
+    expect(screen.getByRole('link', { name: '← Correlates' })).toHaveAttribute(
+      'href',
+      '/correlates',
+    )
+    expect(document.title).toBe('Model cards — Flourish Atlas')
   })
 
   test('a measure with no order says so instead of asking the API', async () => {
@@ -380,7 +386,9 @@ describe('Correlates view', () => {
   test('a wave the measure was not asked in says so', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?outcome=HAPPY&wave=MY')
-    expect(await screen.findByText('Not asked in Midyear survey')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Not asked in Midyear survey, Nov 2023–Dec 2024'),
+    ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
   })
 
@@ -488,6 +496,13 @@ describe('correlates helpers', () => {
   test('point estimates say so in tooltips and footnotes; signed formatting', () => {
     const plain = plainRow('LONELY', -0.52)
     expect(tipText(plain, 'Loneliness')).toContain('no interval is computed')
+    // The n rides in every tip; the weight's column name never does.
+    expect(tipText(plain, 'Loneliness')).toContain('n = 54')
+    expect(tipText(plain, 'Loneliness')).not.toContain('w_c1')
+    // The footnote's noun follows the statistic without an interval.
+    expect(footnoteCopy({ ...rankedPlain.meta, stat: 'quantile' }, 'dots', false)).toContain(
+      'no confidence interval is computed for a median',
+    )
     expect(intervalText(plain)).toContain('point estimate')
     expect(footnoteCopy(rankedPlain.meta, 'dots', false)).toContain('Dots are point estimates')
     expect(footnoteCopy(rankedPlain.meta, 'table', false)).toContain('Cells are point estimates')

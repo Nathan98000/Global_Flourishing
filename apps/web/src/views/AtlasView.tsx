@@ -354,7 +354,7 @@ export function AtlasView() {
               checked={search.oriented ?? false}
               onChange={(event) => setSearch({ oriented: event.target.checked || undefined })}
             />{' '}
-            Orient so higher = better (reverses this item; needs the live service)
+            Orient so higher = better (reverses this item)
           </label>
         )}
       </div>

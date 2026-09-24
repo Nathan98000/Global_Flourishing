@@ -2,7 +2,7 @@
 
 How Flourish Atlas turns 207,919 questionnaires into the numbers on the
 screen: which weights are applied and why, how the margins of error are
-computed, and when a number is withheld. Everything described here runs
+computed, and how small cells are shown. Everything described here runs
 in open code, and the results are checked against an independent
 implementation (R's `survey` package — see
 [R parity](#verified-against-r) below).
@@ -21,8 +21,7 @@ names the weight it used, alongside the unweighted number of respondents
 
 Weights are normalised to mean 1 **within** each country, so pooling
 countries without re-scaling would count Türkiye's 1,473 respondents the
-same as the United States' 38,312. Until the population-rescaled "all
-countries" option ships (Phase 5), figures are per-country.
+same as the United States' 38,312. Figures are per-country.
 
 ## Which weight, when
 
@@ -124,6 +123,24 @@ API (and passing the same policy to the static exporter) restores the
 previous rule, under which cells below n = 50 were withheld and cells of
 50–99 flagged.
 
+## Signed numbers follow the label
+
+Every signed number in the app — a within-person change, a correlation,
+an adjusted coefficient — is computed on values arranged so that **higher
+means more of what the measure's name says**. The catalog records each
+item's *polarity*: whether the highest code or the lowest code is the
+most of the named thing. "Feeling down or depressed" is coded 1 = Nearly
+every day … 4 = Not at all, so its lowest code is the most depressed;
+every 1 = Yes / 2 = No item names its Yes. Before a signed statistic is
+taken, such an item is reflected about its scale (value′ = min + max −
+value), which keeps its range, its spacing and its non-response. Means
+and shares are never re-coded — an average of "Feeling down or
+depressed" is still the average of the codes the codebook prints — and
+the reflection changes nothing about a statistic's uncertainty, only
+the direction its sign reads in. Binary items enter associations as a
+0/1 indicator of their Yes, which already runs upward. Derived scores
+(the flourishing index and the screeners) run upward by construction.
+
 ## Change over time
 
 Change figures follow the **same people** across waves — never the
@@ -147,6 +164,17 @@ the same design-based CI machinery; distributions of individual change
 and transition matrices ("of the people who said X in 2023, what did
 they say in 2024?") come with the same per-cell uncertainty, and every
 cell is shown with its n.
+
+**Categorical items change in share, not in mean.** An item whose
+answers are categories — yes/no, an ordered ladder such as "more than
+once a week … never" — has no meaningful mean of its codes. For those
+the Change view reports, for a chosen answer, the **change in the share
+giving it**, in percentage points: the paired difference of a 0/1
+indicator (answered it in 2024 minus answered it in 2023), averaged over
+the same people with the longitudinal weight, with a design-based
+interval. The transition matrix is the individual-level view of such an
+item; the histogram of individual change is drawn only for 0–10 scales
+and counts.
 
 ## The same people a year later
 
@@ -191,6 +219,16 @@ histogram of individual change and the transition matrix ("of the people
 who said X in 2023, what did they say in 2024?") are estimated on the same
 pairs, with the same per-cell interval and n.
 
+## Distributions of derived scores
+
+The flourishing index and its six domains are means of 0–10 items, so
+they take values like 7.25 rather than whole numbers. Their distribution
+is shown over ten one-point bins — 0–1, 1–2, … 9–10, the last closed so
+a perfect 10 is counted — each bin a weighted share with its own
+interval, computed by the same rule in the live service and the
+precomputed tier, so the shares of a country sum to 100%. Items coded
+0–10 keep their eleven answer bins.
+
 ## Medians and correlations
 
 **Quantiles** (like medians) are computed from the weighted cumulative
@@ -208,6 +246,15 @@ the Correlates view draws none — its footnote says so rather than naming
 an interval level. A design-based interval (a delta method over the four
 totals R's `svyvar` estimates) is the recorded backlog item; a textbook
 Fisher-z interval would assume simple random sampling and is not offered.
+
+**Which measures are ranked.** The Correlates view's ranked list leaves
+out any measure resting on fewer than 100 respondents with both answers
+in that country (`FA_CORRELATES_MIN_N`; the constant lives with the
+other correlates rules in the engine). This is a deliberate exception to
+the "every cell shown" rule: the list is an ordering, and an ordering of
+noise misleads. The cells themselves are still served — the cross-country
+matrix shows them untinted, in muted ink, with the n and the reason in
+their tooltip — and the footnote says how many measures were left out.
 
 ## Adjusted and unadjusted associations
 

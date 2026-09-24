@@ -78,3 +78,9 @@
 .prose a {
   overflow-wrap: anywhere;
 }
+
+/* The way back to the view that links here. */
+.back {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+}

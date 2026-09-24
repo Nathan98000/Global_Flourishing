@@ -224,7 +224,7 @@ export function BreakdownsView() {
   const displayOptions = (
     <>
       <label className={styles.oriented}>
-        Second breakdown (needs the live service){' '}
+        Second breakdown{' '}
         <select
           value={secondary ?? ''}
           onChange={(event) =>
@@ -246,7 +246,7 @@ export function BreakdownsView() {
           <optgroup label="survey variables">
             {categoricalVariables.map((candidate) => (
               <option key={candidate.name} value={candidate.name}>
-                {candidate.display_name} ({candidate.name})
+                {candidate.display_name}
               </option>
             ))}
           </optgroup>
@@ -305,6 +305,10 @@ export function BreakdownsView() {
   return (
     <section>
       <h2 className="visually-hidden">Breakdowns</h2>
+      <p className={styles.deck}>
+        One measure split by a demographic, one panel per country — the Atlas&rsquo;s estimates, cut
+        finer.
+      </p>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>

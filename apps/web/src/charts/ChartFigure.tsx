@@ -30,10 +30,12 @@ export function footnoteCopy(
   unit: 'country' | 'state' = marks === 'state-map' ? 'state' : 'country',
 ): string {
   const level = Math.round(meta.ci_level * 100)
+  // The noun follows the statistic that ships without an interval.
+  const noun = meta.stat === 'quantile' ? 'a median' : 'a correlation'
   const interval = !intervals
     ? marks === 'table'
-      ? 'Cells are point estimates — no confidence interval is computed for a correlation'
-      : 'Dots are point estimates — no confidence interval is computed for a correlation'
+      ? `Cells are point estimates — no confidence interval is computed for ${noun}`
+      : `Dots are point estimates — no confidence interval is computed for ${noun}`
     : marks === 'map'
       ? `Hover a country for its ${level}% confidence interval`
       : marks === 'state-map'

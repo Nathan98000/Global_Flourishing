@@ -3,7 +3,7 @@
 // change axis that always contains a marked zero — a change chart that
 // crops zero is a lie. Built from DotPlot's marks, not a new mark set.
 // A three-point response facets into one column per leg (2023 →
-// mid-2024, mid-2024 → 2024, 2023 → 2024), each with its own zero rule.
+// Midyear, Midyear → 2024, 2023 → 2024), each with its own zero rule.
 // Rows arrive ordered (sortRows.ts — the data table's order); every
 // cell is shown (ADR-0011): a row with no interval draws its dot alone.
 

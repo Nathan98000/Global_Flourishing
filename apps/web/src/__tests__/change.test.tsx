@@ -367,9 +367,12 @@ describe('Change view', () => {
     await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('img', { name: /average change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })
-    const midyear = within(compare).getByLabelText('2023 → mid-2024') as HTMLInputElement
+    const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()
-    expect(midyear.closest('label')).toHaveAttribute('title', 'Not asked in Midyear survey')
+    expect(midyear.closest('label')).toHaveAttribute(
+      'title',
+      'Not asked in Midyear survey, Nov 2023–Dec 2024',
+    )
     expect(within(compare).getByLabelText('2023 → 2024')).toBeChecked()
   })
 })
@@ -487,8 +490,8 @@ describe('change chart helpers', () => {
       />,
     )
     const text = container.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('2023 → mid-2024')
-    expect(text).toContain('mid-2024 → 2024')
+    expect(text).toContain('2023 → Midyear')
+    expect(text).toContain('Midyear → 2024')
     expect(text).toContain('2023 → 2024')
     expect(text).not.toMatch(JARGON)
     expect(testResponseMeta().stat).toBe('mean')

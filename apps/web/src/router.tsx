@@ -7,6 +7,7 @@ import {
   type RouterHistory,
   type SearchSchemaInput,
 } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { AppShell } from './components/AppShell'
 import {
   atlasSearchParams,
@@ -42,16 +43,34 @@ function omitDefaults<T>(clean: (search: Partial<T>) => Record<string, unknown>)
     clean(next(search) as Partial<T>) as unknown as T
 }
 
-const rootRoute = createRootRoute({
-  component: AppShell,
-  notFoundComponent: () => (
+/** Every route names the tab: "<Page> — Flourish Atlas". */
+export const SITE_NAME = 'Flourish Atlas'
+export function pageTitle(page: string): string {
+  return `${page} — ${SITE_NAME}`
+}
+const titled = (page: string) => ({
+  beforeLoad: () => {
+    document.title = pageTitle(page)
+  },
+})
+
+function NotFound() {
+  useEffect(() => {
+    document.title = pageTitle('Page not found')
+  }, [])
+  return (
     <section>
       <h2>Page not found</h2>
       <p>
         Nothing lives at this address. <Link to="/">Back to the Atlas</Link>.
       </p>
     </section>
-  ),
+  )
+}
+
+const rootRoute = createRootRoute({
+  component: AppShell,
+  notFoundComponent: NotFound,
 })
 
 // The parsers fill defaults for anything absent or invalid, so the input
@@ -60,6 +79,7 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  ...titled('Atlas'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseAtlasSearch(raw),
   search: { middlewares: [omitDefaults(atlasSearchParams)] },
   component: AtlasView,
@@ -70,6 +90,7 @@ const indexRoute = createRoute({
 const changeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/change',
+  ...titled('Change'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseChangeSearch(raw),
   search: { middlewares: [omitDefaults(changeSearchParams)] },
   component: lazyRouteComponent(() => import('./views/ChangeView'), 'ChangeView'),
@@ -78,6 +99,7 @@ const changeRoute = createRoute({
 const compareRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/compare',
+  ...titled('Compare'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCompareSearch(raw),
   search: { middlewares: [omitDefaults(compareSearchParams)] },
   component: lazyRouteComponent(() => import('./views/CompareView'), 'CompareView'),
@@ -86,6 +108,7 @@ const compareRoute = createRoute({
 const whatMattersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/what-matters',
+  ...titled('What Matters'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseWhatMattersSearch(raw),
   search: { middlewares: [omitDefaults(whatMattersSearchParams)] },
   component: lazyRouteComponent(() => import('./views/WhatMattersView'), 'WhatMattersView'),
@@ -95,6 +118,7 @@ const whatMattersRoute = createRoute({
 const correlatesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/correlates',
+  ...titled('Correlates'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCorrelatesSearch(raw),
   search: { middlewares: [omitDefaults(correlatesSearchParams)] },
   component: lazyRouteComponent(() => import('./views/CorrelatesView'), 'CorrelatesView'),
@@ -103,12 +127,14 @@ const correlatesRoute = createRoute({
 const modelCardsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/model-cards',
+  ...titled('Model cards'),
   component: lazyRouteComponent(() => import('./views/ModelCardsView'), 'ModelCardsView'),
 })
 
 const statesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/states',
+  ...titled('US States'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseStatesSearch(raw),
   search: { middlewares: [omitDefaults(statesSearchParams)] },
   component: lazyRouteComponent(() => import('./views/StatesView'), 'StatesView'),
@@ -117,6 +143,7 @@ const statesRoute = createRoute({
 const breakdownsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/breakdowns',
+  ...titled('Breakdowns'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseBreakdownsSearch(raw),
   search: { middlewares: [omitDefaults(breakdownsSearchParams)] },
   component: lazyRouteComponent(() => import('./views/BreakdownsView'), 'BreakdownsView'),
@@ -125,6 +152,7 @@ const breakdownsRoute = createRoute({
 const codebookRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/codebook',
+  ...titled('Codebook'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCodebookSearch(raw),
   search: { middlewares: [omitDefaults(codebookSearchParams)] },
   component: lazyRouteComponent(() => import('./views/CodebookView'), 'CodebookView'),
@@ -133,12 +161,14 @@ const codebookRoute = createRoute({
 const codebookDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/codebook/$name',
+  ...titled('Codebook'),
   component: lazyRouteComponent(() => import('./views/CodebookDetailView'), 'CodebookDetailView'),
 })
 
 const methodsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/methods',
+  ...titled('Methods'),
   component: lazyRouteComponent(() => import('./views/MethodsView'), 'MethodsView'),
 })
 

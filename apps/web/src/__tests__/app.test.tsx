@@ -331,7 +331,8 @@ test('on a phone the secondary five nav items collapse behind "More" (type uncha
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
-      matches: query === '(max-width: 40rem)',
+      // A phone: below both the display-option fold and the nav fold.
+      matches: query === '(max-width: 40rem)' || query === '(max-width: 50rem)',
       media: query,
       onchange: null,
       addEventListener: () => undefined,

@@ -15,6 +15,7 @@ import { Skeleton } from '../components/Skeleton'
 import { formatCount } from '../format'
 import { codebookSearchParams, type CodebookSearch } from '../state/search'
 import { scaleTypeName, topicName } from '../topics'
+import { WAVE_CHIPS } from '../waves'
 import styles from './CodebookView.module.css'
 
 const route = getRouteApi('/codebook')
@@ -132,7 +133,7 @@ export function CodebookView() {
           />
         </div>
         <div className={styles.field}>
-          <label htmlFor={`${searchId}-family`}>Family</label>
+          <label htmlFor={`${searchId}-family`}>Topic</label>
           <select
             id={`${searchId}-family`}
             value={search.family ?? ''}
@@ -157,7 +158,7 @@ export function CodebookView() {
             <option value="">any</option>
             {meta.data.meta.waves.map((wave) => (
               <option key={wave} value={wave}>
-                {wave}
+                {WAVE_CHIPS[wave] ?? wave}
               </option>
             ))}
           </select>
@@ -188,52 +189,57 @@ export function CodebookView() {
       {rows.length === 0 ? (
         <p className={styles.none}>Nothing matches — try fewer filters.</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">Question</th>
-              <th scope="col">Topic</th>
-              <th scope="col">Answers</th>
-              <th scope="col">Asked</th>
-              {/* The link says it all sighted; screen readers keep the name. */}
-              <th scope="col">
-                <span className="visually-hidden">Chartable</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((variable) => (
-              <tr key={variable.name}>
-                <th scope="row" className={styles.nameCell}>
-                  <Link to="/codebook/$name" params={{ name: variable.name }}>
-                    {variable.display_name}
-                  </Link>
-                  <span className={styles.code}>{variable.name}</span>
+        // Scrolls inside its own container on a phone; the page never does.
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                <th scope="col">Topic</th>
+                <th scope="col">Answers</th>
+                <th scope="col">Asked</th>
+                {/* The link says it all sighted; screen readers keep the name. */}
+                <th scope="col">
+                  <span className="visually-hidden">Chartable</span>
                 </th>
-                <td>{topicName(variable.family)}</td>
-                <td>{scaleTypeName(variable.scale_type)}</td>
-                <td>{variable.waves_available.join(', ')}</td>
-                <td className={styles.chartCell}>
-                  {variable.servable ? (
-                    <Link
-                      to="/"
-                      search={
-                        {
-                          outcome: variable.name,
-                          wave: variable.waves_available[0] ?? 'Y1',
-                        } as never
-                      }
-                    >
-                      Chart it →
-                    </Link>
-                  ) : (
-                    <span className={styles.code}>not yet</span>
-                  )}
-                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((variable) => (
+                <tr key={variable.name}>
+                  <th scope="row" className={styles.nameCell}>
+                    <Link to="/codebook/$name" params={{ name: variable.name }}>
+                      {variable.display_name}
+                    </Link>
+                    <span className={styles.code}>{variable.name}</span>
+                  </th>
+                  <td>{topicName(variable.family)}</td>
+                  <td>{scaleTypeName(variable.scale_type)}</td>
+                  <td>
+                    {variable.waves_available.map((wave) => WAVE_CHIPS[wave] ?? wave).join(', ')}
+                  </td>
+                  <td className={styles.chartCell}>
+                    {variable.servable ? (
+                      <Link
+                        to="/"
+                        search={
+                          {
+                            outcome: variable.name,
+                            wave: variable.waves_available[0] ?? 'Y1',
+                          } as never
+                        }
+                      >
+                        Chart it →
+                      </Link>
+                    ) : (
+                      <span className={styles.code}>not yet</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )

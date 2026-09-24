@@ -187,8 +187,8 @@ export function WhatMattersView() {
   const countryName = (code: number) => groupValueLabel('country_code', code, served)
   const first = ranking[0]
   const rankingSubtitle = first
-    ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}, 2024`
-    : `${MIDYEAR_TITLE}, 2024`
+    ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}`
+    : MIDYEAR_TITLE
   const csvFor = (response: EstimateResponse, stem: string): CsvExport => ({
     kind: 'client',
     onDownload: () =>
@@ -232,7 +232,7 @@ export function WhatMattersView() {
             ? `share answering “${itemLevelLabel}”`
             : 'weighted share'
           : scaleSubtitle(item, itemStat)
-      } · ${MIDYEAR_TITLE}, 2024`
+      } · ${MIDYEAR_TITLE}`
     : ''
   const itemResponse = itemQuery.results[0]?.response
 
@@ -278,11 +278,11 @@ export function WhatMattersView() {
       <p className={styles.deck}>
         <span className={styles.deckLong}>
           What people said mattered most in their lives — money, relationships, meaning, health,
-          faith, happiness, being a good person — in the midyear survey of 2024, and how that
-          differs by country and by age.
+          faith, happiness, being a good person — in the midyear survey (Nov 2023–Dec 2024), and how
+          that differs by country and by age.
         </span>
         <span className={styles.deckShort}>
-          What people said mattered most, midyear 2024, by country and by age.
+          What people said mattered most, in the midyear survey, by country and by age.
         </span>
       </p>
       <nav className={styles.anchors} aria-label="On this page">
@@ -331,7 +331,7 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
-              ariaLabel={`How important people rate ${ranking.length} things in each of ${countryOrder.length} countries, as a matrix: a row per country, a column per thing, deeper tint for higher importance, ${MIDYEAR_TITLE} 2024. The data table below carries every number, with its n.`}
+              ariaLabel={`How important people rate ${ranking.length} things in each of ${countryOrder.length} countries, as a matrix: a row per country, a column per thing, deeper tint for higher importance, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
               marks="table"
               response={rankingResponse}
               meta={served}
@@ -397,7 +397,7 @@ export function WhatMattersView() {
             <ChartFigure
               title={`${countryName(search.country)} by ${columnLabel(search.by, served).toLowerCase()}`}
               subtitle={rankingSubtitle}
-              ariaLabel={`${countryName(search.country)}: how important people rate ${ranking.length} things, one panel per ${columnLabel(search.by, served).toLowerCase()}, ${MIDYEAR_TITLE} 2024. The data table below carries every number.`}
+              ariaLabel={`${countryName(search.country)}: how important people rate ${ranking.length} things, one panel per ${columnLabel(search.by, served).toLowerCase()}, ${MIDYEAR_TITLE}. The data table below carries every number.`}
               marks="dots"
               response={splitResponse}
               meta={served}
