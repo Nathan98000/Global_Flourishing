@@ -51,6 +51,7 @@ def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummar
         family=str(row["family"]),
         scale_type=str(row["scale_type"]),
         direction=str(row["direction"]),
+        polarity=str(row.get("polarity") or "ascending"),
         min=row["min"],  # type: ignore[arg-type]
         max=row["max"],  # type: ignore[arg-type]
         waves_available=list(row["waves_available"]),  # type: ignore[call-overload]
@@ -71,6 +72,7 @@ def _derived_summary(name: str) -> VariableSummary:
         family="derived",
         scale_type=derived.scale_type,
         direction=derived.direction,
+        polarity="ascending",
         min=derived.min,
         max=derived.max,
         waves_available=["Y1", "Y2"],

@@ -88,6 +88,12 @@ class VariableSummary(BaseModel):
     family: str
     scale_type: str
     direction: str
+    #: which end of the coded scale is the most of what ``display_name``
+    #: names: ``ascending`` (the highest code) or ``descending`` (the
+    #: lowest). Signed statistics — change, correlations, adjusted
+    #: coefficients — are computed on values aligned so higher = more of
+    #: the named thing (ADR-0015); means and shares are as coded.
+    polarity: str
     min: int | None
     max: int | None
     waves_available: list[str]

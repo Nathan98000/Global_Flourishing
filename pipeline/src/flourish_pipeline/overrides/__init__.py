@@ -4,7 +4,7 @@ Three YAML files, packaged with the code so the pipeline is runnable from
 a wheel:
 
 - ``variables.yaml``  — per-variable display name, family, direction,
-  corrections to the inferred scale type, SFI domain membership, special
+  polarity, corrections to the inferred scale type, SFI domain membership, special
   code rulings, and the alias/duplicate-heading fixes.
 - ``countries.yaml``  — country code → name/ISO-3166 alpha-3.
 - ``us_columns.yaml`` — the 15 columns that exist only in the US
@@ -38,6 +38,14 @@ FAMILIES = frozenset(
     }
 )
 DIRECTIONS = frozenset({"higher_better", "lower_better", "none"})
+#: Which end of the CODED scale is the most of what ``display_name`` names
+#: (ADR-0015): ``ascending`` (the default) when the highest code is, and
+#: ``descending`` when the lowest code is (``DEPRESSED`` 1 = Nearly every
+#: day; every 1 = Yes / 2 = No item). Signed statistics — change,
+#: correlations, adjusted coefficients — are computed on values aligned so
+#: that higher always means more of the named thing; means and shares
+#: never are. Distinct from ``direction``, which says which end is better.
+POLARITIES = frozenset({"ascending", "descending"})
 SCALE_TYPES = frozenset(
     {
         "scale_0_10",
@@ -79,6 +87,7 @@ class VariableOverride:
     display_name: str
     family: str
     direction: str = "none"
+    polarity: str = "ascending"
     scale_type: str | None = None
     sfi_domain: str | None = None
     min: int | None = None
@@ -142,6 +151,9 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
     direction = str(entry.get("direction", "none"))
     if direction not in DIRECTIONS:
         raise OverridesError(f"{name}: unknown direction {direction!r}")
+    polarity = str(entry.get("polarity", "ascending"))
+    if polarity not in POLARITIES:
+        raise OverridesError(f"{name}: unknown polarity {polarity!r}")
     scale_type = entry.get("scale_type")
     if scale_type is not None and scale_type not in SCALE_TYPES:
         raise OverridesError(f"{name}: unknown scale_type {scale_type!r}")
@@ -173,6 +185,7 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         display_name=_require_str(entry.get("display_name"), f"{name}.display_name"),
         family=family,
         direction=direction,
+        polarity=polarity,
         scale_type=None if scale_type is None else str(scale_type),
         sfi_domain=None if sfi_domain is None else str(sfi_domain),
         min=None if entry.get("min") is None else int(entry["min"]),

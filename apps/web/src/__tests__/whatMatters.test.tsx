@@ -44,6 +44,7 @@ const relation = midyear('GOOD_RELATION', 'Importance: good relationships')
 const timeMedia = midyear('TIME_MEDIA', 'Daily social media time', {
   scale_type: 'ordinal',
   direction: 'none',
+  polarity: 'ascending',
   min: 1,
   max: 3,
   default_stat: 'proportion',

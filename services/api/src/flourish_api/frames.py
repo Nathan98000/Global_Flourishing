@@ -24,6 +24,8 @@ from dataclasses import dataclass
 import polars as pl
 from flourish_stats import Design, WeightSpec, eligibility_expr, resolve, validate_frame
 from flourish_stats.correlations import DEFAULT_CONTROLS
+from flourish_stats.io import aligned_expr
+from flourish_stats.outcomes import MEAN_SCALE_TYPES
 
 from flourish_api.data import DataStore, VariableInfo
 from flourish_api.queries import AggregateQuery, ChangeQuery, CorrelatesQuery, DomainFilter
@@ -37,6 +39,17 @@ BINARY_EVENT_CODE = 1
 
 def wave_column(wave: str) -> str:
     return f"value_{wave.lower()}"
+
+
+def align(frame: pl.DataFrame, column: str, variable: VariableInfo) -> pl.DataFrame:
+    """Re-code ``column`` so higher means more of what the variable's
+    display name names (ADR-0015): the load-time transform of
+    :func:`flourish_stats.io.aligned_expr`, applied wherever a signed
+    statistic — change, correlation, adjusted coefficient — is about to
+    be taken. Means and shares never pass through here."""
+    return frame.with_columns(
+        aligned_expr(column, polarity=variable.polarity, lo=variable.min, hi=variable.max)
+    )
 
 
 @dataclass(frozen=True)
@@ -132,6 +145,12 @@ def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFram
             "id", pl.col(VALUE_COLUMN).alias(wave_column(wave))
         )
         frame = frame.join(piece, on="id", how="left")
+    # A mean change is a signed number: taken on aligned values. A
+    # categorical item's change is the change in share at each of its
+    # own codes, which needs the codes as coded.
+    if query.outcome.scale_type in MEAN_SCALE_TYPES:
+        for wave in query.waves:
+            frame = align(frame, wave_column(wave), query.outcome)
 
     frame = frame.filter(eligibility_expr(spec))
     if query.countries:
@@ -176,6 +195,13 @@ def assemble_correlates_frame(
     )
     frame = frame.filter(eligibility_expr(spec))
     frame = apply_domain_filters(frame, query.outcome.name, query.filters)
+    # Every correlation and coefficient is signed: the outcome and each
+    # ordered predictor are aligned to their labels first (ADR-0015). A
+    # binary item is aligned by its indicator instead — the event code is
+    # the named thing (1 = Yes), so the 0/1 column already runs upward.
+    for variable in variables:
+        if variable.scale_type != "binary":
+            frame = align(frame, variable.name, variable)
     binaries = [v.name for v in variables if v.scale_type == "binary"]
     if binaries:
         frame = frame.with_columns(

@@ -59,10 +59,14 @@ export interface paths {
         };
         /**
          * Within-person change across waves
-         * @description Mean within-person change with a design-based CI, plus (for
-         *     integer-coded items) the distribution of individual change and (for
-         *     categorical items) the transition matrix. ``from=Y1&via=MY&to=Y2``
-         *     returns the three panel legs under the three-point weight.
+         * @description Within-person change with a design-based CI. Numeric scales (0–10,
+         *     counts) report the mean change on values aligned so higher means more
+         *     of what the measure names (``stat = "change"``), plus the distribution
+         *     of individual change; categorical items report the change in the
+         *     share answering each level (``stat = "change_share"``, a fraction —
+         *     × 100 for percentage points) plus the transition matrix.
+         *     ``from=Y1&via=MY&to=Y2`` returns the three panel legs under the
+         *     three-point weight (numeric scales only).
          */
         get: operations["change_v1_change_get"];
         put?: never;
@@ -496,6 +500,8 @@ export interface components {
             missingness: components["schemas"]["MissingnessRow"][];
             /** Name */
             name: string;
+            /** Polarity */
+            polarity: string;
             /** Scale Type */
             scale_type: string;
             /** Scoring */
@@ -536,6 +542,8 @@ export interface components {
             min: number | null;
             /** Name */
             name: string;
+            /** Polarity */
+            polarity: string;
             /** Scale Type */
             scale_type: string;
             /** Servable */

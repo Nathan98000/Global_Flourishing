@@ -43,6 +43,7 @@ class VariableRecord:
     family: str
     scale_type: str
     direction: str
+    polarity: str
     min: int | None
     max: int | None
     waves_available: list[str]
@@ -404,6 +405,7 @@ def build_catalog(
                 family=override.family,
                 scale_type=scale,
                 direction=override.direction,
+                polarity=override.polarity,
                 min=lo,
                 max=hi,
                 waves_available=waves_available(all_columns, base),

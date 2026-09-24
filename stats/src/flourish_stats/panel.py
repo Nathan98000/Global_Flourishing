@@ -79,6 +79,63 @@ def paired_change(
     )
 
 
+def paired_share_change(
+    frame: Frame,
+    earlier: str,
+    later: str,
+    design: Design,
+    *,
+    levels: Sequence[int],
+    by: Sequence[str] = (),
+    ci_level: float = 0.95,
+    policy: SuppressionPolicy = DEFAULT_POLICY,
+) -> pa.Table:
+    """Within-person change in the share answering each level.
+
+    The categorical counterpart of :func:`paired_change` (ADR-0015): for
+    every level ``L`` the paired difference of the 0/1 indicator,
+    ``1[later = L] − 1[earlier = L]``, averaged over complete pairs with
+    the design-based SE — a share change in the engine's fraction scale
+    (× 100 for percentage points). Equals R ``svymean(~I((later == L) −
+    (earlier == L)), design, na.rm=TRUE)``. One row per (group, level),
+    ``stat = "change_share"``; ``n`` counts complete pairs, the same for
+    every level. A level nobody holds at either wave is a 0.0 with a
+    zero-width interval, not an absence.
+    """
+    if len(set(levels)) != len(levels):
+        raise ValueError("levels must be distinct")
+    if not levels:
+        raise ValueError("levels must not be empty")
+    df = to_polars(frame)
+    check_columns(df, design, earlier, by)
+    check_columns(df, design, later, by)
+    df = with_dummy(df, by)
+    groups = group_keys(by)
+    pair_ok = pl.col(earlier).is_not_null() & pl.col(later).is_not_null()
+    parts: list[pl.DataFrame] = []
+    for level in levels:
+        indicator = (pl.col(later) == level).cast(pl.Float64) - (pl.col(earlier) == level).cast(
+            pl.Float64
+        )
+        leveled = df.with_columns(pl.when(pair_ok).then(indicator).otherwise(None).alias(_CHANGE))
+        records = mean_records(leveled, _CHANGE, design, groups)
+        parts.append(records.with_columns(pl.lit(level, dtype=pl.Int64).alias("level")))
+    level_frame = pl.DataFrame({"level": pl.Series(list(levels), dtype=pl.Int64)})
+    universe = df.select(groups).unique().join(level_frame, how="cross")
+    return finalize(
+        pl.concat(parts),
+        universe,
+        stat="change_share",
+        design=design,
+        groups=groups,
+        by=by,
+        extra=["level"],
+        ci_level=ci_level,
+        ci_method="normal",
+        policy=policy,
+    )
+
+
 def paired_change_distribution(
     frame: Frame,
     earlier: str,

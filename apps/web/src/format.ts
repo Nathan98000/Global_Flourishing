@@ -29,6 +29,19 @@ export function formatChange(value: number): string {
   return value > 0 ? `+${rendered}` : `−${rendered}`
 }
 
+/** A categorical item's change is the change in the share answering a
+ * level (the engine's `change_share`, a fraction): shown in percentage
+ * points, signed — +3.2 pp, −1.0 pp, 0.0 pp. */
+export function isShareChangeStat(stat: string): boolean {
+  return stat === 'change_share'
+}
+
+export function formatShareChange(fraction: number): string {
+  const rendered = one.format(Math.abs(fraction * 100))
+  const signed = rendered === '0.0' ? rendered : fraction > 0 ? `+${rendered}` : `−${rendered}`
+  return `${signed} pp`
+}
+
 /** Correlations and model coefficients are signed quantities around
  * zero, so they carry their sign the way a change does. */
 export function isAssociationStat(stat: string): boolean {
@@ -38,6 +51,7 @@ export function isAssociationStat(stat: string): boolean {
 export function formatEstimate(value: number | null | undefined, stat: string): string {
   if (value === null || value === undefined) return '—'
   if (isShareStat(stat)) return `${one.format(value * 100)}%`
+  if (isShareChangeStat(stat)) return formatShareChange(value)
   if (stat === 'change' || isAssociationStat(stat)) return formatChange(value)
   return two.format(value)
 }

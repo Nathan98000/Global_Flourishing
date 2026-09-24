@@ -1,5 +1,6 @@
 """GET /v1/correlates against the synthetic data."""
 
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 from flourish_api.config import Settings
@@ -325,3 +326,24 @@ def test_suppression_policy_is_honoured(synthetic_data_dir) -> None:
 def test_correlates_503_without_data(absent_client: TestClient) -> None:
     resp = absent_client.get("/v1/correlates", params={"outcome": "HAPPY", "wave": "Y1"})
     assert resp.status_code == 503
+
+
+def test_descending_predictor_is_aligned_to_its_label(client: TestClient, store: DataStore) -> None:
+    """ATTEND_SVCS runs 1 = Weekly … 3 = Never, so its lowest code is the
+    most attendance (catalog polarity ``descending``). The served
+    correlation is taken on the aligned values — exactly the negative of
+    the correlation on the raw codes (ADR-0015)."""
+    _, rows = get_correlates(
+        client, outcome="HAPPY", wave="Y1", against="ATTEND_SVCS", filter="country_code:1"
+    )
+    assert store.catalog is not None
+    happy, attend = store.catalog.outcome("HAPPY"), store.catalog.outcome("ATTEND_SVCS")
+    assert happy is not None and attend is not None
+    assert happy.polarity == "ascending" and attend.polarity == "descending"
+    raw = store.wide_frame([happy, attend], "Y1", country_codes=[1]).filter(
+        pl.col("w_c1").is_not_null()
+    )
+    design = Design(weight="w_c1", strata="strata", psu="psu")
+    unaligned = weighted_correlation(raw, "HAPPY", "ATTEND_SVCS", design).to_pylist()[0]
+    assert unaligned["estimate"] is not None and unaligned["estimate"] != 0
+    assert rows[0]["estimate"] == pytest.approx(-unaligned["estimate"], rel=1e-12)

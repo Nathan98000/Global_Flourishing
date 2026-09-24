@@ -44,6 +44,34 @@ _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
 #: Catalog item names (``responses_long.variable``) are upper-case codes.
 _ITEM_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
+#: The catalog's ``polarity``: which end of the CODED scale is the most of
+#: what the item's display name names — ``ascending`` when the highest
+#: code is, ``descending`` when the lowest code is (``DEPRESSED`` 1 =
+#: Nearly every day; every 1 = Yes / 2 = No item). Every signed statistic
+#: (a within-person change, a correlation, an adjusted coefficient) is
+#: computed on *aligned* values, so that higher always means more of the
+#: named thing (ADR-0015); means and shares are never re-coded.
+POLARITIES: frozenset[str] = frozenset({"ascending", "descending"})
+
+
+def aligned_expr(column: str, *, polarity: str, lo: int | None, hi: int | None) -> pl.Expr:
+    """The load-time alignment transform: ``value' = lo + hi − value`` for
+    a ``descending`` item, the value itself for an ``ascending`` one.
+
+    A reflection about the scale's midpoint: it keeps the range, the
+    integer grid and the null pattern (non-response stays null), so every
+    estimator downstream is unchanged — only the sign of what it says
+    follows the label. A descending item without catalog bounds cannot be
+    aligned; that is raised, never guessed.
+    """
+    if polarity not in POLARITIES:
+        raise ValueError(f"polarity must be one of {sorted(POLARITIES)}, got {polarity!r}")
+    if polarity == "ascending":
+        return pl.col(column)
+    if lo is None or hi is None:
+        raise ValueError(f"cannot align {column!r}: a descending item needs catalog min and max")
+    return (pl.lit(lo + hi) - pl.col(column)).cast(pl.Int32).alias(column)
+
 
 def _column_list(columns: tuple[str, ...]) -> str:
     """Trailing SELECT-list fragment: empty for no extra columns.

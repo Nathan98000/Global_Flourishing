@@ -367,6 +367,8 @@ export interface ChangeSearch {
   /** Absent = the sort's own default (changes high-first, names A→Z). */
   dir?: SortDir
   countries: number[]
+  /** Categorical items: which answer level's share change is charted. */
+  level?: number
   invalid?: string[]
   invalidRaw?: RawParams
 }
@@ -406,6 +408,7 @@ export function parseChangeSearch(raw: Raw): ChangeSearch {
     sort: collect.take('sort', raw, parseEnum('change', 'name'), CHANGE_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, parseCountries, CHANGE_DEFAULTS.countries, true),
+    level: collect.take('level', raw, parseIntCode, undefined),
   }
   return collect.finish(search)
 }
@@ -424,6 +427,7 @@ export function changeSearchParams(search: Partial<ChangeSearch>): Record<string
           ? undefined
           : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
+      level: search.level,
     },
     search.invalidRaw,
   )

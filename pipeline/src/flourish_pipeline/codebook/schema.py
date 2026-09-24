@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..overrides import DIRECTIONS, FAMILIES, REVIEW_STATUSES, SCALE_TYPES, SFI_DOMAINS
+from ..overrides import (
+    DIRECTIONS,
+    FAMILIES,
+    POLARITIES,
+    REVIEW_STATUSES,
+    SCALE_TYPES,
+    SFI_DOMAINS,
+)
 
 _WAVE = {"type": "string", "enum": ["Y1", "MY", "Y2"]}
 _NULLABLE_INT = {"type": ["integer", "null"]}
@@ -42,6 +49,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "family",
                         "scale_type",
                         "direction",
+                        "polarity",
                         "min",
                         "max",
                         "waves_available",
@@ -64,6 +72,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "family": {"type": "string", "enum": sorted(FAMILIES)},
                         "scale_type": {"type": "string", "enum": sorted(SCALE_TYPES)},
                         "direction": {"type": "string", "enum": sorted(DIRECTIONS)},
+                        "polarity": {"type": "string", "enum": sorted(POLARITIES)},
                         "min": _NULLABLE_INT,
                         "max": _NULLABLE_INT,
                         "waves_available": {"type": "array", "items": _WAVE},

@@ -87,3 +87,32 @@ def test_mean_by_age_band_shows_every_cell_live(built_client: TestClient) -> Non
     # n rides on every row so a reader can see what a number rests on.
     assert all(not r["flagged"] and not r["suppressed"] for r in rows)
     assert all(r["n"] > 0 and r["estimate"] is not None for r in rows)
+
+
+@pytest.mark.parametrize(
+    ("score", "items"),
+    [("phq2_score", ("DEPRESSED", "INTEREST")), ("gad2_score", ("FEEL_ANXIOUS", "CONTROL_WORRY"))],
+)
+def test_screener_items_align_positively_with_their_score(
+    built_client: TestClient, score: str, items: tuple[str, str]
+) -> None:
+    """The PHQ-2/GAD-2 items are 1 = Nearly every day … 4 = Not at all and
+    their score rescores each 4 − code. Served on aligned values
+    (ADR-0015), each item runs WITH its own score; the catalog says so
+    (polarity descending). Needs the polarity bake (`make data`)."""
+    catalog = {v["name"]: v for v in built_client.get("/v1/variables").json()["variables"]}
+    assert all(catalog[item]["polarity"] == "descending" for item in items)
+    resp = built_client.get(
+        "/v1/correlates",
+        params={
+            "outcome": score,
+            "wave": "Y1",
+            "against": list(items),
+            "filter": "country_code:22",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    rows = {row["predictor"]: row for row in resp.json()["rows"]}
+    assert set(rows) == set(items)
+    for item in items:
+        assert rows[item]["estimate"] is not None and rows[item]["estimate"] > 0.5, item

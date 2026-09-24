@@ -80,6 +80,11 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
     ("URBAN_RURAL", "Urban or rural", "demographics", "nominal", "none", 1, 4, ["Y1"], False),
 )
 
+#: Items whose LOWEST code is the most of the named thing (the catalog's
+#: ``polarity``, ADR-0015): ATTEND_SVCS runs 1 = Weekly … 3 = Never.
+#: Everything else is ascending.
+DESCENDING: frozenset[str] = frozenset({"ATTEND_SVCS"})
+
 #: Value labels for the demographic sources (mirrors the real release's
 #: codes; labels shortened).
 DEMOGRAPHIC_LABELS: dict[str, tuple[str, ...]] = {
@@ -243,6 +248,7 @@ def _variables() -> pl.DataFrame:
                 "family": family,
                 "scale_type": scale_type,
                 "direction": direction,
+                "polarity": "descending" if name in DESCENDING else "ascending",
                 "min": lo,
                 "max": hi,
                 "waves_available": waves,

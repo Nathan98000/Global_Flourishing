@@ -88,3 +88,16 @@ def test_unknown_variable_404(client: TestClient) -> None:
 def test_503_without_data(absent_client: TestClient) -> None:
     assert absent_client.get("/v1/variables").status_code == 503
     assert absent_client.get("/v1/variables/HAPPY").status_code == 503
+
+
+def test_polarity_rides_on_every_summary(client: TestClient) -> None:
+    """Which end of the coded scale is the most of the named thing
+    (ADR-0015): the front end reads it, never re-derives it."""
+    body = client.get("/v1/variables").json()
+    by_name = {v["name"]: v for v in body["variables"]}
+    assert all(v["polarity"] in ("ascending", "descending") for v in body["variables"])
+    assert by_name["ATTEND_SVCS"]["polarity"] == "descending"  # 1 = Weekly … 3 = Never
+    assert by_name["HAPPY"]["polarity"] == "ascending"
+    assert by_name["phq2_score"]["polarity"] == "ascending"  # derived scores run upward
+    detail = client.get("/v1/variables/ATTEND_SVCS").json()
+    assert detail["polarity"] == "descending"

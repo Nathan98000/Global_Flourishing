@@ -1,9 +1,12 @@
 // Change (Phase 5): how the same people answered later. One /v1/change
-// request answers the page — the mean within-person change per country
-// with its CI (dots on a change axis with zero marked), the histogram of
-// individual change for chosen countries, and, for categorical items,
-// where people moved between answers. Every number is the server's;
-// this view chooses, filters, orders and renders. Retention is for the
+// request answers the page — for a numeric measure the mean within-person
+// change per country with its CI (dots on a change axis with zero
+// marked, on values aligned so a rise means more of what the measure
+// names — ADR-0015) and the histogram of individual change for chosen
+// countries; for a categorical item the change in the share answering a
+// chosen level, in percentage points, and where people moved between
+// answers. Every number is the server's; this view chooses, filters,
+// orders and renders. Retention is for the
 // maths (owner decision 2): the longitudinal weights carry it, and the
 // interval and the n show it — nothing on the page says more.
 
@@ -12,6 +15,7 @@ import { useMemo } from 'react'
 import {
   changeDistributionRows,
   changeRows,
+  changeShareRows,
   legsPresent,
   transitionRows,
   useChange,
@@ -67,6 +71,9 @@ export function ChangeView() {
   const variable = variables.data?.byName[search.outcome]
   const chartable = variable !== undefined && variable.servable
   const askedTwice = chartable && variable.waves_available.length >= 2
+  // A categorical item (the server's default stat is a share) changes
+  // in the share answering a level; a numeric one in its mean.
+  const isCategorical = chartable && variable.default_stat === 'proportion'
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
   const narrow = useMediaQuery(NARROW_VIEWPORT)
@@ -85,17 +92,21 @@ export function ChangeView() {
     () => (search.via && response ? legsPresent(response.rows) : undefined),
     [search.via, response],
   )
+  const levels = useMemo(() => outcomeLevels(detail), [detail])
+  // Atlas's default level is the first labelled answer; the same here.
+  const activeLevel = search.level ?? levels[0]?.value
+  const activeLevelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   const display = useMemo(() => {
     if (!response || !metaData) return { rows: [] as EstimateRow[], countryDomain: [] as string[] }
     return orderChangeRows(
-      changeRows(response.rows),
+      isCategorical ? changeShareRows(response.rows, activeLevel) : changeRows(response.rows),
       metaData,
       search.sort,
       dir,
       search.countries,
       legs,
     )
-  }, [response, metaData, search.sort, dir, search.countries, legs])
+  }, [response, metaData, isCategorical, activeLevel, search.sort, dir, search.countries, legs])
   const chosen = search.countries.slice(0, 4)
   const distribution = useMemo(
     () =>
@@ -117,7 +128,6 @@ export function ChangeView() {
     [response, chosen],
   )
   const hasTransitions = response ? transitionRows(response.rows).length > 0 : false
-  const levels = useMemo(() => outcomeLevels(detail), [detail])
   const levelLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   if (meta.isPending || variables.isPending) {
     return (
@@ -159,6 +169,7 @@ export function ChangeView() {
       from: keep ? search.from : (fallback?.from ?? search.from),
       to: keep ? search.to : (fallback?.to ?? search.to),
       via: keep ? search.via : fallback?.via,
+      level: undefined,
       invalid: undefined,
       invalidRaw: undefined,
     })
@@ -181,20 +192,29 @@ export function ChangeView() {
   })
 
   const title = variable?.display_name ?? search.outcome
+  // The change is taken on values aligned to the label (a rise = more of
+  // what the measure names), so whether a rise is better follows from
+  // the server's direction and polarity together: better when the
+  // better end and the "more" end of the coded scale coincide.
+  const riseIsBetter =
+    variable === undefined || variable.direction === 'none'
+      ? undefined
+      : (variable.direction === 'higher_better') === (variable.polarity === 'ascending')
   const directionNote =
-    variable?.direction === 'higher_better'
-      ? 'a rise is better'
-      : variable?.direction === 'lower_better'
-        ? 'a rise is worse'
-        : ''
+    riseIsBetter === undefined ? '' : riseIsBetter ? 'a rise is better' : 'a rise is worse'
   const range =
     variable && variable.min !== null && variable.max !== null
       ? ` on the ${variable.min}–${variable.max} scale`
       : ''
-  const subtitle = [
-    `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
-    pair,
-  ].join(' · ')
+  const subtitle = isCategorical
+    ? [
+        `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`,
+        pair,
+      ].join(' · ')
+    : [
+        `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
+        pair,
+      ].join(' · ')
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
   const version = response?.meta.data_version ?? null
   const csvFor = (rows: EstimateRow[], stat: string): CsvExport | undefined =>
@@ -291,6 +311,17 @@ export function ChangeView() {
             if (candidate) setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
           }}
         />
+        {isCategorical && levels.length > 0 && (
+          <RadioRow
+            legend="Answer level"
+            name="level"
+            wide
+            selectOnNarrow
+            options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+            value={String(activeLevel)}
+            onChange={(value) => setSearch({ level: Number(value) })}
+          />
+        )}
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — sort, countries</summary>
@@ -349,9 +380,12 @@ export function ChangeView() {
             ariaLabel={summarizeExtremes(
               legs ? display.rows.filter((row) => row.leg === 'y1_y2') : display.rows,
               meta.data.meta,
-              `${title}: average change among the same people, ${pair}, by country.`,
+              isCategorical
+                ? `${title}: change in the share of the same people answering “${activeLevelLabel ?? activeLevel}”, ${pair}, by country, in percentage points.`
+                : `${title}: average change among the same people, ${pair}, by country.`,
             )}
             marks="dots"
+            levelLabel={levelLabel}
             intro={
               detail && (
                 <div className={styles.wording}>
@@ -361,7 +395,7 @@ export function ChangeView() {
             }
             response={withRows(display.rows)}
             meta={meta.data.meta}
-            csv={csvFor(display.rows, 'change')}
+            csv={csvFor(display.rows, isCategorical ? 'change_share' : 'change')}
             isRefreshing={change.isPlaceholderData}
           >
             <ChangeDots
@@ -373,12 +407,13 @@ export function ChangeView() {
             />
           </ChartFigure>
 
+          {(hasDistribution || hasTransitions) && chosen.length === 0 && (
+            <p className={styles.hint}>
+              Pick up to four countries above to see how individual answers moved.
+            </p>
+          )}
           {hasDistribution &&
-            (chosen.length === 0 ? (
-              <p className={styles.hint}>
-                Pick up to four countries above to see how individual answers moved.
-              </p>
-            ) : (
+            (chosen.length === 0 ? null : (
               <ChartFigure
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}

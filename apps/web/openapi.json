@@ -914,6 +914,10 @@
             "title": "Name",
             "type": "string"
           },
+          "polarity": {
+            "title": "Polarity",
+            "type": "string"
+          },
           "scale_type": {
             "title": "Scale Type",
             "type": "string"
@@ -967,6 +971,7 @@
           "family",
           "scale_type",
           "direction",
+          "polarity",
           "min",
           "max",
           "waves_available",
@@ -1059,6 +1064,10 @@
             "title": "Name",
             "type": "string"
           },
+          "polarity": {
+            "title": "Polarity",
+            "type": "string"
+          },
           "scale_type": {
             "title": "Scale Type",
             "type": "string"
@@ -1094,6 +1103,7 @@
           "family",
           "scale_type",
           "direction",
+          "polarity",
           "min",
           "max",
           "waves_available",
@@ -1333,7 +1343,7 @@
     },
     "/v1/change": {
       "get": {
-        "description": "Mean within-person change with a design-based CI, plus (for\ninteger-coded items) the distribution of individual change and (for\ncategorical items) the transition matrix. ``from=Y1&via=MY&to=Y2``\nreturns the three panel legs under the three-point weight.",
+        "description": "Within-person change with a design-based CI. Numeric scales (0–10,\ncounts) report the mean change on values aligned so higher means more\nof what the measure names (``stat = \"change\"``), plus the distribution\nof individual change; categorical items report the change in the\nshare answering each level (``stat = \"change_share\"``, a fraction —\n× 100 for percentage points) plus the transition matrix.\n``from=Y1&via=MY&to=Y2`` returns the three panel legs under the\nthree-point weight (numeric scales only).",
         "operationId": "change_v1_change_get",
         "parameters": [
           {

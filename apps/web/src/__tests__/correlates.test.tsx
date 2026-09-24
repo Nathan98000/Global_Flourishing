@@ -48,6 +48,7 @@ const lonelyVariable: VariableSummary = {
   name: 'LONELY',
   display_name: 'Loneliness',
   direction: 'lower_better',
+  polarity: 'ascending',
   waves_available: ['Y1'],
 }
 
@@ -57,6 +58,7 @@ const urbanVariable: VariableSummary = {
   display_name: 'Urban or rural',
   scale_type: 'nominal',
   direction: 'none',
+  polarity: 'ascending',
   min: 1,
   max: 4,
   default_stat: 'proportion',

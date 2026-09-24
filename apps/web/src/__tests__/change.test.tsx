@@ -120,10 +120,27 @@ const transitionCell = (
     n: 30,
   })
 
+/** A categorical item's change: the share answering each level, per country. */
+const shareRow = (code: number, level: number, estimate: number, n: number) =>
+  testRow({
+    group: { country_code: code },
+    stat: 'change_share',
+    level,
+    estimate,
+    ci_lo: estimate - 0.01,
+    ci_hi: estimate + 0.01,
+    n,
+    weight: 'w_l2',
+  })
+
 const attendChange = testResponse(
   [
-    changeRow(1, 0.1, 800),
-    changeRow(22, 0.05, 1800),
+    shareRow(1, 1, 0.05, 800),
+    shareRow(1, 2, -0.03, 800),
+    shareRow(1, 3, -0.02, 800),
+    shareRow(22, 1, 0.012, 1800),
+    shareRow(22, 2, -0.006, 1800),
+    shareRow(22, 3, -0.006, 1800),
     ...[1, 2, 3].flatMap((from) =>
       [1, 2, 3].map((to) => transitionCell(1, from, to, from === to ? 0.6 : 0.2)),
     ),
@@ -233,6 +250,33 @@ describe('Change view', () => {
     )
     expect(ticks).toContain('0.00')
     expect(ticks.some((tick) => tick?.startsWith('+'))).toBe(true)
+  })
+
+  test('a categorical item charts the share change at a chosen level, in percentage points', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=ATTEND_SVCS')
+    const figure = await screen.findByRole('img', {
+      name: /change in the share of the same people/,
+    })
+    const caption = figure.closest('figure') as HTMLElement
+    expect(
+      within(caption).getByText(
+        /Change in share answering “Weekly”, percentage points · 2023 → 2024/,
+      ),
+    ).toBeInTheDocument()
+    // Atlas's control, Atlas's default: the first labelled answer.
+    const control = screen.getByRole('group', { name: 'Answer level' })
+    expect(within(control).getByLabelText('Weekly')).toBeChecked()
+    // No mean of codes anywhere, no histogram of individual change; the
+    // value labels are signed percentage points.
+    expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
+    fireEvent.click(within(caption).getByText('Data table'))
+    const table = within(caption).getByRole('table')
+    expect(within(table).getByText('+5.0 pp')).toBeInTheDocument()
+    expect(within(table).getByText('+1.2 pp')).toBeInTheDocument()
+    expect(within(table).queryByText('−3.0 pp')).toBeNull() // another level's row
+    // The chart's value labels carry the unit too.
+    expect(figure.querySelector('svg')?.textContent).toContain('+5.0 pp')
   })
 
   test('a categorical item gets the transition heatmap for chosen countries, labels from the codebook', async () => {
@@ -349,6 +393,10 @@ describe('change chart helpers', () => {
     expect(formatEstimate(0.3, 'change')).toBe('+0.30')
     expect(formatEstimate(0.25, 'change_distribution')).toBe('25.0%')
     expect(formatEstimate(0.6, 'transition')).toBe('60.0%')
+    // A share change is signed and in percentage points, never "−0.0".
+    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 pp')
+    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 pp')
+    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 pp')
   })
 
   test('TransitionTable: a k × k grid, token-only tints, every cell with its n', () => {

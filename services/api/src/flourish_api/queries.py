@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from fastapi import HTTPException
 from flourish_stats import WeightSpec, get, resolve
 from flourish_stats.breakdowns import BREAKDOWN_LEVELS
+from flourish_stats.outcomes import MEAN_SCALE_TYPES
 
 from flourish_api.data import Catalog, VariableInfo
 
@@ -320,6 +321,15 @@ def parse_change_query(
     if len(set(order)) != len(order) or order != sorted(order):
         problems.add(
             f"waves must be distinct and chronological (Y1 → MY → Y2), got {chronological}"
+        )
+    if via and info.scale_type not in MEAN_SCALE_TYPES:
+        # A categorical item's change is the change in share at each of
+        # its answers (ADR-0015); the three-leg mean panel has no
+        # categorical counterpart.
+        problems.add(
+            f"via= (the three-point panel) applies to 0–10 and count measures only; "
+            f"{info.name} is {info.scale_type!r}, whose change is the change in share at "
+            f"each answer between two waves"
         )
     for wave in chronological:
         if wave not in info.waves:
