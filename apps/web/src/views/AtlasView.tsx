@@ -64,6 +64,11 @@ export function AtlasView() {
   const levels = useMemo(() => outcomeLevels(detail), [detail])
   const activeLevel = search.level ?? levels[0]?.value
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
+  // A derived score's distribution bins arrive as its value labels
+  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's own answer
+  // codes label themselves.
+  const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
+  const derivedBins = variable?.is_derived && levels.length > 0
 
   const request = chartable ? atlasRequest(search, variable) : null
   const estimates = useEstimates(request)
@@ -410,6 +415,7 @@ export function AtlasView() {
                 meta={meta.data.meta}
                 csv={csv}
                 isRefreshing={estimates.isPlaceholderData}
+                levelLabel={stat === 'distribution' && derivedBins ? binLabel : undefined}
               >
                 {stat === 'distribution' ? (
                   <>
@@ -419,6 +425,13 @@ export function AtlasView() {
                       responseMeta={response.meta}
                       variable={variable}
                       color={outcomeColor(variable.name)}
+                      {...(derivedBins
+                        ? {
+                            levels: levels.map((entry) => entry.value),
+                            levelLabel: (level: number) => binLabel(level) ?? String(level),
+                            xLabel: `Score (${variable.min ?? 0}–${variable.max ?? 10}), 1-point bins`,
+                          }
+                        : {})}
                     />
                     {search.countries.length > 4 && (
                       <p className={styles.hint}>Showing the first four selected countries.</p>

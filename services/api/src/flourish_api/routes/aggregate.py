@@ -13,6 +13,8 @@ from flourish_stats import (
     weighted_proportion,
     weighted_quantile,
 )
+from flourish_stats.io import binned_expr
+from flourish_stats.outcomes import DERIVED_OUTCOMES, score_bins
 
 from flourish_api.data import DataStore, VariableInfo, require_data, suppression_policy
 from flourish_api.frames import AssembledFrame, assemble_aggregate_frame
@@ -53,12 +55,23 @@ def estimate_table(
             policy=policy,
         )
     if query.stat == "distribution":
+        levels = catalog_levels(query.outcome)
+        if query.outcome.is_derived:
+            # A continuous score is binned by the registry's one rule
+            # (ADR-0015); an integer-valued derived count keeps its levels.
+            bins = score_bins(DERIVED_OUTCOMES[query.outcome.name])
+            if bins:
+                assert query.outcome.min is not None and query.outcome.max is not None
+                frame = frame.with_columns(
+                    binned_expr(assembled.value, lo=query.outcome.min, hi=query.outcome.max)
+                )
+                levels = [level for level, _ in bins]
         return weighted_distribution(
             frame,
             assembled.value,
             design,
             by=groups,
-            levels=catalog_levels(query.outcome),
+            levels=levels,
             policy=policy,
         )
     assert query.stat == "quantile"

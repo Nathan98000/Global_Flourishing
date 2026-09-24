@@ -73,6 +73,19 @@ def aligned_expr(column: str, *, polarity: str, lo: int | None, hi: int | None) 
     return (pl.lit(lo + hi) - pl.col(column)).cast(pl.Int32).alias(column)
 
 
+def binned_expr(column: str, *, lo: int, hi: int, width: int = 1) -> pl.Expr:
+    """A continuous score → the lower edge of its bin (``flourish_stats.
+    outcomes.score_bins``): ``floor(value)`` stepped by ``width``, with
+    the top bin closed so ``hi`` itself lands in ``[hi − width, hi]``.
+    Nulls stay null; the result is an integer column the distribution
+    estimator bins exactly like an integer-coded item."""
+    if width <= 0 or hi <= lo:
+        raise ValueError(f"bins need width > 0 and hi > lo, got {width}, {lo}, {hi}")
+    value = pl.col(column).cast(pl.Float64)
+    edge = (((value - lo) / width).floor() * width + lo).clip(lo, hi - width)
+    return pl.when(value.is_null()).then(None).otherwise(edge).cast(pl.Int32).alias(column)
+
+
 def _column_list(columns: tuple[str, ...]) -> str:
     """Trailing SELECT-list fragment: empty for no extra columns.
 

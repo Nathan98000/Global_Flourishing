@@ -226,3 +226,27 @@ class TestAlignedExpr:
                 aligned, "phq2_score", item, design, policy=NO_SUPPRESSION
             ).to_pylist()[0]
             assert r["estimate"] > 0
+
+
+class TestBinnedExpr:
+    def test_one_point_bins_with_the_top_bin_closed(self) -> None:
+        from flourish_stats.io import binned_expr
+
+        frame = pl.DataFrame({"s": [0.0, 0.99, 1.0, 7.25, 9.0, 9.999, 10.0, None]})
+        binned = frame.select(binned_expr("s", lo=0, hi=10))["s"]
+        assert binned.to_list() == [0, 0, 1, 7, 9, 9, 9, None]
+        assert binned.dtype == pl.Int32
+
+    def test_bins_follow_the_score_registry(self) -> None:
+        from flourish_stats.outcomes import DERIVED_OUTCOMES, score_bins
+
+        bins = score_bins(DERIVED_OUTCOMES["sfi"])
+        assert [level for level, _ in bins] == list(range(10))
+        assert [label for _, label in bins] == [f"{k}–{k + 1}" for k in range(10)]
+        assert score_bins(DERIVED_OUTCOMES["phq2_score"]) == []
+
+    def test_validation(self) -> None:
+        from flourish_stats.io import binned_expr
+
+        with pytest.raises(ValueError):
+            binned_expr("s", lo=0, hi=0)

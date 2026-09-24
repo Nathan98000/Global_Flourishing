@@ -138,6 +138,24 @@ def test_distribution_of_a_0_10_item_has_11_bins(client: TestClient) -> None:
     assert [r["level"] for r in rows] == list(range(11))
 
 
+def test_distribution_of_a_derived_score_bins_to_ten(client: TestClient) -> None:
+    """A continuous score is binned [0,1) … [9,10] by the registry's one
+    rule (ADR-0015): ten levels, shares summing to 100% per country, and
+    the bin labels served as the score's value labels."""
+    _, rows = get_rows(client, outcome="sfi", wave="Y1", stat="distribution", by="country_code")
+    for country in (1, 22):
+        country_rows = [r for r in rows if r["group"]["country_code"] == country]
+        assert [r["level"] for r in country_rows] == list(range(10))
+        assert sum(r["estimate"] for r in country_rows) == pytest.approx(1.0, abs=0.005)
+        assert sum(r["n"] for r in country_rows) == 60  # everyone lands in a bin
+    detail = client.get("/v1/variables/sfi").json()
+    assert [label["code"] for label in detail["value_labels"]] == list(range(10))
+    assert detail["value_labels"][0]["label"] == "0–1"
+    assert detail["value_labels"][-1]["label"] == "9–10"
+    # A derived count keeps its own integer levels and no bin labels.
+    assert client.get("/v1/variables/phq2_score").json()["value_labels"] == []
+
+
 def test_quantile_rows(client: TestClient) -> None:
     _, rows = get_rows(
         client,

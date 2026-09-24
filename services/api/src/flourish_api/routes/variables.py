@@ -18,6 +18,7 @@ from flourish_stats.outcomes import (
     DERIVED_OUTCOMES,
     NON_SUBSTANTIVE_SCALE_TYPES,
     default_stat,
+    score_bins,
 )
 
 from flourish_api.data import DataStore, require_data
@@ -163,7 +164,15 @@ def variable_detail(
         derived = DERIVED_OUTCOMES[name]
         return VariableDetail(
             **summary.model_dump(),
-            value_labels=[],
+            # A continuous score's distribution bins, as its levels: the
+            # front end labels the histogram from here, never from a rule
+            # of its own (ADR-0015).
+            value_labels=[
+                ValueLabelModel(
+                    code=level, label=label, wave=None, country_code=None, is_nonresponse=False
+                )
+                for level, label in score_bins(derived)
+            ],
             missingness=[],
             scoring=derived.scoring,
             components=[_component(store, item) for item in derived.components],

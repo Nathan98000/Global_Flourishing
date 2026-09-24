@@ -10,6 +10,7 @@ import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import {
   attendVariable,
   happyVariable,
+  sfiVariable,
   testMeta,
   testResponseMeta,
   testRow,
@@ -178,6 +179,38 @@ describe('Histogram', () => {
     )
     expect(ticks).toContain('0%')
     expect(ticks).not.toContain('10%')
+  })
+
+  test('a derived score is binned by the server: ten bins, labelled from its value labels', () => {
+    const bins = Array.from({ length: 10 }, (_, level) =>
+      testRow({
+        group: { country_code: 1 },
+        stat: 'distribution',
+        level,
+        estimate: 0.1,
+        ci_lo: 0.08,
+        ci_hi: 0.12,
+        n: 100,
+      }),
+    )
+    const labels = Array.from({ length: 10 }, (_, level) => `${level}–${level + 1}`)
+    const { container } = render(
+      <Histogram
+        rows={bins}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'distribution', outcome: 'sfi' })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        levels={bins.map((row) => row.level as number)}
+        levelLabel={(level) => labels[level] ?? String(level)}
+        xLabel="Score (0–10), 1-point bins"
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(10)
+    expect(svg?.textContent).toContain('Score (0–10), 1-point bins')
+    expect(svg?.textContent).toContain('0–1')
+    expect(svg?.textContent).toContain('9–10')
   })
 })
 

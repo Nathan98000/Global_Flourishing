@@ -50,7 +50,9 @@ export function isAssociationStat(stat: string): boolean {
 
 export function formatEstimate(value: number | null | undefined, stat: string): string {
   if (value === null || value === undefined) return '—'
-  if (isShareStat(stat)) return `${one.format(value * 100)}%`
+  // A share is never below zero; an interval bound that dips under it
+  // (a normal CI on a near-empty bin) shows as 0.0%, never "−0.0%".
+  if (isShareStat(stat)) return `${one.format(Math.max(0, value) * 100)}%`
   if (isShareChangeStat(stat)) return formatShareChange(value)
   if (stat === 'change' || isAssociationStat(stat)) return formatChange(value)
   return two.format(value)

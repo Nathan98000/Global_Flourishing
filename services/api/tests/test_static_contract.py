@@ -107,6 +107,38 @@ def test_static_mean_equals_the_api_response(static_dir: Path, client: TestClien
     assert static.meta.n_valid == api.meta.n_valid
 
 
+def test_static_distribution_of_a_derived_score_sums_to_one(
+    static_dir: Path, client: TestClient
+) -> None:
+    """The exporter bins a continuous score exactly as the API does
+    (one rule, flourish_stats.outcomes.score_bins): ten bins whose shares
+    sum to 100% per country, identical across the two tiers."""
+    static = EstimateResponse.model_validate_json(
+        (static_dir / "v1" / "sfi" / "Y1" / "distribution_by-country_code.json").read_text()
+    )
+    for country in (1, 22):
+        rows = [r for r in static.rows if r.group["country_code"] == country]
+        assert [r.level for r in rows] == list(range(10))
+        assert sum(r.estimate or 0.0 for r in rows) == pytest.approx(1.0, abs=0.005)
+    api = EstimateResponse.model_validate(
+        client.get(
+            "/v1/aggregate",
+            params={"outcome": "sfi", "wave": "Y1", "stat": "distribution", "by": "country_code"},
+        ).json()
+    )
+    # Same bins, same shares and counts; the SE may differ in its last
+    # ULP (the two tiers assemble their frames in a different row order).
+    assert len(static.rows) == len(api.rows)
+    for mine, theirs in zip(static.rows, api.rows, strict=True):
+        assert (mine.group, mine.level, mine.n, mine.estimate) == (
+            theirs.group,
+            theirs.level,
+            theirs.n,
+            theirs.estimate,
+        )
+        assert mine.se == pytest.approx(theirs.se, rel=1e-9)
+
+
 def test_exporter_is_deterministic(
     synthetic_data_dir: Path, static_dir: Path, tmp_path: Path
 ) -> None:
