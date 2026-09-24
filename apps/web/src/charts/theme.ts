@@ -17,7 +17,10 @@ export const GRID = 'var(--grid)'
 export const AXIS = 'var(--axis)'
 export const SURFACE = 'var(--surface)'
 export const WHISKER = 'var(--whisker)'
+/** The neutral for "no estimate" and unsurveyed land, and the outline
+ * that keeps it apart from the ramp's lowest bin in both themes. */
 export const MAP_EMPTY = 'var(--map-empty)'
+export const MAP_EMPTY_OUTLINE = 'var(--map-empty-outline)'
 
 /** The six fixed SFI domain hues (proposal §4.4 — same hue, every view). */
 export const SFI_HUES: Record<string, string> = {

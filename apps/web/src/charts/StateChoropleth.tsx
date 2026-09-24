@@ -11,7 +11,7 @@ import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { ciLabel, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
 import { mapDomain, quantizeColor } from './Choropleth'
-import { FONT_FAMILY, INK, INK_SECONDARY, MAP_EMPTY, SURFACE } from './theme'
+import { FONT_FAMILY, INK, INK_SECONDARY, MAP_EMPTY, MAP_EMPTY_OUTLINE, SURFACE } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 import { joinStates, type StateEntry, type UsFeature } from './usTopology'
 
@@ -63,6 +63,7 @@ export function StateChoropleth({
         entry.value === null ? MAP_EMPTY : color(entry.value)
       const tipOf = (entry: StateEntry): string => stateTipText(entry, meta)
       const pooled = entries.filter((entry) => isPooledState(entry, meta))
+      const empty = entries.filter((entry) => entry.value === null)
       return Plot.plot({
         width,
         height: Math.round((width * 450) / 720),
@@ -81,6 +82,15 @@ export function StateChoropleth({
             strokeWidth: 0.6,
             tip: true,
             title: tipOf,
+          }),
+          // States without an estimate: the neutral, outlined so it never
+          // reads as the lowest bin.
+          Plot.geo(empty, {
+            geometry: (entry: StateEntry) => entry.feature,
+            fill: MAP_EMPTY,
+            stroke: MAP_EMPTY_OUTLINE,
+            strokeWidth: 0.8,
+            pointerEvents: 'none',
           }),
           // The pooled small-state groups: a dashed outline on each member.
           Plot.geo(pooled, {

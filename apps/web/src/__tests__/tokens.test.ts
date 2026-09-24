@@ -115,9 +115,27 @@ describe.each([
   test('the sequential ramp reads against the surface', () => {
     // The deep end carries the high values: full non-text contrast.
     assertContrast(vars, '--seq-700', '--surface', 3, theme)
-    // The light end must still be *visible* on the surface — the floor
-    // that rejected a blue ramp indistinguishable on off-white paper.
-    assertContrast(vars, '--seq-100', '--surface', 1.15, theme)
+    // The light end must be a *visible tint* on the surface — the floor
+    // that rejected a blue ramp indistinguishable on off-white paper —
+    // and a visible step away from the next bin.
+    assertContrast(vars, '--seq-100', '--surface', 1.25, theme)
+    assertContrast(vars, '--seq-100', '--seq-200', 1.1, theme)
+  })
+
+  test('"no estimate" is a neutral with an outline, apart from the lowest bin', () => {
+    // The outline is what separates the empty fill from any tint.
+    assertContrast(vars, '--map-empty-outline', '--map-empty', 2, theme)
+    assertContrast(vars, '--map-empty', '--surface', 1.15, theme)
+    // The neutral is achromatic next to the tinted first step: the
+    // spread of its RGB channels is a fraction of the ramp's.
+    const spread = (hex: string) => {
+      const raw = hex.replace('#', '')
+      const channels = [0, 2, 4].map((i) => Number.parseInt(raw.slice(i, i + 2), 16))
+      return Math.max(...channels) - Math.min(...channels)
+    }
+    expect(spread(vars['--map-empty'] as string) * 2).toBeLessThan(
+      spread(vars['--seq-100'] as string),
+    )
   })
 
   test('chart marks clear 3:1 against the plot surface', () => {

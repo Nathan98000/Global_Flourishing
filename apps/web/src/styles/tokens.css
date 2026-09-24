@@ -116,15 +116,19 @@
   --error-text: #9d2c22;
   --ok-text: #1f5d55;
 
-  /* Sequential ramp (map): sand → teal, light→dark */
-  --seq-100: #f0e7d4;
+  /* Sequential ramp (map): sand → teal, light→dark; the first step is a
+     visible tint on the surface, and the empty fill is a *neutral* with
+     its own outline so "no estimate" and unsurveyed land never read as
+     the lowest bin */
+  --seq-100: #e9dcb8;
   --seq-200: #d9cfb0;
   --seq-300: #b3c0a4;
   --seq-400: #83a596;
   --seq-500: #558a80;
   --seq-600: #356a65;
   --seq-700: #1e4a48;
-  --map-empty: #e8e3d7;
+  --map-empty: #dedad1;
+  --map-empty-outline: #8f8a7e;
 
   /* Diverging ramp (correlates matrix): rust ← page tone → teal, five
      tints per sign with a stronger end step, every one keeping ink text
@@ -194,14 +198,15 @@
     --error-text: #f0a79c;
     --ok-text: #7fb8ad;
 
-    --seq-100: #1e3a38;
+    --seq-100: #1f3f3c;
     --seq-200: #24504c;
     --seq-300: #356a65;
     --seq-400: #558a80;
     --seq-500: #83a596;
     --seq-600: #b3c0a4;
     --seq-700: #d9cfb0;
-    --map-empty: #26241f;
+    --map-empty: #34322c;
+    --map-empty-outline: #6d6960;
 
     --div-n5: #8a5b3c;
     --div-n4: #5d3f2b;
@@ -266,14 +271,15 @@
   --error-text: #f0a79c;
   --ok-text: #7fb8ad;
 
-  --seq-100: #1e3a38;
+  --seq-100: #1f3f3c;
   --seq-200: #24504c;
   --seq-300: #356a65;
   --seq-400: #558a80;
   --seq-500: #83a596;
   --seq-600: #b3c0a4;
   --seq-700: #d9cfb0;
-  --map-empty: #26241f;
+  --map-empty: #34322c;
+  --map-empty-outline: #6d6960;
 
   --div-n5: #8a5b3c;
   --div-n4: #5d3f2b;
