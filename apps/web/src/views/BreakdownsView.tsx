@@ -136,7 +136,7 @@ export function BreakdownsView() {
     return (
       <section>
         <h2>Breakdowns</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -375,13 +375,13 @@ export function BreakdownsView() {
           {estimates.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
-            estimates.error instanceof NetworkError && boot.state !== 'ready' ? (
+            estimates.error instanceof NetworkError && !boot.apiReachable ? (
               <p className={styles.hint} role="status">
                 This view needs the live data service, which is offline right now — the standard
                 views still work.
               </p>
             ) : (
-              <ErrorState error={estimates.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
           ) : response && variable ? (
             <>

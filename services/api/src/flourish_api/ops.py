@@ -21,6 +21,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
@@ -210,8 +211,30 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class JsonErrorMiddleware(BaseHTTPMiddleware):
+    """An unhandled exception becomes a JSON 500 *here*, inside the CORS
+    middleware, so a browser sees the error (Starlette's default handler
+    runs outside CORS and its bare 500 carries no CORS headers — the
+    front end then reports a network failure and calls the service
+    offline). The body names the failure; nothing is swallowed."""
+
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        try:
+            return await call_next(request)
+        except Exception as exc:  # the point is to report every kind
+            logger.exception("unhandled error on %s", request.url.path)
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
+            )
+
+
 def install_middleware(app: FastAPI, settings: Settings) -> None:
-    """Order (outermost first): access log → rate limit → cache/ETag."""
+    """Order (outermost first): access log → rate limit → cache/ETag →
+    JSON errors (innermost, so the others see a real response)."""
+    app.add_middleware(JsonErrorMiddleware)
     app.add_middleware(CacheMiddleware, cache=ResponseCache(settings.cache_size))
     if settings.env == "prod" and settings.rate_limit_per_minute > 0:
         app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)

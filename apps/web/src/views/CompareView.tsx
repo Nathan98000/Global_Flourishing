@@ -123,7 +123,7 @@ export function CompareView() {
     return (
       <section>
         <h2>Compare</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -335,13 +335,13 @@ export function CompareView() {
       ) : domains.isPending ? (
         <LoadingBlock height={720} label="Loading estimates" />
       ) : domains.isError ? (
-        domains.error instanceof NetworkError && boot.state !== 'ready' ? (
+        domains.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={domains.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={domains.error} />
         )
       ) : (
         <>
@@ -361,7 +361,7 @@ export function CompareView() {
             (extraQuery.isPending ? (
               <LoadingBlock height={220} label="Loading the added measure" />
             ) : extraQuery.isError ? (
-              <ErrorState error={extraQuery.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={extraQuery.error} />
             ) : (
               figureFor(
                 extra.display_name,

@@ -121,7 +121,7 @@ export function CorrelatesView() {
     return (
       <section>
         <h2>Correlates</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -333,13 +333,13 @@ export function CorrelatesView() {
       ) : ranked.isPending ? (
         <LoadingBlock height={520} label="Loading the ranked list" />
       ) : ranked.isError ? (
-        ranked.error instanceof NetworkError && boot.state !== 'ready' ? (
+        ranked.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={ranked.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={ranked.error} />
         )
       ) : rankedResponse && variable ? (
         <>
@@ -396,7 +396,7 @@ export function CorrelatesView() {
             (across.isPending ? (
               <LoadingBlock height={360} label="Loading the cross-country matrix" />
             ) : across.isError ? (
-              <ErrorState error={across.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={across.error} />
             ) : acrossResponse ? (
               <ChartFigure
                 title="Across countries"

@@ -50,3 +50,16 @@ def test_meta_503_without_data(absent_client: TestClient) -> None:
     resp = absent_client.get("/v1/meta")
     assert resp.status_code == 503
     assert "without data" in resp.json()["detail"]
+
+
+def test_meta_names_the_us_states_and_pooled_groups(client: TestClient) -> None:
+    """The US States view owns no state name: every code the release can
+    carry is labelled here, pooled groups as 'A, B & C (pooled)'."""
+    labels = client.get("/v1/meta").json()["state_labels"]
+    assert len(labels) == 55  # fifty states, DC, four pooled groups
+    assert labels["CA"] == {"name": "California", "members": ["CA"]}
+    assert labels["ND_SD_WY"] == {
+        "name": "North Dakota, South Dakota & Wyoming (pooled)",
+        "members": ["ND", "SD", "WY"],
+    }
+    assert labels["ME_NH_RI_VT"]["name"] == "Maine, New Hampshire, Rhode Island & Vermont (pooled)"

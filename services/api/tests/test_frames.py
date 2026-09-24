@@ -125,7 +125,8 @@ class TestAssembly:
         assembled = assemble_aggregate_frame(store, query)
         assert assembled.spec.key == "us_state:y1"
         assert assembled.design.weight == "w_state_c1"
-        assert assembled.frame.height == 60
+        # The 60 US respondents minus the one with a Wave 2 state only.
+        assert assembled.frame.height == 59
         assert set(assembled.frame["state"].unique().to_list()) == {"CA", "NY", "TX"}
 
     def test_oriented_flips_lower_better(self, store: DataStore) -> None:

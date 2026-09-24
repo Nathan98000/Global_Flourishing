@@ -9,13 +9,16 @@ import { plotValue } from '../charts/theme'
 export const US_COUNTRY_CODE = 22
 
 /** States in the sort order the chart and the table share: by value or
- * by the server's code. */
+ * by name (the server's label for the code; the code itself when no
+ * labeller is given). */
 export function sortStateRows(
   rows: EstimateRow[],
   sort: 'estimate' | 'name',
   dir: 'asc' | 'desc',
+  labelOf?: (code: string) => string,
 ): EstimateRow[] {
-  const code = (row: EstimateRow) => String(row.group['state'] ?? '')
+  const raw = (row: EstimateRow) => String(row.group['state'] ?? '')
+  const code = (row: EstimateRow) => (labelOf ? labelOf(raw(row)) : raw(row))
   if (sort === 'name') {
     const sign = dir === 'asc' ? 1 : -1
     return [...rows].sort((a, b) => sign * code(a).localeCompare(code(b)))

@@ -68,6 +68,7 @@ from flourish_stats.outcomes import (
     default_stat,
     score_bins,
 )
+from flourish_stats.states import state_labels
 
 #: The Breakdowns view's demographics (mirrors the API's allow-list).
 DEMOGRAPHICS: tuple[str, ...] = (
@@ -358,6 +359,7 @@ def export_catalog(
             "breakdowns": sorted(BREAKDOWN_LEVELS),
             "breakdown_labels": breakdown_labels(variables, value_labels),
             "families": sorted(variables["family"].unique().to_list()),
+            "state_labels": state_labels(),
         },
     )
 

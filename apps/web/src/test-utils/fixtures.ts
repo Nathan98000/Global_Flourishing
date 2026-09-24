@@ -48,6 +48,15 @@ export const testMeta: Meta = {
     },
   },
   families: ['demographics', 'wellbeing'],
+  state_labels: {
+    CA: { name: 'California', members: ['CA'] },
+    NY: { name: 'New York', members: ['NY'] },
+    TX: { name: 'Texas', members: ['TX'] },
+    ME_NH_RI_VT: {
+      name: 'Maine, New Hampshire, Rhode Island & Vermont (pooled)',
+      members: ['ME', 'NH', 'RI', 'VT'],
+    },
+  },
 }
 
 export const happyVariable: VariableSummary = {

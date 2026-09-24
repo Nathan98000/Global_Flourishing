@@ -1,8 +1,9 @@
 // US States (Phase 5): the shipped topology (us-atlas states-10m)
-// resolves every state and DC, pooled groups fill each member, the choropleth wears token fills
-// with the "no estimate" swatch for absent states, the adjusted-weight
-// control is unavailable on Wave 1 with its reason, and the states are
-// read beside the US overall figure.
+// resolves every state and DC, pooled groups fill each member and wear
+// an outline, the choropleth wears token fills with the "no estimate"
+// swatch for absent states, every state is named by the server, the
+// adjusted-weight control is unavailable on Wave 1 with its reason, and
+// the states are read beside the US overall figure on the same weight.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
@@ -13,7 +14,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
 import { RankedBar } from '../charts/RankedBar'
-import { StateChoropleth } from '../charts/StateChoropleth'
+import { StateChoropleth, stateTipText } from '../charts/StateChoropleth'
 import {
   POSTAL_TO_FIPS,
   featuresFromUsTopology,
@@ -116,6 +117,20 @@ const tier: Routes = {
     ...statesResponse,
     meta: { ...statesResponse.meta, waves: ['Y2'] },
   },
+  // The whole US on the state weight: the reference the states are read against.
+  'scope=us_state': testResponse(
+    [
+      testRow({
+        group: {},
+        estimate: 7.02,
+        ci_lo: 6.95,
+        ci_hi: 7.09,
+        n: 38142,
+        weight: 'w_state_c1',
+      }),
+    ],
+    { outcome: 'sfi', scope: 'us_state', weight_key: 'us_state:y1', weight: 'w_state_c1', by: [] },
+  ),
   'states-10m': topology,
 }
 
@@ -164,12 +179,13 @@ describe('the states topology', () => {
     expect(entries.filter((entry) => entry.row !== null)).toHaveLength(7)
   })
 
-  test('the choropleth paints token fills, the empty fill for absent states, and says so in the tip', () => {
+  test('the choropleth paints token fills, the empty fill for absent states, names from meta, and outlines pooled members', () => {
     const { container } = render(
       <StateChoropleth
         rows={statesResponse.rows}
         responseMeta={testResponseMeta({ scope: 'us_state', by: ['state'] })}
         features={features}
+        meta={testMeta}
       />,
     )
     const svg = container.querySelector('svg')
@@ -179,11 +195,27 @@ describe('the states topology', () => {
     expect(html).toContain('var(--map-empty)')
     expect(html).not.toMatch(/#[0-9a-f]{6}/i)
     expect(svg?.querySelectorAll('path').length).toBeGreaterThanOrEqual(51)
+    // The four pooled members wear a dashed outline on top of the fill
+    // (Plot sets a mark's constant stroke on its group).
+    const outlined = svg?.querySelector('g[stroke-dasharray]')
+    expect(outlined?.querySelectorAll('path').length).toBe(4)
+    // Tips name the state as the server does, pooled groups in full,
+    // with the interval and the n (Plot renders tips on hover, so the
+    // text is checked through the function the mark uses).
+    const { entries } = joinStates(statesResponse.rows, features)
+    const tip = (name: string) =>
+      stateTipText(
+        entries.find((entry) => entry.name === name) as (typeof entries)[number],
+        testMeta,
+      )
+    expect(tip('California')).toBe('7.10  California\n95% CI 7.00 to 7.20\nn = 1,204')
+    expect(tip('Maine')).toContain('Maine — Maine, New Hampshire, Rhode Island & Vermont (pooled)')
+    expect(tip('Ohio')).toBe('Ohio\nno estimate')
   })
 })
 
 describe('state rows', () => {
-  test('sort by value or by code, valueless last', () => {
+  test('sort by value or by name, valueless last', () => {
     const rows = [
       stateRow('TX', 6.8),
       stateRow('CA', 7.1),
@@ -199,9 +231,17 @@ describe('state rows', () => {
       'NY',
       'TX',
     ])
+    // By the server's names, the pooled group sorts under "Maine…".
+    const named = [stateRow('TX', 6.8), stateRow('ME_NH_RI_VT', 7.4), stateRow('CA', 7.1)]
+    const label = (code: string) => testMeta.state_labels[code]?.name ?? code
+    expect(sortStateRows(named, 'name', 'asc', label).map((row) => row.group['state'])).toEqual([
+      'CA',
+      'ME_NH_RI_VT',
+      'TX',
+    ])
   })
 
-  test('RankedBar labels rows by the state code and draws the national reference', () => {
+  test('RankedBar labels rows by the server’s state names and draws the reference', () => {
     const { container } = render(
       <RankedBar
         rows={sortStateRows(statesResponse.rows, 'estimate', 'desc')}
@@ -210,33 +250,64 @@ describe('state rows', () => {
         variable={sfiVariable}
         color="var(--series-1)"
         labelColumn="state"
-        reference={{ value: 7.21, label: 'US overall' }}
+        reference={{ value: 7.21, label: 'US overall (state weights)' }}
       />,
     )
     const text = container.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('ME_NH_RI_VT')
-    expect(text).toContain('CA')
-    expect(text).toContain('US overall')
+    expect(text).toContain('Maine, New Hampshire, Rhode Island & Vermont (pooled)')
+    expect(text).toContain('California')
+    expect(text).not.toContain('ME_NH_RI_VT')
+    expect(text).toContain('US overall (state weights)')
   })
 })
 
 describe('US States view', () => {
-  test('the map view: states on state weights beside the US overall figure, State in the table', async () => {
+  test('the map view: states on state weights beside the US overall figure on the same weight, names in the table', async () => {
     const calls = mockFetch(tier)
     await renderAt('/states')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     expect(figure).toBeInTheDocument()
-    expect(await screen.findByText(/US overall, on the national weight/)).toBeInTheDocument()
-    expect(screen.getByText('7.21')).toBeInTheDocument()
-    expect(screen.getByText(/n = 38,299 · w_c1/)).toBeInTheDocument()
+    // The header line is the whole US on the state weight; the national
+    // figure is in the footnote, in words.
+    expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
+    expect(screen.getByText('7.02')).toBeInTheDocument()
+    expect(screen.getByText(/n = 38,142 · w_state_c1/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/On the national weight, the US overall figure is 7\.21 \[7\.10, 7\.32\]/),
+    ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y1&stat=mean'))).toBe(true)
-    // The topology arrives inside the lazy chunk, never before.
+    expect(
+      calls.some((url) =>
+        url.includes('/v1/aggregate?outcome=sfi&wave=Y1&stat=mean&scope=us_state'),
+      ),
+    ).toBe(true)
+    // The topology arrives inside the lazy chunk, never before; the
+    // legend explains the pooled outline.
     expect(await screen.findByText('no estimate')).toBeInTheDocument()
+    expect(screen.getByText(/pooled small states/)).toBeInTheDocument()
+    // The aria summary names states, not codes.
+    expect(figure.getAttribute('aria-label')).toContain(
+      'Highest: Maine, New Hampshire, Rhode Island & Vermont (pooled) 7.40',
+    )
     fireEvent.click(screen.getByText('Data table'))
     const table = screen.getByRole('table')
     expect(within(table).getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
-    expect(within(table).getByText('ME_NH_RI_VT')).toBeInTheDocument()
+    expect(
+      within(table).getByText('Maine, New Hampshire, Rhode Island & Vermont (pooled)'),
+    ).toBeInTheDocument()
+    expect(within(table).queryByText('ME_NH_RI_VT')).toBeNull()
     expect(within(table).getByText(/Weighted estimates \(w_state_c1\)/)).toBeInTheDocument()
+  })
+
+  test('the states chart is weighted by state, says so, and gives the reason a control is off', async () => {
+    mockFetch(tier)
+    await renderAt('/states?view=bars')
+    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    const text = screen.getByRole('main').textContent ?? ''
+    expect(text).toContain("weighted so each state's sample stands for its adult population")
+    expect(text).not.toContain("each country's sample")
+    const reason = screen.getByText(/The release has no adjusted state weight for Wave 1, 2023/)
+    expect(reason.className).toContain('reason')
   })
 
   test('adjusted weights: unavailable on Wave 1 with the reason, offered on Wave 2, never sent for Y1', async () => {
@@ -265,7 +336,7 @@ describe('US States view', () => {
     await renderAt('/states?view=bars&sort=name')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     const text = figure.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('US overall')
-    expect(text.indexOf('CA')).toBeLessThan(text.indexOf('TX'))
+    expect(text).toContain('US overall (state weights)')
+    expect(text.indexOf('California')).toBeLessThan(text.indexOf('Texas'))
   })
 })

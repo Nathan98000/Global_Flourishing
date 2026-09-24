@@ -44,6 +44,21 @@ describe('ErrorState', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Live data service is offline')
     expect(screen.getByRole('alert')).toHaveTextContent('standard views still work')
   })
+
+  test('with /health fine, a failed request is the service’s error, not an outage', () => {
+    const { rerender } = render(
+      <ErrorState error={new NetworkError(new TypeError('x'))} apiReachable />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load this view — the data service returned an error.",
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent('offline')
+    rerender(<ErrorState error={new ApiError('http', 500, ['Internal server error: X'])} />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load this view — the data service returned an error.",
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500: Internal server error: X')
+  })
 })
 
 describe('EstimateTable', () => {

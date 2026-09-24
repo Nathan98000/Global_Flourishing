@@ -491,6 +491,13 @@
             ],
             "title": "Git Sha"
           },
+          "state_labels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StateLabelModel"
+            },
+            "title": "State Labels",
+            "type": "object"
+          },
           "suppression": {
             "$ref": "#/components/schemas/SuppressionModel"
           },
@@ -518,7 +525,8 @@
           "ci_level",
           "breakdowns",
           "breakdown_labels",
-          "families"
+          "families",
+          "state_labels"
         ],
         "title": "MetaResponse",
         "type": "object"
@@ -751,6 +759,28 @@
           "filters"
         ],
         "title": "ResponseMeta",
+        "type": "object"
+      },
+      "StateLabelModel": {
+        "description": "A US state code's display name and member states (a pooled group\nof small states lists several; ``flourish_stats.states``).",
+        "properties": {
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "members"
+        ],
+        "title": "StateLabelModel",
         "type": "object"
       },
       "SuppressionModel": {
@@ -1171,6 +1201,17 @@
           "scope": {
             "title": "Scope",
             "type": "string"
+          },
+          "state_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Column"
           },
           "waves": {
             "items": {

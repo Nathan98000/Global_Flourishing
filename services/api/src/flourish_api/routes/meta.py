@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from flourish_stats import weight_table_json
 from flourish_stats.breakdowns import breakdown_labels
+from flourish_stats.states import state_labels
 
 from flourish_api.data import DataStore, require_data
 from flourish_api.queries import BREAKDOWNS, WAVES
@@ -15,6 +16,7 @@ from flourish_api.schemas import (
     BreakdownLabelsModel,
     CountryModel,
     MetaResponse,
+    StateLabelModel,
     SuppressionModel,
     WeightSpecModel,
 )
@@ -52,4 +54,7 @@ def meta(request: Request, store: Annotated[DataStore, Depends(require_data)]) -
             ).items()
         },
         families=store.catalog.families,
+        state_labels={
+            code: StateLabelModel.model_validate(entry) for code, entry in state_labels().items()
+        },
     )

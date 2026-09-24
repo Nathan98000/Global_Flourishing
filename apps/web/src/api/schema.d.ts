@@ -365,6 +365,10 @@ export interface components {
             families: string[];
             /** Git Sha */
             git_sha?: string | null;
+            /** State Labels */
+            state_labels: {
+                [key: string]: components["schemas"]["StateLabelModel"];
+            };
             suppression: components["schemas"]["SuppressionModel"];
             /** Waves */
             waves: string[];
@@ -443,6 +447,17 @@ export interface components {
             weight: string;
             /** Weight Key */
             weight_key: string;
+        };
+        /**
+         * StateLabelModel
+         * @description A US state code's display name and member states (a pooled group
+         *     of small states lists several; ``flourish_stats.states``).
+         */
+        StateLabelModel: {
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
         };
         /** SuppressionModel */
         SuppressionModel: {
@@ -580,6 +595,8 @@ export interface components {
             requires_retained_y2: boolean;
             /** Scope */
             scope: string;
+            /** State Column */
+            state_column?: string | null;
             /** Waves */
             waves: string[];
             /** Weight */

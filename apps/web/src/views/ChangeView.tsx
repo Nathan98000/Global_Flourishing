@@ -141,7 +141,7 @@ export function ChangeView() {
     return (
       <section>
         <h2>Change</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -361,13 +361,13 @@ export function ChangeView() {
       ) : change.isPending ? (
         <LoadingBlock height={420} label="Loading estimates" />
       ) : change.isError ? (
-        change.error instanceof NetworkError && boot.state !== 'ready' ? (
+        change.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={change.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={change.error} />
         )
       ) : response ? (
         <>

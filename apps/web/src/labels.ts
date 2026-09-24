@@ -34,6 +34,12 @@ export function scaleSubtitle(
   return `${lead}${range}${direction ? ` · ${direction}` : ''}`
 }
 
+/** The states a server state code stands for: itself, or a pooled
+ * group's members (from meta; the code's own underscores otherwise). */
+export function stateMembersOf(code: string, meta: Pick<Meta, 'state_labels'>): string[] {
+  return meta.state_labels?.[code]?.members ?? code.split('_').filter(Boolean)
+}
+
 export function columnLabel(column: string, meta: Meta): string {
   if (column === 'country_code') return 'Country'
   // A synthesized group column (Compare, What Matters): one measure per row.
@@ -55,6 +61,11 @@ export function groupValueLabel(
   if (column === 'country_code') {
     const country = meta.countries.find((entry) => entry.code === value)
     if (country) return country.name
+  }
+  // US state codes (and the pooled groups) are named by the server.
+  if (column === 'state') {
+    const state = meta.state_labels?.[String(value)]
+    if (state) return state.name
   }
   const labels = meta.breakdown_labels[column]
   if (labels) {

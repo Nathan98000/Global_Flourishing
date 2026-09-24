@@ -30,6 +30,9 @@ export interface AggregateRequest {
   filters?: readonly DomainFilter[]
   oriented?: boolean
   p?: readonly number[]
+  /** The US state scopes (their weight is resolved by the server from
+   * the weight table); absent = global. Never served statically. */
+  scope?: 'global' | 'us_state' | 'us_state_adj'
 }
 
 /** Canonical query string: stable order in, stable cache keys out. */
@@ -38,6 +41,7 @@ export function canonicalParams(request: AggregateRequest): URLSearchParams {
   params.set('outcome', request.outcome)
   params.set('wave', request.wave)
   params.set('stat', request.stat)
+  if (request.scope && request.scope !== 'global') params.set('scope', request.scope)
   for (const column of request.by) params.append('by', column)
   for (const code of request.countries ?? []) params.append('filter', `country_code:${code}`)
   for (const filter of request.filters ?? [])
@@ -73,6 +77,7 @@ export function staticPathFor(
   if (variable === undefined || !variable.servable) return null
   if (!variable.waves_available.includes(request.wave)) return null
   if (request.countries?.length || request.filters?.length) return null
+  if (request.scope && request.scope !== 'global') return null
   if (request.oriented || request.stat === 'quantile') return null
   if (request.by[0] !== 'country_code') return null
   if (request.by.length === 1) {

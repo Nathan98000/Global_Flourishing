@@ -62,3 +62,27 @@ def test_prod_has_no_default_origins(tmp_path) -> None:
     prod_app = create_app(Settings(env="prod", data_path=tmp_path / "no.duckdb"))
     resp = TestClient(prod_app).get("/health", headers={"Origin": "http://localhost:5173"})
     assert "access-control-allow-origin" not in resp.headers
+
+
+def test_unhandled_errors_are_json_500s_with_cors(tmp_path) -> None:
+    """A bug must reach the browser as an error, not as a network failure:
+    the JSON 500 is produced inside the CORS middleware, so it carries
+    the CORS headers the front end needs to read it."""
+    app = create_app(
+        Settings(cors_origins="https://flourish-atlas.pages.dev", data_path=tmp_path / "no.duckdb")
+    )
+
+    @app.get("/boom")
+    def boom() -> None:  # pyright: ignore[reportUnusedFunction]
+        raise ValueError("9 eligible rows have a null weight")
+
+    resp = TestClient(app, raise_server_exceptions=False).get(
+        "/boom", headers={"Origin": "https://flourish-atlas.pages.dev"}
+    )
+    assert resp.status_code == 500
+    assert resp.headers["access-control-allow-origin"] == "https://flourish-atlas.pages.dev"
+    assert resp.headers["content-type"].startswith("application/json")
+    assert (
+        resp.json()["detail"]
+        == "Internal server error: ValueError: 9 eligible rows have a null weight"
+    )

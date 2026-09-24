@@ -43,6 +43,9 @@ class WeightSpecModel(BaseModel):
     requires_midyear_type_1: bool
     is_default: bool
     rationale: str
+    #: state scopes: the respondents column this weight is calibrated to
+    #: (``state`` for Wave 1, ``state_y2`` after it); null globally
+    state_column: str | None = None
 
 
 class SuppressionModel(BaseModel):
@@ -63,6 +66,14 @@ class BreakdownLabelsModel(BaseModel):
     levels: list[BreakdownLevelModel]
 
 
+class StateLabelModel(BaseModel):
+    """A US state code's display name and member states (a pooled group
+    of small states lists several; ``flourish_stats.states``)."""
+
+    name: str
+    members: list[str]
+
+
 class MetaResponse(BaseModel):
     data_version: str | None
     #: Absent from the static tier's meta.json (a build artefact has no
@@ -76,6 +87,9 @@ class MetaResponse(BaseModel):
     breakdowns: list[str]
     breakdown_labels: dict[str, BreakdownLabelsModel]
     families: list[str]
+    #: US state codes → display names (the US States view owns no
+    #: state name); pooled groups read "A, B & C (pooled)"
+    state_labels: dict[str, StateLabelModel]
 
 
 class VariableSummary(BaseModel):

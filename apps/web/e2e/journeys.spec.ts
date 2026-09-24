@@ -300,7 +300,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
-  await expect(page.getByText(/US overall, on the national weight/)).toBeVisible()
+  await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
+  await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
   // The map's own topology arrives as a lazy asset, never in the initial route.
   const figure = page.getByRole('img', { name: /Happiness by US state/ })
   await expect(figure).toBeVisible()
@@ -315,7 +316,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await page.getByText('Data table', { exact: true }).click()
   const table = page.getByRole('table')
   await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
-  await expect(table.getByText('CA', { exact: true })).toBeVisible()
+  await expect(table.getByText('California', { exact: true })).toBeVisible()
+  await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
 })
 
 test('10 — Correlates: pick an outcome, read the ranked list, switch to adjusted, open the model card', async ({

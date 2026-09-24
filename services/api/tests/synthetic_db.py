@@ -11,6 +11,12 @@ Shape: two countries. Testland (code 1) is a clustered design — 2 strata ×
 stratum, PSU = respondent) with states, mirroring the real design's two
 extremes. 60 respondents per country keeps whole-country cells above the
 suppression threshold (50) while by-cells exercise flagging/suppression.
+
+The release's state quirk is mirrored (``flourish_stats.weights``): the
+Wave 1 state weight follows the Wave 1 state (``state``), every later
+state weight follows the Wave 2 state (``state_y2``). Respondent 104 has
+a Wave 1 state only (so no post-Wave-1 state weight); respondent 110 a
+Wave 2 state only (so no Wave 1 state weight).
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -123,13 +129,22 @@ def _respondents() -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
+#: The US respondent with a Wave 1 state but no Wave 2 state, and the one
+#: with a Wave 2 state only (both retained, both with a midyear interview).
+STATE_Y1_ONLY_ID = 104
+STATE_Y2_ONLY_ID = 110
+
+
 def _respondent(
     i: int, country: int, stratum: int, psu: int, state: str | None
 ) -> dict[str, object]:
     retained = i % 3 != 0
     midyear = i % 2 == 0
     weight = 0.5 + (i % 7) * 0.25
-    in_us = state is not None
+    state_y1 = None if i == STATE_Y2_ONLY_ID else state
+    state_y2 = None if i == STATE_Y1_ONLY_ID else state
+    in_us = state_y1 is not None  # the Wave 1 state weight follows the Wave 1 state
+    in_us2 = state_y2 is not None  # every later state weight follows the Wave 2 state
     return {
         "id": i,
         "country_code": country,
@@ -151,18 +166,19 @@ def _respondent(
         "w_r2": 0.6 + (i % 5) * 0.3,  # the quirk: populated for everyone
         "w_l1m": weight * 1.05 if midyear else None,
         "w_l1m2": weight * 0.95 if retained and midyear else None,
-        "state": state,
+        "state": state_y1,
+        "state_y2": state_y2,
         "w_state_c1": weight if in_us else None,
-        "w_state_c2": weight * 1.1 if in_us and retained else None,
-        "w_state_l2": weight * 0.9 if in_us and retained else None,
-        "w_state_r2": weight * 1.2 if in_us else None,
-        "w_state_l1m": weight * 1.05 if in_us and midyear else None,
-        "w_state_l1m2": weight * 0.95 if in_us and retained and midyear else None,
-        "w_state_adj_c2": weight * 1.15 if in_us and retained else None,
-        "w_state_adj_l2": weight * 0.85 if in_us and retained else None,
-        "w_state_adj_r2": weight * 1.25 if in_us else None,
-        "w_state_adj_l1m": weight if in_us and midyear else None,
-        "w_state_adj_l1m2": weight if in_us and retained and midyear else None,
+        "w_state_c2": weight * 1.1 if in_us2 and retained else None,
+        "w_state_l2": weight * 0.9 if in_us2 and retained else None,
+        "w_state_r2": weight * 1.2 if in_us2 else None,
+        "w_state_l1m": weight * 1.05 if in_us2 and midyear else None,
+        "w_state_l1m2": weight * 0.95 if in_us2 and retained and midyear else None,
+        "w_state_adj_c2": weight * 1.15 if in_us2 and retained else None,
+        "w_state_adj_l2": weight * 0.85 if in_us2 and retained else None,
+        "w_state_adj_r2": weight * 1.25 if in_us2 else None,
+        "w_state_adj_l1m": weight if in_us2 and midyear else None,
+        "w_state_adj_l1m2": weight if in_us2 and retained and midyear else None,
     }
 
 

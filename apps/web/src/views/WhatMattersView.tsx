@@ -175,7 +175,7 @@ export function WhatMattersView() {
     return (
       <section>
         <h2>What Matters</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -214,13 +214,13 @@ export function WhatMattersView() {
   const groupLabel = (column: string, value: string | number) =>
     column === 'outcome' ? byName[String(value)]?.display_name : undefined
   const offline = (error: unknown) =>
-    error instanceof NetworkError && boot.state !== 'ready' ? (
+    error instanceof NetworkError && !boot.apiReachable ? (
       <p className={styles.hint} role="status">
         This view needs the live data service, which is offline right now — the Atlas and Breakdowns
         still work.
       </p>
     ) : (
-      <ErrorState error={error} />
+      <ErrorState apiReachable={boot.apiReachable} error={error} />
     )
   const itemStat: Stat = (item?.default_stat as Stat | undefined) ?? 'mean'
   const itemLevel = search.level ?? itemLevels[0]?.value
