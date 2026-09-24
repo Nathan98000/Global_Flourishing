@@ -1,7 +1,7 @@
 // Breakdowns (§2.6): outcome × one demographic as small multiples by
-// country, sortable, suppressed cells shown with their n. A second
-// breakdown — another demographic, or one categorical survey variable —
-// is API-only by design and says it needs the live service.
+// country, sortable, every cell shown with its n. A second breakdown —
+// another demographic, or one categorical survey variable — is answered
+// by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
