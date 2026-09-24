@@ -52,7 +52,8 @@
   cursor: not-allowed;
 }
 
-.option:focus-within {
+/* The ring only for keyboard focus (never after a click). */
+.option:has(:focus-visible) {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }

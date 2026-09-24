@@ -12,6 +12,11 @@ import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { downloadChartPng } from '../export/png'
 import styles from './ChartFigure.module.css'
 
+/** A subtitle starts with a capital, whatever clause leads it. */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
@@ -130,7 +135,7 @@ export function ChartFigure({
       <figcaption className={styles.caption}>
         <span className={styles.titles}>
           <span className={styles.title}>{title}</span>
-          {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
+          {subtitle && <span className={styles.subtitle}>{capitalize(subtitle)}</span>}
         </span>
         {/* Text links, not outlined buttons (§6): "Download CSV · PNG". */}
         <span className={styles.actions}>

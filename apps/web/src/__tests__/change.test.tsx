@@ -24,7 +24,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
-import { changeLevels, orderChangeRows } from '../views/changeOrder'
+import { changeLevels, orderChangeRows, signedLevel } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -436,6 +436,10 @@ describe('change chart helpers', () => {
     ])
     expect(changeLevels(happyVariable)).toHaveLength(21)
     expect(changeLevels({ min: null, max: null })).toEqual([])
+    // Signed bucket labels wear a true minus.
+    expect(signedLevel(-3)).toBe('−3')
+    expect(signedLevel(2)).toBe('+2')
+    expect(signedLevel(0)).toBe('0')
   })
 
   test('formatting: changes are signed, transition and change bins are shares', () => {

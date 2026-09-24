@@ -197,11 +197,11 @@ export function CodebookDetailView() {
                       return (
                         <td key={wave} className={styles.num}>
                           {cell
-                            ? `${formatCount(cell.n_present)} (${
-                                cell.n_present > 0
-                                  ? formatPercent(cell.n_valid / cell.n_present)
-                                  : '—'
-                              } valid)`
+                            ? `${formatCount(cell.n_present)}${
+                                cell.n_present > 0 && cell.n_valid < cell.n_present
+                                  ? ` (${formatPercent(cell.n_valid / cell.n_present)} valid)`
+                                  : ''
+                              }`
                             : '—'}
                         </td>
                       )

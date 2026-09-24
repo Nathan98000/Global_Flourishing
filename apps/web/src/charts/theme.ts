@@ -5,6 +5,7 @@
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
 // (≤ 24px), hairline solid grid, 2px surface gaps and rings.
 
+import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
 import { ciLabel, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
 
@@ -105,6 +106,20 @@ export function divergingTint(value: number | null | undefined, extent = 1): str
   const unit = Math.max(-1, Math.min(1, value / extent))
   const step = Math.round(unit * DIVERGING_STEPS) + DIVERGING_STEPS
   return DIVERGING_RAMP[step] ?? 'transparent'
+}
+
+/** A CI whisker drawn over a bar: a halo in the surface colour, then
+ * the ink line, so the whisker is visible on the bar's own hue (a
+ * whisker in the bar's tone vanished). Plot's rule marks take the
+ * channels; the two share them. */
+export function whiskerOverBars<Datum>(
+  data: Datum[],
+  channels: Record<string, string | ((datum: Datum) => number | undefined)>,
+) {
+  return [
+    Plot.ruleY(data, { ...channels, stroke: SURFACE, strokeWidth: 4, clip: true }),
+    Plot.ruleY(data, { ...channels, stroke: INK, strokeWidth: 1.5, clip: true }),
+  ]
 }
 
 /** The hue a signed mark wears. */

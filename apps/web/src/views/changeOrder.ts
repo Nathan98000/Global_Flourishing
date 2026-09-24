@@ -49,4 +49,5 @@ export function changeLevels(variable: { min: number | null; max: number | null 
   return Array.from({ length: 2 * span + 1 }, (_, index) => index - span)
 }
 
-export const signedLevel = (level: number): string => (level > 0 ? `+${level}` : String(level))
+export const signedLevel = (level: number): string =>
+  level > 0 ? `+${level}` : level < 0 ? `−${Math.abs(level)}` : String(level)

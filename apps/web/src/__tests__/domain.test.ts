@@ -26,8 +26,12 @@ describe('fittedScale', () => {
       .map((tick, i) => Number((tick - (scale.ticks[i] ?? 0)).toFixed(6)))
     expect(new Set(steps).size).toBe(1)
     for (const tick of scale.ticks) {
-      expect(Number(scale.format(tick))).toBe(tick)
+      expect(Number(scale.format(tick).replace('−', '-'))).toBe(tick)
     }
+    // Ticks below zero wear a true minus sign, never a hyphen.
+    const signed = fittedScale([-0.4, 0.3], { targetTicks: 5 })
+    expect(signed.format(-0.2)).toBe('−0.2')
+    expect(signed.format(-0.2)).not.toContain('-')
   })
 
   test('zeroBaseline keeps zero and fits only the top', () => {

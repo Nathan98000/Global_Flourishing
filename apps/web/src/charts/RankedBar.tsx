@@ -25,6 +25,7 @@ import {
   plotCI,
   plotValue,
   tipText,
+  whiskerOverBars,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
@@ -245,14 +246,14 @@ export function RankedBar({
             insetTop: 3,
             insetBottom: 3,
           }),
-          Plot.ruleY(
+          // The whisker over a bar: a surface halo, then ink, so it reads
+          // on the bar's own hue.
+          ...whiskerOverBars(
             valid.filter((entry) => entry.ci !== null),
             {
               y: 'label',
               x1: (entry: Entry) => entry.ci?.[0],
               x2: (entry: Entry) => entry.ci?.[1],
-              stroke: WHISKER,
-              strokeWidth: 1.5,
             },
           ),
           Plot.text(entries, {

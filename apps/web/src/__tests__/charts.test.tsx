@@ -4,6 +4,7 @@
 
 import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
+import { capitalize } from '../charts/ChartFigure'
 import { Histogram } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
@@ -212,6 +213,16 @@ describe('Histogram', () => {
     expect(svg?.textContent).toContain('Score (0–10), 1-point bins')
     expect(svg?.textContent).toContain('0–1')
     expect(svg?.textContent).toContain('9–10')
+  })
+})
+
+describe('figure copy', () => {
+  test('a subtitle starts with a capital letter, whatever clause leads', () => {
+    expect(capitalize('share answering “Weekly” · Wave 1, 2023')).toBe(
+      'Share answering “Weekly” · Wave 1, 2023',
+    )
+    expect(capitalize('Average score')).toBe('Average score')
+    expect(capitalize('')).toBe('')
   })
 })
 

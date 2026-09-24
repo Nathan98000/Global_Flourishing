@@ -78,7 +78,8 @@ export function fittedScale(
   return {
     domain: [start, end],
     ticks,
-    format: (value) => value.toFixed(decimals),
+    // A fixed precision per chart, with a true minus sign.
+    format: (value) => value.toFixed(decimals).replace(/^-/, '−'),
   }
 }
 

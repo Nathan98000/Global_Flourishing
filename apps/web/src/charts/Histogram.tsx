@@ -13,9 +13,10 @@ import {
   BAR_RADIUS,
   FACET_PADDING,
   FONT_FAMILY,
+  INK,
   INK_SECONDARY,
+  SURFACE,
   TIP_OPTIONS,
-  WHISKER,
   plotCI,
   plotValue,
   tipText,
@@ -127,6 +128,7 @@ export function Histogram({
             insetLeft: 1,
             insetRight: 1,
           }),
+          // The whisker over a bar: a surface halo, then ink.
           Plot.ruleX(
             valid.filter((entry) => entry.ci !== null),
             {
@@ -134,7 +136,19 @@ export function Histogram({
               x: 'level',
               y1: (entry: BinEntry) => entry.ci?.[0],
               y2: (entry: BinEntry) => entry.ci?.[1],
-              stroke: WHISKER,
+              stroke: SURFACE,
+              strokeWidth: 4,
+              clip: true,
+            },
+          ),
+          Plot.ruleX(
+            valid.filter((entry) => entry.ci !== null),
+            {
+              ...facetChannel,
+              x: 'level',
+              y1: (entry: BinEntry) => entry.ci?.[0],
+              y2: (entry: BinEntry) => entry.ci?.[1],
+              stroke: INK,
               strokeWidth: 1.5,
               clip: true,
             },
