@@ -132,11 +132,7 @@ export function CorrelatesView() {
   const countryName = country !== undefined ? groupValueLabel('country_code', country, served) : ''
   const title = variable?.display_name ?? search.outcome
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const waves = target?.waves_available ?? []
     setSearch({

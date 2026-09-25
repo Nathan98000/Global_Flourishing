@@ -5,7 +5,11 @@
 // question wording and selects a measure directly, setting the topic to
 // match. A topic with subtopics (the server's `subfamily`, ADR-0016) gets
 // a third step between the two: a Subtopic select that defaults to the
-// current measure's subtopic and narrows the Measure list to it. Native
+// current measure's subtopic and narrows the Measure list to it. Picking
+// a topic selects that topic's first listed measure — the page's own
+// list, first subtopic first — so every view goes through its
+// new-measure branch and the old measure's settings (answer level, an
+// unsupported comparison, a stale notice) never linger (25 Sept). Native
 // controls only; the search results are plain buttons.
 
 import { useId, useMemo, useState } from 'react'
@@ -38,8 +42,10 @@ export function OutcomePicker({
   value: string
   /** Topic mid-selection from the URL; absent = the outcome's family. */
   topic?: string
-  /** A measure was picked (topic is then inferred), or only a topic. */
-  onSelect: (selection: { outcome?: string; topic?: string }) => void
+  /** A measure was picked — by the Measure select, the search, or a
+   * topic change (which picks the topic's first measure); the topic is
+   * inferred from it. */
+  onSelect: (selection: { outcome: string }) => void
   /** The phone fold (§8) splits the picker: Measure stays above the
    * fold, Topic + search move into the disclosure. Each narrow instance
    * renders its own subset; the search's query state stays local. */
@@ -87,6 +93,15 @@ export function OutcomePicker({
     setPicked(null)
     onSelect({ outcome: name })
   }
+  /** A topic change is a measure change: the topic's first listed
+   * measure (its first subtopic's, where it has them). */
+  const pickTopic = (family: string) => {
+    const target = topics.find((entry) => entry.family === family)
+    if (!target) return
+    const groups = subtopicsOf(target.measures)
+    const first = (groups[0]?.measures ?? target.measures)[0]
+    if (first) pick(first.name)
+  }
 
   return (
     <div className={styles.picker}>
@@ -99,7 +114,7 @@ export function OutcomePicker({
             id={topicId}
             className={styles.select}
             value={active?.family ?? ''}
-            onChange={(event) => onSelect({ topic: event.target.value })}
+            onChange={(event) => pickTopic(event.target.value)}
           >
             {!active && (
               <option value="" disabled>

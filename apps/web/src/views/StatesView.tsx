@@ -140,11 +140,7 @@ export function StatesView() {
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const wave =
       target && !target.waves_available.includes(search.wave)

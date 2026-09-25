@@ -176,11 +176,7 @@ export function ChangeView() {
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const waves = target?.waves_available ?? []
     // Keep the comparison when the new measure supports it; otherwise

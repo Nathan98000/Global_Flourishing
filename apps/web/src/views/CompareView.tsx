@@ -209,10 +209,7 @@ export function CompareView() {
   const groupLabel = (column: string, value: string | number) =>
     column === 'outcome' ? outcomeLabel(String(value)) : labeler?.(column, value)
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) setSearch({ topic })
-    else setSearch({ outcome, topic: undefined })
-  }
+  const handlePick = ({ outcome }: { outcome: string }) => setSearch({ outcome, topic: undefined })
 
   const displayOptions = (
     <>
