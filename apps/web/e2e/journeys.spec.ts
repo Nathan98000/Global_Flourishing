@@ -258,7 +258,41 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
-test('8 — What Matters with a combined-midyear country: the matrix, the split by age, no jargon', async ({
+/** The synthetic midyear family holds one importance item and no
+ * chartable item, so What Matters' third view is served one here:
+ * Service attendance's own catalog entry, value labels and Wave 1
+ * shares, dressed as a midyear question (static paths, as the tier
+ * would carry it). */
+async function serveMidyearQuestion(page: Page) {
+  const read = (path: string) =>
+    JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', path), 'utf8')) as Record<
+      string,
+      unknown
+    >
+  const catalog = read('variables.json') as { variables: Record<string, unknown>[] }
+  const source = catalog.variables.find((variable) => variable['name'] === 'ATTEND_SVCS')
+  const question = {
+    ...source,
+    name: 'SVCS_MY',
+    display_name: 'Service attendance, midyear',
+    family: 'midyear',
+    waves_available: ['MY'],
+  }
+  const shares = read('v1/ATTEND_SVCS/Y1/proportion_by-country_code.json')
+  await page.route('**/data/variables.json', (route) =>
+    route.fulfill({ json: { ...catalog, variables: [...catalog.variables, question] } }),
+  )
+  await page.route('**/data/v1/SVCS_MY/variable.json', (route) =>
+    route.fulfill({ json: { ...read('v1/ATTEND_SVCS/variable.json'), ...question } }),
+  )
+  await page.route('**/data/v1/SVCS_MY/MY/proportion_by-country_code.json', (route) =>
+    route.fulfill({
+      json: { ...shares, meta: { ...(shares['meta'] as object), outcome: 'SVCS_MY' } },
+    }),
+  )
+}
+
+test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
   page,
 }) => {
   // The synthetic release administers the midyear survey both ways in
@@ -266,34 +300,26 @@ test('8 — What Matters with a combined-midyear country: the matrix, the split 
   // 2 interview), so the United States stands for a combined-midyear
   // country here; its midyear answers are ordinary cross-sections on the
   // midyear weight, and the view must show them without a word about
-  // administration modes. The synthetic midyear family holds one
-  // importance item and no chartable item.
+  // administration modes.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await serveMidyearQuestion(page)
   await page.goto('/what-matters?country=22')
+  const views = page.getByRole('group', { name: 'View' })
 
+  // By country, the default: the matrix alone — countries down, the
+  // importance items across.
   await expect(
-    caption(page).first().getByText('What matters most, by country', { exact: true }),
+    caption(page).getByText('What matters most, by country', { exact: true }),
   ).toBeVisible()
-  await expect(
-    caption(page)
-      .first()
-      .getByText(/Midyear survey, Nov 2023–Dec 2024/),
-  ).toBeVisible()
-  // One matrix: countries down, the importance items across.
+  await expect(caption(page).getByText(/Midyear survey, Nov 2023–Dec 2024/)).toBeVisible()
   const matrix = page.getByRole('img', {
     name: /How important people rate 1 things .* as a matrix/,
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
-  await expect(
-    page.getByRole('img', {
-      name: /United States: how important people rate 1 things, one panel per age band/,
-    }),
-  ).toBeVisible()
-  // Three anchors under the lede; the crossings section is gone.
-  await expect(
-    page.getByRole('navigation', { name: 'On this page' }).getByRole('link'),
-  ).toHaveCount(3)
+  await expect(page.locator('figure')).toHaveCount(1)
+  // A switcher, not anchors; the crossings section is gone.
+  await expect(page.getByRole('navigation', { name: 'On this page' })).toHaveCount(0)
   await expect(page.getByText(/Two things that travel together/)).toHaveCount(0)
 
   const text = await page.locator('main').innerText()
@@ -301,15 +327,33 @@ test('8 — What Matters with a combined-midyear country: the matrix, the split 
   expect(text).not.toMatch(/midyear_type|standalone|combined/i)
 
   // The n rides on every row of the data table.
-  await page.getByText('Data table', { exact: true }).first().click()
+  await page.getByText('Data table', { exact: true }).click()
   const table = page.locator('details').first().getByRole('table')
   await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
 
+  // Within a country: the split by age band, alone on screen.
+  await views.getByText('Within a country', { exact: true }).click()
+  await expect(page).toHaveURL(/view=within&country=22$/)
+  await expect(
+    page.getByRole('img', {
+      name: /United States: how important people rate 1 things, one panel per age band/,
+    }),
+  ).toBeVisible()
+  await expect(page.locator('figure')).toHaveCount(1)
   // The URL is the state: the split column round-trips.
   await page.getByLabel('Split by').selectOption('gender')
-  await expect(page).toHaveURL(/country=22&by=gender$/)
+  await expect(page).toHaveURL(/view=within&country=22&by=gender$/)
   await expect(page.getByRole('img', { name: /one panel per gender/ })).toBeVisible()
+
+  // Other questions: one question's bar chart, alone on screen.
+  await views.getByText('Other questions', { exact: true }).click()
+  const question = page.getByRole('img', { name: /Service attendance, midyear/ })
+  await expect(question).toBeVisible()
+  // Rounded bars render as paths in Plot's "bar" mark group.
+  await expect(question.locator('[aria-label="bar"] > *').first()).toBeVisible()
+  await expect(page.locator('figure')).toHaveCount(1)
+  expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 })
 
 test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({

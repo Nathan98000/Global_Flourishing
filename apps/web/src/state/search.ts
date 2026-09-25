@@ -520,9 +520,12 @@ export function compareRequest(
 // --- What Matters (Phase 5) --------------------------------------------------
 // The midyear family at wave MY: rankings by country, the shift by a
 // demographic (age band by default) within one country, and the
-// chartable items.
+// chartable items — one of the three on screen at a time (`view`).
 
 export interface WhatMattersSearch {
+  /** Which chart is on screen: the matrix by country, the split within
+   * one country, or one of the other midyear questions. */
+  view: 'country' | 'within' | 'questions'
   /** The country whose ranking is split by `by`; absent = choose one. */
   country?: number
   by: string
@@ -539,6 +542,7 @@ export interface WhatMattersSearch {
 }
 
 export const WHAT_MATTERS_DEFAULTS = {
+  view: 'country' as const,
   by: 'age_band',
   sort: 'name',
 }
@@ -551,6 +555,12 @@ const parseCountryCode = (value: unknown): number | undefined => {
 export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
   const collect = new Collector()
   const search: WhatMattersSearch = {
+    view: collect.take(
+      'view',
+      raw,
+      parseEnum('country', 'within', 'questions'),
+      WHAT_MATTERS_DEFAULTS.view,
+    ),
     country: collect.take('country', raw, parseCountryCode, undefined),
     by: collect.take('by', raw, parseBreakdownColumn, WHAT_MATTERS_DEFAULTS.by),
     item: collect.take('item', raw, parseName, undefined),
@@ -566,6 +576,7 @@ export function whatMattersSearchParams(
 ): Record<string, unknown> {
   return withInvalidRaw(
     {
+      view: search.view === WHAT_MATTERS_DEFAULTS.view ? undefined : search.view,
       country: search.country,
       by: search.by === WHAT_MATTERS_DEFAULTS.by ? undefined : search.by,
       item: search.item,

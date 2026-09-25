@@ -1,10 +1,10 @@
 // What Matters (Phase 5): the midyear family from the catalog — the
 // ranking set as one countries × items matrix, the rest chartable — the
-// split within one country, the anchor links, and no jargon.
+// split within one country, one view on screen at a time, and no jargon.
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
@@ -254,7 +254,7 @@ describe('the midyear family from the catalog', () => {
 })
 
 describe('What Matters view', () => {
-  test('the ranking by country as one matrix, the anchors, the first chartable item — no jargon', async () => {
+  test('the ranking by country as one matrix, alone on screen under the view switcher — no jargon', async () => {
     const calls = mockFetch(tier)
     await renderAt('/what-matters')
     const ranking = await screen.findByRole('img', {
@@ -296,27 +296,72 @@ describe('What Matters view', () => {
       'By Importance: money',
       'By Importance: good relationships',
     ])
-    // Three anchors under the lede, one per section.
-    const anchors = screen.getByRole('navigation', { name: 'On this page' })
+    // One switcher under the lede picks the view; the section headings
+    // and the "On this page" anchors are gone.
+    const views = screen.getByRole('group', { name: 'View' })
     expect(
-      within(anchors)
-        .getAllByRole('link')
-        .map((link) => link.getAttribute('href')),
-    ).toEqual(['#by-country', '#within-country', '#other-questions'])
-    expect(document.getElementById('within-country')).not.toBeNull()
-    // Static requests only for the midyear cross-sections.
+      within(views)
+        .getAllByRole('radio')
+        .map((radio) => radio.closest('label')?.textContent),
+    ).toEqual(['By country', 'Within a country', 'Other questions'])
+    expect(within(views).getByRole('radio', { name: 'By country' })).toBeChecked()
+    expect(screen.queryByRole('navigation', { name: 'On this page' })).toBeNull()
+    expect(screen.queryByRole('heading', { level: 3 })).toBeNull()
+    // One figure on screen; the other views mount nothing and fetch
+    // nothing — static requests only for the midyear cross-sections.
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
     expect(calls.filter((url) => url.includes('/MY/mean_by-country_code.json')).length).toBe(2)
+    expect(calls.filter((url) => url.includes('age_band') || url.includes('TIME_MEDIA'))).toEqual(
+      [],
+    )
     // The crossings section is gone.
     expect(screen.queryByText(/Two things that travel together/)).toBeNull()
-    // The first chartable item, with its answer levels from the codebook.
+    expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
+  })
+
+  test('Other questions: the first chartable item alone, with its answer levels from the codebook', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/what-matters?view=questions')
     expect(
       await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
-    expect(
-      screen.getByText(/Choose a country to see how the ranking shifts by age band/),
-    ).toBeInTheDocument()
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
+    expect(screen.queryByRole('img', { name: /as a matrix/ })).toBeNull()
+    expect(calls.filter((url) => url.includes('MONEY') || url.includes('GOOD_RELATION'))).toEqual(
+      [],
+    )
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
+  })
+
+  test('an old anchor link opens its view and drops the hash', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/what-matters#other-questions')
+    expect(await screen.findByRole('img', { name: /Daily social media time/ })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.hash).toBe(''))
+    expect(router.state.location.search).toMatchObject({ view: 'questions' })
+    expect(router.state.location.href).toBe('/what-matters?view=questions')
+  })
+
+  test('switching views keeps each view’s own settings', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY')
+    await screen.findByRole('img', { name: /share answering “More than an hour”/ })
+    fireEvent.click(screen.getByRole('radio', { name: 'By country' }))
+    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    expect(
+      within(within(ranking).getByRole('table'))
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['United States', 'Testland'])
+    expect(router.state.location.href).toBe('/what-matters?item=TIME_MEDIA&level=3&sort=MONEY')
+    fireEvent.click(screen.getByRole('radio', { name: 'Other questions' }))
+    expect(
+      await screen.findByRole('img', { name: /share answering “More than an hour”/ }),
+    ).toBeInTheDocument()
+    expect(router.state.location.href).toBe(
+      '/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY',
+    )
   })
 
   test('sorting by an item reorders the rows, high to low', async () => {
@@ -330,9 +375,9 @@ describe('What Matters view', () => {
     ).toEqual(['United States', 'Testland'])
   })
 
-  test('a chosen country adds the split by age band; the level control re-renders the item', async () => {
+  test('Within a country: a chosen country, split by age band', async () => {
     mockFetch(tier)
-    await renderAt('/what-matters?country=22&level=3')
+    await renderAt('/what-matters?view=within&country=22')
     const split = await screen.findByRole('img', {
       name: /United States: how important people rate 2 things, one panel per age band/,
     })
@@ -340,10 +385,16 @@ describe('What Matters view', () => {
     expect(text).toContain('18–24')
     expect(text).toContain('25–29')
     expect(text).toContain('Importance: money')
+    const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
+    expect(country.value).toBe('22')
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
+  })
+
+  test('the level control re-renders the item', async () => {
+    mockFetch(tier)
+    await renderAt('/what-matters?view=questions&level=3')
     expect(
       await screen.findByRole('img', { name: /share answering “More than an hour”/ }),
     ).toBeInTheDocument()
-    const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
-    expect(country.value).toBe('22')
   })
 })

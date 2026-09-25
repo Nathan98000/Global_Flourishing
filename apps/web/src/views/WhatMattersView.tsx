@@ -2,12 +2,13 @@
 // most, as one matrix of countries × the seven importance items (the
 // tinted-table component the Correlates view uses); how that ranking
 // shifts within one country by age band (or another demographic); and
-// the family's other questions, chartable one at a time. The item list
-// comes from the catalog by family; the ranking set is navigation copy
-// in topics.ts.
+// the family's other questions, chartable one at a time. One of the
+// three is on screen at a time (`view`, owner decision 25 Sept 2026):
+// the others mount nothing and fetch nothing. The item list comes from
+// the catalog by family; the ranking set is navigation copy in topics.ts.
 
-import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { getRouteApi, useLocation } from '@tanstack/react-router'
+import { useEffect, useMemo } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimatesMany } from '../api/estimates'
 import { useBootStatus, useMeta } from '../api/meta'
@@ -26,7 +27,7 @@ import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
-import { RadioRow } from '../components/controls/RadioRow'
+import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatEstimate } from '../format'
@@ -54,6 +55,20 @@ import styles from './AtlasView.module.css'
 const route = getRouteApi('/what-matters')
 
 const MIDYEAR_TITLE = WAVE_TITLES['MY'] ?? 'Midyear survey'
+
+const VIEW_OPTIONS: RadioOption<WhatMattersSearch['view']>[] = [
+  { value: 'country', label: 'By country' },
+  { value: 'within', label: 'Within a country' },
+  { value: 'questions', label: 'Other questions' },
+]
+
+/** The in-page anchors the page had before the view switcher: an old
+ * link's hash picks the matching view. */
+const HASH_VIEWS: Record<string, WhatMattersSearch['view']> = {
+  'by-country': 'country',
+  'within-country': 'within',
+  'other-questions': 'questions',
+}
 
 function withMeta(
   rows: EstimateRow[],
@@ -88,6 +103,7 @@ export function WhatMattersView() {
   useWarmApi()
   const search = route.useSearch()
   const navigate = route.useNavigate()
+  const hash = useLocation({ select: (location) => location.hash })
   const meta = useMeta()
   const boot = useBootStatus()
   const variables = useVariables()
@@ -105,12 +121,22 @@ export function WhatMattersView() {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
   }
 
+  // An old link's anchor (#within-country) selects its view; the hash
+  // goes, replacing the entry rather than adding one.
+  useEffect(() => {
+    const view = HASH_VIEWS[hash]
+    if (view === undefined) return
+    void navigate(searchNavigation(whatMattersSearchParams({ ...search, view }), { replace: true }))
+    // Only a new hash triggers this; the search it carries is current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash])
+
   // 1. The ranking by country: one midyear cross-section per item.
   const rankingRequests = useMemo(
     () => ranking.map((item) => whatMattersRequest(item.name, item)),
     [ranking],
   )
-  const rankingQuery = useEstimatesMany(rankingRequests)
+  const rankingQuery = useEstimatesMany(rankingRequests, { enabled: search.view === 'country' })
   // 2. The same seven items split by a demographic, for one country.
   const splitRequests = useMemo(
     () =>
@@ -119,13 +145,14 @@ export function WhatMattersView() {
         : [],
     [ranking, search.country, search.by],
   )
-  const splitQuery = useEstimatesMany(splitRequests)
+  const splitQuery = useEstimatesMany(splitRequests, { enabled: search.view === 'within' })
   // 3. One chartable item by country.
   const item: VariableSummary | undefined =
     (search.item !== undefined ? byName[search.item] : undefined) ?? chartable[0]
   const itemRequests = useMemo(() => (item ? [whatMattersRequest(item.name, item)] : []), [item])
-  const itemQuery = useEstimatesMany(itemRequests)
-  const itemDetail = useVariable(item ? item.name : null).data?.detail
+  const itemQuery = useEstimatesMany(itemRequests, { enabled: search.view === 'questions' })
+  const itemDetail = useVariable(search.view === 'questions' && item ? item.name : null).data
+    ?.detail
   const itemLevels = useMemo(() => outcomeLevels(itemDetail), [itemDetail])
 
   const metaData = meta.data?.meta
@@ -295,11 +322,15 @@ export function WhatMattersView() {
           What people said mattered most, in the midyear survey, by country and by age.
         </span>
       </p>
-      <nav className={styles.anchors} aria-label="On this page">
-        <a href="#by-country">By country</a>
-        <a href="#within-country">Within a country</a>
-        <a href="#other-questions">The other midyear questions</a>
-      </nav>
+      <div className={styles.controls}>
+        <RadioRow
+          legend="View"
+          name="view"
+          options={VIEW_OPTIONS}
+          value={search.view}
+          onChange={(view) => setSearch({ view })}
+        />
+      </div>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
@@ -312,15 +343,14 @@ export function WhatMattersView() {
         }
       />
 
-      {ranking.length === 0 ? (
+      {search.view !== 'questions' && ranking.length === 0 && (
         <EmptyState title="No midyear questions in this release">
           <p>The catalog lists no midyear items to rank.</p>
         </EmptyState>
-      ) : (
+      )}
+
+      {search.view === 'country' && ranking.length > 0 && (
         <>
-          <h3 className={styles.sectionTitle} id="by-country">
-            By country
-          </h3>
           <div className={styles.controls}>
             {narrow ? (
               <details className={styles.moreOptions}>
@@ -356,10 +386,11 @@ export function WhatMattersView() {
               />
             </ChartFigure>
           )}
+        </>
+      )}
 
-          <h3 className={styles.sectionTitle} id="within-country">
-            Within a country
-          </h3>
+      {search.view === 'within' && ranking.length > 0 && (
+        <>
           <div className={styles.controls}>
             <label className={styles.oriented}>
               Country{' '}
@@ -433,11 +464,14 @@ export function WhatMattersView() {
         </>
       )}
 
-      {chartable.length > 0 && item && (
+      {search.view === 'questions' && (!item || chartable.length === 0) && (
+        <EmptyState title="No other midyear questions in this release">
+          <p>The catalog lists no other midyear items to chart.</p>
+        </EmptyState>
+      )}
+
+      {search.view === 'questions' && chartable.length > 0 && item && (
         <>
-          <h3 className={styles.sectionTitle} id="other-questions">
-            The other midyear questions
-          </h3>
           <div className={styles.controls}>
             <label className={styles.oriented}>
               Question{' '}
