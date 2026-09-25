@@ -5,9 +5,11 @@
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  /* The section rhythm (§4): real air between header, deck, controls
-     and chart instead of one undifferentiated 16px stream. */
-  gap: var(--space-7);
+  /* The section rhythm (§4), tightened in the September 2026 design pass
+     (ADR-0016): the lede sits close under the nav — one --space-5 step,
+     not a 4rem band — and the deck's own margin sets the step to the
+     controls. */
+  gap: var(--space-5);
 }
 
 .header {
