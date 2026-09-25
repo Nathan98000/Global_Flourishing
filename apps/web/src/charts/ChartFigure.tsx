@@ -122,7 +122,7 @@ export function ChartFigure({
     try {
       const ok = await downloadChartPng(
         svg,
-        { title, dataVersion: response.meta.data_version },
+        { title },
         exportFilename(exportName ?? { measure: title, view: 'Chart', waves: '' }, 'png'),
       )
       setPngFailed(!ok)

@@ -3,7 +3,7 @@
 import { describe, expect, test } from 'vitest'
 import { responseToCsv } from '../export/csv'
 import { exportFilename, slugify } from '../export/filename'
-import { inlineTokenColors, serializeSvg, stampLines } from '../export/png'
+import { CITATION_LINE, inlineTokenColors, serializeSvg, stampLines } from '../export/png'
 import { testResponse, testRow } from '../test-utils/fixtures'
 
 const RESOLVE: Record<string, string> = {
@@ -36,11 +36,12 @@ describe('PNG export', () => {
     expect(div.innerHTML).toContain('fill="none"')
   })
 
-  test('the stamp names the chart, the data version and the DOI', () => {
-    const { header, footer } = stampLines({ title: 'Happiness — Wave 1', dataVersion: '2025.1' })
+  test('the stamp names the chart; the footer is the citation line alone (ADR-0016)', () => {
+    const { header, footer } = stampLines({ title: 'Happiness — Wave 1' })
     expect(header).toBe('Happiness — Wave 1')
-    expect(footer).toContain('data 2025.1')
+    expect(footer).toBe(CITATION_LINE)
     expect(footer).toContain('doi.org/10.17605/OSF.IO/3JTZ8')
+    expect(footer).not.toMatch(/data /)
   })
 })
 
