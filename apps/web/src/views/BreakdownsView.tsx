@@ -400,6 +400,9 @@ export function BreakdownsView() {
                   `The data table below carries every number, with its n.`
                 }
                 marks="dots"
+                levelLabel={(level) =>
+                  outcomeLevelOptions.find((entry) => entry.value === level)?.label
+                }
                 intro={
                   detail && (
                     <div className={styles.wording}>

@@ -62,8 +62,8 @@ export function AtlasView() {
   const activeLevel = search.level ?? defaultLevel(detail)
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   // A derived score's distribution bins arrive as its value labels
-  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's own answer
-  // codes label themselves.
+  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's answer
+  // codes wear their own labels in the data table (ADR-0016).
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
@@ -382,7 +382,7 @@ export function AtlasView() {
                 meta={meta.data.meta}
                 csv={csv}
                 isRefreshing={estimates.isPlaceholderData}
-                levelLabel={stat === 'distribution' && derivedBins ? binLabel : undefined}
+                levelLabel={binLabel}
               >
                 {stat === 'distribution' ? (
                   <>

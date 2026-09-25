@@ -279,6 +279,9 @@ export function CompareView() {
         csv={csvFor(response, stem)}
         isRefreshing={source.isPlaceholderData}
         groupLabel={groupLabel}
+        levelLabel={(level) =>
+          outcomeLevels(extraDetail).find((entry) => entry.value === level)?.label
+        }
       >
         <CompareDomains
           rows={rows}

@@ -113,8 +113,29 @@ describe('EstimateTable', () => {
       { stat: 'distribution', outcome: attendVariable.name },
     )
     render(<EstimateTable response={response} meta={testMeta} />)
-    expect(screen.getByRole('columnheader', { name: 'Level' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
     expect(screen.getByText('5.0%')).toBeInTheDocument()
+  })
+})
+
+describe('EstimateTable answers', () => {
+  test('the Answer column wears the value labels; a blank or missing label falls back to the code (ADR-0016)', () => {
+    const response = testResponse([
+      testRow({ stat: 'proportion', level: 1 }),
+      testRow({ stat: 'proportion', level: 2 }),
+      testRow({ stat: 'proportion', level: 3 }),
+    ])
+    const labels: Record<number, string> = { 1: 'Always', 2: '' }
+    render(<EstimateTable response={response} meta={testMeta} levelLabel={(l) => labels[l]} />)
+    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Level' })).toBeNull()
+    expect(screen.getByRole('cell', { name: 'Always' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '3' })).toBeInTheDocument()
+    // A derived score's bins keep their "0–1" … labels the same way.
+    const bins = testResponse([testRow({ stat: 'distribution', level: 0 })])
+    render(<EstimateTable response={bins} meta={testMeta} levelLabel={() => '0–1'} />)
+    expect(screen.getByRole('cell', { name: '0–1' })).toBeInTheDocument()
   })
 })
 
