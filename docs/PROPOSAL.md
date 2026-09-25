@@ -142,9 +142,9 @@ A 60-line prototype (blank → NaN, sentinel codes → NaN, mean of the 12 SFI i
 | View | What it shows | Phase |
 |---|---|---|
 | **Atlas** | Choose a variable; see a ranked bar chart by country, with CI, n, weight, and question wording (the world map was dropped in the September 2026 design pass — ADR-0016: too few countries for a map to inform). Toggle Wave 1 / Midyear / Wave 2. | 4 |
-| **Breakdowns** | Outcome × demographic, small multiples by country; sortable; suppression indicators. | 4 |
+| **Breakdowns** | Outcome × demographic, small multiples by country; sortable; suppression indicators (shown as **Segments** since September 2026 — ADR-0017). | 4 |
 | **Codebook** | Searchable variable catalog with families, wording, labels, waves, missingness; "chart this" link. | 4 |
-| **Compare** | 2–5 countries or segments across the six SFI domains (dumbbell / radar) and any chosen items. | 5 |
+| **Compare** | 2–5 countries or segments across the six SFI domains (dumbbell / radar) and any chosen items (retired in September 2026 — ADR-0017: a single-country split is what Segments does). | 5 |
 | **Change** | Wave 1 → Wave 2 for the same respondents using `L2` weights: mean change with CI, histogram of individual change, transition matrix for categorical items, retention shown prominently. | 5 |
 | **What Matters** | The midyear importance items across all countries: what people rank highest (money vs relationships vs meaning), how that varies by age and country, and how stated priorities relate to Wave 2 flourishing (e.g. valuing money over relationships × life satisfaction), using `L_1M` / `L_1M2` weights. Also social media time × mental health and food insecurity × financial-domain scores. | 5 |
 | **US States** | State choropleth with state weights, state-vs-national comparisons for annual and midyear items. | 5 |
