@@ -303,7 +303,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   // administration modes.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await serveMidyearQuestion(page)
-  await page.goto('/what-matters?country=22')
+  await page.goto('/what-matters')
   const views = page.getByRole('group', { name: 'View' })
 
   // By country, the default: the matrix alone — countries down, the
@@ -332,19 +332,21 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
 
-  // Within a country: the split by age band, alone on screen.
+  // Within a country: the United States unless another is chosen, its
+  // age bands as the matrix's rows, alone on screen.
   await views.getByText('Within a country', { exact: true }).click()
-  await expect(page).toHaveURL(/view=within&country=22$/)
-  await expect(
-    page.getByRole('img', {
-      name: /United States: how important people rate 1 things, one panel per age band/,
-    }),
-  ).toBeVisible()
+  await expect(page).toHaveURL(/\/what-matters\?view=within$/)
+  const split = page.getByRole('img', {
+    name: /United States: how important people rate 1 item, as a matrix: a row per age band/,
+  })
+  await expect(split).toBeVisible()
+  await expect(split.getByRole('rowheader').first()).toBeVisible()
+  await expect(caption(page).getByText('United States by age band', { exact: true })).toBeVisible()
   await expect(page.locator('figure')).toHaveCount(1)
   // The URL is the state: the split column round-trips.
   await page.getByLabel('Split by').selectOption('gender')
-  await expect(page).toHaveURL(/view=within&country=22&by=gender$/)
-  await expect(page.getByRole('img', { name: /one panel per gender/ })).toBeVisible()
+  await expect(page).toHaveURL(/view=within&by=gender$/)
+  await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
 
   // Other questions: one question's bar chart, alone on screen.
   await views.getByText('Other questions', { exact: true }).click()

@@ -1,7 +1,7 @@
 // The What Matters view's row bookkeeping, kept out of the component so
-// fast refresh stays clean: the seven items' rows as one set, the
-// country order the matrix and the data table share, each column's
-// tint window, and the columns' labels and width.
+// fast refresh stays clean: the seven items' rows as one set, the row
+// order a matrix and its data table share (countries, or one country's
+// groups), each column's tint window, and the columns' labels and width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
@@ -106,21 +106,50 @@ export function matrixCountryOrder(
   })
 }
 
-/** The rows in matrix order (country, then item), for the data table. */
+/** The rows in matrix order (row, then item), for the data table: rows
+ * are `column`'s values in `rowOrder` (countries by default); a value
+ * the matrix doesn't show sorts last. */
 export function orderMatrixRows(
   rows: readonly EstimateRow[],
-  countryOrder: readonly number[],
+  rowOrder: readonly (string | number)[],
   items: readonly VariableSummary[],
+  column = 'country_code',
 ): EstimateRow[] {
-  const countryIndex = new Map(countryOrder.map((code, index) => [code, index]))
+  const rowIndex = new Map<unknown, number>(rowOrder.map((value, index) => [value, index]))
   const itemIndex = new Map(items.map((item, index) => [item.name, index]))
   return [...rows].sort(
     (a, b) =>
-      (countryIndex.get(Number(a.group['country_code'])) ?? countryOrder.length) -
-        (countryIndex.get(Number(b.group['country_code'])) ?? countryOrder.length) ||
+      (rowIndex.get(a.group[column]) ?? rowOrder.length) -
+        (rowIndex.get(b.group[column]) ?? rowOrder.length) ||
       (itemIndex.get(String(a.group['outcome'])) ?? items.length) -
         (itemIndex.get(String(b.group['outcome'])) ?? items.length),
   )
+}
+
+/** The country "Within a country" shows until one is chosen: the United
+ * States (by its ISO code in meta — the front end owns no country list),
+ * else the first country A–Z. */
+export function defaultSplitCountry(meta: Pick<Meta, 'countries'>): number | undefined {
+  const us = meta.countries.find((country) => country.iso3 === 'USA')
+  if (us) return us.code
+  return [...meta.countries].sort((a, b) => a.name.localeCompare(b.name))[0]?.code
+}
+
+/** One country's rows of the split, as matrix rows: `column`'s levels in
+ * the served order (levelDomain's), keeping every level with at least
+ * one row — even a row with no estimate or interval (ADR-0011) — and
+ * omitting a level the country has no rows for at all (Japan × "Out of
+ * work (reserve duty)"). Rows without a level (a missing demographic)
+ * are no group. */
+export function splitGroupOrder(
+  rows: readonly EstimateRow[],
+  column: string,
+  meta: Pick<Meta, 'breakdown_labels'>,
+): (string | number)[] {
+  const present = new Set(rows.map((row) => row.group[column]))
+  return (meta.breakdown_labels[column]?.levels ?? [])
+    .map((level) => level.value)
+    .filter((value) => present.has(value))
 }
 
 /** Each column's tint window, keyed by item: its own [lowest, highest]

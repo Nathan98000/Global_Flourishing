@@ -15,11 +15,13 @@ import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
   columnRanges,
+  defaultSplitCountry,
   itemLabel,
   matrixCountryOrder,
   narrowestWrap,
   orderMatrixRows,
   rankingRows,
+  splitGroupOrder,
 } from '../views/whatMattersRows'
 
 const okHealth: ApiHealth = {
@@ -96,6 +98,26 @@ const byAge = (outcome: string) =>
     { outcome, waves: ['MY'], by: ['country_code', 'age_band'] },
   )
 
+// By gender: the United States has a group with a row but no estimate
+// (kept — ADR-0011); Testland has no Female rows at all (omitted), and
+// its row with no gender is no group.
+const byGender = (outcome: string) =>
+  testResponse(
+    [
+      testRow({ group: { country_code: 22, gender: 1 }, estimate: 7 }),
+      testRow({
+        group: { country_code: 22, gender: 2 },
+        estimate: null,
+        ci_lo: null,
+        ci_hi: null,
+        n: 3,
+      }),
+      testRow({ group: { country_code: 1, gender: 1 }, estimate: 6 }),
+      testRow({ group: { country_code: 1, gender: null }, estimate: null, n: 0 }),
+    ],
+    { outcome, waves: ['MY'], by: ['country_code', 'gender'] },
+  )
+
 type Routes = Record<string, unknown | Response>
 
 function mockFetch(routes: Routes) {
@@ -137,6 +159,8 @@ const tier: Routes = {
   '/data/v1/GOOD_RELATION/MY/mean_by-country_code.json': byCountry('GOOD_RELATION', 1),
   '/data/v1/MONEY/MY/mean_by-country_code-age_band.json': byAge('MONEY'),
   '/data/v1/GOOD_RELATION/MY/mean_by-country_code-age_band.json': byAge('GOOD_RELATION'),
+  '/data/v1/MONEY/MY/mean_by-country_code-gender.json': byGender('MONEY'),
+  '/data/v1/GOOD_RELATION/MY/mean_by-country_code-gender.json': byGender('GOOD_RELATION'),
   '/data/v1/TIME_MEDIA/variable.json': {
     ...timeMedia,
     value_labels: [
@@ -236,6 +260,46 @@ describe('the midyear family from the catalog', () => {
       [1, 'MONEY'],
       [1, 'GOOD_RELATION'],
     ])
+  })
+
+  test('within a country: its groups in the served order, only those with rows; the US by default', () => {
+    const rows = [
+      testRow({ group: { outcome: 'MONEY', gender: 2 }, estimate: null }),
+      testRow({ group: { outcome: 'MONEY', gender: null }, estimate: null }),
+      testRow({ group: { outcome: 'GOOD_RELATION', gender: 2 }, estimate: 7 }),
+    ]
+    // Female has rows (one with no estimate): a group. No Male rows: no
+    // group. A row with no gender is none.
+    expect(splitGroupOrder(rows, 'gender', testMeta)).toEqual([2])
+    expect(
+      splitGroupOrder(
+        [...rows, testRow({ group: { outcome: 'MONEY', gender: 1 } })],
+        'gender',
+        testMeta,
+      ),
+    ).toEqual([1, 2])
+    expect(splitGroupOrder(rows, 'no_such_column', testMeta)).toEqual([])
+    // The data table follows the matrix: group, then item; the rest last.
+    expect(
+      orderMatrixRows(rows, [2], [money, relation], 'gender').map((row) => [
+        row.group['gender'],
+        row.group['outcome'],
+      ]),
+    ).toEqual([
+      [2, 'MONEY'],
+      [2, 'GOOD_RELATION'],
+      [null, 'MONEY'],
+    ])
+    expect(defaultSplitCountry(testMeta)).toBe(22)
+    expect(
+      defaultSplitCountry({
+        countries: [
+          { code: 3, name: 'Zedland', iso3: 'ZED' },
+          { code: 5, name: 'Alphaland', iso3: 'ALP' },
+        ],
+      }),
+    ).toBe(5)
+    expect(defaultSplitCountry({ countries: [] })).toBeUndefined()
   })
 
   test('each column is tinted on its own range, never narrower than a point', () => {
@@ -524,19 +588,72 @@ describe('What Matters view', () => {
     )
   })
 
-  test('Within a country: a chosen country, split by age band', async () => {
+  test('Within a country: the United States by default, its age bands as the matrix’s rows', async () => {
     mockFetch(tier)
-    await renderAt('/what-matters?view=within&country=22')
+    const router = await renderAt('/what-matters?view=within')
     const split = await screen.findByRole('img', {
-      name: /United States: how important people rate 2 things, one panel per age band/,
+      name: /United States: how important people rate 2 items, as a matrix: a row per age band, a column per item/,
     })
-    const text = split.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('18–24')
-    expect(text).toContain('25–29')
-    expect(text).toContain('Importance: money')
+    expect(screen.getByText('United States by age band')).toBeInTheDocument()
+    const matrix = within(split).getByRole('table')
+    expect(
+      within(matrix)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Age band ↓ · what matters →', 'Money', 'Good relationships'])
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['18–24', '25–29'])
+    const cells = within(matrix).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent)).toEqual(['5.22', '5.22', '6.22', '6.22'])
+    // Shaded per column across the groups.
+    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
+    within(split).getByText(/each column shaded on its own range/)
+    // The country select starts on the United States: no "Choose a
+    // country…" option, no hint; one figure on screen.
     const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
     expect(country.value).toBe('22')
+    expect([...country.options].map((option) => option.textContent)).toEqual([
+      'Testland',
+      'United States',
+    ])
+    expect(screen.queryByText(/Choose a country/)).toBeNull()
     expect(document.querySelectorAll('figure')).toHaveLength(1)
+    // Another country joins the URL; the default leaves it.
+    fireEvent.change(country, { target: { value: '1' } })
+    await waitFor(() =>
+      expect(router.state.location.href).toBe('/what-matters?view=within&country=1'),
+    )
+    expect(await screen.findByText('Testland by age band')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/^Country/), { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?view=within'))
+  })
+
+  test('Within a country: a group with no rows is omitted; one with no estimate stays', async () => {
+    mockFetch(tier)
+    await renderAt('/what-matters?view=within&by=gender')
+    const us = await screen.findByRole('img', { name: /United States: .* a row per gender/ })
+    expect(
+      within(us)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Male', 'Female'])
+    expect(
+      within(us)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual(['7.00', '7.00', '—', '—'])
+    cleanup()
+    await renderAt('/what-matters?view=within&by=gender&country=1')
+    const testland = await screen.findByRole('img', { name: /Testland: .* a row per gender/ })
+    expect(
+      within(testland)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Male'])
   })
 
   test('the level control re-renders the item', async () => {

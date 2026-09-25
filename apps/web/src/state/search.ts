@@ -526,7 +526,8 @@ export interface WhatMattersSearch {
   /** Which chart is on screen: the matrix by country, the split within
    * one country, or one of the other midyear questions. */
   view: 'country' | 'within' | 'questions'
-  /** The country whose ranking is split by `by`; absent = choose one. */
+  /** The country whose ranking is split by `by`; absent = the United
+   * States (else the first country A–Z), resolved from meta. */
   country?: number
   by: string
   /** A chartable (non-ranking) midyear item to show by country. */
