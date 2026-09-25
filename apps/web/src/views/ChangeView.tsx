@@ -342,7 +342,7 @@ export function ChangeView() {
           onSelect={handlePick}
           fields={narrow ? 'measure' : 'all'}
         />
-        {supportedPairs.length > 1 ? (
+        {supportedPairs.length > 1 && (
           <RadioRow
             legend="Compare"
             name="pair"
@@ -356,15 +356,6 @@ export function ChangeView() {
                 setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
             }}
           />
-        ) : (
-          <p className={styles.hint}>
-            Comparing {pairTitle(search.from, search.to, search.via)}. The midyear survey asked
-            different questions, so change is measured{' '}
-            {supportedPairs[0]
-              ? pairTitle(supportedPairs[0].from, supportedPairs[0].to, supportedPairs[0].via)
-              : pair}
-            .
-          </p>
         )}
         {isCategorical && levels.length > 0 && (
           <RadioRow

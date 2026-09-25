@@ -385,13 +385,11 @@ describe('Change view', () => {
     })
     await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('img', { name: /average change among the same people/ })
-    // No measure spans the midyear survey: no radio group, one sentence.
+    // No measure spans the midyear survey: no pair control at all, and no
+    // sentence about it (25 Sept); the multi-pair path keeps its control.
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
-    expect(
-      screen.getByText(
-        /The midyear survey asked different questions, so change is measured 2023 → 2024\./,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/Comparing 2023/)).toBeNull()
+    expect(screen.queryByText(/midyear survey asked different questions/)).toBeNull()
     // Loneliness (asked once) is not offered; the count follows.
     const measure = screen.getByLabelText('Measure', { exact: true })
     expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
