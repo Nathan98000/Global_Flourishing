@@ -25,7 +25,8 @@ import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
@@ -172,6 +173,13 @@ export function AtlasView() {
   const marks: ChartMarks =
     stat === 'distribution' ? 'bins' : stat === 'proportion' ? 'bars' : 'dots'
 
+  // What a download is called, in words (ADR-0016); the server names its
+  // CSV the same way.
+  const exportName: ExportName = {
+    measure: title,
+    view: 'By country',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+  }
   const csv: CsvExport | undefined =
     request === null
       ? undefined
@@ -181,15 +189,7 @@ export function AtlasView() {
           ? {
               kind: 'client',
               onDownload: () =>
-                downloadTextFile(
-                  csvFilename(
-                    request.outcome,
-                    request.wave,
-                    request.stat,
-                    response.meta.data_version,
-                  ),
-                  responseToCsv(response),
-                ),
+                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
             }
           : undefined
 
@@ -381,6 +381,7 @@ export function AtlasView() {
                 response={{ ...response, rows: displayRows }}
                 meta={meta.data.meta}
                 csv={csv}
+                exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
                 levelLabel={binLabel}
               >

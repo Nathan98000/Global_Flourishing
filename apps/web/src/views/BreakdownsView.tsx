@@ -23,7 +23,8 @@ import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
   groupValueLabel,
@@ -203,6 +204,14 @@ export function BreakdownsView() {
     .filter(Boolean)
     .join(' · ')
 
+  // What a download is called, in words (ADR-0016): the measure, then
+  // `by-<breakdown>` for the split; the server names its CSV the same way.
+  const exportName: ExportName = {
+    measure: variable?.display_name ?? search.outcome,
+    view: 'By country',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+    breakdown: search.by.map((column) => columnLabel(column, meta.data.meta)).join(' and '),
+  }
   const csv: CsvExport | undefined =
     request === null
       ? undefined
@@ -212,10 +221,7 @@ export function BreakdownsView() {
           ? {
               kind: 'client',
               onDownload: () =>
-                downloadTextFile(
-                  csvFilename(request.outcome, request.wave, stat, response.meta.data_version),
-                  responseToCsv(response),
-                ),
+                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
             }
           : undefined
 
@@ -413,6 +419,7 @@ export function BreakdownsView() {
                 response={{ ...response, rows: displayRows }}
                 meta={meta.data.meta}
                 csv={csv}
+                exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
               >
                 <SmallMultiples

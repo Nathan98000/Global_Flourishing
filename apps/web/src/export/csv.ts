@@ -104,17 +104,6 @@ export function responseToCsv(response: EstimateResponse): string {
   return `${lines.join('\n')}\n`
 }
 
-/** Mirror of the server's Content-Disposition filename (export.py). */
-export function csvFilename(
-  outcome: string,
-  wave: string,
-  stat: string,
-  dataVersion: string | null,
-): string {
-  const raw = `flourish_${outcome}_${wave}_${stat}_${dataVersion ?? 'nodata'}`
-  return `${raw.replace(/[^A-Za-z0-9._-]/g, '-')}.csv`
-}
-
 export function downloadTextFile(name: string, text: string, type = 'text/csv'): void {
   const url = URL.createObjectURL(new Blob([text], { type }))
   const anchor = document.createElement('a')

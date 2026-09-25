@@ -29,7 +29,8 @@ import { Stat as StatLine } from '../components/Stat'
 import { WordingPanel } from '../components/WordingPanel'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir } from '../sortRows'
@@ -184,6 +185,12 @@ export function StatesView() {
   const title = variable?.display_name ?? search.outcome
   const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
   const weights = `state weights${search.adj ? ', adjusted' : ''}`
+  // What a download is called, in words (ADR-0016).
+  const exportName: ExportName = {
+    measure: title,
+    view: search.adj ? 'By state, adjusted weights' : 'By state',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+  }
   const subtitleBase =
     stat === 'proportion'
       ? levelLabel
@@ -404,15 +411,11 @@ export function StatesView() {
               kind: 'client',
               onDownload: () =>
                 downloadTextFile(
-                  csvFilename(
-                    `${search.outcome}_states${search.adj ? '-adj' : ''}`,
-                    search.wave,
-                    stat,
-                    response.meta.data_version,
-                  ),
+                  exportFilename(exportName, 'csv'),
                   responseToCsv({ ...response, rows: displayRows }),
                 ),
             }}
+            exportName={exportName}
             isRefreshing={states.isPlaceholderData}
             unit="state"
             footnote={nationalNote}

@@ -39,13 +39,14 @@ import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
 import { defaultDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_TITLES, pairTitle } from '../waves'
+import { WAVE_MOMENTS, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
 
@@ -248,16 +249,23 @@ export function ChangeView() {
         pair,
       ].join(' · ')
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
-  const version = response?.meta.data_version ?? null
-  const csvFor = (rows: EstimateRow[], stat: string): CsvExport | undefined =>
+  // What a download is called, in words (ADR-0016): the measure, the
+  // figure ("Change", "Change distribution", "Transitions") and the
+  // waves compared ("2023 to 2024").
+  const nameFor = (view: string): ExportName => ({
+    measure: title,
+    view,
+    waves: [search.from, search.via, search.to]
+      .filter((wave): wave is NonNullable<typeof wave> => wave !== undefined)
+      .map((wave) => WAVE_MOMENTS[wave])
+      .join(' to '),
+  })
+  const csvFor = (rows: EstimateRow[], name: ExportName): CsvExport | undefined =>
     response
       ? {
           kind: 'client',
           onDownload: () =>
-            downloadTextFile(
-              csvFilename(search.outcome, `${search.from}-${search.to}`, stat, version),
-              responseToCsv({ ...response, rows }),
-            ),
+            downloadTextFile(exportFilename(name, 'csv'), responseToCsv({ ...response, rows })),
         }
       : undefined
   const withRows = (rows: EstimateRow[]): EstimateResponse =>
@@ -442,7 +450,8 @@ export function ChangeView() {
             }
             response={withRows(display.rows)}
             meta={meta.data.meta}
-            csv={csvFor(display.rows, isCategorical ? 'change_share' : 'change')}
+            csv={csvFor(display.rows, nameFor('Change'))}
+            exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
           >
             <ChangeDots
@@ -464,7 +473,8 @@ export function ChangeView() {
                 marks="bins"
                 response={withRows(distribution)}
                 meta={meta.data.meta}
-                csv={csvFor(distribution, 'change_distribution')}
+                csv={csvFor(distribution, nameFor('Change distribution'))}
+                exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}
               >
                 <Histogram
@@ -491,7 +501,8 @@ export function ChangeView() {
               marks="table"
               response={withRows(transitions)}
               meta={meta.data.meta}
-              csv={csvFor(transitions, 'transition')}
+              csv={csvFor(transitions, nameFor('Transitions'))}
+              exportName={nameFor('Transitions')}
               isRefreshing={change.isPlaceholderData}
               levelLabel={levelLabel}
             >

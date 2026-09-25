@@ -160,7 +160,8 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'CSV' }).click()
   const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe('flourish_HAPPY_Y1_mean_synthetic.0.0.1.csv')
+  // The name in words (ADR-0016): display name, view, wave — no code, no version.
+  expect(download.suggestedFilename()).toBe('flourish-atlas_happiness_by-country_2023.csv')
 
   const body = await streamToString(download)
   expect(body).toContain('# data_version: synthetic.0.0.1')

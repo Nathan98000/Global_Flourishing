@@ -45,11 +45,6 @@ export function stampLines(stamp: PngStamp): { header: string; footer: string } 
   }
 }
 
-export function pngFilename(title: string, dataVersion: string | null): string {
-  const slug = title.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-  return `flourish_${slug}_${dataVersion ?? 'nodata'}.png`
-}
-
 /** [width, height] from attributes or the viewBox (jsdom-safe). */
 export function svgSize(svg: SVGSVGElement): [number, number] {
   const attr = (name: string) => Number(svg.getAttribute(name)) || 0
@@ -80,10 +75,12 @@ const PAD = 16
 const HEADER = 28
 const FOOTER = 22
 
-/** Browser-only: rasterize and download. Returns false when unsupported. */
+/** Browser-only: rasterize and download under `filename` (see
+ * export/filename.ts). Returns false when unsupported. */
 export async function downloadChartPng(
   svg: SVGSVGElement,
   stamp: PngStamp,
+  filename: string,
   resolve: TokenResolver = documentTokenResolver(),
 ): Promise<boolean> {
   const [width, height] = svgSize(svg)
@@ -117,7 +114,7 @@ export async function downloadChartPng(
     const pngUrl = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = pngUrl
-    anchor.download = pngFilename(stamp.title, stamp.dataVersion)
+    anchor.download = filename
     anchor.click()
     URL.revokeObjectURL(pngUrl)
     return true

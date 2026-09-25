@@ -26,7 +26,8 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { columnLabel, levelDomain, outcomeLevels, scaleSubtitle } from '../labels'
 import { searchNavigation } from '../state/navigate'
 import {
@@ -194,13 +195,16 @@ export function CompareView() {
       rows,
     } as EstimateResponse
   }
-  const csvFor = (response: EstimateResponse, stem: string): CsvExport => ({
+  const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
-    onDownload: () =>
-      downloadTextFile(
-        csvFilename(stem, search.wave, response.meta.stat, response.meta.data_version),
-        responseToCsv(response),
-      ),
+    onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
+  })
+  // What a download is called, in words (ADR-0016).
+  const nameFor = (measure: string): ExportName => ({
+    measure,
+    view: 'Compare',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+    ...(search.by ? { breakdown: columnLabel(search.by, served) } : {}),
   })
   const groupLabel = (column: string, value: string | number) =>
     column === 'outcome' ? outcomeLabel(String(value)) : labeler?.(column, value)
@@ -260,7 +264,7 @@ export function CompareView() {
     outcomes: readonly string[],
     rows: EstimateRow[],
     source: EstimatesManyResult,
-    stem: string,
+    exportName: ExportName,
     bounds: readonly [number, number] | undefined,
   ) => {
     const response = responseFor(rows, outcomes, source)
@@ -276,7 +280,8 @@ export function CompareView() {
         marks="dots"
         response={response}
         meta={served}
-        csv={csvFor(response, stem)}
+        csv={csvFor(response, exportName)}
+        exportName={exportName}
         isRefreshing={source.isPlaceholderData}
         groupLabel={groupLabel}
         levelLabel={(level) =>
@@ -368,7 +373,7 @@ export function CompareView() {
             SFI_DOMAINS,
             domainRows,
             domains,
-            'sfi-domains',
+            nameFor('Six domains of flourishing'),
             measureBounds('mean', firstDomain ?? { min: 0, max: 10 }),
           )}
           {extra &&
@@ -383,7 +388,7 @@ export function CompareView() {
                 [extra.name],
                 extraRows,
                 extraQuery,
-                extra.name,
+                nameFor(extra.display_name),
                 measureBounds(extraStat, extra),
               )
             ))}

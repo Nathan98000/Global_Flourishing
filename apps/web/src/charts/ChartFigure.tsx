@@ -9,6 +9,7 @@ import { useRef, useState } from 'react'
 import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
+import { exportFilename, type ExportName } from '../export/filename'
 import { downloadChartPng } from '../export/png'
 import styles from './ChartFigure.module.css'
 
@@ -62,6 +63,7 @@ export function ChartFigure({
   response,
   meta,
   csv,
+  exportName,
   isRefreshing = false,
   levelLabel,
   groupLabel,
@@ -83,6 +85,9 @@ export function ChartFigure({
   response: EstimateResponse
   meta: Meta
   csv?: CsvExport
+  /** What the PNG download is called, in words (export/filename.ts); the
+   * view's CSV shares it. Absent: the title alone names the file. */
+  exportName?: ExportName
   /** Refetch keeps the frame: previous render held at reduced opacity. */
   isRefreshing?: boolean
   /** Passed through to the data table (see EstimateTable). */
@@ -115,10 +120,11 @@ export function ChartFigure({
       return
     }
     try {
-      const ok = await downloadChartPng(svg, {
-        title,
-        dataVersion: response.meta.data_version,
-      })
+      const ok = await downloadChartPng(
+        svg,
+        { title, dataVersion: response.meta.data_version },
+        exportFilename(exportName ?? { measure: title, view: 'Chart', waves: '' }, 'png'),
+      )
       setPngFailed(!ok)
     } catch {
       setPngFailed(true)

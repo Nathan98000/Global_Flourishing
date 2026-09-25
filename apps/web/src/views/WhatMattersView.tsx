@@ -27,7 +27,8 @@ import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
 import { RadioRow } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { formatEstimate } from '../format'
 import {
   columnLabel,
@@ -46,7 +47,7 @@ import {
 } from '../state/search'
 import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import { matrixCountryOrder, matrixRange, orderMatrixRows, rankingRows } from './whatMattersRows'
 import styles from './AtlasView.module.css'
 
@@ -190,14 +191,22 @@ export function WhatMattersView() {
   const rankingSubtitle = first
     ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}`
     : MIDYEAR_TITLE
-  const csvFor = (response: EstimateResponse, stem: string): CsvExport => ({
+  const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
-    onDownload: () =>
-      downloadTextFile(
-        csvFilename(stem, 'MY', response.meta.stat, response.meta.data_version),
-        responseToCsv(response),
-      ),
+    onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
   })
+  // What a download is called, in words (ADR-0016): the ranking, its
+  // split for one country, or the single item.
+  const rankingName: ExportName = {
+    measure: 'What matters most',
+    view: 'By country',
+    waves: WAVE_CHIPS['MY'] ?? 'MY',
+  }
+  const splitName: ExportName = {
+    ...rankingName,
+    breakdown: columnLabel(search.by, served),
+    ...(search.country !== undefined ? { country: countryName(search.country) } : {}),
+  }
   const rankingResponse = withMeta(
     rankingOrdered,
     rankingQuery.results[0]?.response,
@@ -334,7 +343,8 @@ export function WhatMattersView() {
               marks="table"
               response={rankingResponse}
               meta={served}
-              csv={csvFor(rankingResponse, 'what-matters')}
+              csv={csvFor(rankingResponse, rankingName)}
+              exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
               groupLabel={groupLabel}
             >
@@ -399,7 +409,8 @@ export function WhatMattersView() {
               marks="dots"
               response={splitResponse}
               meta={served}
-              csv={csvFor(splitResponse, `what-matters-${search.country}-${search.by}`)}
+              csv={csvFor(splitResponse, splitName)}
+              exportName={splitName}
               isRefreshing={splitQuery.isPlaceholderData}
               groupLabel={groupLabel}
             >
@@ -479,7 +490,11 @@ export function WhatMattersView() {
               }
               response={{ ...itemResponse, rows: itemRows }}
               meta={served}
-              csv={csvFor({ ...itemResponse, rows: itemRows }, item.name)}
+              csv={csvFor(
+                { ...itemResponse, rows: itemRows },
+                { ...rankingName, measure: item.display_name },
+              )}
+              exportName={{ ...rankingName, measure: item.display_name }}
               isRefreshing={itemQuery.isPlaceholderData}
             >
               <RankedBar
