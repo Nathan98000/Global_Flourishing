@@ -82,10 +82,11 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   (`/v1/meta`, `/v1/variables`, or their static-tier mirrors);
   `default_stat` rides on every variable summary. Two deliberate client-side exceptions:
   the static path computation (mirrors the exporter's naming; a miss
-  falls back to the API — ADR-0009), and the picker's topic *names*
-  (`apps/web/src/topics.ts` — display names for the catalog's family
-  codes, owner decision, design review Sept 2026; the measures under
-  each topic are still the server's). Chart colors are `var(--token)`
+  falls back to the API — ADR-0009), and the picker's topic and
+  subtopic *names* (`apps/web/src/topics.ts` — display names for the
+  catalog's family and `subfamily` codes, owner decisions, design review
+  Sept 2026 and ADR-0016; which measures sit under each topic and
+  subtopic is still the server's). Chart colors are `var(--token)`
   strings from `tokens.css`, never hex in chart code (ADR-0010; scale
   windows fit the data — see its "Revised" section).
 - **The generated client is committed and drift-checked**: after any
