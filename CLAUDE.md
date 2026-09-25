@@ -98,7 +98,8 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
 - **Health endpoint is `/health`, never `/healthz`.** Cloud Run's front end
   intercepts the exact path `/healthz` on `*.run.app` and returns its own 404
   before the container sees the request.
-- Numbers shown to users always carry weight, unweighted n, and CI;
+- Numbers shown to users always carry weight and CI; the unweighted n
+  lives in the data table and the CSV, never in a tooltip (ADR-0016);
   associations, not causes (proposal §4.4).
 
 ## Phases (docs/PROPOSAL.md §7)

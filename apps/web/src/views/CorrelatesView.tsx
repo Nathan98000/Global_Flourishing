@@ -470,12 +470,10 @@ function CountryMatrix({
         return {
           text: formatEstimate(cell.estimate, cell.stat),
           title: muted
-            ? `n = ${formatCount(cell.n)} — too few to rank\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
-            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+            ? `Too few respondents to rank (fewer than ${formatCount(minN ?? 0)})\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
+            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: divergingTint(cell.estimate, extent),
-          hidden: muted
-            ? `, n = ${formatCount(cell.n)}, too few to rank`
-            : `, n = ${formatCount(cell.n)}`,
+          hidden: muted ? ', too few to rank' : undefined,
           muted,
         }
       }}

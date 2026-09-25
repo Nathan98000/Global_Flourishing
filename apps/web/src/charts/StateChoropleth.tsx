@@ -8,7 +8,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import { ciText, formatCount, formatEstimate } from '../format'
+import { ciText, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
 import { mapDomain, quantizeColor } from './mapScale'
 import {
@@ -29,7 +29,7 @@ export function isPooledState(entry: Pick<StateEntry, 'code'>, meta: Meta): bool
 }
 
 /** The tip for one feature: the server's name (a pooled member names its
- * group), the estimate, the interval and the n. */
+ * group), the estimate and the interval; the n lives in the data table. */
 export function stateTipText(entry: StateEntry, meta: Meta): string {
   const where =
     entry.code && isPooledState(entry, meta)
@@ -41,7 +41,6 @@ export function stateTipText(entry: StateEntry, meta: Meta): string {
   const row = entry.row
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${where}`]
   if (row.ci_lo !== null && row.ci_hi !== null) lines.push(ciText(row))
-  lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
 

@@ -28,7 +28,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
 import { RadioRow } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { formatCount, formatEstimate } from '../format'
+import { formatEstimate } from '../format'
 import {
   columnLabel,
   groupValueLabel,
@@ -532,9 +532,8 @@ function ImportanceMatrix({
         if (!cell) return undefined
         return {
           text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+          title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: cell.estimate === null ? 'transparent' : tint(cell.estimate),
-          hidden: `, n = ${formatCount(cell.n)}`,
         }
       }}
     />

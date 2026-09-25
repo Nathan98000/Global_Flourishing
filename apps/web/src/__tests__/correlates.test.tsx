@@ -288,7 +288,7 @@ describe('Correlates view', () => {
         .map((th) => th.textContent),
     ).toEqual(['Loneliness', 'Service attendance'])
     const cells = within(table).getAllByRole('cell')
-    expect(cells.map((cell) => cell.textContent?.replace(/, n = .*/, ''))).toEqual([
+    expect(cells.map((cell) => cell.textContent?.replace(/, too few to rank$/, ''))).toEqual([
       '−0.52',
       '−0.40',
       '+0.31',
@@ -301,7 +301,8 @@ describe('Correlates view', () => {
     // and its tooltip says why.
     expect(cells[3]?.getAttribute('style')).toBeNull()
     expect(cells[3]?.className).toContain('cellMuted')
-    expect(cells[3]?.getAttribute('title')).toContain('n = 7 — too few to rank')
+    expect(cells[3]?.getAttribute('title')).toContain('Too few respondents to rank (fewer than ')
+    expect(cells[3]?.getAttribute('title')).not.toContain('n =')
     expect(cells[3]?.textContent).toContain('too few to rank')
     // The caption is plain words, above the scrolling table.
     expect(
@@ -496,8 +497,8 @@ describe('correlates helpers', () => {
   test('point estimates say so in tooltips and footnotes; signed formatting', () => {
     const plain = plainRow('LONELY', -0.52)
     expect(tipText(plain, 'Loneliness')).toContain('no interval is computed')
-    // The n rides in every tip; the weight's column name never does.
-    expect(tipText(plain, 'Loneliness')).toContain('n = 54')
+    // Neither the n (it lives in the data table) nor the weight's column name.
+    expect(tipText(plain, 'Loneliness')).not.toContain('n =')
     expect(tipText(plain, 'Loneliness')).not.toContain('w_c1')
     // The footnote's noun follows the statistic without an interval.
     expect(footnoteCopy({ ...rankedPlain.meta, stat: 'quantile' }, 'dots', false)).toContain(
@@ -526,13 +527,13 @@ describe('correlates helpers', () => {
         ]}
         cellAt={(_row, column) =>
           column.key === 'x'
-            ? { text: '+0.10', title: 'tip', tint: 'var(--div-500)', hidden: ', n = 7' }
+            ? { text: '+0.10', title: 'tip', tint: 'var(--div-500)', hidden: ', too few to rank' }
             : undefined
         }
       />,
     )
     const cells = screen.getAllByRole('cell')
-    expect(cells.map((cell) => cell.textContent)).toEqual(['+0.10, n = 7', '—'])
+    expect(cells.map((cell) => cell.textContent)).toEqual(['+0.10, too few to rank', '—'])
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-500)')
     const row: EstimateRow = plainRow('LONELY', 0.2)
     expect(row.ci_method).toBe('none')

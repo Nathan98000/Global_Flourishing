@@ -541,7 +541,9 @@ describe('change chart helpers', () => {
     )
     expect(screen.getAllByText('70.0%')).toHaveLength(2)
     expect(screen.getAllByText('30.0%')).toHaveLength(2)
-    expect(screen.getAllByText(/n = 30/)).toHaveLength(4)
+    // The interval rides in the tooltip; the n lives in the data table.
+    expect(screen.queryAllByText(/n = 30/)).toHaveLength(0)
+    expect(screen.getAllByTitle(/95% CI \[/)).toHaveLength(4)
     expect(screen.getByRole('rowheader', { name: 'Yes' })).toBeInTheDocument()
   })
 

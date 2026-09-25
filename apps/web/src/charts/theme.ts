@@ -7,7 +7,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciText, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
+import { ciText, formatEstimate, isShareChangeStat, isShareStat } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
@@ -177,9 +177,10 @@ export function axisLabel(
   return `${stat}${range}${note ? ` · ${note}` : ''}`
 }
 
-/** Tooltip text: value leads, context follows. A missing interval says
- * why: none is computed for the statistic (a plain correlation), or no
- * SE was computable (a single sampling unit — read the n). */
+/** Tooltip text: value leads, the interval follows — never the n, which
+ * lives in the data table (ADR-0016). A missing interval says why: none
+ * is computed for the statistic (a plain correlation), or no SE was
+ * computable (a single sampling unit). */
 export function tipText(row: EstimateRow, label: string): string {
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
   if (hasCI(row)) {
@@ -189,8 +190,6 @@ export function tipText(row: EstimateRow, label: string): string {
   } else {
     lines.push('no interval (single sampling unit)')
   }
-  // The n, never the weight's column name (the figure names the weight once).
-  lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
 

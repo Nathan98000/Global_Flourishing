@@ -200,15 +200,15 @@ describe('the states topology', () => {
     const outlined = svg?.querySelector('g[stroke-dasharray]')
     expect(outlined?.querySelectorAll('path').length).toBe(4)
     // Tips name the state as the server does, pooled groups in full,
-    // with the interval and the n (Plot renders tips on hover, so the
-    // text is checked through the function the mark uses).
+    // with the interval and never the n (Plot renders tips on hover, so
+    // the text is checked through the function the mark uses).
     const { entries } = joinStates(statesResponse.rows, features)
     const tip = (name: string) =>
       stateTipText(
         entries.find((entry) => entry.name === name) as (typeof entries)[number],
         testMeta,
       )
-    expect(tip('California')).toBe('7.10  California\n95% CI [7.00, 7.20]\nn = 1,204')
+    expect(tip('California')).toBe('7.10  California\n95% CI [7.00, 7.20]')
     expect(tip('Maine')).toContain('Maine — Maine, New Hampshire, Rhode Island & Vermont (pooled)')
     expect(tip('Ohio')).toBe('Ohio\nno estimate')
   })

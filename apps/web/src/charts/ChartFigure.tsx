@@ -47,11 +47,9 @@ export function footnoteCopy(
         ? `Hover a cell for its ${level}% confidence interval`
         : `Lines are ${level}% confidence intervals`
   const where =
-    marks === 'state-map'
+    marks === 'state-map' || marks === 'table'
       ? 'n in the data table'
-      : marks === 'table'
-        ? 'n in every cell and in the data table'
-        : 'n shown per row in the data table'
+      : 'n shown per row in the data table'
   return `${interval} · weighted so each ${unit}'s sample stands for its adult population · ${where}.`
 }
 
