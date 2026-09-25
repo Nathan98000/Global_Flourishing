@@ -270,6 +270,10 @@ export function ChangeView() {
       : undefined
   const withRows = (rows: EstimateRow[]): EstimateResponse =>
     response ? { ...response, rows } : { meta: meta.data.meta as never, rows }
+  // The lede's years come from the supported pair, never from literals:
+  // if the only pair ever changes, the lede follows.
+  const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
+  const ledeYears = `${WAVE_MOMENTS[ledePair.from]} to ${WAVE_MOMENTS[ledePair.to]}`
 
   const displayOptions = (
     <>
@@ -318,10 +322,12 @@ export function ChangeView() {
       <h2 className="visually-hidden">Change</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          How the same people answered a year later. Each number is the average change within one
-          country&rsquo;s respondents who answered both times, with its margin of error.
+          How the same people&rsquo;s answers changed from {ledeYears}, country by country, among
+          those who answered both years.
         </span>
-        <span className={styles.deckShort}>How the same people answered a year later.</span>
+        <span className={styles.deckShort}>
+          How the same people&rsquo;s answers changed from {ledeYears}.
+        </span>
       </p>
       <InvalidParamsNotice
         invalid={search.invalid}

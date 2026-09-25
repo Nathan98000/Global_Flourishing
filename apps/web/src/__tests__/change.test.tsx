@@ -253,9 +253,11 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/Y1/mean_by-country_code'))).toBe(false)
     // Plain-words copy, wave into the subtitle, sign on every change;
     // the estimate and its interval are still on the page.
-    expect(screen.getAllByText(/How the same people answered a year later/).length).toBeGreaterThan(
-      0,
-    )
+    // The lede states the years of the supported pair, never a "margin of error".
+    expect(
+      screen.getAllByText(/How the same people’s answers changed from 2023 to 2024/).length,
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/margin of error/)).toBeNull()
     expect(
       within(figure.closest('figure') as HTMLElement).getByText(/2023 → 2024/),
     ).toBeInTheDocument()
