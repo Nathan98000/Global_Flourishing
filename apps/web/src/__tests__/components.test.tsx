@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError, NetworkError } from '../api/errors'
 import { CountryFilter } from '../components/controls/CountryFilter'
+import { RadioRow, SELECT_ABOVE } from '../components/controls/RadioRow'
 import { ErrorState } from '../components/ErrorState'
 import { EstimateTable } from '../components/EstimateTable'
 import { Stat } from '../components/Stat'
@@ -114,6 +115,48 @@ describe('EstimateTable', () => {
     render(<EstimateTable response={response} meta={testMeta} />)
     expect(screen.getByRole('columnheader', { name: 'Level' })).toBeInTheDocument()
     expect(screen.getByText('5.0%')).toBeInTheDocument()
+  })
+})
+
+describe('RadioRow', () => {
+  const answers = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({ value: String(i + 1), label: `Answer ${i + 1}` }))
+
+  test('up to six options stay a segmented radio group', () => {
+    render(
+      <RadioRow
+        legend="Answer level"
+        name="level"
+        options={answers(SELECT_ABOVE)}
+        value="2"
+        onChange={() => undefined}
+      />,
+    )
+    expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(6)
+    expect(screen.getByRole('radio', { name: 'Answer 2' })).toBeChecked()
+  })
+
+  test('above six options the group is a compact select: same label, same values (ADR-0016)', () => {
+    const onChange = vi.fn()
+    render(
+      <RadioRow
+        legend="Answer level"
+        name="level"
+        options={answers(SELECT_ABOVE + 1)}
+        value="2"
+        onChange={onChange}
+      />,
+    )
+    expect(screen.queryByRole('radio')).toBeNull()
+    const select = screen.getByLabelText('Answer level')
+    expect(select.tagName).toBe('SELECT')
+    expect(select).toHaveValue('2')
+    expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual(
+      answers(7).map((o) => o.value),
+    )
+    fireEvent.change(select, { target: { value: '7' } })
+    expect(onChange).toHaveBeenCalledWith('7')
   })
 })
 
