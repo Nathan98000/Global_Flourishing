@@ -42,6 +42,8 @@ class VariableInfo:
     """The slice of a catalog row the query layer needs."""
 
     name: str
+    #: the catalog's display name — what a download is named after (ADR-0016)
+    display_name: str
     scale_type: str
     direction: str
     #: which end of the coded scale is the most of the named thing
@@ -51,6 +53,8 @@ class VariableInfo:
     max: int | None
     waves: tuple[str, ...]
     is_derived: bool
+    #: the family's subtopic code, None where the family has none (ADR-0016)
+    subfamily: str | None = None
 
 
 @dataclass
@@ -70,6 +74,7 @@ class Catalog:
         self._servable = {
             str(row["name"]): VariableInfo(
                 name=str(row["name"]),
+                display_name=str(row["display_name"]),
                 scale_type=str(row["scale_type"]),
                 direction=str(row["direction"]),
                 # A bake older than the polarity column (ADR-0015) still
@@ -80,12 +85,14 @@ class Catalog:
                 max=row["max"],
                 waves=tuple(row["waves_available"]),
                 is_derived=False,
+                subfamily=None if row.get("subfamily") is None else str(row["subfamily"]),
             )
             for row in servable.iter_rows(named=True)
         }
         for name, derived in DERIVED_OUTCOMES.items():
             self._servable[name] = VariableInfo(
                 name=name,
+                display_name=derived.display_name,
                 scale_type=derived.scale_type,
                 direction=derived.direction,
                 polarity="ascending",

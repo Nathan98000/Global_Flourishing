@@ -9,6 +9,7 @@ import { useRef, useState } from 'react'
 import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
+import { exportFilename, type ExportName } from '../export/filename'
 import { downloadChartPng } from '../export/png'
 import styles from './ChartFigure.module.css'
 
@@ -20,7 +21,7 @@ export function capitalize(text: string): string {
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
-export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'state-map' | 'table'
+export type ChartMarks = 'dots' | 'bars' | 'bins' | 'state-map' | 'table'
 
 /** The footnote under every chart (round-2 item 7): what the lines are
  * — 95% confidence intervals, the level from the response — the
@@ -41,19 +42,15 @@ export function footnoteCopy(
     ? marks === 'table'
       ? `Cells are point estimates — no confidence interval is computed for ${noun}`
       : `Dots are point estimates — no confidence interval is computed for ${noun}`
-    : marks === 'map'
-      ? `Hover a country for its ${level}% confidence interval`
-      : marks === 'state-map'
-        ? `Hover a state for its ${level}% confidence interval`
-        : marks === 'table'
-          ? `Hover a cell for its ${level}% confidence interval`
-          : `Lines are ${level}% confidence intervals`
-  const where =
-    marks === 'map' || marks === 'state-map'
-      ? 'n in the data table'
+    : marks === 'state-map'
+      ? `Hover a state for its ${level}% confidence interval`
       : marks === 'table'
-        ? 'n in every cell and in the data table'
-        : 'n shown per row in the data table'
+        ? `Hover a cell for its ${level}% confidence interval`
+        : `Lines are ${level}% confidence intervals`
+  const where =
+    marks === 'state-map' || marks === 'table'
+      ? 'n in the data table'
+      : 'n shown per row in the data table'
   return `${interval} · weighted so each ${unit}'s sample stands for its adult population · ${where}.`
 }
 
@@ -66,6 +63,7 @@ export function ChartFigure({
   response,
   meta,
   csv,
+  exportName,
   isRefreshing = false,
   levelLabel,
   groupLabel,
@@ -87,6 +85,9 @@ export function ChartFigure({
   response: EstimateResponse
   meta: Meta
   csv?: CsvExport
+  /** What the PNG download is called, in words (export/filename.ts); the
+   * view's CSV shares it. Absent: the title alone names the file. */
+  exportName?: ExportName
   /** Refetch keeps the frame: previous render held at reduced opacity. */
   isRefreshing?: boolean
   /** Passed through to the data table (see EstimateTable). */
@@ -119,10 +120,11 @@ export function ChartFigure({
       return
     }
     try {
-      const ok = await downloadChartPng(svg, {
-        title,
-        dataVersion: response.meta.data_version,
-      })
+      const ok = await downloadChartPng(
+        svg,
+        { title },
+        exportFilename(exportName ?? { measure: title, view: 'Chart', waves: '' }, 'png'),
+      )
       setPngFailed(!ok)
     } catch {
       setPngFailed(true)

@@ -274,14 +274,10 @@ describe('What Matters view', () => {
         .map((th) => th.textContent),
     ).toEqual(['Testland', 'United States'])
     const cells = within(matrix).getAllByRole('cell')
-    expect(cells.map((cell) => cell.textContent?.replace(/, n = .*/, ''))).toEqual([
-      '6.00',
-      '7.00',
-      '7.00',
-      '8.00',
-    ])
-    expect(cells[0]?.getAttribute('title')).toContain('95% CI')
-    expect(cells[0]?.getAttribute('title')).toContain('n = 1,204')
+    expect(cells.map((cell) => cell.textContent)).toEqual(['6.00', '7.00', '7.00', '8.00'])
+    // The interval in brackets; the n lives in the data table (ADR-0016).
+    expect(cells[0]?.getAttribute('title')).toContain('95% CI [')
+    expect(cells[0]?.getAttribute('title')).not.toContain('n =')
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-')
     expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
     // The number wears the ink its tint step names (light ink on the

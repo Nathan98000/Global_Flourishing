@@ -83,6 +83,69 @@ export function topicsOf(variables: VariableSummary[]): Topic[] {
   }))
 }
 
+// --- Subtopics (ADR-0016) ----------------------------------------------------
+// Display names for the catalog's subfamily codes (owner decision, 25 Sept
+// 2026) — navigation copy like the topic names above. Which measures
+// belong to which subtopic is the server's: `subfamily` rides on every
+// variable summary. A code this map doesn't know falls back to a
+// prettified code and sorts last, like an unknown family.
+
+const SUBTOPIC_NAMES: Record<string, string> = {
+  affiliation: 'Religious affiliation',
+  beliefs: 'Beliefs & experiences',
+  practice: 'Religious practice',
+  daily_life: 'Religion in daily life',
+  teachings: 'Importance of teachings, by tradition',
+  teachings_country: "Importance of the country's main religion",
+}
+
+const SUBTOPIC_ORDER = Object.keys(SUBTOPIC_NAMES)
+
+export function subtopicName(code: string): string {
+  const named = SUBTOPIC_NAMES[code]
+  if (named) return named
+  const pretty = code.replace(/_/g, ' ')
+  return pretty.charAt(0).toUpperCase() + pretty.slice(1)
+}
+
+export interface Subtopic {
+  /** The catalog's subfamily code; '' for a topic's measures without one. */
+  code: string
+  name: string
+  measures: VariableSummary[]
+}
+
+/** A topic's subtopics, owner order first, unknown codes after (A–Z),
+ * each holding its measures A–Z. Empty when no measure of the topic
+ * carries a subfamily, so a topic without subtopics renders unchanged;
+ * in a topic that has them, a measure without one lists last under
+ * "Other". */
+export function subtopicsOf(measures: readonly VariableSummary[]): Subtopic[] {
+  const byCode = new Map<string, VariableSummary[]>()
+  for (const measure of measures) {
+    const code = measure.subfamily ?? ''
+    const bucket = byCode.get(code) ?? []
+    bucket.push(measure)
+    byCode.set(code, bucket)
+  }
+  if ([...byCode.keys()].every((code) => code === '')) return []
+  const codes = [...byCode.keys()].sort((a, b) => {
+    if (a === '') return 1
+    if (b === '') return -1
+    const ia = SUBTOPIC_ORDER.indexOf(a)
+    const ib = SUBTOPIC_ORDER.indexOf(b)
+    if (ia === -1 && ib === -1) return a.localeCompare(b)
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+    return ia - ib
+  })
+  return codes.map((code) => ({
+    code,
+    name: code ? subtopicName(code) : 'Other',
+    measures: (byCode.get(code) ?? []).sort((a, b) => a.display_name.localeCompare(b.display_name)),
+  }))
+}
+
 // --- What Matters (Phase 5) --------------------------------------------------
 // Navigation copy for the midyear family: which of its items form the
 // ranking. Codes only — every display name, wording and value label

@@ -38,6 +38,43 @@ def test_sfi_membership_is_exactly_twelve() -> None:
     assert all(v.family == "sfi" for v in sfi.values())
 
 
+def test_religion_subtopics_pin_the_membership() -> None:
+    """The Religion & spirituality family is the one with subtopics (the
+    picker's second step — ADR-0016): every one of its 45 items carries a
+    subfamily code, no other family carries any, and the six groups hold
+    9 / 5 / 4 / 5 / 15 / 7 items."""
+    overrides = load_overrides()
+    religion = {n: v for n, v in overrides.variables.items() if v.family == "religion"}
+    assert len(religion) == 45
+    assert all(v.subfamily is not None for v in religion.values())
+    assert all(v.subfamily is None for v in overrides.variables.values() if v.family != "religion")
+    counts = {
+        code: sum(v.subfamily == code for v in religion.values())
+        for code in (
+            "affiliation",
+            "beliefs",
+            "practice",
+            "daily_life",
+            "teachings",
+            "teachings_country",
+        )
+    }
+    assert counts == {
+        "affiliation": 9,
+        "beliefs": 5,
+        "practice": 4,
+        "daily_life": 5,
+        "teachings": 15,
+        "teachings_country": 7,
+    }
+    assert {n for n, v in religion.items() if v.subfamily == "affiliation"} == {
+        f"REL{i}" for i in range(1, 10)
+    }
+    assert {n for n, v in religion.items() if v.subfamily == "teachings_country"} == {
+        n for n in religion if n.startswith("CNTRY_REL_")
+    }
+
+
 def test_no_draft_variables_remain() -> None:
     # All 169 + 13 variables were reviewed by hand (the last six on
     # 2026-09-10); a new codebook entry starts as draft and must be

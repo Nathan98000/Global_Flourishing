@@ -1,6 +1,6 @@
 // Bundle budget (§2.10): the initial route — every asset index.html
-// loads up front — must stay ≤ 250 kB gzipped. The map, its topology
-// and marked live in lazy chunks and are reported but not counted.
+// loads up front — must stay ≤ 250 kB gzipped. The US States map, its
+// topology and marked live in lazy chunks and are reported but not counted.
 // Exits 1 over budget; CI fails on it.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'

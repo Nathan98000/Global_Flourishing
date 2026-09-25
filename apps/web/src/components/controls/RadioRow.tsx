@@ -2,11 +2,18 @@
 // full keyboard support, no dead options (unavailable ones say why).
 // Under 40rem the row becomes an even grid so no option is orphaned on
 // its own line; a group with long labels can opt into rendering as a
-// native <select> under 30rem instead (§8).
+// native <select> under 30rem instead (§8). Above SELECT_ABOVE options
+// (a long answer list — Current religion has 17) the group is a compact
+// native <select> at every width, with the same label, values and URL
+// param, so it never overflows the page or wraps into tall cells
+// (ADR-0016).
 
 import type { CSSProperties } from 'react'
 import { SELECT_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import styles from './RadioRow.module.css'
+
+/** More options than this and the group renders as a native select. */
+export const SELECT_ABOVE = 6
 
 export interface RadioOption<T extends string> {
   value: T
@@ -34,7 +41,8 @@ export function RadioRow<T extends string>({
   /** Labels too long for thirds of a phone: a native select under 30rem. */
   selectOnNarrow?: boolean
 }) {
-  const asSelect = useMediaQuery(SELECT_VIEWPORT) && selectOnNarrow
+  const narrow = useMediaQuery(SELECT_VIEWPORT)
+  const asSelect = options.length > SELECT_ABOVE || (narrow && selectOnNarrow)
   if (asSelect) {
     return (
       <label className={styles.fieldset}>

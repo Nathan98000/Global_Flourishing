@@ -20,3 +20,5 @@ it.
 | [ADR-0012](ADR-0012-visual-identity.md) | Visual identity — warm paper, serif structure, quiet controls | Accepted |
 | [ADR-0013](ADR-0013-phase-5-serving-and-display.md) | Phase 5 — API-only views, a progress affordance that is not a spinner, retention kept off the screen | Accepted |
 | [ADR-0014](ADR-0014-adjusted-associations.md) | Phase 6 — adjusted associations on numpy, the `svyglm` sandwich, a fixed control set, ranked correlations without intervals | Accepted |
+| [ADR-0015](ADR-0015-label-aligned-signs-and-display-rules.md) | Signed statistics follow the label; categorical change in share; a ranking floor; binned derived scores | Accepted |
+| [ADR-0016](ADR-0016-home-page-design-pass.md) | The home-page design pass — no world map, interval-only tooltips, no orient checkbox, scale endpoints, server-owned subtopics | Accepted |

@@ -7,7 +7,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciLabel, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
+import { ciText, formatEstimate, isShareChangeStat, isShareStat } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
@@ -153,20 +153,14 @@ export function hasCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi'>): boolean {
   return row.ci_lo !== null && row.ci_hi !== null
 }
 
-/** Axis annotation for scale direction — never silently flipped. */
-export function directionNote(direction: string, oriented: boolean): string {
-  if (direction === 'higher_better') return 'higher is better'
-  if (direction === 'lower_better')
-    return oriented ? 'reversed so higher is better' : 'lower is better'
-  return ''
-}
-
+/** The axis names the statistic and the range; the subtitle names the
+ * scale's endpoints (labels.ts scaleSubtitle) — never "higher is
+ * better" (ADR-0016). */
 export function axisLabel(
-  variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
-  responseMeta: Pick<ResponseMeta, 'stat' | 'oriented'>,
+  variable: Pick<VariableSummary, 'min' | 'max'>,
+  responseMeta: Pick<ResponseMeta, 'stat'>,
   levelLabel?: string,
 ): string {
-  const note = directionNote(variable.direction, responseMeta.oriented)
   if (responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution') {
     const of = levelLabel ? ` of “${levelLabel}”` : ''
     return `Weighted share${of} (%)`
@@ -174,25 +168,22 @@ export function axisLabel(
   const range =
     variable.min !== null && variable.max !== null ? ` (${variable.min}–${variable.max})` : ''
   const stat = responseMeta.stat === 'quantile' ? 'Median' : 'Weighted mean'
-  return `${stat}${range}${note ? ` · ${note}` : ''}`
+  return `${stat}${range}`
 }
 
-/** Tooltip text: value leads, context follows. A missing interval says
- * why: none is computed for the statistic (a plain correlation), or no
- * SE was computable (a single sampling unit — read the n). */
+/** Tooltip text: value leads, the interval follows — never the n, which
+ * lives in the data table (ADR-0016). A missing interval says why: none
+ * is computed for the statistic (a plain correlation), or no SE was
+ * computable (a single sampling unit). */
 export function tipText(row: EstimateRow, label: string): string {
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
   if (hasCI(row)) {
-    lines.push(
-      `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
-    )
+    lines.push(ciText(row))
   } else if (row.ci_method === 'none') {
     lines.push('point estimate — no interval is computed for this statistic')
   } else {
     lines.push('no interval (single sampling unit)')
   }
-  // The n, never the weight's column name (the figure names the weight once).
-  lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
 

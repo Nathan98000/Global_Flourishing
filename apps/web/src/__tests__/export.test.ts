@@ -1,8 +1,9 @@
-// PNG serializer (token inlining, stamping, naming) and CSV helpers.
+// PNG serializer (token inlining, stamping), the download names and CSV helpers.
 
 import { describe, expect, test } from 'vitest'
-import { csvFilename, responseToCsv } from '../export/csv'
-import { inlineTokenColors, pngFilename, serializeSvg, stampLines } from '../export/png'
+import { responseToCsv } from '../export/csv'
+import { exportFilename, slugify } from '../export/filename'
+import { CITATION_LINE, inlineTokenColors, serializeSvg, stampLines } from '../export/png'
 import { testResponse, testRow } from '../test-utils/fixtures'
 
 const RESOLVE: Record<string, string> = {
@@ -35,26 +36,59 @@ describe('PNG export', () => {
     expect(div.innerHTML).toContain('fill="none"')
   })
 
-  test('the stamp names the chart, the data version and the DOI', () => {
-    const { header, footer } = stampLines({ title: 'Happiness — Wave 1', dataVersion: '2025.1' })
+  test('the stamp names the chart; the footer is the citation line alone (ADR-0016)', () => {
+    const { header, footer } = stampLines({ title: 'Happiness — Wave 1' })
     expect(header).toBe('Happiness — Wave 1')
-    expect(footer).toContain('data 2025.1')
+    expect(footer).toBe(CITATION_LINE)
     expect(footer).toContain('doi.org/10.17605/OSF.IO/3JTZ8')
+    expect(footer).not.toMatch(/data /)
+  })
+})
+
+describe('download names (ADR-0016)', () => {
+  test('one rule for CSV and PNG: measure, view, waves, then the optional parts, in words', () => {
+    expect(
+      exportFilename(
+        { measure: 'Has someone to confide in', view: 'Change', waves: '2023 to 2024' },
+        'csv',
+      ),
+    ).toBe('flourish-atlas_has-someone-to-confide-in_change_2023-to-2024.csv')
+    expect(
+      exportFilename(
+        { measure: 'Secure Flourishing Index', view: 'By country', waves: '2023' },
+        'png',
+      ),
+    ).toBe('flourish-atlas_secure-flourishing-index_by-country_2023.png')
+    expect(
+      exportFilename(
+        { measure: 'Happiness', view: 'By country', waves: '2023', breakdown: 'Age band' },
+        'csv',
+      ),
+    ).toBe('flourish-atlas_happiness_by-country_2023_by-age-band.csv')
+    expect(
+      exportFilename(
+        { measure: 'Happiness', view: 'Correlates', waves: '2024', country: 'Türkiye' },
+        'csv',
+      ),
+    ).toBe('flourish-atlas_happiness_correlates_2024_turkiye.csv')
   })
 
-  test('filenames are safe and versioned', () => {
-    expect(pngFilename('Happiness — Wave 1 (2023)', '2025.1')).toBe(
-      'flourish_Happiness-Wave-1-2023_2025.1.png',
+  test('the server CSV name is the same string (export.py pins this example too)', () => {
+    expect(exportFilename({ measure: 'Happiness', view: 'By country', waves: '2023' }, 'csv')).toBe(
+      'flourish-atlas_happiness_by-country_2023.csv',
     )
+  })
+
+  test('slugs are lowercase ASCII with diacritics stripped, never codes or versions', () => {
+    expect(slugify('Türkiye')).toBe('turkiye')
+    expect(slugify("Importance of the country's main religion")).toBe(
+      'importance-of-the-countrys-main-religion',
+    )
+    expect(slugify('  Beliefs & experiences ')).toBe('beliefs-experiences')
   })
 })
 
 describe('CSV helpers', () => {
-  test('the filename mirrors the server rule (export.py)', () => {
-    expect(csvFilename('HAPPY', 'Y1', 'mean', '2025.1')).toBe('flourish_HAPPY_Y1_mean_2025.1.csv')
-    expect(csvFilename('sfi', 'Y2', 'quantile', null)).toBe('flourish_sfi_Y2_quantile_nodata.csv')
-  })
-
   test('quoting matches the csv module (commas and quotes)', () => {
     const response = testResponse([testRow({ group: { country_code: 1 }, weight: 'w_c1' })])
     response.meta.by = ['country_code']

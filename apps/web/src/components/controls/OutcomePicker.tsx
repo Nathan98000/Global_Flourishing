@@ -3,11 +3,14 @@
 // a measure select holding only that topic's items — plus a search
 // field ("Search all {n} measures") that matches name, display name and
 // question wording and selects a measure directly, setting the topic to
-// match. Native controls only; the search results are plain buttons.
+// match. A topic with subtopics (the server's `subfamily`, ADR-0016) gets
+// a third step between the two: a Subtopic select that defaults to the
+// current measure's subtopic and narrows the Measure list to it. Native
+// controls only; the search results are plain buttons.
 
 import { useId, useMemo, useState } from 'react'
 import type { VariableSummary } from '../../api/types'
-import { topicsOf } from '../../topics'
+import { subtopicsOf, topicsOf } from '../../topics'
 import styles from './OutcomePicker.module.css'
 
 export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
@@ -43,7 +46,11 @@ export function OutcomePicker({
   fields?: 'all' | 'measure' | 'topic-and-search'
 }) {
   const [query, setQuery] = useState('')
+  // A subtopic chosen mid-selection (no measure picked yet) — local, like
+  // the search query, and keyed by its topic so a topic change drops it.
+  const [picked, setPicked] = useState<{ topic: string; code: string } | null>(null)
   const topicId = useId()
+  const subtopicId = useId()
   const measureId = useId()
   const searchId = useId()
 
@@ -51,7 +58,24 @@ export function OutcomePicker({
   const current = variables.find((variable) => variable.name === value)
   const activeTopic = topic ?? current?.family
   const active = topics.find((entry) => entry.family === activeTopic)
-  const measureValue = current && current.family === activeTopic ? current.name : ''
+  const subtopics = useMemo(() => (active ? subtopicsOf(active.measures) : []), [active])
+  const inTopic = current !== undefined && current.family === activeTopic
+  const activeSubtopic =
+    subtopics.length === 0
+      ? undefined
+      : picked && picked.topic === activeTopic
+        ? picked.code
+        : inTopic
+          ? (current.subfamily ?? '')
+          : subtopics[0]?.code
+  const measures =
+    activeSubtopic === undefined
+      ? (active?.measures ?? [])
+      : (subtopics.find((entry) => entry.code === activeSubtopic)?.measures ?? [])
+  const measureValue =
+    inTopic && (activeSubtopic === undefined || (current.subfamily ?? '') === activeSubtopic)
+      ? current.name
+      : ''
   const servableCount = useMemo(
     () => variables.filter((variable) => variable.servable).length,
     [variables],
@@ -60,6 +84,7 @@ export function OutcomePicker({
 
   const pick = (name: string) => {
     setQuery('')
+    setPicked(null)
     onSelect({ outcome: name })
   }
 
@@ -89,6 +114,25 @@ export function OutcomePicker({
           </select>
         </div>
       )}
+      {fields !== 'topic-and-search' && subtopics.length > 0 && activeTopic !== undefined && (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={subtopicId}>
+            Subtopic
+          </label>
+          <select
+            id={subtopicId}
+            className={styles.select}
+            value={activeSubtopic}
+            onChange={(event) => setPicked({ topic: activeTopic, code: event.target.value })}
+          >
+            {subtopics.map((entry) => (
+              <option key={entry.code} value={entry.code}>
+                {entry.name} ({entry.measures.length})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {fields !== 'topic-and-search' && (
         <div className={styles.field}>
           <label className={styles.label} htmlFor={measureId}>
@@ -107,7 +151,7 @@ export function OutcomePicker({
                 Choose a measure…
               </option>
             )}
-            {(active?.measures ?? []).map((option) => (
+            {measures.map((option) => (
               <option key={option.name} value={option.name}>
                 {option.display_name}
               </option>

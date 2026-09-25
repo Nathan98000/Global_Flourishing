@@ -4,7 +4,9 @@
   font-size: var(--text-deck);
   line-height: 1.45;
   max-width: 34rem;
-  margin: 0 0 var(--space-7);
+  /* Close above the controls (ADR-0016): the same --space-5 step the
+     Codebook deck uses, so every view's lede sits the same way. */
+  margin: 0 0 var(--space-5);
 }
 
 /* The count carries the fact; it reads in ink (§6). */
@@ -117,7 +119,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-4);
-  margin: calc(-1 * var(--space-5)) 0 var(--space-6);
+  margin: calc(-1 * var(--space-3)) 0 var(--space-5);
   font-size: var(--text-sm);
 }
 

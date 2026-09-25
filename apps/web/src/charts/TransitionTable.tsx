@@ -1,6 +1,6 @@
 // The tinted matrix (Phase 5, generalised in Phase 6): a small heatmap
 // table whose cells carry a number over a token-only tint, with the CI
-// and n in the tooltip and in the data table beneath the figure
+// in the tooltip and the n in the data table beneath the figure
 // (ADR-0011: every cell is shown). `HeatTable` is the matrix itself —
 // row keys, column keys, one cell lookup — and `TransitionTable` is the
 // transition matrix of an ordinal/nominal item built on it: rows are the
@@ -12,7 +12,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { EstimateRow } from '../api/types'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { ciText, formatEstimate } from '../format'
 import styles from './TransitionTable.module.css'
 
 export interface TransitionCell {
@@ -58,9 +58,7 @@ export function cellTint(share: number | null): string {
 
 /** The interval clause of a cell's tooltip: the CI, or why there is none. */
 export function intervalText(row: EstimateRow): string {
-  if (row.ci_lo !== null && row.ci_hi !== null) {
-    return `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`
-  }
+  if (row.ci_lo !== null && row.ci_hi !== null) return ciText(row)
   return row.ci_method === 'none'
     ? 'point estimate — no interval is computed for this statistic'
     : 'no interval (single sampling unit)'
@@ -69,11 +67,11 @@ export function intervalText(row: EstimateRow): string {
 export interface HeatCell {
   /** The number in the cell (formatted by the caller). */
   text: string
-  /** The tooltip: value, context, interval, n. */
+  /** The tooltip: value, context, interval (never the n — ADR-0016). */
   title: string
   /** A token-only background (`var(--…)` or a color-mix of one). */
   tint: string
-  /** Read by assistive tech after the number (the n, typically). */
+  /** Read by assistive tech after the number (a floor note, typically). */
   hidden?: string
   /** Too few cases to rank: untinted, in muted ink (the tooltip says why). */
   muted?: boolean
@@ -223,9 +221,8 @@ export function TransitionTable({
         if (!cell) return undefined
         return {
           text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)} of those who first said “${from.label}” later said “${to.label}”\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+          title: `${formatEstimate(cell.estimate, cell.stat)} of those who first said “${from.label}” later said “${to.label}”\n${intervalText(cell)}`,
           tint: cellTint(cell.estimate),
-          hidden: `, n = ${formatCount(cell.n)}`,
         }
       }}
     />

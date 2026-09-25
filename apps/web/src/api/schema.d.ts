@@ -529,6 +529,8 @@ export interface components {
             scoring?: string | null;
             /** Servable */
             servable: boolean;
+            /** Subfamily */
+            subfamily: string | null;
             /** Value Labels */
             value_labels: components["schemas"]["ValueLabelModel"][];
             /** Waves Available */
@@ -569,6 +571,8 @@ export interface components {
             scale_type: string;
             /** Servable */
             servable: boolean;
+            /** Subfamily */
+            subfamily: string | null;
             /** Waves Available */
             waves_available: string[];
             /** Wording */

@@ -23,7 +23,8 @@ import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
   groupValueLabel,
@@ -33,6 +34,7 @@ import {
   scaleSubtitle,
 } from '../labels'
 import { defaultDir, sortBreakdownRows } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
@@ -64,7 +66,7 @@ export function BreakdownsView() {
   const secondaryDetail = secondaryDetailQuery.data?.detail
 
   const setSearch = (patch: Partial<BreakdownsSearch>) => {
-    void navigate({ search: breakdownsSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(breakdownsSearchParams({ ...search, ...patch })))
   }
 
   const isCategorical = variable?.default_stat === 'proportion'
@@ -194,7 +196,7 @@ export function BreakdownsView() {
         ? `share answering “${levelLabel}”`
         : null
       : variable
-        ? scaleSubtitle(variable, stat)
+        ? scaleSubtitle(variable, stat, detail)
         : null,
     secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
     WAVE_TITLES[search.wave] ?? search.wave,
@@ -202,6 +204,14 @@ export function BreakdownsView() {
     .filter(Boolean)
     .join(' · ')
 
+  // What a download is called, in words (ADR-0016): the measure, then
+  // `by-<breakdown>` for the split; the server names its CSV the same way.
+  const exportName: ExportName = {
+    measure: variable?.display_name ?? search.outcome,
+    view: 'By country',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+    breakdown: search.by.map((column) => columnLabel(column, meta.data.meta)).join(' and '),
+  }
   const csv: CsvExport | undefined =
     request === null
       ? undefined
@@ -211,10 +221,7 @@ export function BreakdownsView() {
           ? {
               kind: 'client',
               onDownload: () =>
-                downloadTextFile(
-                  csvFilename(request.outcome, request.wave, stat, response.meta.data_version),
-                  responseToCsv(response),
-                ),
+                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
             }
           : undefined
 
@@ -312,14 +319,12 @@ export function BreakdownsView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: breakdownsSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              breakdownsSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>
@@ -401,6 +406,9 @@ export function BreakdownsView() {
                   `The data table below carries every number, with its n.`
                 }
                 marks="dots"
+                levelLabel={(level) =>
+                  outcomeLevelOptions.find((entry) => entry.value === level)?.label
+                }
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -411,6 +419,7 @@ export function BreakdownsView() {
                 response={{ ...response, rows: displayRows }}
                 meta={meta.data.meta}
                 csv={csv}
+                exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
               >
                 <SmallMultiples

@@ -40,8 +40,9 @@ export function EstimateTable({
   response: EstimateResponse
   meta: Meta
   caption?: string
-  /** Answer labels for level / from / to cells (the variable's own value
-   * labels); absent = the code. */
+  /** Answer labels for the Answer / First answer / Later answer cells
+   * (the variable's own value labels); absent or blank = the code (a
+   * 0–10 scale labels only its ends — ADR-0016). */
   levelLabel?: (level: number) => string | undefined
   /** Labels for a group column meta cannot name (e.g. a measure code in
    * the Compare view); falls back to meta's labels. */
@@ -64,8 +65,11 @@ export function EstimateTable({
   // A response of point estimates (plain correlations) has no interval to
   // tabulate: the column goes, rather than a column of dashes under "95% CI".
   const hasIntervals = !(rows.length > 0 && rows.every((row) => row.ci_method === 'none'))
-  const level = (value: number | null | undefined) =>
-    value === null || value === undefined ? '—' : (levelLabel?.(value) ?? String(value))
+  const level = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return '—'
+    const named = levelLabel?.(value)
+    return named?.trim() ? named : String(value)
+  }
   return (
     // Scrolls sideways rather than breaking the column (§8); under
     // 30rem the CI column is dropped from the *display* — it stays in
@@ -85,7 +89,7 @@ export function EstimateTable({
               </th>
             ))}
             {hasLeg && <th scope="col">Period</th>}
-            {hasLevel && <th scope="col">Level</th>}
+            {hasLevel && <th scope="col">Answer</th>}
             {hasTransition && <th scope="col">First answer</th>}
             {hasTransition && <th scope="col">Later answer</th>}
             {hasMeasure && <th scope="col">{measureHeader}</th>}

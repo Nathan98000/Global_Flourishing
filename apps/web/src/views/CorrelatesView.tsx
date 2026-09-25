@@ -29,9 +29,11 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount, formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
+import { searchNavigation } from '../state/navigate'
 import {
   correlatesAcrossCountries,
   correlatesRequest,
@@ -82,7 +84,7 @@ export function CorrelatesView() {
   const adjusted = search.adjusted === true
 
   const setSearch = (patch: Partial<CorrelatesSearch>) => {
-    void navigate({ search: correlatesSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
   }
 
   const rankedRequest =
@@ -199,14 +201,22 @@ export function CorrelatesView() {
     </>
   )
 
-  const version = rankedResponse?.meta.data_version ?? null
-  const csvFor = (response: EstimateResponse, tag: string) => ({
+  // What a download is called, in words (ADR-0016): the ranked list for
+  // one country, or the same measures across countries.
+  const rankedName: ExportName = {
+    measure: title,
+    view: adjusted ? 'Adjusted correlates' : 'Correlates',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+    ...(countryName ? { country: countryName } : {}),
+  }
+  const acrossName: ExportName = {
+    measure: title,
+    view: adjusted ? 'Adjusted correlates across countries' : 'Correlates across countries',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+  }
+  const csvFor = (response: EstimateResponse, name: ExportName) => ({
     kind: 'client' as const,
-    onDownload: () =>
-      downloadTextFile(
-        csvFilename(search.outcome, search.wave, tag, version),
-        responseToCsv(response),
-      ),
+    onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
   })
   const footnote = (response: EstimateResponse) => {
     const excluded = excludedNote(response.meta)
@@ -247,14 +257,12 @@ export function CorrelatesView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: correlatesSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>
@@ -366,7 +374,8 @@ export function CorrelatesView() {
             }
             response={rankedResponse}
             meta={served}
-            csv={csvFor(rankedResponse, adjusted ? 'adjusted' : `${search.method ?? 'pearson'}_r`)}
+            csv={csvFor(rankedResponse, rankedName)}
+            exportName={rankedName}
             isRefreshing={ranked.isPlaceholderData}
             predictorLabel={nameOf}
             footnote={footnote(rankedResponse)}
@@ -405,10 +414,8 @@ export function CorrelatesView() {
                 marks="table"
                 response={acrossResponse}
                 meta={served}
-                csv={csvFor(
-                  acrossResponse,
-                  adjusted ? 'adjusted_by-country' : `${search.method ?? 'pearson'}_r_by-country`,
-                )}
+                csv={csvFor(acrossResponse, acrossName)}
+                exportName={acrossName}
                 isRefreshing={across.isPlaceholderData}
                 predictorLabel={nameOf}
                 footnote={footnote(acrossResponse)}
@@ -471,12 +478,10 @@ function CountryMatrix({
         return {
           text: formatEstimate(cell.estimate, cell.stat),
           title: muted
-            ? `n = ${formatCount(cell.n)} — too few to rank\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
-            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+            ? `Too few respondents to rank (fewer than ${formatCount(minN ?? 0)})\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
+            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: divergingTint(cell.estimate, extent),
-          hidden: muted
-            ? `, n = ${formatCount(cell.n)}, too few to rank`
-            : `, n = ${formatCount(cell.n)}`,
+          hidden: muted ? ', too few to rank' : undefined,
           muted,
         }
       }}

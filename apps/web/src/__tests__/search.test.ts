@@ -56,31 +56,38 @@ describe('atlas search', () => {
   })
 
   test('a full URL round-trips exactly', () => {
-    const raw = parseSearchString('?outcome=HAPPY&wave=Y2&view=map&countries=1,22&sort=name')
+    const raw = parseSearchString('?outcome=HAPPY&wave=Y2&countries=1,22&sort=name')
     const search = parseAtlasSearch(raw)
     expect(search.outcome).toBe('HAPPY')
     expect(search.wave).toBe('Y2')
-    expect(search.view).toBe('map')
     expect(search.countries).toEqual([1, 22])
     expect(search.sort).toBe('name')
     const serialized = stringifySearch(atlasSearchParams(search))
     expect(parseAtlasSearch(parseSearchString(serialized))).toEqual(search)
   })
 
+  test('an old view=map URL loads the chart and raises no notice (ADR-0016)', () => {
+    const search = parseAtlasSearch(parseSearchString('?outcome=HAPPY&view=map'))
+    expect(search.outcome).toBe('HAPPY')
+    expect('view' in search).toBe(false)
+    expect(search.invalid).toBeUndefined()
+    expect(stringifySearch(atlasSearchParams(search))).toBe('?outcome=HAPPY')
+  })
+
   test('invalid values degrade to defaults and are reported, not thrown', () => {
-    const search = parseAtlasSearch({ wave: 'Y9', view: 'pie', countries: 'x,y' })
+    const search = parseAtlasSearch({ wave: 'Y9', sort: 'pie', countries: 'x,y' })
     expect(search.wave).toBe('Y1')
-    expect(search.view).toBe('bars')
+    expect(search.sort).toBe('estimate')
     expect(search.countries).toEqual([])
-    expect(search.invalid).toEqual(['wave', 'view', 'countries'])
+    expect(search.invalid).toEqual(['wave', 'sort', 'countries'])
     // Serialization keeps the rejected raw params (they are what was
     // typed), so any re-parse — including the router's own URL
     // normalization — recomputes the SAME full notice (F5)…
     const serialized = stringifySearch(atlasSearchParams(search))
-    expect(serialized).toBe('?wave=Y9&view=pie&countries=x%2Cy')
+    expect(serialized).toBe('?wave=Y9&sort=pie&countries=x%2Cy')
     expect(parseAtlasSearch(parseSearchString(serialized)).invalid).toEqual([
       'wave',
-      'view',
+      'sort',
       'countries',
     ])
     // …dismissing strips them…
@@ -89,7 +96,7 @@ describe('atlas search', () => {
     ).toBe('')
     // …an explicit new value for one control drops only that leftover…
     expect(stringifySearch(atlasSearchParams({ ...search, wave: 'Y2' }))).toBe(
-      '?wave=Y2&view=pie&countries=x%2Cy',
+      '?wave=Y2&sort=pie&countries=x%2Cy',
     )
     // …and a forged ?invalid=wave cannot conjure a notice (the parser
     // recomputes it from the actual params).
@@ -106,11 +113,6 @@ describe('atlas search', () => {
     ).toEqual(['countries'])
     // Repeated keys still combine.
     expect(parseAtlasSearch({ countries: ['1', '22'] }).countries).toEqual([1, 22])
-  })
-
-  test('oriented is an explicit opt-in', () => {
-    expect(parseAtlasSearch({ oriented: 'true' }).oriented).toBe(true)
-    expect(parseAtlasSearch({ oriented: 'yes' }).invalid).toEqual(['oriented'])
   })
 
   test("dir rides the URL only when it differs from the sort's default", () => {
@@ -142,7 +144,6 @@ describe('atlas search', () => {
       wave: 'Y1',
       stat: 'mean',
       by: ['country_code'],
-      oriented: undefined,
     })
     expect(atlasRequest({ ...search, stat: 'distribution' }, happyVariable).stat).toBe(
       'distribution',

@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError, NetworkError } from '../api/errors'
 import { CountryFilter } from '../components/controls/CountryFilter'
+import { RadioRow, SELECT_ABOVE } from '../components/controls/RadioRow'
 import { ErrorState } from '../components/ErrorState'
 import { EstimateTable } from '../components/EstimateTable'
 import { Stat } from '../components/Stat'
@@ -112,8 +113,71 @@ describe('EstimateTable', () => {
       { stat: 'distribution', outcome: attendVariable.name },
     )
     render(<EstimateTable response={response} meta={testMeta} />)
-    expect(screen.getByRole('columnheader', { name: 'Level' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
     expect(screen.getByText('5.0%')).toBeInTheDocument()
+  })
+})
+
+describe('EstimateTable answers', () => {
+  test('the Answer column wears the value labels; a blank or missing label falls back to the code (ADR-0016)', () => {
+    const response = testResponse([
+      testRow({ stat: 'proportion', level: 1 }),
+      testRow({ stat: 'proportion', level: 2 }),
+      testRow({ stat: 'proportion', level: 3 }),
+    ])
+    const labels: Record<number, string> = { 1: 'Always', 2: '' }
+    render(<EstimateTable response={response} meta={testMeta} levelLabel={(l) => labels[l]} />)
+    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Level' })).toBeNull()
+    expect(screen.getByRole('cell', { name: 'Always' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '3' })).toBeInTheDocument()
+    // A derived score's bins keep their "0–1" … labels the same way.
+    const bins = testResponse([testRow({ stat: 'distribution', level: 0 })])
+    render(<EstimateTable response={bins} meta={testMeta} levelLabel={() => '0–1'} />)
+    expect(screen.getByRole('cell', { name: '0–1' })).toBeInTheDocument()
+  })
+})
+
+describe('RadioRow', () => {
+  const answers = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({ value: String(i + 1), label: `Answer ${i + 1}` }))
+
+  test('up to six options stay a segmented radio group', () => {
+    render(
+      <RadioRow
+        legend="Answer level"
+        name="level"
+        options={answers(SELECT_ABOVE)}
+        value="2"
+        onChange={() => undefined}
+      />,
+    )
+    expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(6)
+    expect(screen.getByRole('radio', { name: 'Answer 2' })).toBeChecked()
+  })
+
+  test('above six options the group is a compact select: same label, same values (ADR-0016)', () => {
+    const onChange = vi.fn()
+    render(
+      <RadioRow
+        legend="Answer level"
+        name="level"
+        options={answers(SELECT_ABOVE + 1)}
+        value="2"
+        onChange={onChange}
+      />,
+    )
+    expect(screen.queryByRole('radio')).toBeNull()
+    const select = screen.getByLabelText('Answer level')
+    expect(select.tagName).toBe('SELECT')
+    expect(select).toHaveValue('2')
+    expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual(
+      answers(7).map((o) => o.value),
+    )
+    fireEvent.change(select, { target: { value: '7' } })
+    expect(onChange).toHaveBeenCalledWith('7')
   })
 })
 

@@ -13,6 +13,7 @@ import { ErrorState } from '../components/ErrorState'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount } from '../format'
+import { searchNavigation } from '../state/navigate'
 import { codebookSearchParams, type CodebookSearch } from '../state/search'
 import { scaleTypeName, topicName } from '../topics'
 import { WAVE_CHIPS } from '../waves'
@@ -51,10 +52,9 @@ export function CodebookView() {
   useEffect(() => {
     if (draft === search.q) return
     const handle = window.setTimeout(() => {
-      void navigate({
-        search: codebookSearchParams({ ...search, q: draft }) as never,
-        replace: true,
-      })
+      void navigate(
+        searchNavigation(codebookSearchParams({ ...search, q: draft }), { replace: true }),
+      )
     }, 300)
     return () => window.clearTimeout(handle)
   }, [draft, search, navigate])
@@ -66,7 +66,7 @@ export function CodebookView() {
   }, [search.q])
 
   const setSearch = (patch: Partial<CodebookSearch>) => {
-    void navigate({ search: codebookSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(codebookSearchParams({ ...search, ...patch })))
   }
 
   const scaleTypes = useMemo(
@@ -110,14 +110,12 @@ export function CodebookView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: codebookSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              codebookSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

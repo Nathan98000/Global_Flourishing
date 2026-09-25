@@ -1,7 +1,8 @@
 // PNG export: serialize the Plot SVG with the computed token colors
 // inlined (the live SVG uses `var(--…)`, which a rasterizer cannot
-// resolve), draw at 2× onto a canvas, and stamp the chart title, data
-// version and DOI onto the image — the image is what gets shared.
+// resolve), draw at 2× onto a canvas, and stamp the chart title and the
+// citation line onto the image — the image is what gets shared. The data
+// version stays out of the footer (ADR-0016); the CSV's meta lines carry it.
 
 export const CITATION_LINE =
   'Global Flourishing Study, Waves 1–2 · doi.org/10.17605/OSF.IO/3JTZ8 · flourish-atlas.pages.dev'
@@ -35,19 +36,11 @@ export function inlineTokenColors(root: Element, resolve: TokenResolver): void {
 
 export interface PngStamp {
   title: string
-  dataVersion: string | null
 }
 
+/** The header is the chart title; the footer is just the citation line. */
 export function stampLines(stamp: PngStamp): { header: string; footer: string } {
-  return {
-    header: stamp.title,
-    footer: `data ${stamp.dataVersion ?? '—'} · ${CITATION_LINE}`,
-  }
-}
-
-export function pngFilename(title: string, dataVersion: string | null): string {
-  const slug = title.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-  return `flourish_${slug}_${dataVersion ?? 'nodata'}.png`
+  return { header: stamp.title, footer: CITATION_LINE }
 }
 
 /** [width, height] from attributes or the viewBox (jsdom-safe). */
@@ -80,10 +73,12 @@ const PAD = 16
 const HEADER = 28
 const FOOTER = 22
 
-/** Browser-only: rasterize and download. Returns false when unsupported. */
+/** Browser-only: rasterize and download under `filename` (see
+ * export/filename.ts). Returns false when unsupported. */
 export async function downloadChartPng(
   svg: SVGSVGElement,
   stamp: PngStamp,
+  filename: string,
   resolve: TokenResolver = documentTokenResolver(),
 ): Promise<boolean> {
   const [width, height] = svgSize(svg)
@@ -117,7 +112,7 @@ export async function downloadChartPng(
     const pngUrl = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = pngUrl
-    anchor.download = pngFilename(stamp.title, stamp.dataVersion)
+    anchor.download = filename
     anchor.click()
     URL.revokeObjectURL(pngUrl)
     return true

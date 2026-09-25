@@ -34,9 +34,6 @@ importers:
       us-atlas:
         specifier: ^3.0.1
         version: 3.0.1
-      world-atlas:
-        specifier: ^2.0.2
-        version: 2.0.2
     devDependencies:
       '@eslint/js':
         specifier: ^9.15.0
@@ -3166,9 +3163,6 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
-
-  world-atlas@2.0.2:
-    resolution: {integrity: sha512-IXfV0qwlKXpckz1FhwXVwKRjiIhOnWttOskm5CtxMsjgE/MXAYRHWJqgXOpM8IkcPBoXnyTU5lFHcYa5ChG0LQ==}
 
   wrap-ansi@6.2.0:
     resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
@@ -6657,8 +6651,6 @@ snapshots:
       stackback: 0.0.2
 
   word-wrap@1.2.5: {}
-
-  world-atlas@2.0.2: {}
 
   wrap-ansi@6.2.0:
     dependencies:

@@ -1,6 +1,6 @@
 // US state choropleth (Phase 5): Albers USA projection (Alaska and Hawaii
-// inset by the projection), the same quantized token ramp as the world
-// map, anchored to the observed range; states with no estimate wear the
+// inset by the projection), the quantized token ramp (mapScale.tsx),
+// anchored to the observed range; states with no estimate wear the
 // empty fill and say so in the tip, with the same bordered "no estimate"
 // swatch in the legend. A pooled group's members all take the group's
 // value and wear a dashed outline; every name in the tip is the
@@ -8,9 +8,9 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { ciText, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
-import { mapDomain, quantizeColor } from './Choropleth'
+import { mapDomain, quantizeColor } from './mapScale'
 import {
   FONT_FAMILY,
   INK,
@@ -29,7 +29,7 @@ export function isPooledState(entry: Pick<StateEntry, 'code'>, meta: Meta): bool
 }
 
 /** The tip for one feature: the server's name (a pooled member names its
- * group), the estimate, the interval and the n. */
+ * group), the estimate and the interval; the n lives in the data table. */
 export function stateTipText(entry: StateEntry, meta: Meta): string {
   const where =
     entry.code && isPooledState(entry, meta)
@@ -40,12 +40,7 @@ export function stateTipText(entry: StateEntry, meta: Meta): string {
   if (!entry.row) return `${where}\nno estimate`
   const row = entry.row
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${where}`]
-  if (row.ci_lo !== null && row.ci_hi !== null) {
-    lines.push(
-      `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
-    )
-  }
-  lines.push(`n = ${formatCount(row.n)}`)
+  if (row.ci_lo !== null && row.ci_hi !== null) lines.push(ciText(row))
   return lines.join('\n')
 }
 

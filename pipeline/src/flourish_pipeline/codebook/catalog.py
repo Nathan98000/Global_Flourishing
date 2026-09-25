@@ -59,6 +59,8 @@ class VariableRecord:
     source_pages: list[int] | None
     codebook_headings: list[str]
     notes: str | None
+    #: the family's subtopic (overrides ``subfamily``); None where a family has none
+    subfamily: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,6 +424,7 @@ def build_catalog(
                 source_pages=pages,
                 codebook_headings=sorted({e.heading for e, _ in base_entries}),
                 notes=override.notes,
+                subfamily=override.subfamily,
             )
         )
 

@@ -128,7 +128,7 @@ A 60-line prototype (blank → NaN, sentinel codes → NaN, mean of the 12 SFI i
 
 ### 4.2 Core user stories
 
-- As a visitor, I can pick any outcome and see it by country as a ranked bar chart or map, with confidence intervals and sample sizes, in one click.
+- As a visitor, I can pick any outcome and see it by country as a ranked bar chart, with confidence intervals and sample sizes, in one click.
 - As a visitor, I can break an outcome down by age band, gender, education, employment, marital status, income feelings, urban/rural, or religious attendance, faceted by country.
 - As a visitor, I can compare two to five countries (or two segments) across the six flourishing domains.
 - As a visitor, I can see how the same people changed from 2023 to 2024: average shift, distribution of individual change, and transitions between categories.
@@ -141,7 +141,7 @@ A 60-line prototype (blank → NaN, sentinel codes → NaN, mean of the 12 SFI i
 
 | View | What it shows | Phase |
 |---|---|---|
-| **Atlas** | Choose a variable; see a ranked bar chart and a world map by country, with CI, n, weight, and question wording. Toggle Wave 1 / Midyear / Wave 2. | 4 |
+| **Atlas** | Choose a variable; see a ranked bar chart by country, with CI, n, weight, and question wording (the world map was dropped in the September 2026 design pass — ADR-0016: too few countries for a map to inform). Toggle Wave 1 / Midyear / Wave 2. | 4 |
 | **Breakdowns** | Outcome × demographic, small multiples by country; sortable; suppression indicators. | 4 |
 | **Codebook** | Searchable variable catalog with families, wording, labels, waves, missingness; "chart this" link. | 4 |
 | **Compare** | 2–5 countries or segments across the six SFI domains (dumbbell / radar) and any chosen items. | 5 |

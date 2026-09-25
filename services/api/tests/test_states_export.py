@@ -75,9 +75,11 @@ def test_export_csv_carries_meta_and_rows(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
+    # The name in words — the web client's exportFilename pins this same
+    # example (export.test.ts): display name, view, wave; no code, no version.
     assert (
-        'filename="flourish_HAPPY_Y1_mean_synthetic.0.0.1.csv"'
-        in resp.headers["content-disposition"]
+        'filename="flourish-atlas_happiness_by-country_2023.csv"'
+        in (resp.headers["content-disposition"])
     )
     lines = resp.text.splitlines()
     assert lines[0] == "# data_version: synthetic.0.0.1"
@@ -105,3 +107,30 @@ def test_export_values_match_the_json_response(client: TestClient) -> None:
     assert int(first["n"]) == json_rows[0]["n"]
     # The correlates-only meta fields stay out of an aggregate export.
     assert not any(line.startswith(("# adjusted", "# controls", "# model")) for line in lines)
+
+
+def test_export_csv_name_carries_breakdown_and_country_in_words(client: TestClient) -> None:
+    """A split adds `_by-<breakdown display name>`; a single-country query
+    adds the country's name, diacritics stripped (ADR-0016)."""
+    resp = client.get(
+        "/v1/export.csv",
+        params={"outcome": "HAPPY", "wave": "Y2", "by": ["country_code", "gender"]},
+    )
+    assert (
+        'filename="flourish-atlas_happiness_by-country_2024_by-gender.csv"'
+        in (resp.headers["content-disposition"])
+    )
+    one = client.get(
+        "/v1/export.csv",
+        params={
+            "outcome": "HAPPY",
+            "wave": "Y1",
+            "by": "country_code",
+            "filter": "country_code:22",
+        },
+    )
+    assert one.status_code == 200, one.text
+    assert (
+        'filename="flourish-atlas_happiness_by-country_2023_united-states.csv"'
+        in (one.headers["content-disposition"])
+    )

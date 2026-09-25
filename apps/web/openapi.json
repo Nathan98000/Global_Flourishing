@@ -989,6 +989,17 @@
             "title": "Servable",
             "type": "boolean"
           },
+          "subfamily": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subfamily"
+          },
           "value_labels": {
             "items": {
               "$ref": "#/components/schemas/ValueLabelModel"
@@ -1021,6 +1032,7 @@
           "label",
           "wording",
           "family",
+          "subfamily",
           "scale_type",
           "direction",
           "polarity",
@@ -1128,6 +1140,17 @@
             "title": "Servable",
             "type": "boolean"
           },
+          "subfamily": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subfamily"
+          },
           "waves_available": {
             "items": {
               "type": "string"
@@ -1153,6 +1176,7 @@
           "label",
           "wording",
           "family",
+          "subfamily",
           "scale_type",
           "direction",
           "polarity",

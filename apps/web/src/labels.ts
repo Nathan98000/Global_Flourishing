@@ -4,34 +4,35 @@
 
 import type { EstimateRow, Meta, VariableDetail, VariableSummary } from './api/types'
 
-/** The server's direction enum in plain words (F6: no `direction: none`
- * on a public surface). */
-export function directionPhrase(direction: string): string {
-  if (direction === 'higher_better') return 'higher is better'
-  if (direction === 'lower_better') return 'lower is better'
-  return 'no better-or-worse direction'
-}
-
-/** The subtitle that names the scale and direction once (decision 2):
- * "Average score, 0–10 · higher is better" — the callers append the
- * wave clause last (§7). The axis then carries only its ticks.
- * Everything comes from the variable's own facts; nothing here
- * re-derives a label. */
+/** The subtitle that names the scale once (decision 2, revised in
+ * ADR-0016): "Average score, 0–10 (0 = Not true of you at all, 10 =
+ * Completely true of you)" — the endpoints in the item's own value
+ * labels (lowest and highest valid code, exactly as the server gives
+ * them; blank middle labels are never listed), never "higher is
+ * better". A derived score (the index, its domains, the PHQ-2/GAD-2
+ * scores) shows just the range. The callers append the wave clause
+ * last (§7); the axis then carries only its ticks. */
 export function scaleSubtitle(
-  variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
+  variable: Pick<VariableSummary, 'min' | 'max' | 'is_derived'>,
   stat: string,
-  oriented = false,
+  detail?: VariableDetail,
 ): string {
   const lead = stat === 'quantile' ? 'Median score' : 'Average score'
   const range =
     variable.min !== null && variable.max !== null ? `, ${variable.min}–${variable.max}` : ''
-  const direction =
-    variable.direction === 'lower_better' && oriented
-      ? 'reversed so higher is better'
-      : variable.direction === 'none'
-        ? ''
-        : directionPhrase(variable.direction)
-  return `${lead}${range}${direction ? ` · ${direction}` : ''}`
+  return `${lead}${range}${variable.is_derived ? '' : endpointsClause(detail)}`
+}
+
+/** " (0 = Not true of you at all, 10 = Completely true of you)" from an
+ * item's value labels — lowest and highest valid code — or '' when
+ * either end is unlabelled. */
+export function endpointsClause(detail: VariableDetail | undefined): string {
+  const levels = outcomeLevels(detail)
+  const low = levels[0]
+  const high = levels[levels.length - 1]
+  if (!low || !high || low === high) return ''
+  if (!low.label.trim() || !high.label.trim()) return ''
+  return ` (${low.value} = ${low.label}, ${high.value} = ${high.label})`
 }
 
 /** The states a server state code stands for: itself, or a pooled

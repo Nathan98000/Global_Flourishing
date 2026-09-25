@@ -1,11 +1,11 @@
-// Atlas (§2.5): pick a measure and a wave, see ranked dots/bars, the
-// map, or the distribution — CI and n on every value, the question on
+// Atlas (§2.5): pick a measure and a wave, see ranked dots/bars or the
+// distribution — CI on every value, n in the data table, the question on
 // the page, weight and suppression rule in plain words under the chart,
 // coverage on Y2/MY, the URL carrying all of it. Statistics come from
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useMemo } from 'react'
+import { useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -25,16 +25,16 @@ import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { downloadTextFile, responseToCsv } from '../export/csv'
+import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
-
-const MapPanel = lazy(() => import('./MapPanel'))
 
 const route = getRouteApi('/')
 
@@ -51,9 +51,7 @@ export function AtlasView() {
   const detail = detailQuery.data?.detail
 
   const setSearch = (patch: Partial<AtlasSearch>) => {
-    void navigate({
-      search: atlasSearchParams({ ...search, ...patch }) as never,
-    })
+    void navigate(searchNavigation(atlasSearchParams({ ...search, ...patch })))
   }
 
   const metaForSort = meta.data?.meta
@@ -65,8 +63,8 @@ export function AtlasView() {
   const activeLevel = search.level ?? defaultLevel(detail)
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   // A derived score's distribution bins arrive as its value labels
-  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's own answer
-  // codes label themselves.
+  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's answer
+  // codes wear their own labels in the data table (ADR-0016).
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
@@ -127,7 +125,6 @@ export function AtlasView() {
       wave: wave ?? search.wave,
       stat: undefined,
       level: undefined,
-      oriented: undefined,
       invalid: undefined,
       invalidRaw: undefined,
     })
@@ -170,18 +167,19 @@ export function AtlasView() {
       : stat === 'distribution'
         ? undefined
         : variable
-          ? scaleSubtitle(variable, stat, search.oriented ?? false)
+          ? scaleSubtitle(variable, stat, detail)
           : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =
-    stat === 'distribution'
-      ? 'bins'
-      : search.view === 'map'
-        ? 'map'
-        : stat === 'proportion'
-          ? 'bars'
-          : 'dots'
+    stat === 'distribution' ? 'bins' : stat === 'proportion' ? 'bars' : 'dots'
 
+  // What a download is called, in words (ADR-0016); the server names its
+  // CSV the same way.
+  const exportName: ExportName = {
+    measure: title,
+    view: 'By country',
+    waves: WAVE_CHIPS[search.wave] ?? search.wave,
+  }
   const csv: CsvExport | undefined =
     request === null
       ? undefined
@@ -191,19 +189,11 @@ export function AtlasView() {
           ? {
               kind: 'client',
               onDownload: () =>
-                downloadTextFile(
-                  csvFilename(
-                    request.outcome,
-                    request.wave,
-                    request.stat,
-                    response.meta.data_version,
-                  ),
-                  responseToCsv(response),
-                ),
+                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
             }
           : undefined
 
-  // Statistic, View, Sort, Order, Countries and Answer level fold into a
+  // Statistic, Sort, Order, Countries and Answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
   // and Wave stay visible so the chart starts within the first phone
   // screen.
@@ -222,18 +212,6 @@ export function AtlasView() {
         />
       )}
       {stat !== 'distribution' && (
-        <RadioRow
-          legend="View"
-          name="view"
-          options={[
-            { value: 'bars', label: 'Chart' },
-            { value: 'map', label: 'Map' },
-          ]}
-          value={search.view}
-          onChange={(view) => setSearch({ view })}
-        />
-      )}
-      {search.view === 'bars' && stat !== 'distribution' && (
         <>
           <RadioRow
             legend="Sort"
@@ -305,14 +283,12 @@ export function AtlasView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: atlasSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              atlasSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>
@@ -346,16 +322,6 @@ export function AtlasView() {
           </details>
         ) : (
           displayOptions
-        )}
-        {variable && variable.direction === 'lower_better' && !variable.is_derived && (
-          <label className={styles.oriented}>
-            <input
-              type="checkbox"
-              checked={search.oriented ?? false}
-              onChange={(event) => setSearch({ oriented: event.target.checked || undefined })}
-            />{' '}
-            Orient so higher = better (reverses this item)
-          </label>
         )}
       </div>
 
@@ -415,8 +381,9 @@ export function AtlasView() {
                 response={{ ...response, rows: displayRows }}
                 meta={meta.data.meta}
                 csv={csv}
+                exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
-                levelLabel={stat === 'distribution' && derivedBins ? binLabel : undefined}
+                levelLabel={binLabel}
               >
                 {stat === 'distribution' ? (
                   <>
@@ -438,23 +405,6 @@ export function AtlasView() {
                       <p className={styles.hint}>Showing the first four selected countries.</p>
                     )}
                   </>
-                ) : search.view === 'map' ? (
-                  <Suspense fallback={<Skeleton height={400} label="Loading the world map" />}>
-                    <MapPanel
-                      rows={
-                        stat === 'proportion'
-                          ? response.rows.filter(
-                              (row) =>
-                                row.level === (search.level ?? defaultLevel(detail, response.rows)),
-                            )
-                          : response.rows
-                      }
-                      meta={meta.data.meta}
-                      responseMeta={response.meta}
-                      selected={search.countries}
-                      levelLabel={levelLabel}
-                    />
-                  </Suspense>
                 ) : (
                   <RankedBar
                     rows={displayRows}

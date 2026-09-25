@@ -262,6 +262,8 @@ def _variables() -> pl.DataFrame:
                 "label": f"{display} (label)",
                 "wording": f"How would you rate: {display.lower()}?",
                 "family": family,
+                # One subtopic, so the picker's second step has a fixture (ADR-0016).
+                "subfamily": "practice" if family == "religion" else None,
                 "scale_type": scale_type,
                 "direction": direction,
                 "polarity": "descending" if name in DESCENDING else "ascending",

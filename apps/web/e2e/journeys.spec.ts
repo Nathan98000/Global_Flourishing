@@ -57,7 +57,7 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   // The subtitle carries the rest, wave last (§7).
   await expect(
-    caption(page).getByText('Average score, 0–10 · higher is better · Wave 1, 2023', {
+    caption(page).getByText('Average score, 0–10 · Wave 1, 2023', {
       exact: true,
     }),
   ).toBeVisible()
@@ -92,6 +92,24 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await page.goBack()
   await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+
+  // A control moved: the URL changes, the page stays put (ADR-0016) — and
+  // the country popover stays open while several countries are ticked in
+  // a row.
+  await page.evaluate('window.scrollTo(0, 240)')
+  const scrolled = await page.evaluate<number>('window.scrollY')
+  expect(scrolled).toBeGreaterThan(200)
+  const countries = page.locator('details', {
+    has: page.locator('summary', { hasText: /^Countries:/ }),
+  })
+  await countries.locator('summary').click()
+  await expect(countries).toHaveAttribute('open', '')
+  const boxes = countries.getByRole('checkbox')
+  await boxes.nth(0).check()
+  await boxes.nth(1).check()
+  await expect(page).toHaveURL(/countries=1(%2C|,)22/)
+  expect(Math.abs((await page.evaluate<number>('window.scrollY')) - scrolled)).toBeLessThan(4)
+  await expect(countries).toHaveAttribute('open', '')
 })
 
 test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {
@@ -142,7 +160,8 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'CSV' }).click()
   const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe('flourish_HAPPY_Y1_mean_synthetic.0.0.1.csv')
+  // The name in words (ADR-0016): display name, view, wave — no code, no version.
+  expect(download.suggestedFilename()).toBe('flourish-atlas_happiness_by-country_2023.csv')
 
   const body = await streamToString(download)
   expect(body).toContain('# data_version: synthetic.0.0.1')

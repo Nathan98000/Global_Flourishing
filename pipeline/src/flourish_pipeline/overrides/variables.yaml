@@ -366,167 +366,212 @@ variables:
   ATTEND_SVCS:
     display_name: Religious service attendance
     family: religion
+    subfamily: practice
     polarity: descending
     notes: "1 = More than once a week … 5 = Never; direction none (a practice)."
   PRAY_MEDITATE:
     display_name: Prayer or meditation
     family: religion
+    subfamily: practice
     polarity: descending
   SACRED_TEXTS:
     display_name: Reading sacred texts
     family: religion
+    subfamily: practice
     polarity: descending
   REL_IMPORTANT:
     display_name: Religion important in daily life
     family: religion
+    subfamily: daily_life
     polarity: descending
   REL_EXPERIENC:
     display_name: Had a spiritual awakening
     family: religion
+    subfamily: beliefs
     polarity: descending
   BELIEVE_GOD:
     display_name: Belief in God
     family: religion
+    subfamily: beliefs
     scale_type: nominal
   AFTER_DEATH:
     display_name: Belief in life after death
     family: religion
+    subfamily: beliefs
     scale_type: nominal
     notes: "1 = Yes, 2 = No, 3 = Unsure — not ordered."
   COMFORT_REL:
     display_name: Comfort from religion
     family: religion
+    subfamily: daily_life
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   CONNECTED_REL:
     display_name: Feeling connected to religion
     family: religion
+    subfamily: daily_life
     polarity: descending
     direction: lower_better
     notes: "1 = Always … 4 = Never connected."
   CRITICAL:
     display_name: Religious community is critical of you
     family: religion
+    subfamily: daily_life
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   GOD_PUNISH:
     display_name: Feeling punished by God
     family: religion
+    subfamily: beliefs
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   LOVED_BY_GOD:
     display_name: Feeling loved by God
     family: religion
+    subfamily: beliefs
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   LIFE_APPROACH:
     display_name: Faith behind whole approach to life
     family: religion
+    subfamily: daily_life
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   TELL_BELIEFS:
     display_name: Telling others about your faith
     family: religion
+    subfamily: practice
     scale_type: nominal
     notes: "Agree / Disagree / Not relevant / Unsure — not ordered."
   REL1:
     display_name: Religion at age 12
     family: religion
+    subfamily: affiliation
   REL2:
     display_name: Current religion
     family: religion
+    subfamily: affiliation
   REL3:
     display_name: Christian denomination
     family: religion
+    subfamily: affiliation
   REL4:
     display_name: Islamic sect
     family: religion
+    subfamily: affiliation
   REL5:
     display_name: Hindu denomination
     family: religion
+    subfamily: affiliation
   REL6:
     display_name: Jewish denomination
     family: religion
+    subfamily: affiliation
   REL7:
     display_name: Atheist, agnostic, or neither
     family: religion
+    subfamily: affiliation
     scale_type: nominal
   REL8:
     display_name: Spiritual, religious, both, or neither
     family: religion
+    subfamily: affiliation
     scale_type: nominal
   REL9:
     display_name: Buddhist sect
     family: religion
+    subfamily: affiliation
   TEACHINGS_1:
     display_name: Christian teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_2:
     display_name: Islamic teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_3:
     display_name: Hindu teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_4:
     display_name: Buddhist teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_5:
     display_name: Jewish teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_6:
     display_name: Sikh teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_7:
     display_name: Bahá'í teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_8:
     display_name: Jain teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_9:
     display_name: Shinto teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_10:
     display_name: Taoist teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_11:
     display_name: Confucian teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_12:
     display_name: Primal/animist teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_13:
     display_name: Spiritist teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_14:
     display_name: African-derived teachings important
     family: religion
+    subfamily: teachings
   TEACHINGS_15:
     display_name: Chinese folk teachings important
     family: religion
+    subfamily: teachings
   CNTRY_REL_CHR:
     display_name: Christian teachings important (country religion)
     family: religion
+    subfamily: teachings_country
     notes: >-
       Asked where Christianity is the country's most common religion but
       not the respondent's own; Y1 only.
   CNTRY_REL_ISL:
     display_name: Islamic teachings important (country religion)
     family: religion
+    subfamily: teachings_country
   CNTRY_REL_HIN:
     display_name: Hindu teachings important (country religion)
     family: religion
+    subfamily: teachings_country
   CNTRY_REL_BUD:
     display_name: Buddhist teachings important (country religion)
     family: religion
+    subfamily: teachings_country
   CNTRY_REL_JUD:
     display_name: Jewish teachings important (country religion)
     family: religion
+    subfamily: teachings_country
   CNTRY_REL_SHI:
     display_name: Shinto teachings important (country religion)
     family: religion
+    subfamily: teachings_country
   CNTRY_REL_CHI:
     display_name: Chinese folk teachings important (country religion)
     family: religion
+    subfamily: teachings_country
 
   # ------------------------------------------------- Politics & government
   APPROVE_GOVT:
