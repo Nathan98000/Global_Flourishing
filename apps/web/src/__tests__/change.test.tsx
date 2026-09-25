@@ -267,8 +267,8 @@ describe('Change view', () => {
     expect(within(table).getByText('−0.12')).toBeInTheDocument()
     expect(within(table).getByText('[−0.17, −0.07]')).toBeInTheDocument()
     expect(within(table).getByText('1,500')).toBeInTheDocument()
-    // The histogram waits for a country choice.
-    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
+    // The Countries control stands alone: no hint beside it (25 Sept).
+    expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
 
   test('a chosen country adds the histogram of individual change, zero on the axis', async () => {
@@ -397,9 +397,8 @@ describe('Change view', () => {
     expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
     expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
-    // The prompt sits beside the country control, which reads its state.
+    // The country control reads its state; no prompt beside it.
     expect(screen.getByText('All 2')).toBeInTheDocument()
-    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
   })
 
   test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {
