@@ -10,7 +10,7 @@
 // opacity. The Correlates view builds its measures × countries matrix on
 // the same component with the diverging ramp. Never fetches.
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import styles from './TransitionTable.module.css'
@@ -82,6 +82,22 @@ export interface HeatAxis {
   label: string
 }
 
+/** A fixed-width column's side padding (--space-2 in
+ * TransitionTable.module.css): a caller sizing columns to their labels
+ * adds it twice to the text width. */
+export const HEAT_CELL_PAD = 8
+
+/** The canvas font of a column header — the table's --text-sm at weight
+ * 500 in the page face (TransitionTable.module.css) — resolved against
+ * the page, for measuring how a label wraps. */
+export function headerFont(): string {
+  const root = getComputedStyle(document.documentElement)
+  const rem = Number.parseFloat(root.fontSize) || 16
+  const size = (Number.parseFloat(root.getPropertyValue('--text-sm')) || 0.8125) * rem
+  const family = root.getPropertyValue('--font-sans').trim() || 'system-ui, sans-serif'
+  return `500 ${size}px ${family}`
+}
+
 /** How many columns lie past the visible edge of a scroll container:
  * those whose right edge sits beyond the container's, given each
  * column's right edge and the container's — pure, so it is testable
@@ -94,14 +110,16 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * The caption sits above the scroll container, not inside the table, so
  * a wide matrix never widens the page to fit its caption; the first
  * column is sticky, and when the matrix overflows a right-edge fade and
- * an "N more …" hint say so. */
+ * an "N more →" button say so — the button pages the box sideways. With
+ * `columnWidth` every column takes that width and its header wraps over
+ * it; without, columns fit their labels on one line. */
 export function HeatTable({
   caption,
   corner,
   rows,
   columns,
   cellAt,
-  columnNoun = 'columns',
+  columnWidth,
 }: {
   caption: string
   /** The corner label naming both axes ("First answer ↓ · later answer →"). */
@@ -109,8 +127,8 @@ export function HeatTable({
   rows: readonly HeatAxis[]
   columns: readonly HeatAxis[]
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
-  /** What the columns are, for the overflow hint ("3 more countries →"). */
-  columnNoun?: string
+  /** One width (px) for every column, headers wrapping to fit it. */
+  columnWidth?: number
 }) {
   const captionId = useId()
   const scroller = useRef<HTMLDivElement | null>(null)
@@ -133,65 +151,93 @@ export function HeatTable({
       observer.disconnect()
       element.removeEventListener('scroll', measure)
     }
-  }, [columns.length, rows.length])
+  }, [columns.length, rows.length, columnWidth])
+  // Page right by up to what the box shows beside its sticky first
+  // column: the first column not wholly in view comes in beside it, so
+  // no column is skipped or left half-hidden at both stops.
+  const showMore = () => {
+    const element = scroller.current
+    if (!element) return
+    const edge = element.getBoundingClientRect().right
+    const [sticky, ...headers] = element.querySelectorAll('thead th')
+    const stickyRight = sticky?.getBoundingClientRect().right ?? 0
+    const next = headers.find((th) => th.getBoundingClientRect().right > edge + 1)
+    const left = next ? next.getBoundingClientRect().left - stickyRight : element.clientWidth
+    element.scrollBy({ left: Math.max(left, 1) })
+  }
   if (rows.length === 0 || columns.length === 0) return null
   return (
     <div className={styles.matrix}>
       <p className={styles.caption} id={captionId}>
         {caption}
       </p>
-      <div className={styles.scroll} ref={scroller} data-overflow={hiddenColumns > 0 || undefined}>
-        <table className={styles.table} aria-labelledby={captionId}>
-          <thead>
-            <tr>
-              <th scope="col" className={styles.corner}>
-                <span className={styles.axis}>{corner}</span>
-              </th>
-              {columns.map((column) => (
-                <th key={column.key} scope="col">
-                  {column.label}
+      <div className={styles.frame}>
+        <div
+          className={styles.scroll}
+          ref={scroller}
+          data-overflow={hiddenColumns > 0 || undefined}
+        >
+          <table
+            className={styles.table}
+            aria-labelledby={captionId}
+            data-fixed={columnWidth !== undefined || undefined}
+            style={
+              columnWidth !== undefined
+                ? ({ '--heat-column': `${columnWidth}px` } as CSSProperties)
+                : undefined
+            }
+          >
+            <thead>
+              <tr>
+                <th scope="col" className={styles.corner}>
+                  <span className={styles.axis}>{corner}</span>
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <th scope="row">{row.label}</th>
-                {columns.map((column) => {
-                  const cell = cellAt(row, column)
-                  if (!cell) {
+                {columns.map((column) => (
+                  <th key={column.key} scope="col">
+                    {column.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <th scope="row">{row.label}</th>
+                  {columns.map((column) => {
+                    const cell = cellAt(row, column)
+                    if (!cell) {
+                      return (
+                        <td key={column.key} className={styles.cell}>
+                          —
+                        </td>
+                      )
+                    }
                     return (
-                      <td key={column.key} className={styles.cell}>
-                        —
+                      <td
+                        key={column.key}
+                        className={cell.muted ? styles.cellMuted : styles.cell}
+                        style={
+                          cell.muted
+                            ? undefined
+                            : { background: cell.tint, color: tintInk(cell.tint) }
+                        }
+                        title={cell.title}
+                      >
+                        {cell.text}
+                        {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
                       </td>
                     )
-                  }
-                  return (
-                    <td
-                      key={column.key}
-                      className={cell.muted ? styles.cellMuted : styles.cell}
-                      style={
-                        cell.muted
-                          ? undefined
-                          : { background: cell.tint, color: tintInk(cell.tint) }
-                      }
-                      title={cell.title}
-                    >
-                      {cell.text}
-                      {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       {hiddenColumns > 0 && (
-        <p className={styles.more} aria-hidden="true">
-          {hiddenColumns} more {columnNoun} →
-        </p>
+        <button type="button" className={styles.more} onClick={showMore}>
+          {hiddenColumns} more →
+        </button>
       )}
     </div>
   )

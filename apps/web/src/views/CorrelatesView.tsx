@@ -464,7 +464,6 @@ function CountryMatrix({
     <HeatTable
       caption={matrixCaption(outcome, extent, stat)}
       corner="Measure ↓ · country →"
-      columnNoun="countries"
       rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
       columns={served.countries.map((country) => ({
         key: String(country.code),

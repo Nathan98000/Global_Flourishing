@@ -535,7 +535,65 @@ describe('correlates helpers', () => {
     const cells = screen.getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['+0.10, too few to rank', '—'])
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-500)')
+    // Without a column width, columns keep fitting their one-line labels.
+    expect(screen.getByRole('table')).not.toHaveAttribute('data-fixed')
     const row: EstimateRow = plainRow('LONELY', 0.2)
     expect(row.ci_method).toBe('none')
+  })
+
+  test('HeatTable: past the edge, "N more →" is a button that pages the box beside its sticky column', () => {
+    // Layout, faked: the box is 250 wide; header cell i spans [100i, 100i + 100].
+    const rect = (left: number, width: number) =>
+      ({
+        left,
+        right: left + width,
+        width,
+        top: 0,
+        bottom: 20,
+        height: 20,
+        x: left,
+        y: 0,
+      }) as DOMRect
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.tagName !== 'TH') return rect(0, 250)
+      return rect([...(this.parentElement?.children ?? [])].indexOf(this) * 100, 100)
+    })
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(250)
+    const scrollBy = vi.fn()
+    HTMLElement.prototype.scrollBy = scrollBy
+    try {
+      render(
+        <HeatTable
+          caption="cap"
+          corner="rows ↓ · cols →"
+          rows={[{ key: 'a', label: 'A' }]}
+          columns={['w', 'x', 'y', 'z'].map((key) => ({ key, label: key.toUpperCase() }))}
+          cellAt={() => ({ text: '1.00', title: 'tip', tint: 'var(--seq-100)' })}
+          columnWidth={96}
+        />,
+      )
+      // X is cut at the box's edge (250); Y and Z lie past it.
+      const more = screen.getByRole('button', { name: '3 more →' })
+      fireEvent.click(more)
+      // X, the first column not wholly in view, comes in beside the
+      // sticky first column (which ends at 100): 100, not the box's 150.
+      expect(scrollBy).toHaveBeenCalledWith({ left: 100 })
+      const table = screen.getByRole('table')
+      expect(table).toHaveAttribute('data-fixed')
+      expect(table.getAttribute('style')).toContain('--heat-column: 96px')
+    } finally {
+      clientWidth.mockRestore()
+      delete (HTMLElement.prototype as { scrollBy?: unknown }).scrollBy
+      vi.restoreAllMocks()
+    }
   })
 })

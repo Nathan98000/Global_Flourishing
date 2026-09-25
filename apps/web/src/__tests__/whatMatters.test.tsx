@@ -13,8 +13,10 @@ import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
+  itemLabel,
   matrixCountryOrder,
   matrixRange,
+  narrowestWrap,
   orderMatrixRows,
   rankingRows,
 } from '../views/whatMattersRows'
@@ -240,6 +242,32 @@ describe('the midyear family from the catalog', () => {
     expect(tintInk('transparent')).toBeUndefined()
   })
 
+  test('a column is labelled by its short label, else its name without "Importance:"', () => {
+    expect(itemLabel(money)).toBe('Money')
+    expect(itemLabel(relation)).toBe('Good relationships')
+    expect(itemLabel(midyear('GOOD_PERSON', 'Importance: being a good person'))).toBe(
+      'Being a good person',
+    )
+    // Only a leading "Importance:" goes; any other name is kept, capitalized.
+    expect(itemLabel(midyear('NATURE', 'connected to nature'))).toBe('Connected to nature')
+    expect(itemLabel(midyear('X', 'Importance of money'))).toBe('Importance of money')
+    // A catalog short label wins when it is set.
+    expect(itemLabel({ ...money, short_label: 'Wealth' })).toBe('Wealth')
+    expect(itemLabel({ ...money, short_label: ' ' })).toBe('Money')
+  })
+
+  test('the narrowest column: every label in at most N lines, never narrower than a word', () => {
+    // One unit per character, spaces included.
+    const measure = (text: string) => text.length
+    expect(narrowestWrap(['aaaa bb cc', 'dddddd'], measure, 3)).toBe(6)
+    expect(narrowestWrap(['aaaa bb cc', 'dddddd'], measure, 2)).toBe(6)
+    expect(narrowestWrap(['aaaa bb cc', 'dddddd'], measure, 1)).toBe(10)
+    // Three lines bind before the longest word does.
+    expect(narrowestWrap(['a b c d e f'], measure, 3)).toBe(3)
+    expect(narrowestWrap(['Religious or spiritual life', 'Money'], measure, 3)).toBe(12)
+    expect(narrowestWrap([], measure, 3)).toBe(0)
+  })
+
   test('rankingRows stamps each item and can keep one country', () => {
     const rows = rankingRows(
       [byCountry('MONEY', 0), byCountry('GOOD_RELATION', 1)],
@@ -267,7 +295,14 @@ describe('What Matters view', () => {
       within(matrix)
         .getAllByRole('columnheader')
         .map((th) => th.textContent),
-    ).toEqual(['Country ↓ · what matters →', 'Importance: money', 'Importance: good relationships'])
+    ).toEqual(['Country ↓ · what matters →', 'Money', 'Good relationships'])
+    // One width for every column, the labels wrapping over it; the scale
+    // is said once, in the subtitle.
+    expect(matrix).toHaveAttribute('data-fixed')
+    expect(matrix.getAttribute('style')).toContain('--heat-column: 98px')
+    expect(
+      screen.getByText('How important, 0–10 · Midyear survey, Nov 2023–Dec 2024'),
+    ).toBeInTheDocument()
     expect(
       within(matrix)
         .getAllByRole('rowheader')
@@ -293,8 +328,8 @@ describe('What Matters view', () => {
     const sort = screen.getByLabelText(/^Sort countries/) as HTMLSelectElement
     expect([...sort.options].map((option) => option.textContent)).toEqual([
       'A–Z',
-      'By Importance: money',
-      'By Importance: good relationships',
+      'Money',
+      'Good relationships',
     ])
     // One switcher under the lede picks the view; the section headings
     // and the "On this page" anchors are gone.

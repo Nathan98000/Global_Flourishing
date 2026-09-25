@@ -21,7 +21,7 @@ import { RankedBar } from '../charts/RankedBar'
 import { SmallMultiples } from '../charts/SmallMultiples'
 import { summarizeExtremes } from '../charts/summary'
 import { SERIES, outcomeColor, quantizeSequential } from '../charts/theme'
-import { HeatTable, intervalText } from '../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable, headerFont, intervalText } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -49,7 +49,14 @@ import {
 import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
-import { matrixCountryOrder, matrixRange, orderMatrixRows, rankingRows } from './whatMattersRows'
+import {
+  itemLabel,
+  matrixCountryOrder,
+  matrixRange,
+  narrowestWrap,
+  orderMatrixRows,
+  rankingRows,
+} from './whatMattersRows'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/what-matters')
@@ -61,6 +68,25 @@ const VIEW_OPTIONS: RadioOption<WhatMattersSearch['view']>[] = [
   { value: 'within', label: 'Within a country' },
   { value: 'questions', label: 'Other questions' },
 ]
+
+/** The matrix's column width: seven columns beside the row labels fit
+ * the 60rem page column with no sideways scroll, and every label wraps
+ * to two lines at most ("A meaningful / life"). */
+const MATRIX_COLUMN = 98
+
+/** On a phone the matrix's columns narrow to the least width at which
+ * every label wraps to at most three lines, measured in the header's
+ * own face (the numbers need far less); elsewhere, MATRIX_COLUMN. */
+function useMatrixColumn(labels: readonly string[], narrow: boolean): number {
+  return useMemo(() => {
+    if (!narrow) return MATRIX_COLUMN
+    const context = document.createElement('canvas').getContext('2d')
+    if (!context) return MATRIX_COLUMN
+    context.font = headerFont()
+    const text = narrowestWrap(labels, (value) => context.measureText(value).width, 3)
+    return Math.ceil(text) + 2 * HEAT_CELL_PAD
+  }, [labels, narrow])
+}
 
 /** The in-page anchors the page had before the view switcher: an old
  * link's hash picks the matching view. */
@@ -113,6 +139,8 @@ export function WhatMattersView() {
     () => splitMidyear(variables.data?.list ?? []),
     [variables.data],
   )
+  const labels = useMemo(() => ranking.map((entry) => itemLabel(entry)), [ranking])
+  const columnWidth = useMatrixColumn(labels, narrow)
   // The country order: A–Z, or by one importance item's value.
   const sortKey = search.sort === 'name' ? 'name' : 'estimate'
   const dir = search.dir ?? defaultDir(sortKey)
@@ -215,9 +243,10 @@ export function WhatMattersView() {
   const demographics = served.breakdowns.filter((column) => column !== 'country_code')
   const countryName = (code: number) => groupValueLabel('country_code', code, served)
   const first = ranking[0]
-  const rankingSubtitle = first
-    ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}`
-    : MIDYEAR_TITLE
+  // The scale, said once (the columns drop "Importance:").
+  const scale =
+    first && first.min !== null && first.max !== null ? `, ${first.min}–${first.max}` : ''
+  const rankingSubtitle = `How important${scale} · ${MIDYEAR_TITLE}`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
     onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
@@ -284,7 +313,7 @@ export function WhatMattersView() {
           <option value="name">A–Z</option>
           {ranking.map((item) => (
             <option key={item.name} value={item.name}>
-              By {item.display_name}
+              {itemLabel(item)}
             </option>
           ))}
         </select>
@@ -383,6 +412,7 @@ export function WhatMattersView() {
                 items={ranking}
                 countryOrder={countryOrder}
                 served={served}
+                columnWidth={columnWidth}
               />
             </ChartFigure>
           )}
@@ -548,18 +578,21 @@ export function WhatMattersView() {
 }
 
 /** Countries × the importance items: each cell the weighted mean with a
- * sequential tint over the matrix's range, the interval and n in its
- * tooltip; the first column stays put while a phone scrolls the rest. */
+ * sequential tint over the matrix's range, the interval in its tooltip;
+ * every column one width, its short label wrapping over it; the first
+ * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
   rows,
   items,
   countryOrder,
   served,
+  columnWidth,
 }: {
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
   countryOrder: readonly number[]
   served: Meta
+  columnWidth: number
 }) {
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
@@ -570,12 +603,12 @@ function ImportanceMatrix({
     <HeatTable
       caption={`Deeper tint, higher importance (${formatEstimate(lo, 'mean')}–${formatEstimate(hi, 'mean')})`}
       corner="Country ↓ · what matters →"
-      columnNoun="things"
       rows={countryOrder.map((code) => ({
         key: String(code),
         label: groupValueLabel('country_code', code, served),
       }))}
-      columns={items.map((item) => ({ key: item.name, label: item.display_name }))}
+      columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
+      columnWidth={columnWidth}
       cellAt={(row, column) => {
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined

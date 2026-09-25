@@ -1,11 +1,61 @@
 // The What Matters view's row bookkeeping, kept out of the component so
 // fast refresh stays clean: the seven items' rows as one set, the
-// country order the matrix and the data table share, and the range the
-// matrix's tints span.
+// country order the matrix and the data table share, the range the
+// matrix's tints span, and the columns' labels and width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
+
+/** A matrix column's label: the item's `short_label` when the catalog
+ * carries one, else its display name without the leading "Importance: "
+ * — "Being a good person", "Money" — first letter capitalized; the
+ * subtitle says "How important" once instead of every column. (The
+ * catalog serves no variable-level `short_label` today — only answer
+ * labels have one — so every column takes the fallback until it does.) */
+export function itemLabel(item: VariableSummary & { short_label?: string | null }): string {
+  const short = item.short_label?.trim()
+  if (short) return short
+  const name = item.display_name.replace(/^Importance:\s*/i, '')
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+/** The narrowest text width at which every label wraps to at most
+ * `maxLines` lines, breaking only between words and filling each line
+ * greedily, as the browser does — so never narrower than the longest
+ * word. `measure` is a string's width in the header's face. A line is
+ * always a run of consecutive words, so the answer is one of their
+ * widths: the smallest that fits. */
+export function narrowestWrap(
+  labels: readonly string[],
+  measure: (text: string) => number,
+  maxLines: number,
+): number {
+  const texts = labels.map((label) => label.split(/\s+/).filter(Boolean))
+  const fits = (width: number) =>
+    texts.every((words) => {
+      let lines = 1
+      let line = ''
+      for (const word of words) {
+        if (measure(word) > width) return false
+        const next = line ? `${line} ${word}` : word
+        if (line && measure(next) > width) {
+          lines += 1
+          line = word
+        } else {
+          line = next
+        }
+      }
+      return lines <= maxLines
+    })
+  const runs = texts.flatMap((words) =>
+    words.flatMap((_, start) =>
+      words.slice(start).map((__, length) => words.slice(start, start + length + 1).join(' ')),
+    ),
+  )
+  const widths = [...new Set(runs.map(measure))].sort((a, b) => a - b)
+  return widths.find(fits) ?? 0
+}
 
 /** The seven items' rows stamped with their `outcome`, for one row set. */
 export function rankingRows(
