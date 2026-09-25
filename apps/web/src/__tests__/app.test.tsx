@@ -270,7 +270,7 @@ test('unknown routes render the not-found page', async () => {
 test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
+  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
   // Healthy API → the CSV is a real download link; PNG stays a button
   // whose accessible name carries the verb.
   expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
@@ -306,7 +306,7 @@ test('under 40rem the display options fold into a disclosure; Measure and Wave s
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
+  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
   const summary = screen.getByText('More options — chart, sort, countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
@@ -321,7 +321,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   stubViewport(() => true) // a phone matches both 30rem and 40rem
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · higher is better · Wave 1, 2023')
+  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
   const statistic = screen.getByLabelText('Statistic')
   expect(statistic.tagName).toBe('SELECT')
   expect(statistic).toHaveDisplayValue('Mean')

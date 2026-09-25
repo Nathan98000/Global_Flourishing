@@ -12,7 +12,6 @@ import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount, formatPercent } from '../format'
 import { WAVE_CHIPS } from '../waves'
-import { directionPhrase } from '../labels'
 import { topicName } from '../topics'
 import styles from './CodebookDetailView.module.css'
 
@@ -106,8 +105,7 @@ export function CodebookDetailView() {
       </h2>
       <p className={styles.facts}>
         {topicName(detail.family)} · {detail.scale_type}
-        {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} ·{' '}
-        {directionPhrase(detail.direction)} · asked:{' '}
+        {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} · asked:{' '}
         {detail.waves_available.map((wave) => WAVE_CHIPS[wave] ?? wave).join(', ')}
       </p>
 

@@ -232,7 +232,7 @@ export function WhatMattersView() {
           ? itemLevelLabel
             ? `share answering “${itemLevelLabel}”`
             : 'weighted share'
-          : scaleSubtitle(item, itemStat)
+          : scaleSubtitle(item, itemStat, itemDetail)
       } · ${MIDYEAR_TITLE}`
     : ''
   const itemResponse = itemQuery.results[0]?.response

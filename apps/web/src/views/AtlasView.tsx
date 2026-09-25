@@ -166,7 +166,7 @@ export function AtlasView() {
       : stat === 'distribution'
         ? undefined
         : variable
-          ? scaleSubtitle(variable, stat)
+          ? scaleSubtitle(variable, stat, detail)
           : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =

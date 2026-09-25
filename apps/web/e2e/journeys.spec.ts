@@ -57,7 +57,7 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   // The subtitle carries the rest, wave last (§7).
   await expect(
-    caption(page).getByText('Average score, 0–10 · higher is better · Wave 1, 2023', {
+    caption(page).getByText('Average score, 0–10 · Wave 1, 2023', {
       exact: true,
     }),
   ).toBeVisible()

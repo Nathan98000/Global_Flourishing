@@ -195,7 +195,7 @@ export function BreakdownsView() {
         ? `share answering “${levelLabel}”`
         : null
       : variable
-        ? scaleSubtitle(variable, stat)
+        ? scaleSubtitle(variable, stat, detail)
         : null,
     secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
     WAVE_TITLES[search.wave] ?? search.wave,

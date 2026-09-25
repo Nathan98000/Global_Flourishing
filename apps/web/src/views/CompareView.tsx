@@ -177,7 +177,7 @@ export function CompareView() {
           ? extraLevelLabel
             ? `share answering “${extraLevelLabel}”`
             : 'weighted share'
-          : scaleSubtitle(extra, extraStat)
+          : scaleSubtitle(extra, extraStat, extraDetail)
       }${splitClause} · ${waveTitle}`
     : ''
 

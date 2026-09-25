@@ -190,7 +190,7 @@ export function StatesView() {
         ? `share answering “${levelLabel}”`
         : undefined
       : variable
-        ? scaleSubtitle(variable, stat)
+        ? scaleSubtitle(variable, stat, detail)
         : undefined
   const subtitle = [subtitleBase, weights, waveTitle].filter(Boolean).join(' · ')
   const marks: ChartMarks =

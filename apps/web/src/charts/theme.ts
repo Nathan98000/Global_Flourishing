@@ -153,20 +153,14 @@ export function hasCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi'>): boolean {
   return row.ci_lo !== null && row.ci_hi !== null
 }
 
-/** Axis annotation for scale direction — never silently flipped. */
-export function directionNote(direction: string, oriented: boolean): string {
-  if (direction === 'higher_better') return 'higher is better'
-  if (direction === 'lower_better')
-    return oriented ? 'reversed so higher is better' : 'lower is better'
-  return ''
-}
-
+/** The axis names the statistic and the range; the subtitle names the
+ * scale's endpoints (labels.ts scaleSubtitle) — never "higher is
+ * better" (ADR-0016). */
 export function axisLabel(
-  variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
-  responseMeta: Pick<ResponseMeta, 'stat' | 'oriented'>,
+  variable: Pick<VariableSummary, 'min' | 'max'>,
+  responseMeta: Pick<ResponseMeta, 'stat'>,
   levelLabel?: string,
 ): string {
-  const note = directionNote(variable.direction, responseMeta.oriented)
   if (responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution') {
     const of = levelLabel ? ` of “${levelLabel}”` : ''
     return `Weighted share${of} (%)`
@@ -174,7 +168,7 @@ export function axisLabel(
   const range =
     variable.min !== null && variable.max !== null ? ` (${variable.min}–${variable.max})` : ''
   const stat = responseMeta.stat === 'quantile' ? 'Median' : 'Weighted mean'
-  return `${stat}${range}${note ? ` · ${note}` : ''}`
+  return `${stat}${range}`
 }
 
 /** Tooltip text: value leads, the interval follows — never the n, which
