@@ -28,6 +28,7 @@ import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { columnLabel, levelDomain, outcomeLevels, scaleSubtitle } from '../labels'
+import { searchNavigation } from '../state/navigate'
 import {
   COMPARE_MAX_COUNTRIES,
   COMPARE_MIN_COUNTRIES,
@@ -63,7 +64,7 @@ export function CompareView() {
   const ready = countries.length >= COMPARE_MIN_COUNTRIES
 
   const setSearch = (patch: Partial<CompareSearch>) => {
-    void navigate({ search: compareSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(compareSearchParams({ ...search, ...patch })))
   }
 
   const domainRequests = useMemo(
@@ -309,14 +310,12 @@ export function CompareView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: compareSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              compareSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

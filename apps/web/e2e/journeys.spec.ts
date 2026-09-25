@@ -92,6 +92,24 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await page.goBack()
   await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
+
+  // A control moved: the URL changes, the page stays put (ADR-0016) — and
+  // the country popover stays open while several countries are ticked in
+  // a row.
+  await page.evaluate('window.scrollTo(0, 240)')
+  const scrolled = await page.evaluate<number>('window.scrollY')
+  expect(scrolled).toBeGreaterThan(200)
+  const countries = page.locator('details', {
+    has: page.locator('summary', { hasText: /^Countries:/ }),
+  })
+  await countries.locator('summary').click()
+  await expect(countries).toHaveAttribute('open', '')
+  const boxes = countries.getByRole('checkbox')
+  await boxes.nth(0).check()
+  await boxes.nth(1).check()
+  await expect(page).toHaveURL(/countries=1(%2C|,)22/)
+  expect(Math.abs((await page.evaluate<number>('window.scrollY')) - scrolled)).toBeLessThan(4)
+  await expect(countries).toHaveAttribute('open', '')
 })
 
 test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {

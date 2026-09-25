@@ -29,6 +29,7 @@ import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { formatCount } from '../format'
 import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
@@ -51,9 +52,7 @@ export function AtlasView() {
   const detail = detailQuery.data?.detail
 
   const setSearch = (patch: Partial<AtlasSearch>) => {
-    void navigate({
-      search: atlasSearchParams({ ...search, ...patch }) as never,
-    })
+    void navigate(searchNavigation(atlasSearchParams({ ...search, ...patch })))
   }
 
   const metaForSort = meta.data?.meta
@@ -305,14 +304,12 @@ export function AtlasView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: atlasSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              atlasSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

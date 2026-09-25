@@ -38,6 +38,7 @@ import {
   scaleSubtitle,
 } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import {
   whatMattersRequest,
   whatMattersSearchParams,
@@ -100,7 +101,7 @@ export function WhatMattersView() {
   const dir = search.dir ?? defaultDir(sortKey)
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
-    void navigate({ search: whatMattersSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
   }
 
   // 1. The ranking by country: one midyear cross-section per item.
@@ -293,14 +294,12 @@ export function WhatMattersView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: whatMattersSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              whatMattersSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
 

@@ -33,6 +33,7 @@ import {
   scaleSubtitle,
 } from '../labels'
 import { defaultDir, sortBreakdownRows } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
@@ -64,7 +65,7 @@ export function BreakdownsView() {
   const secondaryDetail = secondaryDetailQuery.data?.detail
 
   const setSearch = (patch: Partial<BreakdownsSearch>) => {
-    void navigate({ search: breakdownsSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(breakdownsSearchParams({ ...search, ...patch })))
   }
 
   const isCategorical = variable?.default_stat === 'proportion'
@@ -312,14 +313,12 @@ export function BreakdownsView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: breakdownsSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              breakdownsSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

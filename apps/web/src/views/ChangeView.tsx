@@ -42,6 +42,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
 import { defaultDir } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_TITLES, pairTitle } from '../waves'
@@ -109,7 +110,7 @@ export function ChangeView() {
   const pair = pairTitle(search.from, search.to, search.via)
 
   const setSearch = (patch: Partial<ChangeSearch>) => {
-    void navigate({ search: changeSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(changeSearchParams({ ...search, ...patch })))
   }
 
   const request = askedTwice ? changeRequest(search) : null
@@ -317,14 +318,12 @@ export function ChangeView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: changeSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              changeSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

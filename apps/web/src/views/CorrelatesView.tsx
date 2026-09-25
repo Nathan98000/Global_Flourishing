@@ -32,6 +32,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { formatCount, formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
+import { searchNavigation } from '../state/navigate'
 import {
   correlatesAcrossCountries,
   correlatesRequest,
@@ -82,7 +83,7 @@ export function CorrelatesView() {
   const adjusted = search.adjusted === true
 
   const setSearch = (patch: Partial<CorrelatesSearch>) => {
-    void navigate({ search: correlatesSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
   }
 
   const rankedRequest =
@@ -247,14 +248,12 @@ export function CorrelatesView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: correlatesSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>

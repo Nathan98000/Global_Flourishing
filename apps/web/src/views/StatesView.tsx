@@ -33,6 +33,7 @@ import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir } from '../sortRows'
+import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
@@ -63,7 +64,7 @@ export function StatesView() {
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
 
   const setSearch = (patch: Partial<StatesSearch>) => {
-    void navigate({ search: statesSearchParams({ ...search, ...patch }) as never })
+    void navigate(searchNavigation(statesSearchParams({ ...search, ...patch })))
   }
 
   const request = chartable ? statesRequest(search, variable) : null
@@ -309,14 +310,12 @@ export function StatesView() {
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
-          void navigate({
-            search: statesSearchParams({
-              ...search,
-              invalid: undefined,
-              invalidRaw: undefined,
-            }) as never,
-            replace: true,
-          })
+          void navigate(
+            searchNavigation(
+              statesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+              { replace: true },
+            ),
+          )
         }
       />
       <div className={styles.controls}>
