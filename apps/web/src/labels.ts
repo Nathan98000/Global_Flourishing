@@ -20,17 +20,11 @@ export function directionPhrase(direction: string): string {
 export function scaleSubtitle(
   variable: Pick<VariableSummary, 'min' | 'max' | 'direction'>,
   stat: string,
-  oriented = false,
 ): string {
   const lead = stat === 'quantile' ? 'Median score' : 'Average score'
   const range =
     variable.min !== null && variable.max !== null ? `, ${variable.min}–${variable.max}` : ''
-  const direction =
-    variable.direction === 'lower_better' && oriented
-      ? 'reversed so higher is better'
-      : variable.direction === 'none'
-        ? ''
-        : directionPhrase(variable.direction)
+  const direction = variable.direction === 'none' ? '' : directionPhrase(variable.direction)
   return `${lead}${range}${direction ? ` · ${direction}` : ''}`
 }
 

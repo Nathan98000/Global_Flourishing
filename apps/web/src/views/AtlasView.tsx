@@ -124,7 +124,6 @@ export function AtlasView() {
       wave: wave ?? search.wave,
       stat: undefined,
       level: undefined,
-      oriented: undefined,
       invalid: undefined,
       invalidRaw: undefined,
     })
@@ -167,7 +166,7 @@ export function AtlasView() {
       : stat === 'distribution'
         ? undefined
         : variable
-          ? scaleSubtitle(variable, stat, search.oriented ?? false)
+          ? scaleSubtitle(variable, stat)
           : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =
@@ -323,16 +322,6 @@ export function AtlasView() {
           </details>
         ) : (
           displayOptions
-        )}
-        {variable && variable.direction === 'lower_better' && !variable.is_derived && (
-          <label className={styles.oriented}>
-            <input
-              type="checkbox"
-              checked={search.oriented ?? false}
-              onChange={(event) => setSearch({ oriented: event.target.checked || undefined })}
-            />{' '}
-            Orient so higher = better (reverses this item)
-          </label>
         )}
       </div>
 

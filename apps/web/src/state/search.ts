@@ -1,5 +1,5 @@
 // Typed URL state: the URL *is* the state (proposal §4.4). Query params
-// carry the API's own names (outcome, wave, stat, by, oriented); view-only
+// carry the API's own names (outcome, wave, stat, by); view-only
 // params (sort, countries) are separate. Defaults are omitted from
 // the URL; invalid values degrade to defaults and are reported through the
 // `invalid` key, which renders as a notice and is recomputed on every
@@ -162,7 +162,6 @@ export interface AtlasSearch {
   countries: number[]
   /** Categorical outcomes: which answer level is ranked/mapped. */
   level?: number
-  oriented?: boolean
   invalid?: string[]
   invalidRaw?: RawParams
 }
@@ -188,7 +187,6 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
     topic: collect.take('topic', raw, parseName, undefined),
     stat: collect.take('stat', raw, parseStat, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
-    oriented: collect.take('oriented', raw, parseTrue, undefined) ? true : undefined,
   }
   return collect.finish(search)
 }
@@ -205,7 +203,6 @@ export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, 
       dir: search.dir === defaultDir(search.sort ?? ATLAS_DEFAULTS.sort) ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
-      oriented: search.oriented ? true : undefined,
     },
     search.invalidRaw,
   )
@@ -221,7 +218,6 @@ export function atlasRequest(
     wave: search.wave,
     stat: search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean',
     by: ['country_code'],
-    oriented: search.oriented,
   }
 }
 

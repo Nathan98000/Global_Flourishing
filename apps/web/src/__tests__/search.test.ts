@@ -115,11 +115,6 @@ describe('atlas search', () => {
     expect(parseAtlasSearch({ countries: ['1', '22'] }).countries).toEqual([1, 22])
   })
 
-  test('oriented is an explicit opt-in', () => {
-    expect(parseAtlasSearch({ oriented: 'true' }).oriented).toBe(true)
-    expect(parseAtlasSearch({ oriented: 'yes' }).invalid).toEqual(['oriented'])
-  })
-
   test("dir rides the URL only when it differs from the sort's default", () => {
     // Defaults: values high-first, names A→Z — omitted from the URL.
     expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ dir: 'desc' })))).toBe('')
@@ -149,7 +144,6 @@ describe('atlas search', () => {
       wave: 'Y1',
       stat: 'mean',
       by: ['country_code'],
-      oriented: undefined,
     })
     expect(atlasRequest({ ...search, stat: 'distribution' }, happyVariable).stat).toBe(
       'distribution',
