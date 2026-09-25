@@ -43,10 +43,6 @@ export const SFI_HUES: Record<string, string> = {
   sfi_financial: 'var(--sfi-financial)',
 }
 
-/** The six domain outcomes in index order — the ids `flourish_stats.outcomes`
- * serves; their display names come from the catalog, never from here. */
-export const SFI_DOMAINS: readonly string[] = Object.keys(SFI_HUES)
-
 export const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'] as const
 
 export const SEQUENTIAL_RAMP = [

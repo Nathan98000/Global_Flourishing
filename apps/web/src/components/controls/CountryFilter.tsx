@@ -7,8 +7,6 @@
 // 2/10); the panel closes on Escape (focus back to the trigger) and on a
 // click outside it (focus left alone), and anchors to the trigger's
 // right edge when a left-anchored panel would overflow the page column.
-// A capped filter (Compare: up to five) disables the rest at the cap and
-// says so in plain words; there an empty selection means "choose".
 
 import { useEffect, useRef, useState } from 'react'
 import type { Country } from '../../api/types'
@@ -18,15 +16,10 @@ export function CountryFilter({
   countries,
   selected,
   onChange,
-  max,
-  capMessage = 'That is the most this view compares at once — clear one to add another.',
 }: {
   countries: Country[]
   selected: readonly number[]
   onChange: (codes: number[]) => void
-  /** The most that can be selected; unset = any number (empty = all). */
-  max?: number
-  capMessage?: string
 }) {
   const details = useRef<HTMLDetailsElement | null>(null)
   const summary = useRef<HTMLElement | null>(null)
@@ -55,7 +48,6 @@ export function CountryFilter({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [])
 
-  const atCap = max !== undefined && selected.length >= max
   const onToggle = () => {
     const host = details.current
     const box = panel.current
@@ -86,22 +78,20 @@ export function CountryFilter({
       >
         <summary ref={summary} className={styles.summary}>
           <span className="visually-hidden">Countries: </span>
-          <span>{countryTriggerText(selected.length, countries.length, max)}</span>
+          <span>{countryTriggerText(selected.length, countries.length)}</span>
         </summary>
         <div ref={panel} className={styles.panel} data-anchor={anchorRight ? 'right' : undefined}>
           <div className={styles.actions}>
-            {max === undefined && (
-              <button
-                type="button"
-                className={styles.clear}
-                onClick={() =>
-                  onChange(countries.map((country) => country.code).sort((a, b) => a - b))
-                }
-                disabled={selected.length === countries.length}
-              >
-                Select all
-              </button>
-            )}
+            <button
+              type="button"
+              className={styles.clear}
+              onClick={() =>
+                onChange(countries.map((country) => country.code).sort((a, b) => a - b))
+              }
+              disabled={selected.length === countries.length}
+            >
+              Select all
+            </button>
             <button
               type="button"
               className={styles.clear}
@@ -111,11 +101,6 @@ export function CountryFilter({
               Clear
             </button>
           </div>
-          {atCap && (
-            <p className={styles.cap} role="status">
-              {capMessage}
-            </p>
-          )}
           <ul className={styles.list}>
             {[...countries]
               .sort((a, b) => a.name.localeCompare(b.name))
@@ -125,7 +110,6 @@ export function CountryFilter({
                     <input
                       type="checkbox"
                       checked={set.has(country.code)}
-                      disabled={atCap && !set.has(country.code)}
                       onChange={() => toggle(country.code)}
                     />{' '}
                     {country.name}
@@ -139,10 +123,8 @@ export function CountryFilter({
   )
 }
 
-/** The trigger's state in a few words — "All 23", "3 selected", "3 of 5
- * selected", "Choose up to 5" — under the visible "Countries" label. */
-export function countryTriggerText(chosen: number, total: number, max?: number): string {
-  if (max !== undefined)
-    return chosen === 0 ? `Choose up to ${max}` : `${chosen} of ${max} selected`
+/** The trigger's state in a few words — "All 23", "3 selected" — under
+ * the visible "Countries" label. */
+export function countryTriggerText(chosen: number, total: number): string {
   return chosen === 0 || chosen === total ? `All ${total}` : `${chosen} selected`
 }

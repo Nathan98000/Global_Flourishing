@@ -2,9 +2,9 @@
 // views, and a footer that carries the citation — nothing else (owner
 // decision 5: the data version lives in the CSV header and Methods; the
 // causation caveat lives on Methods, where it is explained rather than
-// asserted). Phase 5 added Change, Compare, What Matters and US States to
-// the nav; Phase 6 adds Correlates — nine items, the secondary five behind
-// "More" on a phone.
+// asserted). Phase 5 added Change, What Matters and US States to the nav
+// (and Compare, retired 25 Sept — ADR-0017); Phase 6 adds Correlates —
+// eight items, the secondary four behind "More" on a phone.
 
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { useEffect, useRef, type ReactNode } from 'react'

@@ -305,6 +305,20 @@ export function breakdownsRequest(
   }
 }
 
+/** The retired Compare page's links (ADR-0017): what carries over to
+ * Breakdowns — the outcome and the wave, each only when valid. Every
+ * other param is dropped here, so the landing page shows no notice. */
+export function compareRedirectSearch(
+  raw: Raw,
+): Partial<Pick<BreakdownsSearch, 'outcome' | 'wave'>> {
+  const outcome = parseName(first(raw, 'outcome'))
+  const wave = parseWave(first(raw, 'wave'))
+  return {
+    ...(outcome !== undefined ? { outcome } : {}),
+    ...(wave !== undefined ? { wave } : {}),
+  }
+}
+
 // --- Codebook --------------------------------------------------------------
 
 export interface CodebookSearch {
@@ -436,87 +450,6 @@ export function changeRequest(search: ChangeSearch): ChangeRequest {
   }
 }
 
-// --- Compare (Phase 5) -------------------------------------------------------
-// Two to five countries across the six SFI domains, plus one chosen item.
-// `by` splits every country into a demographic's levels instead.
-
-export const COMPARE_MAX_COUNTRIES = 5
-export const COMPARE_MIN_COUNTRIES = 2
-
-export interface CompareSearch {
-  /** 2–5 country codes; fewer than two means "choose countries". */
-  countries: number[]
-  wave: Wave
-  /** A demographic column: compare its levels within each country. */
-  by?: string
-  /** One extra item (any servable measure) shown under the domains. */
-  outcome?: string
-  topic?: string
-  invalid?: string[]
-  invalidRaw?: RawParams
-}
-
-export const COMPARE_DEFAULTS = {
-  countries: [] as number[],
-  wave: 'Y1' as Wave,
-}
-
-function parseCappedCountries(value: unknown): number[] | undefined {
-  const codes = parseCountries(value)
-  if (codes === undefined || codes.length > COMPARE_MAX_COUNTRIES) return undefined
-  return codes
-}
-
-const parseBreakdownColumn = (value: unknown): string | undefined => {
-  const name = parseName(value)
-  return name !== undefined && name !== 'country_code' ? name : undefined
-}
-
-export function parseCompareSearch(raw: Raw): CompareSearch {
-  const collect = new Collector()
-  const search: CompareSearch = {
-    countries: collect.take(
-      'countries',
-      raw,
-      parseCappedCountries,
-      COMPARE_DEFAULTS.countries,
-      true,
-    ),
-    wave: collect.take('wave', raw, parseWave, COMPARE_DEFAULTS.wave),
-    by: collect.take('by', raw, parseBreakdownColumn, undefined),
-    outcome: collect.take('outcome', raw, parseName, undefined),
-    topic: collect.take('topic', raw, parseName, undefined),
-  }
-  return collect.finish(search)
-}
-
-export function compareSearchParams(search: Partial<CompareSearch>): Record<string, unknown> {
-  return withInvalidRaw(
-    {
-      countries: search.countries?.length ? search.countries.join(',') : undefined,
-      wave: search.wave === COMPARE_DEFAULTS.wave ? undefined : search.wave,
-      by: search.by,
-      outcome: search.outcome,
-      topic: search.topic,
-    },
-    search.invalidRaw,
-  )
-}
-
-/** One cross-section request per compared outcome (a domain or the item). */
-export function compareRequest(
-  search: CompareSearch,
-  outcome: string,
-  variable: VariableSummary | undefined,
-): AggregateRequest {
-  return {
-    outcome,
-    wave: search.wave,
-    stat: (variable?.default_stat as Stat | undefined) ?? 'mean',
-    by: search.by ? ['country_code', search.by] : ['country_code'],
-  }
-}
-
 // --- What Matters (Phase 5) --------------------------------------------------
 // The midyear family at wave MY: rankings by country, the shift by a
 // demographic (age band by default) within one country, and the
@@ -541,6 +474,11 @@ export interface WhatMattersSearch {
 export const WHAT_MATTERS_DEFAULTS = {
   by: 'age_band',
   sort: 'name',
+}
+
+const parseBreakdownColumn = (value: unknown): string | undefined => {
+  const name = parseName(value)
+  return name !== undefined && name !== 'country_code' ? name : undefined
 }
 
 const parseCountryCode = (value: unknown): number | undefined => {

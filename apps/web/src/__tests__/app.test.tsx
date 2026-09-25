@@ -115,7 +115,7 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  // Phase 6 nav order — nine items, Correlates after What Matters.
+  // Phase 6 nav order less Compare (ADR-0017) — eight items.
   expect(
     within(nav)
       .getAllByRole('link')
@@ -123,7 +123,6 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   ).toEqual([
     'Atlas',
     'Change',
-    'Compare',
     'What Matters',
     'Correlates',
     'US States',
@@ -329,7 +328,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   expect(statistic).toHaveDisplayValue('Mean')
 })
 
-test('on a phone the secondary five nav items collapse behind "More" (type unchanged)', async () => {
+test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -354,7 +353,6 @@ test('on a phone the secondary five nav items collapse behind "More" (type uncha
   expect(inline).toEqual([
     'Atlas',
     'Change',
-    'Compare',
     'What Matters',
     'Correlates',
     'US States',
@@ -387,11 +385,10 @@ test('entering an API-only view fires one warm-up ping; the Atlas does not', asy
   expect(screen.queryByText(/Every view on this deployment/)).toBeNull()
 })
 
-test('the four new routes exist, parse their URL state and say what they are', async () => {
+test('the Phase 5 routes exist, parse their URL state and say what they are', async () => {
   mockFetch(staticTier)
   for (const [path, heading] of [
     ['/change?via=MY', 'Change'],
-    ['/compare?countries=1,22', 'Compare'],
     ['/what-matters?by=gender', 'What Matters'],
     ['/states?wave=Y2&adj=true', 'US States'],
   ] as const) {
@@ -403,4 +400,25 @@ test('the four new routes exist, parse their URL state and say what they are', a
   // Bad params degrade with the notice, never a crash.
   await renderAt('/states?adj=true')
   expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
+})
+
+test('an old Compare link lands on Breakdowns with its outcome and wave, and no notice', async () => {
+  mockFetch(staticTier)
+  for (const [path, href] of [
+    // sfi is Breakdowns' default outcome, so the address omits it.
+    ['/compare?outcome=sfi&countries=1,2', '/breakdowns'],
+    [
+      '/compare?countries=1,22&wave=Y2&by=gender&outcome=HAPPY&topic=wellbeing',
+      '/breakdowns?outcome=HAPPY&wave=Y2',
+    ],
+    // Invalid values are dropped silently, like every other param.
+    ['/compare?outcome=HAPPY&wave=Y9', '/breakdowns?outcome=HAPPY'],
+  ] as const) {
+    const router = await renderAt(path)
+    expect(await screen.findByRole('heading', { name: 'Breakdowns' })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.href).toBe(href))
+    expect(router.state.location.search).not.toHaveProperty('countries')
+    expect(screen.queryByText(/were invalid and were reset/)).toBeNull()
+    cleanup()
+  }
 })

@@ -27,15 +27,11 @@ export interface DotEntry {
   level: string
   /** fy — the facet label (country), when faceted. */
   facet: string
-  /** fx — a column facet (Compare's split), when faceted both ways. */
+  /** fx — a column facet (a second breakdown), when faceted both ways. */
   column?: string
   value: number | null
   ci: [number, number] | null
 }
-
-/** A mark colour: one hue, or a hue per entry passed through as a
- * literal (`scale: null`) so Plot never builds a colour scale. */
-export type DotColor = string | ((entry: DotEntry) => string)
 
 export type LevelLabeler = (column: string, value: string | number) => string | undefined
 
@@ -59,7 +55,7 @@ export function dotEntries(
 
 export function dotMarks(
   entries: DotEntry[],
-  color: DotColor,
+  color: string,
   facetChannel: Record<string, string> = {},
   /** Where the pointer anchors for a valueless row — the fitted
    * domain's left edge, not 0 (F1). */
@@ -84,7 +80,7 @@ export function dotMarks(
       ...facetChannel,
       y: 'level',
       x: 'value',
-      fill: typeof color === 'string' ? color : { value: color, scale: null },
+      fill: color,
       r: 4.5,
       stroke: 'var(--surface)',
       strokeWidth: 2,

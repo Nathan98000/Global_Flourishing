@@ -83,20 +83,6 @@
   cursor: default;
 }
 
-/* The plain sentence at a capped filter's limit. */
-.cap {
-  margin: 0 0 var(--space-2);
-  color: var(--ink-secondary);
-  font-size: var(--text-xs);
-  max-width: 14rem;
-}
-
-.option input:disabled + *,
-.option:has(input:disabled) {
-  color: var(--ink-muted);
-  cursor: not-allowed;
-}
-
 .list {
   list-style: none;
   margin: 0;
