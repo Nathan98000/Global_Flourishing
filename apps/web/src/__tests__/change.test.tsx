@@ -398,7 +398,7 @@ describe('Change view', () => {
     expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
     // The prompt sits beside the country control, which reads its state.
-    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
+    expect(screen.getByText('All 2')).toBeInTheDocument()
     expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
   })
 
