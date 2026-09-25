@@ -1,6 +1,6 @@
 // US state choropleth (Phase 5): Albers USA projection (Alaska and Hawaii
-// inset by the projection), the same quantized token ramp as the world
-// map, anchored to the observed range; states with no estimate wear the
+// inset by the projection), the quantized token ramp (mapScale.tsx),
+// anchored to the observed range; states with no estimate wear the
 // empty fill and say so in the tip, with the same bordered "no estimate"
 // swatch in the legend. A pooled group's members all take the group's
 // value and wear a dashed outline; every name in the tip is the
@@ -10,7 +10,7 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { ciLabel, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
-import { mapDomain, quantizeColor } from './Choropleth'
+import { mapDomain, quantizeColor } from './mapScale'
 import {
   FONT_FAMILY,
   INK,

@@ -10,7 +10,7 @@ follow the same people across waves, and read the exact question wording
 behind every number.
 
 **Status: Phase 6 complete — correlates and adjusted models (statistics
-review pending).** Atlas (ranked dots, a world choropleth, distributions,
+review pending).** Atlas (ranked dots, distributions,
 medians), **Change** (how the same people answered a year later:
 within-person change with its interval and a marked zero, the histogram
 of individual change, and where people moved between answers),

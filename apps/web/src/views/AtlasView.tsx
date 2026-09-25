@@ -1,11 +1,11 @@
-// Atlas (§2.5): pick a measure and a wave, see ranked dots/bars, the
-// map, or the distribution — CI and n on every value, the question on
+// Atlas (§2.5): pick a measure and a wave, see ranked dots/bars or the
+// distribution — CI on every value, n in the data table, the question on
 // the page, weight and suppression rule in plain words under the chart,
 // coverage on Y2/MY, the URL carrying all of it. Statistics come from
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useMemo } from 'react'
+import { useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -34,8 +34,6 @@ import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/sear
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
-
-const MapPanel = lazy(() => import('./MapPanel'))
 
 const route = getRouteApi('/')
 
@@ -173,13 +171,7 @@ export function AtlasView() {
           : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
   const marks: ChartMarks =
-    stat === 'distribution'
-      ? 'bins'
-      : search.view === 'map'
-        ? 'map'
-        : stat === 'proportion'
-          ? 'bars'
-          : 'dots'
+    stat === 'distribution' ? 'bins' : stat === 'proportion' ? 'bars' : 'dots'
 
   const csv: CsvExport | undefined =
     request === null
@@ -202,7 +194,7 @@ export function AtlasView() {
             }
           : undefined
 
-  // Statistic, View, Sort, Order, Countries and Answer level fold into a
+  // Statistic, Sort, Order, Countries and Answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
   // and Wave stay visible so the chart starts within the first phone
   // screen.
@@ -221,18 +213,6 @@ export function AtlasView() {
         />
       )}
       {stat !== 'distribution' && (
-        <RadioRow
-          legend="View"
-          name="view"
-          options={[
-            { value: 'bars', label: 'Chart' },
-            { value: 'map', label: 'Map' },
-          ]}
-          value={search.view}
-          onChange={(view) => setSearch({ view })}
-        />
-      )}
-      {search.view === 'bars' && stat !== 'distribution' && (
         <>
           <RadioRow
             legend="Sort"
@@ -435,23 +415,6 @@ export function AtlasView() {
                       <p className={styles.hint}>Showing the first four selected countries.</p>
                     )}
                   </>
-                ) : search.view === 'map' ? (
-                  <Suspense fallback={<Skeleton height={400} label="Loading the world map" />}>
-                    <MapPanel
-                      rows={
-                        stat === 'proportion'
-                          ? response.rows.filter(
-                              (row) =>
-                                row.level === (search.level ?? defaultLevel(detail, response.rows)),
-                            )
-                          : response.rows
-                      }
-                      meta={meta.data.meta}
-                      responseMeta={response.meta}
-                      selected={search.countries}
-                      levelLabel={levelLabel}
-                    />
-                  </Suspense>
                 ) : (
                   <RankedBar
                     rows={displayRows}

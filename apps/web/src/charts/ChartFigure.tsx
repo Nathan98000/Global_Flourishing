@@ -20,7 +20,7 @@ export function capitalize(text: string): string {
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
-export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'state-map' | 'table'
+export type ChartMarks = 'dots' | 'bars' | 'bins' | 'state-map' | 'table'
 
 /** The footnote under every chart (round-2 item 7): what the lines are
  * — 95% confidence intervals, the level from the response — the
@@ -41,15 +41,13 @@ export function footnoteCopy(
     ? marks === 'table'
       ? `Cells are point estimates — no confidence interval is computed for ${noun}`
       : `Dots are point estimates — no confidence interval is computed for ${noun}`
-    : marks === 'map'
-      ? `Hover a country for its ${level}% confidence interval`
-      : marks === 'state-map'
-        ? `Hover a state for its ${level}% confidence interval`
-        : marks === 'table'
-          ? `Hover a cell for its ${level}% confidence interval`
-          : `Lines are ${level}% confidence intervals`
+    : marks === 'state-map'
+      ? `Hover a state for its ${level}% confidence interval`
+      : marks === 'table'
+        ? `Hover a cell for its ${level}% confidence interval`
+        : `Lines are ${level}% confidence intervals`
   const where =
-    marks === 'map' || marks === 'state-map'
+    marks === 'state-map'
       ? 'n in the data table'
       : marks === 'table'
         ? 'n in every cell and in the data table'

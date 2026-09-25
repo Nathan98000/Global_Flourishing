@@ -226,9 +226,9 @@ test('the offline banner stays off Methods and the 404 page (F13)', async () => 
 
 test('invalid search params degrade to defaults with a visible notice', async () => {
   mockFetch(staticTier)
-  await renderAt('/?wave=Y9&view=pie')
+  await renderAt('/?wave=Y9&sort=pie')
   expect(
-    await screen.findByText(/invalid and were reset to defaults: wave, view/),
+    await screen.findByText(/invalid and were reset to defaults: wave, sort/),
   ).toBeInTheDocument()
   // The view still renders the default query, not a crash.
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)

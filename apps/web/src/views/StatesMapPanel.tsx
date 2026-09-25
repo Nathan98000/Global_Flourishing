@@ -1,10 +1,10 @@
 // The lazy US map chunk: the states topology (~36 KB gz) and the state
 // choropleth load only when the map view is opened — never in the
-// initial route, and never with the world map.
+// initial route.
 
 import { useEffect, useState } from 'react'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import { MapLegend, mapDomain } from '../charts/Choropleth'
+import { MapLegend, mapDomain } from '../charts/mapScale'
 import { StateChoropleth } from '../charts/StateChoropleth'
 import { loadUsStateFeatures, type UsFeature } from '../charts/usTopology'
 import { Skeleton } from '../components/Skeleton'

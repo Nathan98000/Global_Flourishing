@@ -1,6 +1,6 @@
 // Typed URL state: the URL *is* the state (proposal §4.4). Query params
 // carry the API's own names (outcome, wave, stat, by, oriented); view-only
-// params (view, sort, countries) are separate. Defaults are omitted from
+// params (sort, countries) are separate. Defaults are omitted from
 // the URL; invalid values degrade to defaults and are reported through the
 // `invalid` key, which renders as a notice and is recomputed on every
 // parse — it can never be forged into or trapped in a shared URL.
@@ -156,7 +156,6 @@ export interface AtlasSearch {
   wave: Wave
   /** Absent = the variable's server-declared default_stat. */
   stat?: Stat
-  view: 'bars' | 'map'
   sort: 'estimate' | 'name'
   /** Absent = the sort's own default (values high-first, names A→Z). */
   dir?: SortDir
@@ -171,7 +170,6 @@ export interface AtlasSearch {
 export const ATLAS_DEFAULTS = {
   outcome: 'sfi',
   wave: 'Y1' as Wave,
-  view: 'bars' as const,
   sort: 'estimate' as const,
   countries: [] as number[],
 }
@@ -184,7 +182,6 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
   const search: AtlasSearch = {
     outcome: collect.take('outcome', raw, parseName, ATLAS_DEFAULTS.outcome),
     wave: collect.take('wave', raw, parseWave, ATLAS_DEFAULTS.wave),
-    view: collect.take('view', raw, parseEnum('bars', 'map'), ATLAS_DEFAULTS.view),
     sort: collect.take('sort', raw, parseEnum('estimate', 'name'), ATLAS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, parseCountries, ATLAS_DEFAULTS.countries, true),
@@ -204,7 +201,6 @@ export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, 
       topic: search.topic,
       wave: search.wave === ATLAS_DEFAULTS.wave ? undefined : search.wave,
       stat: search.stat,
-      view: search.view === ATLAS_DEFAULTS.view ? undefined : search.view,
       sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
       dir: search.dir === defaultDir(search.sort ?? ATLAS_DEFAULTS.sort) ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
