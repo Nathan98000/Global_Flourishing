@@ -17,6 +17,7 @@ import {
   columnRanges,
   defaultSplitCountry,
   itemLabel,
+  itemList,
   matrixCountryOrder,
   narrowestWrap,
   orderMatrixRows,
@@ -351,6 +352,15 @@ describe('the midyear family from the catalog', () => {
     expect(itemLabel({ ...money, short_label: ' ' })).toBe('Money')
   })
 
+  test('the lede lists the items in column order, in words', () => {
+    const goodPerson = midyear('GOOD_PERSON', 'Importance: being a good person')
+    expect(itemList([goodPerson, relation, money])).toBe(
+      'being a good person, good relationships and money',
+    )
+    expect(itemList([money])).toBe('money')
+    expect(itemList([])).toBe('')
+  })
+
   test('the narrowest column: every label in at most N lines, never narrower than a word', () => {
     // One unit per character, spaces included.
     const measure = (text: string) => text.length
@@ -468,6 +478,23 @@ describe('What Matters view', () => {
     // The crossings section is gone.
     expect(screen.queryByText(/Two things that travel together/)).toBeNull()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
+    // The lede names the items from the catalog, in column order, and
+    // never the survey's administration modes.
+    expect(
+      screen.getByText(
+        'How important people say 2 things are in their lives, rated 0–10: money and good relationships. From the midyear survey (Nov 2023–Dec 2024), a short questionnaire between the two annual waves.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'How important people say 2 things are in their lives, rated 0–10, in the midyear survey.',
+      ),
+    ).toBeInTheDocument()
+    expect(visibleText(screen.getByRole('main'))).not.toMatch(/standalone|combined|administ/i)
+    // Every select sits under its label, as RadioRow's legend does.
+    const sortField = sort.closest('label') as HTMLElement
+    expect(sortField.className).toContain('field')
+    expect(sortField.firstElementChild?.textContent).toBe('Sort countries by')
   })
 
   test('Other questions: the first chartable item alone, with its answer levels from the codebook', async () => {
@@ -477,6 +504,9 @@ describe('What Matters view', () => {
       await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    const question = screen.getByLabelText(/^Question/) as HTMLSelectElement
+    expect(question.closest('label')?.className).toContain('field')
+    expect(question.closest('label')?.firstElementChild?.textContent).toBe('Question')
     expect(document.querySelectorAll('figure')).toHaveLength(1)
     expect(screen.queryByRole('img', { name: /as a matrix/ })).toBeNull()
     expect(calls.filter((url) => url.includes('MONEY') || url.includes('GOOD_RELATION'))).toEqual(
@@ -660,6 +690,14 @@ describe('What Matters view', () => {
     // country…" option, no hint; one figure on screen.
     const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
     expect(country.value).toBe('22')
+    // Both selects sit under their labels.
+    for (const [select, label] of [
+      [country, 'Country'],
+      [screen.getByLabelText(/^Split by/), 'Split by'],
+    ] as const) {
+      expect(select.closest('label')?.className).toContain('field')
+      expect(select.closest('label')?.firstElementChild?.textContent).toBe(label)
+    }
     expect([...country.options].map((option) => option.textContent)).toEqual([
       'Testland',
       'United States',

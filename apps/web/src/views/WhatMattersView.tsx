@@ -8,7 +8,7 @@
 // the catalog by family; the ranking set is navigation copy in topics.ts.
 
 import { getRouteApi, useLocation } from '@tanstack/react-router'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, type ChangeEvent, type ReactNode } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimatesMany } from '../api/estimates'
 import { useBootStatus, useMeta } from '../api/meta'
@@ -44,6 +44,7 @@ import {
   columnRanges,
   defaultSplitCountry,
   itemLabel,
+  itemList,
   matrixCountryOrder,
   narrowestWrap,
   orderMatrixRows,
@@ -256,9 +257,12 @@ export function WhatMattersView() {
   const splitLabel = columnLabel(search.by, served)
   const first = ranking[0]
   // The scale, said once (the columns drop "Importance:").
-  const scale =
-    first && first.min !== null && first.max !== null ? `, ${first.min}–${first.max}` : ''
-  const rankingSubtitle = `How important${scale} · ${MIDYEAR_TITLE}`
+  const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
+  const rankingSubtitle = `How important${range ? `, ${range}` : ''} · ${MIDYEAR_TITLE}`
+  // The lede names the items from the catalog, in column order.
+  const things = ranking.length === 1 ? '1 thing is' : `${ranking.length} things are`
+  const rated = range ? `, rated ${range}` : ''
+  const list = itemList(ranking)
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
     onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
@@ -319,12 +323,12 @@ export function WhatMattersView() {
       <h2 className="visually-hidden">What Matters</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          What people said mattered most in their lives — money, relationships, meaning, health,
-          faith, happiness, being a good person — in the midyear survey (Nov 2023–Dec 2024), and how
-          that differs by country and by age.
+          How important people say {things} in their lives{rated}
+          {list ? `: ${list}` : ''}. From the midyear survey (Nov 2023–Dec 2024), a short
+          questionnaire between the two annual waves.
         </span>
         <span className={styles.deckShort}>
-          What people said mattered most, in the midyear survey, by country and by age.
+          How important people say {things} in their lives{rated}, in the midyear survey.
         </span>
       </p>
       <div className={styles.controls}>
@@ -357,20 +361,18 @@ export function WhatMattersView() {
       {search.view === 'country' && ranking.length > 0 && (
         <>
           <div className={styles.controls}>
-            <label className={styles.oriented}>
-              Sort countries by{' '}
-              <select
-                value={matrixSort}
-                onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
-              >
-                <option value="name">Country name</option>
-                {ranking.map((entry) => (
-                  <option key={entry.name} value={entry.name}>
-                    {itemLabel(entry)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Sort countries by"
+              value={matrixSort}
+              onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
+            >
+              <option value="name">Country name</option>
+              {ranking.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {itemLabel(entry)}
+                </option>
+              ))}
+            </SelectField>
             <RadioRow
               legend="Order"
               name="dir"
@@ -414,34 +416,33 @@ export function WhatMattersView() {
       {search.view === 'within' && ranking.length > 0 && (
         <>
           <div className={styles.controls}>
-            <label className={styles.oriented}>
-              Country{' '}
-              <select
-                value={splitCountry}
-                onChange={(event) => {
-                  const code = Number(event.target.value)
-                  setSearch({ country: code === defaultSplitCountry(served) ? undefined : code })
-                }}
-              >
-                {[...served.countries]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((country) => (
-                    <option key={country.code} value={country.code}>
-                      {country.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className={styles.oriented}>
-              Split by{' '}
-              <select value={search.by} onChange={(event) => setSearch({ by: event.target.value })}>
-                {demographics.map((column) => (
-                  <option key={column} value={column}>
-                    {columnLabel(column, served)}
+            <SelectField
+              label="Country"
+              value={splitCountry ?? ''}
+              onChange={(event) => {
+                const code = Number(event.target.value)
+                setSearch({ country: code === defaultSplitCountry(served) ? undefined : code })
+              }}
+            >
+              {[...served.countries]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.name}
                   </option>
                 ))}
-              </select>
-            </label>
+            </SelectField>
+            <SelectField
+              label="Split by"
+              value={search.by}
+              onChange={(event) => setSearch({ by: event.target.value })}
+            >
+              {demographics.map((column) => (
+                <option key={column} value={column}>
+                  {columnLabel(column, served)}
+                </option>
+              ))}
+            </SelectField>
           </div>
           {splitQuery.isPending ? (
             <LoadingBlock height={520} label="Loading estimates" />
@@ -485,19 +486,17 @@ export function WhatMattersView() {
       {search.view === 'questions' && chartable.length > 0 && item && (
         <>
           <div className={styles.controls}>
-            <label className={styles.oriented}>
-              Question{' '}
-              <select
-                value={item.name}
-                onChange={(event) => setSearch({ item: event.target.value, level: undefined })}
-              >
-                {chartable.map((candidate) => (
-                  <option key={candidate.name} value={candidate.name}>
-                    {candidate.display_name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              label="Question"
+              value={item.name}
+              onChange={(event) => setSearch({ item: event.target.value, level: undefined })}
+            >
+              {chartable.map((candidate) => (
+                <option key={candidate.name} value={candidate.name}>
+                  {candidate.display_name}
+                </option>
+              ))}
+            </SelectField>
             {itemStat === 'proportion' && itemLevels.length > 0 && (
               <RadioRow
                 legend="Answer level"
@@ -573,6 +572,29 @@ export function WhatMattersView() {
         </>
       )}
     </section>
+  )
+}
+
+/** A native select under its label — the stacked layout of RadioRow's
+ * legend, for every select on this page. */
+function SelectField({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string
+  value: string | number
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void
+  children: ReactNode
+}) {
+  return (
+    <label className={styles.field}>
+      <span className={styles.fieldLabel}>{label}</span>
+      <select value={value} onChange={onChange}>
+        {children}
+      </select>
+    </label>
   )
 }
 

@@ -105,6 +105,20 @@
   cursor: pointer;
 }
 
+/* A select under its label (What Matters): the stacked layout and 12px
+   secondary label of RadioRow's legend, over a 13px select. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.fieldLabel {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
 /* What Matters' tint key, in the matrix caption's place: "Lower", the
    seven ramp swatches, "Higher · …" — the map legend's 20 × 10 steps,
    in the legend voice (12px, secondary ink, not the caption's bold). */

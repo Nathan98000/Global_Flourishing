@@ -20,6 +20,19 @@ export function itemLabel(item: VariableSummary & { short_label?: string | null 
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
+/** The lede's list of the items, in column order and in words: "being
+ * a good person, good relationships, … money and religious or spiritual
+ * life" — each column label with its first letter lowered. */
+export function itemList(items: readonly VariableSummary[]): string {
+  const names = items.map((item) => {
+    const label = itemLabel(item)
+    return label.charAt(0).toLowerCase() + label.slice(1)
+  })
+  const last = names.pop()
+  if (last === undefined) return ''
+  return names.length > 0 ? `${names.join(', ')} and ${last}` : last
+}
+
 /** The narrowest text width at which every label wraps to at most
  * `maxLines` lines, breaking only between words and filling each line
  * greedily, as the browser does — so never narrower than the longest
