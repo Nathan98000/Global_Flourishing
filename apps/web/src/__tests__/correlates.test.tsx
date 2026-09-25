@@ -340,13 +340,21 @@ describe('Correlates view', () => {
     ])
     // Tints fit the data: the strongest cell wears the deepest tint.
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-n5)')
-    expect(cells[0]?.getAttribute('title')).toContain('point estimate')
+    // The tooltip is styled, on hover (never a native title).
+    const tipOf = (cell: HTMLElement | undefined) => {
+      fireEvent.pointerEnter(cell as HTMLElement)
+      const text = within(matrix).getByRole('tooltip').textContent
+      fireEvent.pointerLeave(cell as HTMLElement)
+      return text
+    }
+    expect(cells[0]).not.toHaveAttribute('title')
+    expect(tipOf(cells[0])).toContain('point estimate')
     // A cell below the ranking floor is shown untinted, in muted ink,
     // and its tooltip says why.
     expect(cells[3]?.getAttribute('style')).toBeNull()
     expect(cells[3]?.className).toContain('cellMuted')
-    expect(cells[3]?.getAttribute('title')).toContain('Too few respondents to rank (fewer than ')
-    expect(cells[3]?.getAttribute('title')).not.toContain('n =')
+    expect(tipOf(cells[3])).toContain('Too few respondents to rank (fewer than ')
+    expect(tipOf(cells[3])).not.toContain('n =')
     expect(cells[3]?.textContent).toContain('too few to rank')
     // The caption is plain words, above the scrolling table.
     expect(

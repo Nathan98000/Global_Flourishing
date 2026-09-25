@@ -10,10 +10,19 @@
 // opacity. The Correlates view builds its measures × countries matrix on
 // the same component with the diverging ramp. Never fetches.
 
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
+import { TIP_OPTIONS } from './theme'
 import styles from './TransitionTable.module.css'
 
 export interface TransitionCell {
@@ -68,7 +77,8 @@ export function intervalText(row: EstimateRow): string {
 export interface HeatCell {
   /** The number in the cell (formatted by the caller). */
   text: string
-  /** The tooltip: value, context, interval (never the n — ADR-0016). */
+  /** The tooltip — value, context, interval (never the n — ADR-0016) —
+   * shown styled on hover or tap, never as a native title. */
   title: string
   /** A token-only background (`var(--…)` or a color-mix of one). */
   tint: string
@@ -99,6 +109,21 @@ export function headerFont(): string {
   return `500 ${size}px ${family}`
 }
 
+/** A cell tooltip's anchor, in the matrix box's own coordinates: the
+ * cell's horizontal centre, top and bottom. */
+interface TipAnchor {
+  key: string
+  text: string
+  x: number
+  top: number
+  bottom: number
+  /** Opened by a tap: stays until the next tap anywhere else. */
+  pinned: boolean
+}
+
+/** The room between a cell and its tooltip. */
+const TIP_GAP = 6
+
 /** How many columns lie past the visible edge of a scroll container:
  * those whose right edge sits beyond the container's, given each
  * column's right edge and the container's — pure, so it is testable
@@ -114,7 +139,10 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * an "N more →" button say so — the button pages the box sideways. With
  * `columnWidth` every column takes that width and its header wraps over
  * it; without, columns fit their labels on one line. A `sort` column
- * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. */
+ * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. A
+ * cell's tooltip is the Plot tips' look, at once on hover and on tap for
+ * touch; cells are never tab stops (the data table carries the same
+ * numbers and intervals). */
 export function HeatTable({
   caption,
   corner,
@@ -137,8 +165,50 @@ export function HeatTable({
   sort?: { column: string; dir: SortDir }
 }) {
   const captionId = useId()
+  const matrix = useRef<HTMLDivElement | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
+  const tipBox = useRef<HTMLDivElement | null>(null)
   const [hiddenColumns, setHiddenColumns] = useState(0)
+  const [tip, setTip] = useState<TipAnchor | null>(null)
+  const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
+  const anchor = (cell: Element, key: string, text: string, pinned: boolean) => {
+    const box = matrix.current?.getBoundingClientRect()
+    if (!box) return null
+    const rect = cell.getBoundingClientRect()
+    const x = rect.left + rect.width / 2 - box.left
+    return { key, text, x, top: rect.top - box.top, bottom: rect.bottom - box.top, pinned }
+  }
+  // Placed before paint: centred over its cell, above it when there is
+  // room (below, for the top rows), kept inside the matrix box.
+  useLayoutEffect(() => {
+    const element = tipBox.current
+    const box = matrix.current
+    if (!tip || !element || !box) {
+      setTipAt(null)
+      return
+    }
+    const width = element.offsetWidth
+    const left = Math.max(0, Math.min(tip.x - width / 2, box.clientWidth - width))
+    const above = tip.top - TIP_GAP - element.offsetHeight
+    setTipAt({ left, top: above >= 0 ? above : tip.bottom + TIP_GAP })
+  }, [tip])
+  // A scroll of the box moves the cells from under the tooltip: it goes.
+  // A tapped one also goes on the next tap anywhere but this matrix's cells.
+  useEffect(() => {
+    if (!tip) return
+    const element = scroller.current
+    const hide = () => setTip(null)
+    const away = (event: PointerEvent) => {
+      const cell = event.target instanceof Element ? event.target.closest('td') : null
+      if (!cell || !matrix.current?.contains(cell)) hide()
+    }
+    element?.addEventListener('scroll', hide, { passive: true })
+    if (tip.pinned) document.addEventListener('pointerdown', away)
+    return () => {
+      element?.removeEventListener('scroll', hide)
+      document.removeEventListener('pointerdown', away)
+    }
+  }, [tip])
   useEffect(() => {
     const element = scroller.current
     if (!element || typeof ResizeObserver === 'undefined') return
@@ -189,7 +259,7 @@ export function HeatTable({
   }
   if (rows.length === 0 || columns.length === 0) return null
   return (
-    <div className={styles.matrix}>
+    <div className={styles.matrix} ref={matrix}>
       <p className={styles.caption} id={captionId}>
         {caption}
       </p>
@@ -246,6 +316,7 @@ export function HeatTable({
                         </td>
                       )
                     }
+                    const key = `${row.key}:${column.key}`
                     return (
                       <td
                         key={column.key}
@@ -255,7 +326,19 @@ export function HeatTable({
                             ? undefined
                             : { background: cell.tint, color: tintInk(cell.tint) }
                         }
-                        title={cell.title}
+                        onPointerEnter={(event) => {
+                          if (event.pointerType === 'touch') return
+                          setTip(anchor(event.currentTarget, key, cell.title, false))
+                        }}
+                        onPointerLeave={(event) => {
+                          if (event.pointerType === 'touch') return
+                          setTip((current) => (current?.pinned ? current : null))
+                        }}
+                        onPointerUp={(event) => {
+                          if (event.pointerType !== 'touch') return
+                          const next = anchor(event.currentTarget, key, cell.title, true)
+                          setTip((current) => (current?.key === key ? null : next))
+                        }}
                       >
                         {cell.text}
                         {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
@@ -272,6 +355,21 @@ export function HeatTable({
         <button type="button" className={styles.more} onClick={showMore}>
           {hiddenColumns} more →
         </button>
+      )}
+      {tip && (
+        <div
+          ref={tipBox}
+          role="tooltip"
+          className={styles.tip}
+          style={{
+            fontFamily: TIP_OPTIONS.fontFamily,
+            fontSize: TIP_OPTIONS.fontSize,
+            borderColor: TIP_OPTIONS.stroke,
+            ...(tipAt ? { left: tipAt.left, top: tipAt.top } : { visibility: 'hidden' }),
+          }}
+        >
+          {tip.text}
+        </div>
       )}
     </div>
   )

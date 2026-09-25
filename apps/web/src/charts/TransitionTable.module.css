@@ -68,6 +68,24 @@
   }
 }
 
+/* A cell's tooltip in the Plot tips' look — their face, size and
+   hairline come inline from theme.ts TIP_OPTIONS — secondary ink on the
+   plot background with the same soft shadow. The pointer passes through
+   it, so it never takes the hover from the cell under it. */
+.tip {
+  position: absolute;
+  z-index: 3;
+  padding: 5px 8px;
+  border: 1px solid;
+  background: var(--plot-background);
+  color: var(--ink-secondary);
+  line-height: 1.4;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 20%));
+}
+
 .table {
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;

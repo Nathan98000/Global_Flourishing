@@ -405,9 +405,17 @@ describe('What Matters view', () => {
     ).toEqual(['Testland', 'United States'])
     const cells = within(matrix).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['6.00', '7.00', '7.00', '8.00'])
-    // The interval in brackets; the n lives in the data table (ADR-0016).
-    expect(cells[0]?.getAttribute('title')).toContain('95% CI [')
-    expect(cells[0]?.getAttribute('title')).not.toContain('n =')
+    // The interval rides in a styled tooltip, at once on hover — never a
+    // native title; the n lives in the data table (ADR-0016).
+    const first = cells[0] as HTMLElement
+    expect(first).not.toHaveAttribute('title')
+    expect(first).not.toHaveAttribute('tabindex')
+    fireEvent.pointerEnter(first)
+    const tip = within(ranking).getByRole('tooltip')
+    expect(tip.textContent).toMatch(/^6\.00 {2}Testland · Money\n95% CI \[/)
+    expect(tip.textContent).not.toContain('n =')
+    fireEvent.pointerLeave(first)
+    expect(within(ranking).queryByRole('tooltip')).toBeNull()
     // Each column is shaded on its own range: the same 7.00 is the low
     // end of Good relationships (7–8) and the high end of Money (6–7).
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
@@ -522,6 +530,42 @@ describe('What Matters view', () => {
     expect(moneyHeader).toHaveAttribute('aria-sort', 'descending')
     expect(relationHeader).not.toHaveAttribute('aria-sort')
     expect(relationHeader?.textContent).toBe('Good relationships')
+  })
+
+  test('a tap opens a cell’s tooltip and keeps it; a tap elsewhere closes it', async () => {
+    // jsdom has no PointerEvent: a MouseEvent that carries pointerType.
+    vi.stubGlobal(
+      'PointerEvent',
+      class extends MouseEvent {
+        readonly pointerType: string
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init)
+          this.pointerType = init.pointerType ?? ''
+        }
+      },
+    )
+    mockFetch(tier)
+    await renderAt('/what-matters')
+    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const cells = within(within(ranking).getByRole('table')).getAllByRole('cell')
+    const [, second, third] = cells as HTMLElement[]
+    const touch = { pointerType: 'touch' }
+    fireEvent.pointerUp(second as HTMLElement, touch)
+    expect(within(ranking).getByRole('tooltip').textContent).toContain(
+      'Testland · Good relationships',
+    )
+    // The finger lifting off is no reason to close it.
+    fireEvent.pointerLeave(second as HTMLElement, touch)
+    expect(within(ranking).getByRole('tooltip')).toBeInTheDocument()
+    // A tap on another cell moves it; the same cell again closes it.
+    fireEvent.pointerUp(third as HTMLElement, touch)
+    expect(within(ranking).getByRole('tooltip').textContent).toContain('United States · Money')
+    fireEvent.pointerUp(third as HTMLElement, touch)
+    expect(within(ranking).queryByRole('tooltip')).toBeNull()
+    // A tap anywhere but a cell closes an open one.
+    fireEvent.pointerUp(second as HTMLElement, touch)
+    fireEvent.pointerDown(document.body, touch)
+    expect(within(ranking).queryByRole('tooltip')).toBeNull()
   })
 
   test('low to high flips the marker', async () => {
