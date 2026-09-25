@@ -71,6 +71,12 @@ export function ciLabel(ciLevel: number): string {
   return `${one.format(ciLevel * 100).replace(/\.0$/, '')}% CI`
 }
 
+/** The interval clause every tooltip carries — "95% CI [7.59, 7.68]" —
+ * the same brackets the data tables use (ADR-0016). */
+export function ciText(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi' | 'ci_level' | 'stat'>): string {
+  return `${ciLabel(row.ci_level)} ${formatCI(row)}`
+}
+
 export function formatPercent(fraction: number, decimals = 0): string {
   return fraction.toLocaleString('en-US', {
     style: 'percent',

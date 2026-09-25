@@ -7,7 +7,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciLabel, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
+import { ciText, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
@@ -183,9 +183,7 @@ export function axisLabel(
 export function tipText(row: EstimateRow, label: string): string {
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
   if (hasCI(row)) {
-    lines.push(
-      `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
-    )
+    lines.push(ciText(row))
   } else if (row.ci_method === 'none') {
     lines.push('point estimate — no interval is computed for this statistic')
   } else {

@@ -208,7 +208,7 @@ describe('the states topology', () => {
         entries.find((entry) => entry.name === name) as (typeof entries)[number],
         testMeta,
       )
-    expect(tip('California')).toBe('7.10  California\n95% CI 7.00 to 7.20\nn = 1,204')
+    expect(tip('California')).toBe('7.10  California\n95% CI [7.00, 7.20]\nn = 1,204')
     expect(tip('Maine')).toContain('Maine — Maine, New Hampshire, Rhode Island & Vermont (pooled)')
     expect(tip('Ohio')).toBe('Ohio\nno estimate')
   })

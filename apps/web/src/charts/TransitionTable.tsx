@@ -12,7 +12,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { EstimateRow } from '../api/types'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { ciText, formatCount, formatEstimate } from '../format'
 import styles from './TransitionTable.module.css'
 
 export interface TransitionCell {
@@ -58,9 +58,7 @@ export function cellTint(share: number | null): string {
 
 /** The interval clause of a cell's tooltip: the CI, or why there is none. */
 export function intervalText(row: EstimateRow): string {
-  if (row.ci_lo !== null && row.ci_hi !== null) {
-    return `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`
-  }
+  if (row.ci_lo !== null && row.ci_hi !== null) return ciText(row)
   return row.ci_method === 'none'
     ? 'point estimate — no interval is computed for this statistic'
     : 'no interval (single sampling unit)'

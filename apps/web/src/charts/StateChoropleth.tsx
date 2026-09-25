@@ -8,7 +8,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { ciText, formatCount, formatEstimate } from '../format'
 import { groupValueLabel, stateMembersOf } from '../labels'
 import { mapDomain, quantizeColor } from './mapScale'
 import {
@@ -40,11 +40,7 @@ export function stateTipText(entry: StateEntry, meta: Meta): string {
   if (!entry.row) return `${where}\nno estimate`
   const row = entry.row
   const lines = [`${formatEstimate(row.estimate, row.stat)}  ${where}`]
-  if (row.ci_lo !== null && row.ci_hi !== null) {
-    lines.push(
-      `${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)} to ${formatEstimate(row.ci_hi, row.stat)}`,
-    )
-  }
+  if (row.ci_lo !== null && row.ci_hi !== null) lines.push(ciText(row))
   lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
