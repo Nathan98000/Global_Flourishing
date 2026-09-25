@@ -13,6 +13,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
+import type { SortDir } from '../sortRows'
 import styles from './TransitionTable.module.css'
 
 export interface TransitionCell {
@@ -112,7 +113,8 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * column is sticky, and when the matrix overflows a right-edge fade and
  * an "N more →" button say so — the button pages the box sideways. With
  * `columnWidth` every column takes that width and its header wraps over
- * it; without, columns fit their labels on one line. */
+ * it; without, columns fit their labels on one line. A `sort` column
+ * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. */
 export function HeatTable({
   caption,
   corner,
@@ -120,6 +122,7 @@ export function HeatTable({
   columns,
   cellAt,
   columnWidth,
+  sort,
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
@@ -130,6 +133,8 @@ export function HeatTable({
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
   /** One width (px) for every column, headers wrapping to fit it. */
   columnWidth?: number
+  /** The column the rows are ordered by, and which way. */
+  sort?: { column: string; dir: SortDir }
 }) {
   const captionId = useId()
   const scroller = useRef<HTMLDivElement | null>(null)
@@ -153,6 +158,22 @@ export function HeatTable({
       element.removeEventListener('scroll', measure)
     }
   }, [columns.length, rows.length, columnWidth])
+  // A new sort brings its column wholly into view (a phone shows two or
+  // three columns): beside the sticky first column, as far as it goes.
+  const sortColumn = sort?.column
+  useEffect(() => {
+    const element = scroller.current
+    const index = columns.findIndex((column) => column.key === sortColumn)
+    if (!element || index < 0) return
+    const [sticky, ...headers] = element.querySelectorAll('thead th')
+    const target = headers[index]?.getBoundingClientRect()
+    const stickyRight = sticky?.getBoundingClientRect().right ?? 0
+    const edge = element.getBoundingClientRect().right
+    if (!target || (target.left >= stickyRight - 1 && target.right <= edge + 1)) return
+    element.scrollBy({ left: target.left - stickyRight })
+    // Only a new sort moves the box, not a new render of the same one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortColumn, sort?.dir])
   // Page right by up to what the box shows beside its sticky first
   // column: the first column not wholly in view comes in beside it, so
   // no column is skipped or left half-hidden at both stops.
@@ -193,11 +214,23 @@ export function HeatTable({
                 <th scope="col" className={styles.corner}>
                   <span className={styles.axis}>{corner}</span>
                 </th>
-                {columns.map((column) => (
-                  <th key={column.key} scope="col">
-                    {column.label}
-                  </th>
-                ))}
+                {columns.map((column) => {
+                  const dir = sort?.column === column.key ? sort.dir : undefined
+                  return (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      aria-sort={
+                        dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
+                      }
+                    >
+                      {column.label}
+                      {dir && (
+                        <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>

@@ -111,6 +111,11 @@
   vertical-align: bottom;
 }
 
+/* The column the rows are sorted by reads in ink, beside its ▼ / ▲. */
+.table thead th[aria-sort] {
+  color: var(--ink);
+}
+
 /* Left, over the row labels (it outranks `.table th`'s right). */
 .table .corner {
   text-align: left;

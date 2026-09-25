@@ -4,7 +4,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
@@ -157,7 +157,12 @@ const tier: Routes = {
   '/data/v1/TIME_MEDIA/MY/proportion_by-country_code.json': testResponse(
     [1, 22].flatMap((code) =>
       [1, 2, 3].map((level) =>
-        testRow({ group: { country_code: code }, stat: 'proportion', level, estimate: level / 6 }),
+        testRow({
+          group: { country_code: code },
+          stat: 'proportion',
+          level,
+          estimate: level / 6 + (code === 22 ? 0.05 : 0),
+        }),
       ),
     ),
     { outcome: 'TIME_MEDIA', stat: 'proportion', waves: ['MY'] },
@@ -360,13 +365,16 @@ describe('What Matters view', () => {
     ).toEqual(SEQUENTIAL_RAMP.map((token) => `background: ${token};`))
     expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
     expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
-    // The sort control: A–Z or by one of the items.
-    const sort = screen.getByLabelText(/^Sort countries/) as HTMLSelectElement
+    // The sort control, always in view: country name or one of the items.
+    const sort = screen.getByLabelText(/^Sort countries by/) as HTMLSelectElement
     expect([...sort.options].map((option) => option.textContent)).toEqual([
-      'A–Z',
+      'Country name',
       'Money',
       'Good relationships',
     ])
+    expect(screen.queryByText(/Options — sort/)).toBeNull()
+    // Sorted by name, no item column is marked.
+    expect(within(matrix).queryByText(/[▼▲]/)).toBeNull()
     // One switcher under the lede picks the view; the section headings
     // and the "On this page" anchors are gone.
     const views = screen.getByRole('group', { name: 'View' })
@@ -435,15 +443,85 @@ describe('What Matters view', () => {
     )
   })
 
-  test('sorting by an item reorders the rows, high to low', async () => {
+  test('sorting by an item reorders the rows, high to low, and marks its column', async () => {
     mockFetch(tier)
     await renderAt('/what-matters?sort=MONEY')
     const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const matrix = within(ranking).getByRole('table')
     expect(
-      within(within(ranking).getByRole('table'))
+      within(matrix)
         .getAllByRole('rowheader')
         .map((th) => th.textContent),
     ).toEqual(['United States', 'Testland'])
+    const [, moneyHeader, relationHeader] = within(matrix).getAllByRole('columnheader')
+    expect(moneyHeader?.textContent).toBe('Money\u00a0▼')
+    expect(moneyHeader).toHaveAttribute('aria-sort', 'descending')
+    expect(relationHeader).not.toHaveAttribute('aria-sort')
+    expect(relationHeader?.textContent).toBe('Good relationships')
+  })
+
+  test('low to high flips the marker', async () => {
+    mockFetch(tier)
+    await renderAt('/what-matters?sort=MONEY&dir=asc')
+    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const matrix = within(ranking).getByRole('table')
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Testland', 'United States'])
+    const money = within(matrix).getByRole('columnheader', { name: /Money/ })
+    expect(money.textContent).toBe('Money\u00a0▲')
+    expect(money).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  test('the other questions sort on their own: the matrix order never reaches them', async () => {
+    mockFetch(tier)
+    const order = async (path: string) => {
+      await renderAt(path)
+      const chart = await screen.findByRole('img', { name: /Daily social media time/ })
+      const rows = chart.closest('figure')?.querySelectorAll('details tbody tr') ?? []
+      const countries = [...rows].map((row) => row.querySelector('td')?.textContent)
+      cleanup()
+      return countries
+    }
+    // By value, high first (Atlas's default) — whatever the matrix's sort.
+    expect(await order('/what-matters?view=questions&sort=name&dir=desc')).toEqual([
+      'United States',
+      'Testland',
+    ])
+    expect(await order('/what-matters?view=questions&sort=MONEY&dir=asc')).toEqual([
+      'United States',
+      'Testland',
+    ])
+    expect(await order('/what-matters?view=questions&qdir=asc')).toEqual([
+      'Testland',
+      'United States',
+    ])
+    expect(await order('/what-matters?view=questions&qsort=name')).toEqual([
+      'Testland',
+      'United States',
+    ])
+  })
+
+  test('the other questions’ Sort and Order controls write qsort and qdir', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/what-matters?view=questions&sort=MONEY')
+    await screen.findByRole('img', { name: /Daily social media time/ })
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Sort' })).getByRole('radio', { name: 'A–Z' }),
+    )
+    await waitFor(() =>
+      expect(router.state.location.href).toBe('/what-matters?view=questions&sort=MONEY&qsort=name'),
+    )
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Order' })).getByRole('radio', { name: 'Z to A' }),
+    )
+    await waitFor(() =>
+      expect(router.state.location.href).toBe(
+        '/what-matters?view=questions&sort=MONEY&qsort=name&qdir=desc',
+      ),
+    )
   })
 
   test('Within a country: a chosen country, split by age band', async () => {

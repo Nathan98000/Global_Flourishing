@@ -39,7 +39,7 @@ import {
   outcomeLevels,
   scaleSubtitle,
 } from '../labels'
-import { defaultDir, sortAtlasRows } from '../sortRows'
+import { defaultDir, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   whatMattersRequest,
@@ -87,6 +87,16 @@ function useMatrixColumn(labels: readonly string[], narrow: boolean): number {
     return Math.ceil(text) + 2 * HEAT_CELL_PAD
   }, [labels, narrow])
 }
+
+/** The Order control's two readings: names A→Z, values high-first. */
+const NAME_ORDER: RadioOption<SortDir>[] = [
+  { value: 'asc', label: 'A to Z' },
+  { value: 'desc', label: 'Z to A' },
+]
+const VALUE_ORDER: RadioOption<SortDir>[] = [
+  { value: 'desc', label: 'High to low' },
+  { value: 'asc', label: 'Low to high' },
+]
 
 /** The in-page anchors the page had before the view switcher: an old
  * link's hash picks the matching view. */
@@ -141,9 +151,13 @@ export function WhatMattersView() {
   )
   const labels = useMemo(() => ranking.map((entry) => itemLabel(entry)), [ranking])
   const columnWidth = useMatrixColumn(labels, narrow)
-  // The country order: A–Z, or by one importance item's value.
-  const sortKey = search.sort === 'name' ? 'name' : 'estimate'
+  // The country order: A–Z, or by one importance item's value (a code
+  // that names no item reads as A–Z).
+  const matrixSort = ranking.some((entry) => entry.name === search.sort) ? search.sort : 'name'
+  const sortKey = matrixSort === 'name' ? 'name' : 'estimate'
   const dir = search.dir ?? defaultDir(sortKey)
+  // The other questions' chart keeps its own order (qsort/qdir).
+  const qdir = search.qdir ?? defaultDir(search.qsort)
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
@@ -217,8 +231,8 @@ export function WhatMattersView() {
       const level = search.level ?? itemLevels[0]?.value ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortAtlasRows(rows, metaData, sortKey, dir)
-  }, [itemQuery.results, metaData, item, search.level, sortKey, dir, itemLevels])
+    return sortAtlasRows(rows, metaData, search.qsort, qdir)
+  }, [itemQuery.results, metaData, item, search.level, search.qsort, qdir, itemLevels])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -302,42 +316,6 @@ export function WhatMattersView() {
     : ''
   const itemResponse = itemQuery.results[0]?.response
 
-  const rankingOptions = (
-    <>
-      <label className={styles.oriented}>
-        Sort countries{' '}
-        <select
-          value={ranking.some((item) => item.name === search.sort) ? search.sort : 'name'}
-          onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
-        >
-          <option value="name">A–Z</option>
-          {ranking.map((item) => (
-            <option key={item.name} value={item.name}>
-              {itemLabel(item)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <RadioRow
-        legend="Order"
-        name="dir"
-        options={
-          sortKey === 'name'
-            ? [
-                { value: 'asc', label: 'A to Z' },
-                { value: 'desc', label: 'Z to A' },
-              ]
-            : [
-                { value: 'desc', label: 'High to low' },
-                { value: 'asc', label: 'Low to high' },
-              ]
-        }
-        value={dir}
-        onChange={(value) => setSearch({ dir: value })}
-      />
-    </>
-  )
-
   return (
     <section>
       <h2 className="visually-hidden">What Matters</h2>
@@ -381,14 +359,27 @@ export function WhatMattersView() {
       {search.view === 'country' && ranking.length > 0 && (
         <>
           <div className={styles.controls}>
-            {narrow ? (
-              <details className={styles.moreOptions}>
-                <summary>Options — sort</summary>
-                <div className={styles.moreBody}>{rankingOptions}</div>
-              </details>
-            ) : (
-              rankingOptions
-            )}
+            <label className={styles.oriented}>
+              Sort countries by{' '}
+              <select
+                value={matrixSort}
+                onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
+              >
+                <option value="name">Country name</option>
+                {ranking.map((entry) => (
+                  <option key={entry.name} value={entry.name}>
+                    {itemLabel(entry)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <RadioRow
+              legend="Order"
+              name="dir"
+              options={sortKey === 'name' ? NAME_ORDER : VALUE_ORDER}
+              value={dir}
+              onChange={(value) => setSearch({ dir: value })}
+            />
           </div>
           {rankingQuery.isPending ? (
             <LoadingBlock height={720} label="Loading estimates" />
@@ -413,6 +404,7 @@ export function WhatMattersView() {
                 countryOrder={countryOrder}
                 served={served}
                 columnWidth={columnWidth}
+                sort={matrixSort === 'name' ? undefined : { column: matrixSort, dir }}
               />
             </ChartFigure>
           )}
@@ -530,6 +522,23 @@ export function WhatMattersView() {
                 onChange={(value) => setSearch({ level: Number(value) })}
               />
             )}
+            <RadioRow
+              legend="Sort"
+              name="qsort"
+              options={[
+                { value: 'estimate', label: 'By value' },
+                { value: 'name', label: 'A–Z' },
+              ]}
+              value={search.qsort}
+              onChange={(qsort) => setSearch({ qsort, qdir: undefined })}
+            />
+            <RadioRow
+              legend="Order"
+              name="qdir"
+              options={search.qsort === 'name' ? NAME_ORDER : VALUE_ORDER}
+              value={qdir}
+              onChange={(value) => setSearch({ qdir: value })}
+            />
           </div>
           {itemQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
@@ -612,12 +621,15 @@ function ImportanceMatrix({
   countryOrder,
   served,
   columnWidth,
+  sort,
 }: {
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
   countryOrder: readonly number[]
   served: Meta
   columnWidth: number
+  /** The item the rows are ordered by (none: A–Z by name). */
+  sort?: { column: string; dir: SortDir }
 }) {
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
@@ -639,6 +651,7 @@ function ImportanceMatrix({
       }))}
       columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
       columnWidth={columnWidth}
+      sort={sort}
       cellAt={(row, column) => {
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined

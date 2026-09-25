@@ -225,6 +225,50 @@ afterEach(() => {
   resetNegativePathCache()
 })
 
+const FOUR_COLUMNS = ['w', 'x', 'y', 'z'].map((key) => ({ key, label: key.toUpperCase() }))
+
+/** A HeatTable's layout, faked for jsdom: the scroll box `width` wide,
+ * header cell i spanning [100i, 100i + 100] (the sticky corner is cell
+ * 0), a ResizeObserver that measures once; returns the box's scrollBy
+ * spy and the undo. */
+function fakeHeatLayout(width: number) {
+  const rect = (left: number, span: number) =>
+    ({
+      left,
+      right: left + span,
+      width: span,
+      top: 0,
+      bottom: 20,
+      height: 20,
+      x: left,
+      y: 0,
+    }) as DOMRect
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  )
+  const rects = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: Element,
+  ) {
+    if (this.tagName !== 'TH') return rect(0, width)
+    return rect([...(this.parentElement?.children ?? [])].indexOf(this) * 100, 100)
+  })
+  const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width)
+  const scrollBy = vi.fn()
+  HTMLElement.prototype.scrollBy = scrollBy
+  return {
+    scrollBy,
+    restore: () => {
+      rects.mockRestore()
+      clientWidth.mockRestore()
+      delete (HTMLElement.prototype as { scrollBy?: unknown }).scrollBy
+    },
+  }
+}
+
 async function renderAt(path: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -542,41 +586,14 @@ describe('correlates helpers', () => {
   })
 
   test('HeatTable: past the edge, "N more →" is a button that pages the box beside its sticky column', () => {
-    // Layout, faked: the box is 250 wide; header cell i spans [100i, 100i + 100].
-    const rect = (left: number, width: number) =>
-      ({
-        left,
-        right: left + width,
-        width,
-        top: 0,
-        bottom: 20,
-        height: 20,
-        x: left,
-        y: 0,
-      }) as DOMRect
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    )
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: Element,
-    ) {
-      if (this.tagName !== 'TH') return rect(0, 250)
-      return rect([...(this.parentElement?.children ?? [])].indexOf(this) * 100, 100)
-    })
-    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(250)
-    const scrollBy = vi.fn()
-    HTMLElement.prototype.scrollBy = scrollBy
+    const layout = fakeHeatLayout(250)
     try {
       render(
         <HeatTable
           caption="cap"
           corner="rows ↓ · cols →"
           rows={[{ key: 'a', label: 'A' }]}
-          columns={['w', 'x', 'y', 'z'].map((key) => ({ key, label: key.toUpperCase() }))}
+          columns={FOUR_COLUMNS}
           cellAt={() => ({ text: '1.00', title: 'tip', tint: 'var(--seq-100)' })}
           columnWidth={96}
         />,
@@ -586,14 +603,44 @@ describe('correlates helpers', () => {
       fireEvent.click(more)
       // X, the first column not wholly in view, comes in beside the
       // sticky first column (which ends at 100): 100, not the box's 150.
-      expect(scrollBy).toHaveBeenCalledWith({ left: 100 })
+      expect(layout.scrollBy).toHaveBeenCalledWith({ left: 100 })
       const table = screen.getByRole('table')
       expect(table).toHaveAttribute('data-fixed')
       expect(table.getAttribute('style')).toContain('--heat-column: 96px')
     } finally {
-      clientWidth.mockRestore()
-      delete (HTMLElement.prototype as { scrollBy?: unknown }).scrollBy
-      vi.restoreAllMocks()
+      layout.restore()
+    }
+  })
+
+  test('HeatTable: the sorted column wears its arrow and aria-sort, and comes into view', () => {
+    const layout = fakeHeatLayout(250)
+    try {
+      const table = (sort: { column: string; dir: 'asc' | 'desc' }) => (
+        <HeatTable
+          caption="cap"
+          corner="rows ↓ · cols →"
+          rows={[{ key: 'a', label: 'A' }]}
+          columns={FOUR_COLUMNS}
+          cellAt={() => undefined}
+          columnWidth={96}
+          sort={sort}
+        />
+      )
+      const { rerender } = render(table({ column: 'z', dir: 'desc' }))
+      const z = screen.getByRole('columnheader', { name: /^Z/ })
+      expect(z.textContent).toBe('Z\u00a0▼')
+      expect(z).toHaveAttribute('aria-sort', 'descending')
+      expect(screen.getByRole('columnheader', { name: 'W' })).not.toHaveAttribute('aria-sort')
+      // Z spans 400–500 past the box's edge (250): it comes in beside the
+      // sticky column, which ends at 100.
+      expect(layout.scrollBy).toHaveBeenLastCalledWith({ left: 300 })
+      layout.scrollBy.mockClear()
+      // A sort on a column already in view leaves the box be.
+      rerender(table({ column: 'w', dir: 'asc' }))
+      expect(screen.getByRole('columnheader', { name: /^W/ }).textContent).toBe('W\u00a0▲')
+      expect(layout.scrollBy).not.toHaveBeenCalled()
+    } finally {
+      layout.restore()
     }
   })
 })

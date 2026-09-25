@@ -276,6 +276,8 @@ describe('what-matters search (Phase 5)', () => {
       country: undefined,
       dir: undefined,
       item: undefined,
+      qsort: 'estimate',
+      qdir: undefined,
     })
     expect(stringifySearch(whatMattersSearchParams(search))).toBe('')
   })
@@ -299,6 +301,21 @@ describe('what-matters search (Phase 5)', () => {
     const unknown = parseWhatMattersSearch({ view: 'map' })
     expect(unknown.view).toBe('country')
     expect(unknown.invalid).toEqual(['view'])
+    // The other questions' chart sorts on its own params, Atlas's
+    // defaults (by value, high first) omitted from the URL.
+    const questions = parseWhatMattersSearch({ view: 'questions', qsort: 'name', qdir: 'desc' })
+    expect(questions).toMatchObject({ qsort: 'name', qdir: 'desc', sort: 'name', dir: undefined })
+    expect(stringifySearch(whatMattersSearchParams(questions))).toBe(
+      '?view=questions&qsort=name&qdir=desc',
+    )
+    expect(
+      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'estimate', qdir: 'desc' })),
+    ).toBe('?view=questions')
+    expect(
+      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'name', qdir: 'asc' })),
+    ).toBe('?view=questions&qsort=name')
+    expect(parseWhatMattersSearch({ qsort: 'gap' }).invalid).toEqual(['qsort'])
+    expect(parseWhatMattersSearch({ qdir: 'up' }).invalid).toEqual(['qdir'])
     expect(parseWhatMattersSearch({ country: 'US' }).invalid).toEqual(['country'])
     expect(parseWhatMattersSearch({ country: '0' }).invalid).toEqual(['country'])
     expect(whatMattersRequest('MONEY', happyVariable, 'age_band')).toEqual({

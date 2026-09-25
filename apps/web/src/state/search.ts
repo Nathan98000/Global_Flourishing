@@ -537,6 +537,10 @@ export interface WhatMattersSearch {
    * code (by that item's value); an unknown code reads as 'name'. */
   sort: string
   dir?: SortDir
+  /** The other questions' chart has its own order, Atlas's controls and
+   * defaults (by value, high first) — never the matrix's. */
+  qsort: 'estimate' | 'name'
+  qdir?: SortDir
   invalid?: string[]
   invalidRaw?: RawParams
 }
@@ -545,6 +549,7 @@ export const WHAT_MATTERS_DEFAULTS = {
   view: 'country' as const,
   by: 'age_band',
   sort: 'name',
+  qsort: 'estimate' as const,
 }
 
 const parseCountryCode = (value: unknown): number | undefined => {
@@ -567,6 +572,8 @@ export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
     level: collect.take('level', raw, parseIntCode, undefined),
     sort: collect.take('sort', raw, parseName, WHAT_MATTERS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    qsort: collect.take('qsort', raw, parseEnum('estimate', 'name'), WHAT_MATTERS_DEFAULTS.qsort),
+    qdir: collect.take('qdir', raw, parseEnum('asc', 'desc'), undefined),
   }
   return collect.finish(search)
 }
@@ -586,6 +593,11 @@ export function whatMattersSearchParams(
         search.dir === defaultDir(search.sort ?? WHAT_MATTERS_DEFAULTS.sort)
           ? undefined
           : search.dir,
+      qsort: search.qsort === WHAT_MATTERS_DEFAULTS.qsort ? undefined : search.qsort,
+      qdir:
+        search.qdir === defaultDir(search.qsort ?? WHAT_MATTERS_DEFAULTS.qsort)
+          ? undefined
+          : search.qdir,
     },
     search.invalidRaw,
   )
