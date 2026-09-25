@@ -221,7 +221,7 @@ export function atlasRequest(
   }
 }
 
-// --- Breakdowns ------------------------------------------------------------
+// --- Breakdowns (shown as Segments, /segments) ----------------------------
 
 export interface BreakdownsSearch {
   outcome: string
@@ -306,7 +306,7 @@ export function breakdownsRequest(
 }
 
 /** The retired Compare page's links (ADR-0017): what carries over to
- * Breakdowns — the outcome and the wave, each only when valid. Every
+ * Segments — the outcome and the wave, each only when valid. Every
  * other param is dropped here, so the landing page shows no notice. */
 export function compareRedirectSearch(
   raw: Raw,

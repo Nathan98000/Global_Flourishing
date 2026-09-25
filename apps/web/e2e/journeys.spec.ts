@@ -168,7 +168,7 @@ test('3 — a small cell renders with its n and no flag, not a gap', async ({ pa
   // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
   // were withheld; since ADR-0011 every cell is shown, with its n in the
   // data table so a reader can see what the number rests on.
-  await page.goto('/breakdowns?outcome=HAPPY&by=gender')
+  await page.goto('/segments?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
 

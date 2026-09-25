@@ -1,7 +1,7 @@
 // Navigation copy and the data-view rule, kept out of the shell
 // component so fast refresh stays clean. Nav order (Phase 5 brief, plus
 // Phase 6, less Compare — retired 25 Sept): Atlas · Change · What Matters ·
-// Correlates · US States · Breakdowns · Codebook · Methods. The model
+// Correlates · US States · Segments · Codebook · Methods. The model
 // cards are reached from the Correlates figure and from Methods, not
 // from here.
 
@@ -11,7 +11,7 @@ export const NAV_ITEMS: readonly { to: string; label: string }[] = [
   { to: '/what-matters', label: 'What Matters' },
   { to: '/correlates', label: 'Correlates' },
   { to: '/states', label: 'US States' },
-  { to: '/breakdowns', label: 'Breakdowns' },
+  { to: '/segments', label: 'Segments' },
   { to: '/codebook', label: 'Codebook' },
   { to: '/methods', label: 'Methods' },
 ]
@@ -26,7 +26,7 @@ export const NAV_PRIMARY_COUNT = 4
 export function isDataView(pathname: string): boolean {
   return (
     pathname === '/' ||
-    ['/breakdowns', '/codebook', '/change', '/what-matters', '/correlates', '/states'].some(
+    ['/segments', '/codebook', '/change', '/what-matters', '/correlates', '/states'].some(
       (prefix) => pathname.startsWith(prefix),
     )
   )

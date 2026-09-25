@@ -372,7 +372,7 @@ export function StatesView() {
         states.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
-            Breakdowns still work.
+            Segments still work.
           </p>
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={states.error} />

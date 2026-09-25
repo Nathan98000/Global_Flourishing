@@ -126,7 +126,7 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
     'What Matters',
     'Correlates',
     'US States',
-    'Breakdowns',
+    'Segments',
     'Codebook',
     'Methods',
   ])
@@ -356,7 +356,7 @@ test('on a phone the secondary four nav items collapse behind "More" (type uncha
     'What Matters',
     'Correlates',
     'US States',
-    'Breakdowns',
+    'Segments',
     'Codebook',
     'Methods',
   ])
@@ -402,23 +402,51 @@ test('the Phase 5 routes exist, parse their URL state and say what they are', as
   expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
 })
 
-test('an old Compare link lands on Breakdowns with its outcome and wave, and no notice', async () => {
+test('an old Compare link lands on Segments with its outcome and wave, and no notice', async () => {
   mockFetch(staticTier)
-  for (const [path, href] of [
-    // sfi is Breakdowns' default outcome, so the address omits it.
-    ['/compare?outcome=sfi&countries=1,2', '/breakdowns'],
+  for (const [path, href, outcome] of [
+    // sfi is the Segments default, so the address omits it (defaults
+    // never reach the URL); the view still shows sfi.
+    ['/compare?outcome=sfi&countries=1,2', '/segments', 'sfi'],
     [
       '/compare?countries=1,22&wave=Y2&by=gender&outcome=HAPPY&topic=wellbeing',
-      '/breakdowns?outcome=HAPPY&wave=Y2',
+      '/segments?outcome=HAPPY&wave=Y2',
+      'HAPPY',
     ],
     // Invalid values are dropped silently, like every other param.
-    ['/compare?outcome=HAPPY&wave=Y9', '/breakdowns?outcome=HAPPY'],
+    ['/compare?outcome=HAPPY&wave=Y9', '/segments?outcome=HAPPY', 'HAPPY'],
   ] as const) {
     const router = await renderAt(path)
-    expect(await screen.findByRole('heading', { name: 'Breakdowns' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.href).toBe(href))
-    expect(router.state.location.search).not.toHaveProperty('countries')
+    // Compare's countries and split did not come along.
+    expect(router.state.matches.at(-1)?.search).toMatchObject({
+      outcome,
+      countries: [],
+      by: ['age_band'],
+    })
     expect(screen.queryByText(/were invalid and were reset/)).toBeNull()
     cleanup()
   }
+})
+
+test('an old Breakdowns link lands on Segments with every param it carried', async () => {
+  mockFetch(staticTier)
+  for (const [path, href] of [
+    ['/breakdowns?by=gender', '/segments?by=gender'],
+    [
+      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+    ],
+  ] as const) {
+    const router = await renderAt(path)
+    expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.href).toBe(href))
+    expect(document.title).toBe('Segments — Flourish Atlas')
+    cleanup()
+  }
+  // A bad value rides along too, and Segments flags it as Breakdowns did.
+  const router = await renderAt('/breakdowns?wave=Y9')
+  await waitFor(() => expect(router.state.location.href).toBe('/segments?wave=Y9'))
+  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('wave')
 })

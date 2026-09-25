@@ -97,13 +97,13 @@ const changeRoute = createRoute({
 })
 
 // Compare is retired (ADR-0017): a single-country split is what
-// Breakdowns does. Its old links land there with the outcome and wave
+// Segments does. Its old links land there with the outcome and wave
 // they carried, when valid; every other param is dropped, unannounced.
 const compareRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/compare',
   beforeLoad: ({ search }) => {
-    throw redirect({ to: '/breakdowns', search: compareRedirectSearch(search), replace: true })
+    throw redirect({ to: '/segments', search: compareRedirectSearch(search), replace: true })
   },
 })
 
@@ -142,13 +142,25 @@ const statesRoute = createRoute({
   component: lazyRouteComponent(() => import('./views/StatesView'), 'StatesView'),
 })
 
+// Breakdowns, shown as Segments (ADR-0017): the view, its code and its
+// URL params keep the old name; only the address and the words change.
 const breakdownsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/breakdowns',
-  ...titled('Breakdowns'),
+  path: '/segments',
+  ...titled('Segments'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseBreakdownsSearch(raw),
   search: { middlewares: [omitDefaults(breakdownsSearchParams)] },
   component: lazyRouteComponent(() => import('./views/BreakdownsView'), 'BreakdownsView'),
+})
+
+// The old address keeps shared links working: every param rides along
+// and Segments parses it exactly as Breakdowns did.
+const breakdownsRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/breakdowns',
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/segments', search, replace: true })
+  },
 })
 
 const codebookRoute = createRoute({
@@ -183,6 +195,7 @@ const routeTree = rootRoute.addChildren([
   modelCardsRoute,
   statesRoute,
   breakdownsRoute,
+  breakdownsRedirectRoute,
   codebookRoute,
   codebookDetailRoute,
   methodsRoute,
