@@ -51,6 +51,8 @@ class VariableInfo:
     max: int | None
     waves: tuple[str, ...]
     is_derived: bool
+    #: the family's subtopic code, None where the family has none (ADR-0016)
+    subfamily: str | None = None
 
 
 @dataclass
@@ -80,6 +82,7 @@ class Catalog:
                 max=row["max"],
                 waves=tuple(row["waves_available"]),
                 is_derived=False,
+                subfamily=None if row.get("subfamily") is None else str(row["subfamily"]),
             )
             for row in servable.iter_rows(named=True)
         }

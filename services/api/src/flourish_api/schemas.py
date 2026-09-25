@@ -100,6 +100,10 @@ class VariableSummary(BaseModel):
     #: so the codebook searches it over one fetch, offline included
     wording: str | None
     family: str
+    #: the family's subtopic code (the picker's second step — ADR-0016);
+    #: None where a family has none. Codes only: the display names are
+    #: navigation copy in the client, like the topic names.
+    subfamily: str | None
     scale_type: str
     direction: str
     #: which end of the coded scale is the most of what ``display_name``

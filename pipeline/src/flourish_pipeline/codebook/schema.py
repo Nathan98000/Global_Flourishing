@@ -61,6 +61,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "review_status",
                         "source_pages",
                         "codebook_headings",
+                        "subfamily",
                     ],
                     "additionalProperties": False,
                     "properties": {
@@ -70,6 +71,7 @@ def catalog_json_schema() -> dict[str, Any]:
                         "wording": _NULLABLE_STR,
                         "section": _NULLABLE_STR,
                         "family": {"type": "string", "enum": sorted(FAMILIES)},
+                        "subfamily": _NULLABLE_STR,
                         "scale_type": {"type": "string", "enum": sorted(SCALE_TYPES)},
                         "direction": {"type": "string", "enum": sorted(DIRECTIONS)},
                         "polarity": {"type": "string", "enum": sorted(POLARITIES)},

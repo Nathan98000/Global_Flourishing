@@ -65,6 +65,7 @@ export const happyVariable: VariableSummary = {
   label: 'Happiness (label)',
   wording: 'How would you rate: happiness?',
   family: 'wellbeing',
+  subfamily: null,
   scale_type: 'scale_0_10',
   direction: 'higher_better',
   polarity: 'ascending',
@@ -83,6 +84,7 @@ export const sfiVariable: VariableSummary = {
   label: 'Mean of the 12 SFI items, 0–10.',
   wording: null,
   family: 'derived',
+  subfamily: null,
   scale_type: 'scale_0_10',
   direction: 'higher_better',
   polarity: 'ascending',
@@ -100,6 +102,7 @@ export const attendVariable: VariableSummary = {
   name: 'ATTEND_SVCS',
   display_name: 'Service attendance',
   family: 'religion',
+  subfamily: 'practice',
   scale_type: 'ordinal',
   direction: 'none',
   // 1 = Weekly … 3 = Never: the lowest code is the most attendance.

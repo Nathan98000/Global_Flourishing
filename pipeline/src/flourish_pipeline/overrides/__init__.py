@@ -37,6 +37,20 @@ FAMILIES = frozenset(
         "design",
     }
 )
+#: Subtopics within a family (the picker's second step — ADR-0016). Codes
+#: only: the display names are navigation copy in apps/web/src/topics.ts.
+SUBFAMILIES: dict[str, frozenset[str]] = {
+    "religion": frozenset(
+        {
+            "affiliation",
+            "beliefs",
+            "practice",
+            "daily_life",
+            "teachings",
+            "teachings_country",
+        }
+    ),
+}
 DIRECTIONS = frozenset({"higher_better", "lower_better", "none"})
 #: Which end of the CODED scale is the most of what ``display_name`` names
 #: (ADR-0015): ``ascending`` (the default) when the highest code is, and
@@ -89,6 +103,8 @@ class VariableOverride:
     direction: str = "none"
     polarity: str = "ascending"
     scale_type: str | None = None
+    #: the family's subtopic code (``SUBFAMILIES``); None where a family has none
+    subfamily: str | None = None
     sfi_domain: str | None = None
     min: int | None = None
     max: int | None = None
@@ -152,6 +168,9 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
     family = _require_str(entry.get("family"), f"{name}.family")
     if family not in FAMILIES:
         raise OverridesError(f"{name}: unknown family {family!r}")
+    subfamily = entry.get("subfamily")
+    if subfamily is not None and subfamily not in SUBFAMILIES.get(family, frozenset()):
+        raise OverridesError(f"{name}: unknown subfamily {subfamily!r} for family {family!r}")
     direction = str(entry.get("direction", "none"))
     if direction not in DIRECTIONS:
         raise OverridesError(f"{name}: unknown direction {direction!r}")
@@ -194,6 +213,7 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         direction=direction,
         polarity=polarity,
         scale_type=None if scale_type is None else str(scale_type),
+        subfamily=None if subfamily is None else str(subfamily),
         sfi_domain=None if sfi_domain is None else str(sfi_domain),
         min=None if entry.get("min") is None else int(entry["min"]),
         max=None if entry.get("max") is None else int(entry["max"]),
