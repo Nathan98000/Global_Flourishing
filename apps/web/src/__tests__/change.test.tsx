@@ -10,7 +10,7 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
-import type { ApiHealth, EstimateRow, VariableDetail } from '../api/types'
+import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
 import { ChangeDots, changeScale } from '../charts/ChangeDots'
 import { cellTint, transitionGrid, TransitionTable } from '../charts/TransitionTable'
 import { formatChange, formatEstimate } from '../format'
@@ -24,7 +24,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
-import { changeLevels, orderChangeRows } from '../views/changeOrder'
+import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -120,16 +120,60 @@ const transitionCell = (
     n: 30,
   })
 
+/** A categorical item's change: the share answering each level, per country. */
+const shareRow = (code: number, level: number, estimate: number, n: number) =>
+  testRow({
+    group: { country_code: code },
+    stat: 'change_share',
+    level,
+    estimate,
+    ci_lo: estimate - 0.01,
+    ci_hi: estimate + 0.01,
+    n,
+    weight: 'w_l2',
+  })
+
 const attendChange = testResponse(
   [
-    changeRow(1, 0.1, 800),
-    changeRow(22, 0.05, 1800),
+    shareRow(1, 1, 0.05, 800),
+    shareRow(1, 2, -0.03, 800),
+    shareRow(1, 3, -0.02, 800),
+    shareRow(22, 1, 0.012, 1800),
+    shareRow(22, 2, -0.006, 1800),
+    shareRow(22, 3, -0.006, 1800),
     ...[1, 2, 3].flatMap((from) =>
       [1, 2, 3].map((to) => transitionCell(1, from, to, from === to ? 0.6 : 0.2)),
     ),
     transitionCell(1, 1, 1, 0.1, 'transition_joint'),
   ],
   { outcome: 'ATTEND_SVCS', stat: 'change', waves: ['Y1', 'Y2'] },
+)
+
+/** A directional yes/no item (the owner's CLOSE_TO: Yes = 1 is better). */
+const closeToVariable: VariableSummary = {
+  ...attendVariable,
+  name: 'CLOSE_TO',
+  display_name: 'Someone to count on',
+  scale_type: 'binary',
+  direction: 'lower_better',
+  min: 1,
+  max: 2,
+}
+
+const closeToDetail: VariableDetail = {
+  ...closeToVariable,
+  value_labels: [
+    { code: 1, label: 'Yes', wave: null, country_code: null, is_nonresponse: false },
+    { code: 2, label: 'No', wave: null, country_code: null, is_nonresponse: false },
+  ],
+  missingness: [],
+  scoring: null,
+  components: [],
+}
+
+const closeToChange = testResponse(
+  [shareRow(1, 1, 0.05, 800), shareRow(1, 2, -0.05, 800), shareRow(22, 1, 0.012, 1800)],
+  { outcome: 'CLOSE_TO', stat: 'change', waves: ['Y1', 'Y2'] },
 )
 
 type Routes = Record<string, unknown | Response>
@@ -158,9 +202,13 @@ function mockFetch(routes: Routes) {
 
 const tier: Routes = {
   '/data/meta.json': testMeta,
-  '/data/variables.json': { variables: [sfiVariable, happyVariable, attendVariable] },
+  '/data/variables.json': {
+    variables: [sfiVariable, happyVariable, attendVariable, closeToVariable],
+  },
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+  '/data/v1/CLOSE_TO/variable.json': closeToDetail,
+  '/v1/change?outcome=CLOSE_TO': closeToChange,
   '/health': okHealth,
   '/v1/change?outcome=HAPPY': happyChange,
   '/v1/change?outcome=ATTEND_SVCS': attendChange,
@@ -235,6 +283,57 @@ describe('Change view', () => {
     expect(ticks.some((tick) => tick?.startsWith('+'))).toBe(true)
   })
 
+  test('a categorical item charts the share change at a chosen level, in percentage points', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=ATTEND_SVCS')
+    const figure = await screen.findByRole('img', {
+      name: /change in the share of the same people/,
+    })
+    const caption = figure.closest('figure') as HTMLElement
+    expect(
+      within(caption).getByText(
+        /Change in share answering “Weekly”, percentage points · 2023 → 2024/,
+      ),
+    ).toBeInTheDocument()
+    // Atlas's control, Atlas's default: the first labelled answer.
+    const control = screen.getByRole('group', { name: 'Answer level' })
+    expect(within(control).getByLabelText('Weekly')).toBeChecked()
+    // No mean of codes anywhere, no histogram of individual change; the
+    // value labels are signed percentage points.
+    expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
+    fireEvent.click(within(caption).getByText('Data table'))
+    const table = within(caption).getByRole('table')
+    expect(within(table).getByText('+5.0 pp')).toBeInTheDocument()
+    expect(within(table).getByText('+1.2 pp')).toBeInTheDocument()
+    expect(within(table).queryByText('−3.0 pp')).toBeNull() // another level's row
+    // The chart's value labels carry the unit too.
+    expect(figure.querySelector('svg')?.textContent).toContain('+5.0 pp')
+  })
+
+  test('a directional yes/no item says whether a rise in the share is better', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=CLOSE_TO')
+    const figure = await screen.findByRole('img', {
+      name: /change in the share of the same people/,
+    })
+    const caption = figure.closest('figure') as HTMLElement
+    // Yes is the better end of a lower_better item: a rise in "Yes" is better…
+    expect(
+      within(caption).getByText(
+        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024',
+      ),
+    ).toBeInTheDocument()
+    // …and a rise in "No", the other end, is worse.
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Answer level' })).getByLabelText('No'),
+    )
+    expect(
+      await within(caption).findByText(
+        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024',
+      ),
+    ).toBeInTheDocument()
+  })
+
   test('a categorical item gets the transition heatmap for chosen countries, labels from the codebook', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=ATTEND_SVCS&countries=1')
@@ -242,7 +341,10 @@ describe('Change view', () => {
       name: /share of the same people giving each later answer/,
     })
     const table = within(moves).getByRole('table')
-    expect(within(table).getByText(/Testland — each row sums to 100%/)).toBeInTheDocument()
+    // The caption sits above the scrolling table, so a wide matrix never
+    // widens the page to fit it; the table is labelled by it.
+    expect(within(moves).getByText(/Testland — each row sums to 100%/)).toBeInTheDocument()
+    expect(table).toHaveAttribute('aria-labelledby')
     expect(
       within(table)
         .getAllByRole('columnheader')
@@ -269,14 +371,63 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
   })
 
-  test('comparisons the measure cannot make are disabled with a reason', async () => {
-    mockFetch(tier)
+  test('one supported comparison reads as text, and the picker lists only measures asked twice', async () => {
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          { ...happyVariable, name: 'LONELY', display_name: 'Loneliness', waves_available: ['Y1'] },
+        ],
+      },
+    })
+    await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('img', { name: /average change among the same people/ })
+    // No measure spans the midyear survey: no radio group, one sentence.
+    expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
+    expect(
+      screen.getByText(
+        /The midyear survey asked different questions, so change is measured 2023 → 2024\./,
+      ),
+    ).toBeInTheDocument()
+    // Loneliness (asked once) is not offered; the count follows.
+    const measure = screen.getByLabelText('Measure', { exact: true })
+    expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
+    expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
+    // The prompt sits beside the country control, which reads its state.
+    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
+    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
+  })
+
+  test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          {
+            ...happyVariable,
+            name: 'BALANCE',
+            display_name: 'Life balance',
+            waves_available: ['Y1', 'MY', 'Y2'],
+          },
+        ],
+      },
+    })
     await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('img', { name: /average change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })
-    const midyear = within(compare).getByLabelText('2023 → mid-2024') as HTMLInputElement
+    const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()
-    expect(midyear.closest('label')).toHaveAttribute('title', 'Not asked in Midyear survey')
+    expect(midyear.closest('label')).toHaveAttribute(
+      'title',
+      'Not asked in Midyear survey, Nov 2023–Dec 2024',
+    )
     expect(within(compare).getByLabelText('2023 → 2024')).toBeChecked()
   })
 })
@@ -340,6 +491,22 @@ describe('change chart helpers', () => {
     ])
     expect(changeLevels(happyVariable)).toHaveLength(21)
     expect(changeLevels({ min: null, max: null })).toEqual([])
+    // Signed bucket labels wear a true minus.
+    expect(signedLevel(-3)).toBe('−3')
+    expect(signedLevel(2)).toBe('+2')
+  })
+
+  test('whether a rise in a share is better comes from the coded ends of a directional item', () => {
+    // CLOSE_TO (Yes = 1 is better): a rise in Yes is better, in No worse.
+    expect(shareRiseIsBetter(closeToVariable, 1)).toBe(true)
+    expect(shareRiseIsBetter(closeToVariable, 2)).toBe(false)
+    // HEALTH_PROB (No = 2 is better): a rise in Yes is worse.
+    expect(shareRiseIsBetter({ direction: 'higher_better', min: 1, max: 2 }, 1)).toBe(false)
+    // A middle level of an ordinal item, an undirected item, no level: no note.
+    expect(shareRiseIsBetter({ direction: 'higher_better', min: 1, max: 3 }, 2)).toBeUndefined()
+    expect(shareRiseIsBetter(attendVariable, 1)).toBeUndefined()
+    expect(shareRiseIsBetter(closeToVariable, undefined)).toBeUndefined()
+    expect(signedLevel(0)).toBe('0')
   })
 
   test('formatting: changes are signed, transition and change bins are shares', () => {
@@ -349,6 +516,10 @@ describe('change chart helpers', () => {
     expect(formatEstimate(0.3, 'change')).toBe('+0.30')
     expect(formatEstimate(0.25, 'change_distribution')).toBe('25.0%')
     expect(formatEstimate(0.6, 'transition')).toBe('60.0%')
+    // A share change is signed and in percentage points, never "−0.0".
+    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 pp')
+    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 pp')
+    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 pp')
   })
 
   test('TransitionTable: a k × k grid, token-only tints, every cell with its n', () => {
@@ -390,8 +561,8 @@ describe('change chart helpers', () => {
       />,
     )
     const text = container.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('2023 → mid-2024')
-    expect(text).toContain('mid-2024 → 2024')
+    expect(text).toContain('2023 → Midyear')
+    expect(text).toContain('Midyear → 2024')
     expect(text).toContain('2023 → 2024')
     expect(text).not.toMatch(JARGON)
     expect(testResponseMeta().stat).toBe('mean')

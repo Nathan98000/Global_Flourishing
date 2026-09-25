@@ -1,9 +1,40 @@
-/* A small heatmap table: hairline rows, tabular numerals, ink text over
-   graded accent tints (both themes). Scrolls sideways under the column
-   rather than breaking it. */
+/* A small heatmap table: hairline rows, tabular numerals, text over
+   graded tints (both themes) — a ramp step's cell wears the ink its
+   token names (light on the dark steps), set inline by the component;
+   the accent tints keep the page ink. Scrolls sideways inside its own
+   container rather than breaking the column or widening the page; the
+   caption sits above the scroll container so it wraps at the column's
+   width, not the table's. */
+.matrix {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: var(--space-4);
+}
+
 .scroll {
   overflow-x: auto;
-  margin-bottom: var(--space-4);
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The right-edge fade says "there is more" without a scrollbar. */
+.matrix:has(.scroll[data-overflow])::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2.5rem;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--surface));
+}
+
+.more {
+  margin: var(--space-1) 0 0;
+  text-align: right;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
 }
 
 .table {
@@ -13,11 +44,10 @@
 }
 
 .caption {
+  margin: 0 0 var(--space-2);
   text-align: left;
-  caption-side: top;
   color: var(--ink);
   font-weight: 600;
-  padding-bottom: var(--space-2);
 }
 
 .table th,
@@ -32,6 +62,15 @@
   text-align: left;
   font-weight: 500;
   color: var(--ink);
+}
+
+/* The first column stays put while the rest scrolls. */
+.table th[scope='row'],
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 
 .table thead th {
@@ -52,5 +91,11 @@
 
 .cell {
   color: var(--ink);
+  min-width: 4.5rem;
+}
+
+/* Too few cases to rank: no tint, muted ink; the tooltip says why. */
+.cellMuted {
+  color: var(--ink-muted);
   min-width: 4.5rem;
 }

@@ -8,7 +8,7 @@ import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
-import type { ApiHealth, VariableSummary } from '../api/types'
+import type { ApiHealth, VariableDetail, VariableSummary } from '../api/types'
 import { SFI_DOMAINS } from '../charts/theme'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { createAppRouter } from '../router'
@@ -20,7 +20,7 @@ import {
   testResponse,
   testRow,
 } from '../test-utils/fixtures'
-import { combineRows, compareUnits } from '../views/compareRows'
+import { combineRows, compareUnits, defaultCompareCountries } from '../views/compareRows'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -45,6 +45,35 @@ const domainVariables: VariableSummary[] = SFI_DOMAINS.map((domain) => ({
   name: domain,
   display_name: DOMAIN_NAMES[domain] ?? domain,
 }))
+
+const attendDetail: VariableDetail = {
+  ...attendVariable,
+  value_labels: [
+    { code: 1, label: 'Weekly', wave: null, country_code: null, is_nonresponse: false },
+    { code: 2, label: 'Sometimes', wave: null, country_code: null, is_nonresponse: false },
+    { code: 3, label: 'Never', wave: null, country_code: null, is_nonresponse: false },
+  ],
+  missingness: [],
+  scoring: null,
+  components: [],
+}
+
+/** A categorical item's shares by country: one row per answer level. */
+const attendByCountry = testResponse(
+  [1, 22].flatMap((code) =>
+    [1, 2, 3].map((level) =>
+      testRow({
+        group: { country_code: code },
+        stat: 'proportion',
+        level,
+        estimate: 0.2 + level * 0.1,
+        ci_lo: 0.15 + level * 0.1,
+        ci_hi: 0.25 + level * 0.1,
+      }),
+    ),
+  ),
+  { outcome: 'ATTEND_SVCS', stat: 'proportion' },
+)
 
 type Routes = Record<string, unknown | Response>
 
@@ -111,6 +140,8 @@ const tier: Routes = {
     components: [],
   },
   '/data/v1/HAPPY/Y1/mean_by-country_code.json': byCountry('HAPPY', 1),
+  '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+  '/data/v1/ATTEND_SVCS/Y1/proportion_by-country_code.json': attendByCountry,
   '/health': okHealth,
   ...Object.fromEntries(
     SFI_DOMAINS.flatMap((domain, index) => [
@@ -140,7 +171,13 @@ async function renderAt(path: string) {
 }
 
 describe('compare helpers', () => {
-  test('units read A–Z; rows are stamped with their outcome, proportions keep their highest level', () => {
+  test('units read A–Z; rows are stamped with their outcome; a proportion keeps the default level', () => {
+    // With the item's labelled answers: the first one, Atlas's default.
+    const labelled = combineRows([attendByCountry], ['ATTEND_SVCS'], [1], {
+      ATTEND_SVCS: attendDetail,
+    })
+    expect(labelled.map((row) => row.level)).toEqual([1])
+    // Without any (a derived binary): the highest level, its positive share.
     expect(compareUnits([22, 1], testMeta)).toEqual(['Testland', 'United States'])
     const rows = combineRows(
       [
@@ -170,8 +207,33 @@ describe('Compare view', () => {
     const calls = mockFetch(tier)
     await renderAt('/compare')
     expect(await screen.findByText('Choose two to five countries')).toBeInTheDocument()
-    expect(screen.getByText('Choose up to 5 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: choose up to 5')).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/data/v1/sfi_'))).toBe(false)
+  })
+
+  test('with no countries in the URL and the three defaults in the release, it starts on them', async () => {
+    const calls = mockFetch({
+      ...tier,
+      '/data/meta.json': {
+        ...testMeta,
+        countries: [
+          { code: 7, name: 'Indonesia', iso3: 'IDN' },
+          { code: 9, name: 'Japan', iso3: 'JPN' },
+          { code: 22, name: 'United States', iso3: 'USA' },
+        ],
+      },
+    })
+    const router = await renderAt('/compare')
+    expect(
+      await screen.findByRole('img', {
+        name: /Six domains of flourishing for Indonesia, Japan, United States/,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Countries: 3 of 5')).toBeInTheDocument()
+    expect(calls.filter((url) => url.includes('/data/v1/sfi_')).length).toBe(6)
+    // The defaults never reach the URL.
+    expect(router.state.location.searchStr).toBe('')
+    expect(defaultCompareCountries(testMeta.countries)).toEqual([])
   })
 
   test('two countries: six panels named by the catalog, one table with a Measure column', async () => {
@@ -208,10 +270,38 @@ describe('Compare view', () => {
     mockFetch(tier)
     await renderAt('/compare?countries=1,22&by=gender')
     const figure = await screen.findByRole('img', { name: /the levels of Gender in each country/ })
-    const text = figure.querySelector('svg')?.textContent ?? ''
+    const svg = figure.querySelector('svg')
+    const text = svg?.textContent ?? ''
     expect(text).toContain('Male')
     expect(text).toContain('Female')
     expect(text).toContain('Testland')
+    // The domain name reads once per row, not once per column; the dots
+    // wear one ink hue (the column already names the country); every
+    // row carries its value label, like Atlas.
+    const happiness = DOMAIN_NAMES['sfi_happiness'] as string
+    expect(text.split(happiness).length - 1).toBe(1)
+    expect(svg?.innerHTML).not.toContain('var(--sfi-happiness)')
+    expect(svg?.innerHTML).toContain('var(--ink)')
+    expect(text).toContain('6.01') // Testland, Male: the fixture's 5 + gender + code / 100
+  })
+
+  test('without a split the six domains keep their hues and the value labels', async () => {
+    mockFetch(tier)
+    await renderAt('/compare?countries=1,22')
+    const figure = await screen.findByRole('img', { name: /a row per country/ })
+    const svg = figure.querySelector('svg')
+    expect(svg?.innerHTML).toContain('var(--sfi-happiness)')
+    expect(svg?.textContent).toContain('7.00') // the United States row of the first domain
+  })
+
+  test('an added categorical measure shows its first answer, as Atlas does', async () => {
+    mockFetch(tier)
+    await renderAt('/compare?countries=1,22&outcome=ATTEND_SVCS')
+    expect(
+      await screen.findByRole('img', { name: /^Service attendance for Testland, United States/ }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText(/[Ss]hare answering “Weekly”/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/[Ss]hare answering “Never”/)).toBeNull()
   })
 
   test('an added measure becomes a second figure; removing it drops the param', async () => {
@@ -237,7 +327,7 @@ describe('CountryFilter at its cap', () => {
         capMessage="Up to 2 countries at a time — clear one to add another."
       />,
     )
-    expect(screen.getByText('2 of 2 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: 2 of 2')).toBeInTheDocument()
     expect(screen.getByText(/Up to 2 countries at a time/)).toBeInTheDocument()
     expect(screen.getByLabelText('Hong Kong')).toBeDisabled()
     expect(screen.getByLabelText('Testland')).not.toBeDisabled()

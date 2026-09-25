@@ -10,7 +10,7 @@ import { Link, Outlet, useLocation } from '@tanstack/react-router'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useBootStatus } from '../api/meta'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView } from '../nav'
-import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
+import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { ThemeToggle } from './ThemeToggle'
 import styles from './AppShell.module.css'
 
@@ -97,12 +97,11 @@ function NarrowNav({ pathname }: { pathname: string }) {
 
 export function AppShell() {
   const { pathname } = useLocation()
-  const narrow = useMediaQuery(NARROW_VIEWPORT)
-  // The codebook table is the one surface allowed the old 68rem (§6);
-  // detail pages and everything else keep the 60rem reading column.
-  const wide = pathname === '/codebook'
+  // The nav folds into "More" as soon as nine items would wrap a link
+  // (50rem), a wider fold than the display options'.
+  const narrow = useMediaQuery(NAV_FOLD_VIEWPORT)
   return (
-    <div className={styles.layout} data-wide={wide || undefined}>
+    <div className={styles.layout}>
       <a href="#main" className="skip-link">
         Skip to content
       </a>

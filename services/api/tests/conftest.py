@@ -47,9 +47,17 @@ def synthetic_data_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return directory
 
 
+#: The synthetic countries hold 60 people, so the ranked sweep's floor
+#: (100 in serving) is lowered here; EDUCATION_3, which has no rows, is
+#: the candidate it excludes.
+SYNTHETIC_MIN_N = 20
+
+
 @pytest.fixture(scope="session")
 def api_app(synthetic_data_dir: Path):
-    settings = Settings(data_path=synthetic_data_dir / "flourish.duckdb")
+    settings = Settings(
+        data_path=synthetic_data_dir / "flourish.duckdb", correlates_min_n=SYNTHETIC_MIN_N
+    )
     return create_app(settings)
 
 

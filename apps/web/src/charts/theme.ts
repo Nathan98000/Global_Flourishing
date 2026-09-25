@@ -5,10 +5,21 @@
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
 // (≤ 24px), hairline solid grid, 2px surface gaps and rings.
 
+import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciLabel, formatCount, formatEstimate, isShareStat } from '../format'
+import { ciLabel, formatCount, formatEstimate, isShareChangeStat, isShareStat } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+
+/** Every tooltip: the plot font at the 12px token, the hairline rule as
+ * its stroke; its fill is Plot's --plot-background, which tokens.css
+ * sets to the surface in both themes (the text is the plot's current
+ * colour, secondary ink, AA on that fill). */
+export const TIP_OPTIONS = {
+  fontFamily: FONT_FAMILY,
+  fontSize: 12,
+  stroke: 'var(--grid)',
+} as const
 
 export const INK = 'var(--ink)'
 export const INK_SECONDARY = 'var(--ink-secondary)'
@@ -17,7 +28,10 @@ export const GRID = 'var(--grid)'
 export const AXIS = 'var(--axis)'
 export const SURFACE = 'var(--surface)'
 export const WHISKER = 'var(--whisker)'
+/** The neutral for "no estimate" and unsurveyed land, and the outline
+ * that keeps it apart from the ramp's lowest bin in both themes. */
 export const MAP_EMPTY = 'var(--map-empty)'
+export const MAP_EMPTY_OUTLINE = 'var(--map-empty-outline)'
 
 /** The six fixed SFI domain hues (proposal §4.4 — same hue, every view). */
 export const SFI_HUES: Record<string, string> = {
@@ -45,32 +59,67 @@ export const SEQUENTIAL_RAMP = [
   'var(--seq-700)',
 ] as const
 
+/** A value in [lo, hi] onto the seven sequential ramp tokens (the map's
+ * quantized scale; the What Matters matrix uses the same). */
+export function quantizeSequential(domain: [number, number]): (value: number) => string {
+  const [lo, hi] = domain
+  const steps = SEQUENTIAL_RAMP.length
+  return (value: number) => {
+    if (hi <= lo) return SEQUENTIAL_RAMP[0]
+    const t = Math.min(1, Math.max(0, (value - lo) / (hi - lo)))
+    const index = Math.min(steps - 1, Math.floor(t * steps))
+    return SEQUENTIAL_RAMP[index] as string
+  }
+}
+
 /** The diverging ramp (Phase 6): rust for negative associations, the
- * page tone at zero, teal for positive — seven tints designed for ink
- * text on top (the correlates matrix), quantized like the map ramp. */
+ * page tone at zero, teal for positive — five tints per sign with a
+ * stronger end step, every one designed for ink text on top (the
+ * correlates matrix), quantized like the map ramp. */
 export const DIVERGING_RAMP = [
-  'var(--div-100)',
-  'var(--div-200)',
-  'var(--div-300)',
-  'var(--div-400)',
-  'var(--div-500)',
-  'var(--div-600)',
-  'var(--div-700)',
+  'var(--div-n5)',
+  'var(--div-n4)',
+  'var(--div-n3)',
+  'var(--div-n2)',
+  'var(--div-n1)',
+  'var(--div-0)',
+  'var(--div-p1)',
+  'var(--div-p2)',
+  'var(--div-p3)',
+  'var(--div-p4)',
+  'var(--div-p5)',
 ] as const
+
+/** Tint steps per sign of the diverging ramp. */
+export const DIVERGING_STEPS = 5
 
 /** Mark-grade hues for a negative / positive association (dots, bars). */
 export const NEGATIVE_MARK = 'var(--div-neg-mark)'
 export const POSITIVE_MARK = 'var(--div-pos-mark)'
 
 /** The diverging tint for a value in [−extent, extent], quantized onto
- * the seven ramp tokens (no interpolation, no resolved colors — the
+ * the eleven ramp tokens (no interpolation, no resolved colors — the
  * theme switch recolors live); null → transparent. */
 export function divergingTint(value: number | null | undefined, extent = 1): string {
   if (value === null || value === undefined || !Number.isFinite(value) || extent <= 0)
     return 'transparent'
   const unit = Math.max(-1, Math.min(1, value / extent))
-  const step = Math.round(unit * 3) + 3
+  const step = Math.round(unit * DIVERGING_STEPS) + DIVERGING_STEPS
   return DIVERGING_RAMP[step] ?? 'transparent'
+}
+
+/** A CI whisker drawn over a bar: a halo in the surface colour, then
+ * the ink line, so the whisker is visible on the bar's own hue (a
+ * whisker in the bar's tone vanished). Plot's rule marks take the
+ * channels; the two share them. */
+export function whiskerOverBars<Datum>(
+  data: Datum[],
+  channels: Record<string, string | ((datum: Datum) => number | undefined)>,
+) {
+  return [
+    Plot.ruleY(data, { ...channels, stroke: SURFACE, strokeWidth: 4, clip: true }),
+    Plot.ruleY(data, { ...channels, stroke: INK, strokeWidth: 1.5, clip: true }),
+  ]
 }
 
 /** The hue a signed mark wears. */
@@ -86,6 +135,18 @@ export function outcomeColor(outcome: string): string {
 export const BAR_THICKNESS = 20
 export const BAR_RADIUS = 4
 export const ROW_HEIGHT = 26
+/** Row charts are never laid out shorter than this many rows: with one
+ * to three rows the top ticks would touch the first row and a zero rule
+ * would be a stub. */
+export const MIN_ROWS = 4
+/** Facet padding: enough that adjacent panels' tick labels never touch. */
+export const FACET_PADDING = 0.16
+/** Column (facet) labels sit one text line above the top axis's tick
+ * labels: Plot puts both on the top edge otherwise (tick size + padding
+ * = 9 px up), and "Indonesia" over "8" read as "Indo8esia". */
+export const FACET_LABEL_DY = -25
+/** Room under the last row of a panel for its in-panel tick labels. */
+export const PANEL_AXIS_INSET = 18
 
 /** Marches with docs/METHODS.md: quantiles ship without CIs for now. */
 export function hasCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi'>): boolean {
@@ -130,18 +191,20 @@ export function tipText(row: EstimateRow, label: string): string {
   } else {
     lines.push('no interval (single sampling unit)')
   }
-  lines.push(`n = ${formatCount(row.n)} · ${row.weight}`)
+  // The n, never the weight's column name (the figure names the weight once).
+  lines.push(`n = ${formatCount(row.n)}`)
   return lines.join('\n')
 }
 
-/** Percent-scaled value for share stats (Plot draws 0–100, not 0–1). */
+/** Percent-scaled value for share stats (Plot draws 0–100, not 0–1) and
+ * for a share change (percentage points). */
 export function plotValue(row: EstimateRow): number | null {
   if (row.estimate === null) return null
-  return isShareStat(row.stat) ? row.estimate * 100 : row.estimate
+  return isShareStat(row.stat) || isShareChangeStat(row.stat) ? row.estimate * 100 : row.estimate
 }
 
 export function plotCI(row: EstimateRow): [number, number] | null {
   if (!hasCI(row)) return null
-  const scale = isShareStat(row.stat) ? 100 : 1
+  const scale = isShareStat(row.stat) || isShareChangeStat(row.stat) ? 100 : 1
   return [(row.ci_lo as number) * scale, (row.ci_hi as number) * scale]
 }

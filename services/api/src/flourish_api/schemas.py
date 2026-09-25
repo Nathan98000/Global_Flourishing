@@ -43,6 +43,9 @@ class WeightSpecModel(BaseModel):
     requires_midyear_type_1: bool
     is_default: bool
     rationale: str
+    #: state scopes: the respondents column this weight is calibrated to
+    #: (``state`` for Wave 1, ``state_y2`` after it); null globally
+    state_column: str | None = None
 
 
 class SuppressionModel(BaseModel):
@@ -63,6 +66,14 @@ class BreakdownLabelsModel(BaseModel):
     levels: list[BreakdownLevelModel]
 
 
+class StateLabelModel(BaseModel):
+    """A US state code's display name and member states (a pooled group
+    of small states lists several; ``flourish_stats.states``)."""
+
+    name: str
+    members: list[str]
+
+
 class MetaResponse(BaseModel):
     data_version: str | None
     #: Absent from the static tier's meta.json (a build artefact has no
@@ -76,6 +87,9 @@ class MetaResponse(BaseModel):
     breakdowns: list[str]
     breakdown_labels: dict[str, BreakdownLabelsModel]
     families: list[str]
+    #: US state codes → display names (the US States view owns no
+    #: state name); pooled groups read "A, B & C (pooled)"
+    state_labels: dict[str, StateLabelModel]
 
 
 class VariableSummary(BaseModel):
@@ -88,6 +102,12 @@ class VariableSummary(BaseModel):
     family: str
     scale_type: str
     direction: str
+    #: which end of the coded scale is the most of what ``display_name``
+    #: names: ``ascending`` (the highest code) or ``descending`` (the
+    #: lowest). Signed statistics — change, correlations, adjusted
+    #: coefficients — are computed on values aligned so higher = more of
+    #: the named thing (ADR-0015); means and shares are as coded.
+    polarity: str
     min: int | None
     max: int | None
     waves_available: list[str]
@@ -218,6 +238,12 @@ class ResponseMeta(BaseModel):
     adjusted: bool | None = None
     controls: list[str] | None = None
     model: str | None = None
+    #: /v1/correlates only: the complete-case n a predictor needs in a
+    #: group to be ranked (``FA_CORRELATES_MIN_N``, ADR-0015), and how
+    #: many candidates the ranked sweep left out for falling below it in
+    #: every group (0 when the predictors were named).
+    min_n: int | None = None
+    n_excluded: int | None = None
 
 
 class EstimateResponse(BaseModel):

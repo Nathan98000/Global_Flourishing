@@ -1,5 +1,6 @@
 """GET /v1/correlates against the synthetic data."""
 
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 from flourish_api.config import Settings
@@ -14,13 +15,13 @@ from flourish_stats.correlations import DEFAULT_CONTROLS
 #: Every other servable ordered item at Y1 in the synthetic catalog, minus
 #: the two scores built from HAPPY (sfi, sfi_happiness); nominal items
 #: (GENDER, EMPLOYMENT, …), the country-specific INCOME and the MY-only
-#: MONEY never qualify. EDUCATION_3 is in the catalog but has no rows.
+#: MONEY never qualify. EDUCATION_3 is in the catalog but has no rows, so
+#: the ranked sweep leaves it out (n = 0 < the test app's min_n of 20).
 HAPPY_Y1_PREDICTORS = {
     "LONELY",
     "ATTEND_SVCS",
     "CHILD_MEM",
     "BALANCE",
-    "EDUCATION_3",
     "sfi_health",
     "sfi_meaning",
     "sfi_character",
@@ -46,10 +47,38 @@ def test_ranked_sweep_covers_every_other_ordered_item(client: TestClient) -> Non
     assert meta["stat"] == "pearson_r" and meta["adjusted"] is False
     assert meta["weight_key"] == "y1" and meta["weight"] == "w_c1"
     assert meta["controls"] == [] and meta["model"] is None
-    # Ranked by |r|, strongest first; the item with no data sorts last.
+    # Ranked by |r|, strongest first; the item with no data is not ranked.
     strengths = [abs(r["estimate"]) for r in rows if r["estimate"] is not None]
     assert strengths == sorted(strengths, reverse=True)
-    assert rows[-1]["predictor"] == "EDUCATION_3" and rows[-1]["n"] == 0
+    assert meta["min_n"] == 20 and meta["n_excluded"] == 1
+    assert all(r["n"] >= 20 for r in rows)
+
+
+def test_ranked_sweep_excludes_predictors_below_min_n(synthetic_data_dir) -> None:
+    """The serving floor (ADR-0015): with 60 people per synthetic country,
+    a floor of 100 ranks nothing — every candidate is reported excluded —
+    while named predictors are still served in full, for the matrix to
+    mute rather than hide."""
+    settings = Settings(data_path=synthetic_data_dir / "flourish.duckdb")
+    assert settings.correlates_min_n == 100
+    client = TestClient(create_app(settings))
+    meta, rows = get_correlates(client, outcome="HAPPY", wave="Y1", filter="country_code:1")
+    assert rows == []
+    assert meta["min_n"] == 100 and meta["n_excluded"] == len(HAPPY_Y1_PREDICTORS) + 1
+    meta, named = get_correlates(
+        client, outcome="HAPPY", wave="Y1", against="LONELY", filter="country_code:1"
+    )
+    assert len(named) == 1 and named[0]["n"] == 54 and named[0]["estimate"] is not None
+    assert meta["min_n"] == 100 and meta["n_excluded"] == 0
+    # Grouped: a predictor ranks on the groups that clear the floor.
+    lowered = TestClient(
+        create_app(Settings(data_path=synthetic_data_dir / "flourish.duckdb", correlates_min_n=54))
+    )
+    meta, grouped = get_correlates(lowered, outcome="HAPPY", wave="Y1", by="country_code")
+    assert meta["n_excluded"] >= 1 and all(
+        any(r["n"] >= 54 for r in grouped if r["predictor"] == name)
+        for name in {r["predictor"] for r in grouped}
+    )
 
 
 def test_unadjusted_rows_claim_no_interval(client: TestClient) -> None:
@@ -325,3 +354,24 @@ def test_suppression_policy_is_honoured(synthetic_data_dir) -> None:
 def test_correlates_503_without_data(absent_client: TestClient) -> None:
     resp = absent_client.get("/v1/correlates", params={"outcome": "HAPPY", "wave": "Y1"})
     assert resp.status_code == 503
+
+
+def test_descending_predictor_is_aligned_to_its_label(client: TestClient, store: DataStore) -> None:
+    """ATTEND_SVCS runs 1 = Weekly … 3 = Never, so its lowest code is the
+    most attendance (catalog polarity ``descending``). The served
+    correlation is taken on the aligned values — exactly the negative of
+    the correlation on the raw codes (ADR-0015)."""
+    _, rows = get_correlates(
+        client, outcome="HAPPY", wave="Y1", against="ATTEND_SVCS", filter="country_code:1"
+    )
+    assert store.catalog is not None
+    happy, attend = store.catalog.outcome("HAPPY"), store.catalog.outcome("ATTEND_SVCS")
+    assert happy is not None and attend is not None
+    assert happy.polarity == "ascending" and attend.polarity == "descending"
+    raw = store.wide_frame([happy, attend], "Y1", country_codes=[1]).filter(
+        pl.col("w_c1").is_not_null()
+    )
+    design = Design(weight="w_c1", strata="strata", psu="psu")
+    unaligned = weighted_correlation(raw, "HAPPY", "ATTEND_SVCS", design).to_pylist()[0]
+    assert unaligned["estimate"] is not None and unaligned["estimate"] != 0
+    assert rows[0]["estimate"] == pytest.approx(-unaligned["estimate"], rel=1e-12)

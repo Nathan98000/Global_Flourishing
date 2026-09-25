@@ -137,3 +137,116 @@ def test_wide_frame_rejects_bad_names(con) -> None:
         wide_frame(con, [], "Y1", derived=["SFI"])
     with pytest.raises(ValueError, match="at least one"):
         wide_frame(con, [], "Y1")
+
+
+# --- Alignment (ADR-0015) ---------------------------------------------------
+
+
+class TestAlignedExpr:
+    def test_descending_reflects_about_the_scale_and_keeps_nulls(self) -> None:
+        from flourish_stats.io import aligned_expr
+
+        frame = pl.DataFrame({"x": pl.Series([1, 2, 3, 4, None], dtype=pl.Int16)})
+        aligned = frame.select(aligned_expr("x", polarity="descending", lo=1, hi=4))
+        assert aligned["x"].to_list() == [4, 3, 2, 1, None]
+        assert aligned["x"].dtype.is_integer()
+
+    def test_ascending_is_the_identity(self) -> None:
+        from flourish_stats.io import aligned_expr
+
+        frame = pl.DataFrame({"x": pl.Series([0, 5, 10, None], dtype=pl.Int16)})
+        aligned = frame.select(aligned_expr("x", polarity="ascending", lo=0, hi=10))
+        assert aligned["x"].to_list() == [0, 5, 10, None]
+
+    def test_needs_bounds_and_a_known_polarity(self) -> None:
+        from flourish_stats.io import aligned_expr
+
+        with pytest.raises(ValueError, match="min and max"):
+            aligned_expr("x", polarity="descending", lo=None, hi=4)
+        with pytest.raises(ValueError, match="polarity"):
+            aligned_expr("x", polarity="upward", lo=1, hi=4)
+
+    def test_aligned_correlation_flips_sign_for_a_descending_item(self) -> None:
+        """Pearson and Spearman are invariant to a reflection up to sign:
+        the aligned correlation is exactly the negative of the raw one."""
+        from flourish_stats import NO_SUPPRESSION, Design, weighted_correlation
+        from flourish_stats.io import aligned_expr
+
+        frame = pl.DataFrame(
+            {
+                "strata": [1, 1, 1, 2, 2, 2, 3, 3],
+                "psu": [11, 12, 12, 21, 22, 22, 31, 32],
+                "w": [1.0, 2.0, 1.5, 1.0, 0.5, 2.0, 1.0, 1.0],
+                "score": [7.0, 6.0, 8.0, 3.0, 4.0, 9.0, 5.0, 2.0],
+                "item": pl.Series([4, 3, 4, 1, 2, 4, 3, 1], dtype=pl.Int16),
+            }
+        )
+        design = Design(weight="w", strata="strata", psu="psu")
+        aligned = frame.with_columns(aligned_expr("item", polarity="descending", lo=1, hi=4))
+        for method in ("pearson", "spearman"):
+            raw = weighted_correlation(
+                frame, "score", "item", design, method=method, policy=NO_SUPPRESSION
+            )
+            flipped = weighted_correlation(
+                aligned, "score", "item", design, method=method, policy=NO_SUPPRESSION
+            )
+            r_raw = raw.to_pylist()[0]["estimate"]
+            r_aligned = flipped.to_pylist()[0]["estimate"]
+            assert r_raw is not None and r_raw > 0.5
+            assert r_aligned == pytest.approx(-r_raw, rel=1e-12)
+
+    def test_phq2_components_align_positively_with_their_score(self) -> None:
+        """DEPRESSED and INTEREST are 1 = Nearly every day … 4 = Not at all
+        and the score rescores each 4 − code: the raw items run against the
+        score, the aligned items (5 − code) run with it — the same holds
+        for GAD-2's FEEL_ANXIOUS and CONTROL_WORRY."""
+        from flourish_stats import NO_SUPPRESSION, Design, weighted_correlation
+        from flourish_stats.io import aligned_expr
+
+        a = [1, 2, 3, 4, 4, 3, 2, 1, 4, 2, 3, 1]
+        b = [2, 1, 4, 4, 3, 3, 1, 2, 4, 3, 4, 2]
+        frame = pl.DataFrame(
+            {
+                "strata": [1] * 6 + [2] * 6,
+                "psu": [11, 11, 12, 12, 13, 13, 21, 21, 22, 22, 23, 23],
+                "w": [1.0, 1.5, 0.5, 2.0, 1.0, 1.0, 1.2, 0.8, 1.0, 1.0, 1.5, 0.5],
+                "DEPRESSED": pl.Series(a, dtype=pl.Int16),
+                "INTEREST": pl.Series(b, dtype=pl.Int16),
+                "phq2_score": [(4 - x) + (4 - y) for x, y in zip(a, b, strict=True)],
+            }
+        )
+        design = Design(weight="w", strata="strata", psu="psu")
+        for item in ("DEPRESSED", "INTEREST"):
+            raw = weighted_correlation(
+                frame, "phq2_score", item, design, policy=NO_SUPPRESSION
+            ).to_pylist()[0]
+            assert raw["estimate"] < 0
+            aligned = frame.with_columns(aligned_expr(item, polarity="descending", lo=1, hi=4))
+            r = weighted_correlation(
+                aligned, "phq2_score", item, design, policy=NO_SUPPRESSION
+            ).to_pylist()[0]
+            assert r["estimate"] > 0
+
+
+class TestBinnedExpr:
+    def test_one_point_bins_with_the_top_bin_closed(self) -> None:
+        from flourish_stats.io import binned_expr
+
+        frame = pl.DataFrame({"s": [0.0, 0.99, 1.0, 7.25, 9.0, 9.999, 10.0, None]})
+        binned = frame.select(binned_expr("s", lo=0, hi=10))["s"]
+        assert binned.to_list() == [0, 0, 1, 7, 9, 9, 9, None]
+        assert binned.dtype == pl.Int32
+
+    def test_bins_follow_the_score_registry(self) -> None:
+        from flourish_stats.outcomes import DERIVED_OUTCOMES, score_bins
+
+        bins = score_bins(DERIVED_OUTCOMES["sfi"])
+        assert [level for level, _ in bins] == list(range(10))
+        assert [label for _, label in bins] == [f"{k}–{k + 1}" for k in range(10)]
+        assert score_bins(DERIVED_OUTCOMES["phq2_score"]) == []
+
+    def test_validation(self) -> None:
+        from flourish_stats.io import binned_expr
+
+        with pytest.raises(ValueError):
+            binned_expr("s", lo=0, hi=0)

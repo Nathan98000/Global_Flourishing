@@ -17,9 +17,34 @@
 #   - "none" marks behaviours and attitudes with no defensible
 #     better/worse end (religious attendance, political approval, …).
 #
+# polarity (ADR-0015) says which end of the CODED scale is the most of
+# what display_name names — ascending (the default: the highest code is)
+# or descending (the lowest code is). It was set from one table of
+# `name | display_name | direction | lowest label | highest label`, read
+# against the display name alone:
+#   - DEPRESSED "Feeling down or depressed" is 1 = Nearly every day …
+#     4 = Not at all, so the LOWEST code is the most depressed: descending.
+#   - Every 1 = Yes / 2 = No item (CLOSE_TO, DONATED, …) is descending:
+#     the named thing is the "Yes".
+#   - LONELY "Not feeling lonely" is 0 = Always … 10 = Never: the highest
+#     code is the most of "not feeling lonely", so it stays ascending.
+#   - Frequency ladders (ATTEND_SVCS 1 = More than once a week … 5 =
+#     Never) and the TIPI items (1 = Agree strongly) are descending.
+#   - INCOME_FEELINGS / INCOME_12YRS name feelings about income; 1 =
+#     Living comfortably is read as the most (best) of those feelings.
+# Signed statistics (change, correlations, adjusted coefficients) are
+# computed on values aligned so higher = more of the named thing; means
+# and shares are never re-coded. Polarity is independent of direction:
+# DEPRESSED is higher_better as coded and descending.
+#
 # scale_type overrides mark consecutive 1..k codes that are NOT ordered
 # ("Agree / Disagree / Not relevant / Unsure" and similar), which the
 # inference would otherwise call ordinal.
+#
+# short_labels (code → label) shorten answers whose codebook wording runs
+# past ~30 characters, for the breakdown controls and chart axes; the
+# codebook keeps the full wording. Only the demographic breakdown sources
+# carry them today (EDUCATION_3, EMPLOYMENT).
 
 aliases:
   # Codebook heading -> CSV base name, where mechanical suffix stripping
@@ -119,11 +144,13 @@ variables:
   PEACE:
     display_name: Feeling at peace
     family: wellbeing
+    polarity: descending
     direction: lower_better
     notes: "1 = Always … 4 = Never at peace, so lower is better."
   LIFE_BALANCE:
     display_name: Life in balance
     family: wellbeing
+    polarity: descending
     direction: lower_better
     notes: "1 = Always … 4 = Never in balance."
   HOPE_FUTURE:
@@ -155,6 +182,7 @@ variables:
   CAPABLE:
     display_name: Feeling capable
     family: wellbeing
+    polarity: descending
     direction: lower_better
     notes: >-
       Reviewed 2026-09-10: 1 = Always … 4 = Never feel capable, so lower
@@ -172,26 +200,31 @@ variables:
   DEPRESSED:
     display_name: Feeling down or depressed
     family: mental_health
+    polarity: descending
     direction: higher_better
     notes: "1 = Nearly every day … 4 = Not at all; PHQ-2 item, scored 4 − code."
   INTEREST:
     display_name: Little interest or pleasure
     family: mental_health
+    polarity: descending
     direction: higher_better
     notes: "1 = Nearly every day … 4 = Not at all; PHQ-2 item, scored 4 − code."
   FEEL_ANXIOUS:
     display_name: Feeling nervous or anxious
     family: mental_health
+    polarity: descending
     direction: higher_better
     notes: "1 = Nearly every day … 4 = Not at all; GAD-2 item, scored 4 − code."
   CONTROL_WORRY:
     display_name: Unable to stop worrying
     family: mental_health
+    polarity: descending
     direction: higher_better
     notes: "1 = Nearly every day … 4 = Not at all; GAD-2 item, scored 4 − code."
   THREAT_LIFE:
     display_name: Bothered by a life-threatening experience
     family: mental_health
+    polarity: descending
     direction: higher_better
     notes: "1 = A lot … 4 = Not at all bothered."
 
@@ -204,6 +237,9 @@ variables:
   HEALTH_PROB:
     display_name: Limiting health problems
     family: physical_health
+    polarity: descending
+    direction: higher_better
+    notes: "1 = Yes, 2 = No; having no limiting health problem is the better outcome, so higher is better."
   DAYS_EXERCISE:
     display_name: Days exercised last week
     family: physical_health
@@ -223,6 +259,7 @@ variables:
   COVID_DEATH:
     display_name: Lost someone to COVID-19
     family: physical_health
+    polarity: descending
     notes: >-
       Reviewed 2026-09-10: kept in physical_health; direction none — a
       life event, not a scale.
@@ -231,6 +268,9 @@ variables:
   CLOSE_TO:
     display_name: Has someone to confide in
     family: social_civic
+    polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; having someone to confide in is the better outcome, so lower is better."
   PEOPLE_HELP:
     display_name: Can count on people for help
     family: social_civic
@@ -242,6 +282,7 @@ variables:
   TRUST_PEOPLE:
     display_name: Trust in people
     family: social_civic
+    polarity: descending
     direction: lower_better
     notes: >-
       Reviewed 2026-09-10: 1 = All … 5 = None trust one another, so lower
@@ -254,15 +295,19 @@ variables:
   VOLUNTEERED:
     display_name: Volunteered last month
     family: social_civic
+    polarity: descending
   DONATED:
     display_name: Donated to charity last month
     family: social_civic
+    polarity: descending
   HELP_STRANGER:
     display_name: Helped a stranger last month
     family: social_civic
+    polarity: descending
   GROUP_NOT_REL:
     display_name: Non-religious group participation
     family: social_civic
+    polarity: descending
   SAT_LIVE:
     display_name: Satisfied with where you live
     family: social_civic
@@ -273,56 +318,72 @@ variables:
   FORGIVE:
     display_name: Forgiving those who hurt you
     family: character
+    polarity: descending
     direction: lower_better
     notes: "1 = Always … 4 = Never forgive."
   TRAITS1:
     display_name: "TIPI: extroverted, enthusiastic"
     family: character
+    polarity: descending
   TRAITS2:
     display_name: "TIPI: critical, quarrelsome"
     family: character
+    polarity: descending
   TRAITS3:
     display_name: "TIPI: dependable, self-disciplined"
     family: character
+    polarity: descending
   TRAITS4:
     display_name: "TIPI: anxious, easily upset"
     family: character
+    polarity: descending
   TRAITS5:
     display_name: "TIPI: open to new experiences"
     family: character
+    polarity: descending
   TRAITS6:
     display_name: "TIPI: reserved, quiet"
     family: character
+    polarity: descending
   TRAITS7:
     display_name: "TIPI: sympathetic, warm"
     family: character
+    polarity: descending
   TRAITS8:
     display_name: "TIPI: disorganized, careless"
     family: character
+    polarity: descending
   TRAITS9:
     display_name: "TIPI: calm, emotionally stable"
     family: character
+    polarity: descending
   TRAITS10:
     display_name: "TIPI: conventional, uncreative"
     family: character
+    polarity: descending
 
   # ------------------------------------------------- Religion & spirituality
   ATTEND_SVCS:
     display_name: Religious service attendance
     family: religion
+    polarity: descending
     notes: "1 = More than once a week … 5 = Never; direction none (a practice)."
   PRAY_MEDITATE:
     display_name: Prayer or meditation
     family: religion
+    polarity: descending
   SACRED_TEXTS:
     display_name: Reading sacred texts
     family: religion
+    polarity: descending
   REL_IMPORTANT:
     display_name: Religion important in daily life
     family: religion
+    polarity: descending
   REL_EXPERIENC:
     display_name: Had a spiritual awakening
     family: religion
+    polarity: descending
   BELIEVE_GOD:
     display_name: Belief in God
     family: religion
@@ -340,6 +401,7 @@ variables:
   CONNECTED_REL:
     display_name: Feeling connected to religion
     family: religion
+    polarity: descending
     direction: lower_better
     notes: "1 = Always … 4 = Never connected."
   CRITICAL:
@@ -470,6 +532,7 @@ variables:
   APPROVE_GOVT:
     display_name: Approval of national government
     family: politics
+    polarity: descending
     notes: "1 = Strongly approve … 5 = Strongly disapprove; an attitude, direction none."
   SAY_IN_GOVT:
     display_name: Having a say in government
@@ -479,9 +542,11 @@ variables:
   OBEY_LAW:
     display_name: The law should always be obeyed
     family: politics
+    polarity: descending
   INCOME_DIFF:
     display_name: Government should reduce income differences
     family: politics
+    polarity: descending
   POLITICAL_ID:
     display_name: Political party
     family: politics
@@ -493,6 +558,7 @@ variables:
   ABUSED:
     display_name: Abused when growing up
     family: childhood
+    polarity: descending
   OUTSIDER:
     display_name: Felt like an outsider growing up
     family: childhood
@@ -529,16 +595,19 @@ variables:
   INCOME_12YRS:
     display_name: Family income feelings growing up
     family: childhood
+    polarity: descending
     direction: lower_better
     notes: "1 = Lived comfortably … 4 = Found it very difficult."
   HEALTH_GROWUP:
     display_name: Health when growing up
     family: childhood
+    polarity: descending
     direction: lower_better
     notes: "1 = Excellent … 5 = Poor."
   SVCS_12YRS:
     display_name: Service attendance at age 12
     family: childhood
+    polarity: descending
   SVCS_MOTHER:
     display_name: Mother's service attendance
     family: childhood
@@ -571,11 +640,20 @@ variables:
   EDUCATION_3:
     display_name: Education (three levels)
     family: demographics
+    # The codebook's three answers run to 73–127 characters; the chart
+    # axes and controls use these (the codebook keeps the full wording).
+    short_labels:
+      1: Primary or less
+      2: Secondary
+      3: Tertiary
     notes: "Refused is printed as (RF) here, not (Refused)."
   EMPLOYMENT:
     display_name: Employment status
     family: demographics
     scale_type: nominal
+    short_labels:
+      6: Unemployed, looking
+      8: Out of work (reserve duty)
   MARITAL_STATUS:
     display_name: Marital status
     family: demographics
@@ -600,6 +678,7 @@ variables:
   INCOME_FEELINGS:
     display_name: Feelings about household income
     family: demographics
+    polarity: descending
     direction: lower_better
     notes: "1 = Living comfortably … 4 = Finding it very difficult."
   NUM_CHILDREN:
@@ -617,6 +696,7 @@ variables:
   BORN_COUNTRY:
     display_name: Born in this country
     family: demographics
+    polarity: descending
   REGION1:
     display_name: Region (level 1)
     family: demographics
@@ -679,6 +759,7 @@ variables:
   FOOD_INSECURE:
     display_name: Household ran out of food
     family: midyear
+    polarity: descending
     direction: higher_better
     notes: "1 = Often, 2 = Sometimes, 3 = Never — higher is better as coded."
   NATURE:
@@ -691,9 +772,13 @@ variables:
   BEAUTY:
     display_name: Regularly experiences beauty
     family: midyear
+    polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; regularly experiencing beauty is the better outcome, so lower is better."
   ENGAGE_ARTS:
     display_name: Arts and cultural activities
     family: midyear
+    polarity: descending
   DILIGENT:
     display_name: Diligence
     family: midyear
@@ -709,6 +794,9 @@ variables:
   ACHIEVING:
     display_name: Happy with what you're achieving
     family: midyear
+    polarity: descending
+    direction: lower_better
+    notes: "1 = Yes, 2 = No; being happy with what you are achieving is the better outcome, so lower is better."
 
   # ------------------------------------------------- System & design
   ID:

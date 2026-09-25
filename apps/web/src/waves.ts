@@ -8,7 +8,7 @@ import type { ChangeLeg } from './api/change'
 
 export const WAVE_TITLES: Record<string, string> = {
   Y1: 'Wave 1, 2023',
-  MY: 'Midyear survey',
+  MY: 'Midyear survey, Nov 2023–Dec 2024',
   Y2: 'Wave 2, 2024',
 }
 
@@ -19,10 +19,11 @@ export const WAVE_CHIPS: Record<string, string> = {
   Y2: '2024',
 }
 
-/** The moment in time, for "2023 → mid-2024" style pair labels. */
+/** The moment in time, for "2023 → Midyear" style pair labels — the
+ * same short names the controls use. */
 export const WAVE_MOMENTS: Record<Wave, string> = {
   Y1: '2023',
-  MY: 'mid-2024',
+  MY: 'Midyear',
   Y2: '2024',
 }
 

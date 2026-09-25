@@ -6,12 +6,14 @@
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
-import { ciExtents, fittedScale } from './domain'
+import { ciExtents, fittedScale, measureBounds } from './domain'
 import {
   FONT_FAMILY,
   INK,
   INK_SECONDARY,
+  MIN_ROWS,
   ROW_HEIGHT,
+  TIP_OPTIONS,
   WHISKER,
   plotCI,
   plotValue,
@@ -74,6 +76,8 @@ export function dotMarks(
         x2: (entry: DotEntry) => entry.ci?.[1],
         stroke: WHISKER,
         strokeWidth: 1.5,
+        // A whisker past the measure's own limit is clipped at the frame.
+        clip: true,
       },
     ),
     Plot.dot(valid, {
@@ -91,9 +95,10 @@ export function dotMarks(
         ...facetChannel,
         y: 'level',
         x: (entry: DotEntry) => entry.value ?? anchorX,
+        // Every facet value rides in the tip: country, column, level.
         title: (entry: DotEntry) =>
-          tipText(entry.row, entry.facet ? `${entry.facet} · ${entry.level}` : entry.level),
-        fontFamily: FONT_FAMILY,
+          tipText(entry.row, [entry.facet, entry.column, entry.level].filter(Boolean).join(' · ')),
+        ...TIP_OPTIONS,
       }),
     ),
   ]
@@ -124,10 +129,12 @@ export function DotPlot({
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
         targetTicks: 6,
+        bounds: measureBounds(responseMeta.stat, variable),
       })
       const width = chartWidth(660, available)
       return Plot.plot({
-        height: 44 + levelDomain.length * ROW_HEIGHT,
+        // Never shorter than four rows: the ticks clear the first row.
+        height: 44 + Math.max(levelDomain.length, MIN_ROWS) * ROW_HEIGHT,
         width,
         marginLeft: width < 480 ? 100 : 150,
         marginRight: 40,

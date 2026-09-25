@@ -4,12 +4,16 @@
 
 import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
-import { Histogram } from '../charts/Histogram'
+import { capitalize } from '../charts/ChartFigure'
+import { CompareDomains } from '../charts/CompareDomains'
+import { Histogram, thinnedTicks } from '../charts/Histogram'
+import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import {
   attendVariable,
   happyVariable,
+  sfiVariable,
   testMeta,
   testResponseMeta,
   testRow,
@@ -29,6 +33,32 @@ const rows = [
     n: 3,
   }),
 ]
+
+/** A text's y in the SVG: the translate() of it and of its ancestors —
+ * Plot positions axis labels through nested transforms. */
+function absoluteY(node: Element): number {
+  let y = 0
+  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
+    if (match) y += Number(match[2])
+  }
+  return y
+}
+
+/** Every column (fx) label sits at least one text line above the
+ * highest top-axis tick label — the two shared a baseline before. */
+function expectColumnLabelsAboveTicks(svg: SVGSVGElement | null) {
+  const columnLabels = [...(svg?.querySelectorAll('[aria-label="fx-axis tick label"] text') ?? [])]
+  const tickLabels = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])]
+  expect(columnLabels.length).toBeGreaterThan(0)
+  expect(tickLabels.length).toBeGreaterThan(0)
+  const highestTick = Math.min(...tickLabels.map(absoluteY))
+  for (const label of columnLabels) {
+    expect(absoluteY(label), `${label.textContent} above the ticks`).toBeLessThanOrEqual(
+      highestTick - 12,
+    )
+  }
+}
 
 const metaWithHK = {
   ...testMeta,
@@ -179,6 +209,111 @@ describe('Histogram', () => {
     expect(ticks).toContain('0%')
     expect(ticks).not.toContain('10%')
   })
+
+  test('a derived score is binned by the server: ten bins, labelled from its value labels', () => {
+    const bins = Array.from({ length: 10 }, (_, level) =>
+      testRow({
+        group: { country_code: 1 },
+        stat: 'distribution',
+        level,
+        estimate: 0.1,
+        ci_lo: 0.08,
+        ci_hi: 0.12,
+        n: 100,
+      }),
+    )
+    const labels = Array.from({ length: 10 }, (_, level) => `${level}–${level + 1}`)
+    const { container } = render(
+      <Histogram
+        rows={bins}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'distribution', outcome: 'sfi' })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        levels={bins.map((row) => row.level as number)}
+        levelLabel={(level) => labels[level] ?? String(level)}
+        xLabel="Score (0–10), 1-point bins"
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(10)
+    expect(svg?.textContent).toContain('Score (0–10), 1-point bins')
+    expect(svg?.textContent).toContain('0–1')
+    expect(svg?.textContent).toContain('9–10')
+  })
+
+  test('bin labels thin out when a facet is too narrow for all of them, so none touch', () => {
+    // Three countries at the design width leave ~200 px per facet for
+    // ten bins: "8–9" and "9–10" ran together. Every bar stays.
+    const bins = [7, 22, 9].flatMap((code) =>
+      Array.from({ length: 10 }, (_, level) =>
+        testRow({
+          group: { country_code: code },
+          stat: 'distribution',
+          level,
+          estimate: 0.1,
+          ci_lo: 0.08,
+          ci_hi: 0.12,
+          n: 100,
+        }),
+      ),
+    )
+    const meta = {
+      ...testMeta,
+      countries: [
+        ...testMeta.countries,
+        { code: 7, name: 'Indonesia', iso3: 'IDN' },
+        { code: 9, name: 'Japan', iso3: 'JPN' },
+      ],
+    }
+    const label = (level: number) => `${level}–${level + 1}`
+    const { container } = render(
+      <Histogram
+        rows={bins}
+        meta={meta}
+        responseMeta={testResponseMeta({ stat: 'distribution', outcome: 'sfi' })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        levels={Array.from({ length: 10 }, (_, level) => level)}
+        levelLabel={label}
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.querySelectorAll('[aria-label="bar"] :is(rect, path)').length).toBe(30)
+    const ticks = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
+      (node) => node.textContent,
+    )
+    // Every other bin is labelled, in each of the three facets.
+    expect(ticks).toEqual([...Array(3)].flatMap(() => ['0–1', '2–3', '4–5', '6–7', '8–9']))
+    // The rule itself: every bin when the widest label fits its bin; the
+    // signed change buckets keep zero labelled whatever the stride.
+    const levels = Array.from({ length: 10 }, (_, level) => level)
+    expect(thinnedTicks(levels, label, 360)).toEqual(levels)
+    expect(thinnedTicks(levels, label, 200)).toEqual([0, 2, 4, 6, 8])
+    expect(thinnedTicks(levels, label, 100)).toEqual([0, 4, 8])
+    const signed = Array.from({ length: 21 }, (_, index) => index - 10)
+    const thinned = thinnedTicks(signed, (level) => (level > 0 ? `+${level}` : String(level)), 360)
+    expect(thinned).toContain(0)
+    expect(thinned).toEqual(signed.filter((level) => level % 2 === 0))
+  })
+})
+
+describe('figure copy', () => {
+  test('a subtitle starts with a capital letter, whatever clause leads', () => {
+    expect(capitalize('share answering “Weekly” · Wave 1, 2023')).toBe(
+      'Share answering “Weekly” · Wave 1, 2023',
+    )
+    expect(capitalize('Average score')).toBe('Average score')
+    expect(capitalize('')).toBe('')
+  })
+})
+
+describe('tooltips', () => {
+  test('every tip uses the 12px token size and the rule token as its stroke', () => {
+    expect(TIP_OPTIONS.fontSize).toBe(12)
+    expect(TIP_OPTIONS.stroke).toBe('var(--grid)')
+    expect(TIP_OPTIONS.fontFamily).toContain('system-ui')
+  })
 })
 
 describe('SmallMultiples', () => {
@@ -255,6 +390,78 @@ describe('SmallMultiples', () => {
       (node) => node.textContent === '6.0',
     )
     expect(inPanelTicks.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('column labels and the top axis', () => {
+  const ageBands = testMeta.breakdown_labels['age_band']?.levels ?? []
+  const gridRows = [1, 22].flatMap((code) =>
+    ageBands.flatMap((band) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, age_band: band.value, gender },
+          estimate: 6 + gender * 0.2 + Number(band.value) * 0.1,
+          ci_lo: 5.9,
+          ci_hi: 7.5,
+        }),
+      ),
+    ),
+  )
+
+  test('a second breakdown puts its column labels a line above the top ticks', () => {
+    const { container } = render(
+      <SmallMultiples
+        rows={gridRows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ by: ['country_code', 'age_band', 'gender'] })}
+        variable={happyVariable}
+        color="var(--series-1)"
+        levelColumn="age_band"
+        levelDomain={ageBands.map((band) => band.label)}
+        seriesColumn="gender"
+        seriesDomain={['Male', 'Female']}
+        sort="estimate"
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expect(svg?.textContent).toContain('Female')
+    expectColumnLabelsAboveTicks(svg)
+  })
+
+  test('a Compare split puts its country labels a line above the top ticks; the row header is haloed', () => {
+    const rows = [1, 22].flatMap((code) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, gender, outcome: 'sfi_happiness' },
+          estimate: 6 + gender * 0.2,
+          ci_lo: 5.9,
+          ci_hi: 7.5,
+        }),
+      ),
+    )
+    const { container } = render(
+      <CompareDomains
+        rows={rows}
+        meta={testMeta}
+        outcomes={['sfi_happiness']}
+        outcomeLabel={() => 'SFI: happiness & life satisfaction'}
+        units={['Testland', 'United States']}
+        split="gender"
+        splitDomain={['Male', 'Female']}
+      />,
+    )
+    const svg = container.querySelector('svg')
+    expectColumnLabelsAboveTicks(svg)
+    // The row header reads across the row, with a surface halo so the
+    // next column's frame line never cuts through it.
+    const header = [...(svg?.querySelectorAll('text') ?? [])].find((node) =>
+      node.textContent?.startsWith('SFI: happiness'),
+    )
+    expect(header).toBeDefined()
+    // Plot puts a mark's styles on its per-facet group.
+    const group = header?.parentElement
+    expect(group?.getAttribute('stroke')).toBe('var(--surface)')
+    expect(group?.getAttribute('paint-order')).toBe('stroke')
   })
 })
 

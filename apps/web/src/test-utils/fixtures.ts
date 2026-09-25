@@ -48,6 +48,15 @@ export const testMeta: Meta = {
     },
   },
   families: ['demographics', 'wellbeing'],
+  state_labels: {
+    CA: { name: 'California', members: ['CA'] },
+    NY: { name: 'New York', members: ['NY'] },
+    TX: { name: 'Texas', members: ['TX'] },
+    ME_NH_RI_VT: {
+      name: 'Maine, New Hampshire, Rhode Island & Vermont (pooled)',
+      members: ['ME', 'NH', 'RI', 'VT'],
+    },
+  },
 }
 
 export const happyVariable: VariableSummary = {
@@ -58,6 +67,7 @@ export const happyVariable: VariableSummary = {
   family: 'wellbeing',
   scale_type: 'scale_0_10',
   direction: 'higher_better',
+  polarity: 'ascending',
   min: 0,
   max: 10,
   waves_available: ['Y1', 'Y2'],
@@ -75,6 +85,7 @@ export const sfiVariable: VariableSummary = {
   family: 'derived',
   scale_type: 'scale_0_10',
   direction: 'higher_better',
+  polarity: 'ascending',
   min: 0,
   max: 10,
   waves_available: ['Y1', 'Y2'],
@@ -91,6 +102,8 @@ export const attendVariable: VariableSummary = {
   family: 'religion',
   scale_type: 'ordinal',
   direction: 'none',
+  // 1 = Weekly … 3 = Never: the lowest code is the most attendance.
+  polarity: 'descending',
   min: 1,
   max: 3,
   default_stat: 'proportion',

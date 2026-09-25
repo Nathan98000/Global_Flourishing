@@ -3,7 +3,7 @@
 // initial route, and never with the world map.
 
 import { useEffect, useState } from 'react'
-import type { EstimateRow, ResponseMeta } from '../api/types'
+import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { MapLegend, mapDomain } from '../charts/Choropleth'
 import { StateChoropleth } from '../charts/StateChoropleth'
 import { loadUsStateFeatures, type UsFeature } from '../charts/usTopology'
@@ -13,9 +13,11 @@ import { isShareStat } from '../format'
 export default function StatesMapPanel({
   rows,
   responseMeta,
+  meta,
 }: {
   rows: EstimateRow[]
   responseMeta: ResponseMeta
+  meta: Meta
 }) {
   const [features, setFeatures] = useState<UsFeature[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -46,8 +48,12 @@ export default function StatesMapPanel({
 
   return (
     <div>
-      <MapLegend domain={mapDomain(rows, responseMeta)} isShare={isShareStat(responseMeta.stat)} />
-      <StateChoropleth rows={rows} responseMeta={responseMeta} features={features} />
+      <MapLegend
+        domain={mapDomain(rows, responseMeta)}
+        isShare={isShareStat(responseMeta.stat)}
+        pooled
+      />
+      <StateChoropleth rows={rows} responseMeta={responseMeta} features={features} meta={meta} />
     </div>
   )
 }

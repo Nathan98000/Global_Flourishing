@@ -2,8 +2,20 @@
 // refresh stays clean: the compared units and the one row set the chart
 // and the data table share.
 
-import type { EstimateResponse, EstimateRow, Meta } from '../api/types'
-import { highestLevel } from '../labels'
+import type { Country, EstimateResponse, EstimateRow, Meta, VariableDetail } from '../api/types'
+import { defaultLevel } from '../labels'
+
+/** The three countries a Compare without a URL selection starts with,
+ * by ISO code — Indonesia, the United States, Japan — when the release
+ * has all three; otherwise none (the view then asks). */
+export const DEFAULT_COMPARE_ISO3: readonly string[] = ['IDN', 'USA', 'JPN']
+
+export function defaultCompareCountries(countries: readonly Country[]): number[] {
+  const codes = DEFAULT_COMPARE_ISO3.map(
+    (iso3) => countries.find((country) => country.iso3 === iso3)?.code,
+  )
+  return codes.every((code): code is number => code !== undefined) ? codes : []
+}
 
 /** Country names in A–Z order for the chosen codes — the compared units. */
 export function compareUnits(countries: readonly number[], meta: Meta): string[] {
@@ -15,18 +27,23 @@ export function compareUnits(countries: readonly number[], meta: Meta): string[]
 
 /** One row set for the chart and the table: each response's rows for the
  * chosen countries, stamped with their `outcome`. A proportion response
- * keeps its highest level (the "positive" share a binary item's name
- * describes). */
+ * keeps the level Atlas shows by default (`defaultLevel`): the first
+ * labelled answer of the item's detail, or the highest level when none
+ * is labelled. */
 export function combineRows(
   results: readonly (EstimateResponse | undefined)[],
   outcomes: readonly string[],
   countries: readonly number[],
+  details: Readonly<Record<string, VariableDetail | undefined>> = {},
 ): EstimateRow[] {
   const rows: EstimateRow[] = []
   results.forEach((response, index) => {
     const outcome = outcomes[index]
     if (!response || outcome === undefined) return
-    const level = response.meta.stat === 'proportion' ? highestLevel(response.rows) : undefined
+    const level =
+      response.meta.stat === 'proportion'
+        ? defaultLevel(details[outcome], response.rows)
+        : undefined
     for (const row of response.rows) {
       if (!countries.includes(Number(row.group['country_code']))) continue
       if (level !== undefined && row.level !== level) continue

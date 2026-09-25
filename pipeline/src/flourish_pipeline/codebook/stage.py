@@ -205,6 +205,7 @@ def variables_frame(catalog: Catalog) -> pl.DataFrame:
                 "family": v.family,
                 "scale_type": v.scale_type,
                 "direction": v.direction,
+                "polarity": v.polarity,
                 "min": v.min,
                 "max": v.max,
                 "waves_available": v.waves_available,
@@ -231,6 +232,7 @@ def variables_frame(catalog: Catalog) -> pl.DataFrame:
             "family": pl.String,
             "scale_type": pl.String,
             "direction": pl.String,
+            "polarity": pl.String,
             "min": pl.Int16,
             "max": pl.Int16,
             "waves_available": pl.List(pl.String),
@@ -259,6 +261,7 @@ def value_labels_frame(catalog: Catalog) -> pl.DataFrame:
             "code": pl.Int16,
             "label": pl.String,
             "is_nonresponse": pl.Boolean,
+            "short_label": pl.String,
         },
     )
 

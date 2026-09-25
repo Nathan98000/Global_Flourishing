@@ -59,10 +59,14 @@ export interface paths {
         };
         /**
          * Within-person change across waves
-         * @description Mean within-person change with a design-based CI, plus (for
-         *     integer-coded items) the distribution of individual change and (for
-         *     categorical items) the transition matrix. ``from=Y1&via=MY&to=Y2``
-         *     returns the three panel legs under the three-point weight.
+         * @description Within-person change with a design-based CI. Numeric scales (0–10,
+         *     counts) report the mean change on values aligned so higher means more
+         *     of what the measure names (``stat = "change"``), plus the distribution
+         *     of individual change; categorical items report the change in the
+         *     share answering each level (``stat = "change_share"``, a fraction —
+         *     × 100 for percentage points) plus the transition matrix.
+         *     ``from=Y1&via=MY&to=Y2`` returns the three panel legs under the
+         *     three-point weight (numeric scales only).
          */
         get: operations["change_v1_change_get"];
         put?: never;
@@ -89,8 +93,10 @@ export interface paths {
          *     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
          *     ``against`` for the ranked sweep over every other servable ordered
          *     item at the wave, cut to ``limit`` predictors (ranked by the median
-         *     absolute association across the groups). Binary items enter as
-         *     indicators of code 1 (Yes / screen positive). Global scope only.
+         *     absolute association across the groups with at least ``meta.min_n``
+         *     complete cases; ``meta.n_excluded`` candidates fell below it and are
+         *     not ranked). Binary items enter as indicators of code 1 (Yes / screen
+         *     positive). Global scope only.
          */
         get: operations["correlates_v1_correlates_get"];
         put?: never;
@@ -359,6 +365,10 @@ export interface components {
             families: string[];
             /** Git Sha */
             git_sha?: string | null;
+            /** State Labels */
+            state_labels: {
+                [key: string]: components["schemas"]["StateLabelModel"];
+            };
             suppression: components["schemas"]["SuppressionModel"];
             /** Waves */
             waves: string[];
@@ -408,8 +418,12 @@ export interface components {
             filters: {
                 [key: string]: (string | number | boolean | null)[];
             };
+            /** Min N */
+            min_n?: number | null;
             /** Model */
             model?: string | null;
+            /** N Excluded */
+            n_excluded?: number | null;
             /** N Frame */
             n_frame: number;
             /** N Valid */
@@ -433,6 +447,17 @@ export interface components {
             weight: string;
             /** Weight Key */
             weight_key: string;
+        };
+        /**
+         * StateLabelModel
+         * @description A US state code's display name and member states (a pooled group
+         *     of small states lists several; ``flourish_stats.states``).
+         */
+        StateLabelModel: {
+            /** Members */
+            members: string[];
+            /** Name */
+            name: string;
         };
         /** SuppressionModel */
         SuppressionModel: {
@@ -496,6 +521,8 @@ export interface components {
             missingness: components["schemas"]["MissingnessRow"][];
             /** Name */
             name: string;
+            /** Polarity */
+            polarity: string;
             /** Scale Type */
             scale_type: string;
             /** Scoring */
@@ -536,6 +563,8 @@ export interface components {
             min: number | null;
             /** Name */
             name: string;
+            /** Polarity */
+            polarity: string;
             /** Scale Type */
             scale_type: string;
             /** Servable */
@@ -566,6 +595,8 @@ export interface components {
             requires_retained_y2: boolean;
             /** Scope */
             scope: string;
+            /** State Column */
+            state_column?: string | null;
             /** Waves */
             waves: string[];
             /** Weight */

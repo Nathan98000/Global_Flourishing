@@ -1,7 +1,7 @@
 // Breakdowns (§2.6): outcome × one demographic as small multiples by
-// country, sortable, suppressed cells shown with their n. A second
-// breakdown — another demographic, or one categorical survey variable —
-// is API-only by design and says it needs the live service.
+// country, sortable, every cell shown with its n. A second breakdown —
+// another demographic, or one categorical survey variable — is answered
+// by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
@@ -136,7 +136,7 @@ export function BreakdownsView() {
     return (
       <section>
         <h2>Breakdowns</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -224,7 +224,7 @@ export function BreakdownsView() {
   const displayOptions = (
     <>
       <label className={styles.oriented}>
-        Second breakdown (needs the live service){' '}
+        Second breakdown{' '}
         <select
           value={secondary ?? ''}
           onChange={(event) =>
@@ -246,7 +246,7 @@ export function BreakdownsView() {
           <optgroup label="survey variables">
             {categoricalVariables.map((candidate) => (
               <option key={candidate.name} value={candidate.name}>
-                {candidate.display_name} ({candidate.name})
+                {candidate.display_name}
               </option>
             ))}
           </optgroup>
@@ -305,6 +305,10 @@ export function BreakdownsView() {
   return (
     <section>
       <h2 className="visually-hidden">Breakdowns</h2>
+      <p className={styles.deck}>
+        One measure split by a demographic, one panel per country — the Atlas&rsquo;s estimates, cut
+        finer.
+      </p>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
@@ -375,13 +379,13 @@ export function BreakdownsView() {
           {estimates.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
-            estimates.error instanceof NetworkError && boot.state !== 'ready' ? (
+            estimates.error instanceof NetworkError && !boot.apiReachable ? (
               <p className={styles.hint} role="status">
                 This view needs the live data service, which is offline right now — the standard
                 views still work.
               </p>
             ) : (
-              <ErrorState error={estimates.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
           ) : response && variable ? (
             <>

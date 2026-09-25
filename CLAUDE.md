@@ -12,7 +12,7 @@ midyear administration modes), and the phase plan.
 |---|---|
 | `apps/web/` | React 18 + TS + Vite. Views (`src/views/`: Atlas, Breakdowns, Codebook, Methods) over a static-first fetch layer (`src/api/` — ADR-0009), Observable Plot charts (`src/charts/`, colors are `var(--token)` strings only), design tokens (`src/styles/tokens.css`, both themes, contrast-tested), typed URL state (`src/state/`, API param names, defaults omitted). Tests: vitest (`src/__tests__/`, needs `make web-fixtures`), Playwright journeys (`e2e/`), Lighthouse (`lighthouserc.cjs`) + bundle budget (`scripts/check-budget.mjs`). `src/config.ts` is the only reader of `import.meta.env`. |
 | `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. `/v1` endpoints over a read-only DuckDB (`data.py`; absent data → honest 503s), catalog-validated queries (`queries.py`), frame assembly with filters-as-domains (`frames.py`), ETag/LRU/rate-limit middleware (`ops.py`). Tests run against a synthetic DuckDB (`tests/synthetic_db.py`); `built` marker for real-data tests. |
-| `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table, suppression machinery (serving default: `NO_SUPPRESSION`, ADR-0011 — every cell shown; `FA_SUPPRESSION_*` restores the 50/100 rule). `stats/verify/` holds the R `survey` parity harness. |
+| `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table, suppression machinery (serving default: `NO_SUPPRESSION`, ADR-0011 — every cell shown; `FA_SUPPRESSION_*` restores the 50/100 rule), the correlates ranking floor (`CORRELATES_MIN_N`, ADR-0015), the derived-score bin rule (`outcomes.score_bins`) and the US state names (`states.py`). `stats/verify/` holds the R `survey` parity harness. |
 | `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
 | `data/` | Pipeline outputs; git-ignored except `README.md` and `manifest.json`. |
 | `docs/` | `PROPOSAL.md`, `SETUP.md` (hand-off checklist), `adr/`. |
@@ -52,9 +52,18 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   `stats/verify/` included.
 - **Weight and eligibility facts live only in `flourish_stats.weights`**
   (the wave→weight→eligibility table): which weight goes with which wave
-  combination, the `w_r2` populated-for-everyone quirk, and the
-  `midyear_type = 1` restriction on MY→Y2 comparisons. Engine, API and
-  docs read from it; never restate those rules elsewhere. Likewise the
+  combination, the `w_r2` populated-for-everyone quirk, the
+  `midyear_type = 1` restriction on MY→Y2 comparisons, and which state
+  column each state-scope weight is calibrated to (`state` for the Wave 1
+  weight, `state_y2` for every later one — `spec.state_column`). Engine,
+  API and docs read from it; never restate those rules elsewhere.
+- **Signed statistics follow the label (ADR-0015).** Every catalog item
+  carries `polarity` (set in `overrides/variables.yaml` from its endpoint
+  labels); change, correlations and adjusted coefficients are computed on
+  values aligned so higher = more of what `display_name` names
+  (`flourish_stats.io.aligned_expr`, applied in `flourish_api.frames`).
+  Means and shares are never re-coded. A categorical item's change is
+  the change in share per level (`change_share`), never a mean of codes. Likewise the
   servable-outcome allow-list and derived-score registry live only in
   `flourish_stats.outcomes` (API + static exporter both read it).
 - **The API and the static exporter share one response envelope**
@@ -67,10 +76,11 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   outcome outside the domain (`flourish_api.frames`) or SEs silently
   diverge from R's domain semantics.
 - **The front end computes no statistics and owns no labels.** Every
-  label, wording, value label, direction, country name, suppression
-  threshold and CI level comes from the server (`/v1/meta`,
-  `/v1/variables`, or their static-tier mirrors); `default_stat` rides
-  on every variable summary. Two deliberate client-side exceptions:
+  label, wording, value label, direction, polarity, country name, US
+  state name (`meta.state_labels`), breakdown short label, derived-score
+  bin label, suppression threshold and CI level comes from the server
+  (`/v1/meta`, `/v1/variables`, or their static-tier mirrors);
+  `default_stat` rides on every variable summary. Two deliberate client-side exceptions:
   the static path computation (mirrors the exporter's naming; a miss
   falls back to the API — ADR-0009), and the picker's topic *names*
   (`apps/web/src/topics.ts` — display names for the catalog's family

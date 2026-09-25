@@ -9,6 +9,13 @@ describe('formatting', () => {
     expect(formatEstimate(0.4567, 'proportion')).toBe('45.7%')
     expect(formatEstimate(0.05, 'distribution')).toBe('5.0%')
     expect(formatEstimate(null, 'mean')).toBe('—')
+    // A share's interval can dip below zero on a near-empty bin: shown
+    // as 0.0%, never "−0.0%".
+    expect(formatEstimate(-0.0003, 'distribution')).toBe('0.0%')
+    expect(formatEstimate(-0.02, 'proportion')).toBe('0.0%')
+    expect(formatCI(testRow({ stat: 'distribution', ci_lo: -0.001, ci_hi: 0.004 }))).toBe(
+      '[0.0%, 0.4%]',
+    )
   })
 
   test('CI strings match the estimate scale', () => {

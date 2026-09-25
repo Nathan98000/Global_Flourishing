@@ -31,6 +31,9 @@ class ValueLabelRecord:
     code: int
     label: str
     is_nonresponse: bool
+    #: a short display label from the overrides (chart axes, controls);
+    #: None means the codebook wording is short enough to use as is
+    short_label: str | None = None
 
 
 @dataclass(slots=True)
@@ -43,6 +46,7 @@ class VariableRecord:
     family: str
     scale_type: str
     direction: str
+    polarity: str
     min: int | None
     max: int | None
     waves_available: list[str]
@@ -251,6 +255,7 @@ def _classify_labels(
                 code=vl.code,
                 label=label,
                 is_nonresponse=kind is not None,
+                short_label=None if kind is not None else override.short_labels.get(vl.code),
             )
         )
     for codes in nonresponse.values():
@@ -404,6 +409,7 @@ def build_catalog(
                 family=override.family,
                 scale_type=scale,
                 direction=override.direction,
+                polarity=override.polarity,
                 min=lo,
                 max=hi,
                 waves_available=waves_available(all_columns, base),

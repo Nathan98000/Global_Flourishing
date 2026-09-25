@@ -8,7 +8,17 @@
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { ciLabel, formatEstimate } from '../format'
-import { FONT_FAMILY, INK_SECONDARY, MAP_EMPTY, SEQUENTIAL_RAMP, SURFACE, plotValue } from './theme'
+import {
+  FONT_FAMILY,
+  INK_SECONDARY,
+  MAP_EMPTY,
+  MAP_EMPTY_OUTLINE,
+  SEQUENTIAL_RAMP,
+  SURFACE,
+  TIP_OPTIONS,
+  plotValue,
+  quantizeSequential,
+} from './theme'
 import { chartWidth, usePlot } from './usePlot'
 import {
   ISO3_TO_NUMERIC,
@@ -66,16 +76,8 @@ export function joinCountries(
   return { entries, missing }
 }
 
-export function quantizeColor(domain: [number, number]): (value: number) => string {
-  const [lo, hi] = domain
-  const steps = SEQUENTIAL_RAMP.length
-  return (value: number) => {
-    if (hi <= lo) return SEQUENTIAL_RAMP[0]
-    const t = Math.min(1, Math.max(0, (value - lo) / (hi - lo)))
-    const index = Math.min(steps - 1, Math.floor(t * steps))
-    return SEQUENTIAL_RAMP[index] as string
-  }
-}
+/** The map's quantized sequential scale (shared with the What Matters matrix). */
+export const quantizeColor = quantizeSequential
 
 export function Choropleth({
   rows,
@@ -114,6 +116,10 @@ export function Choropleth({
         return lines.join('\n')
       }
       const small = entries.filter((entry) => entry.small)
+      // Countries with an estimate wear the ramp; those without wear the
+      // neutral with its outline, like the unsurveyed land beneath.
+      const valued = entries.filter((entry) => entry.value !== null)
+      const empty = entries.filter((entry) => entry.value === null)
       const selectedSet = new Set(selected ?? [])
       const highlighted = entries.filter((entry) =>
         selectedSet.has(Number(entry.row?.group['country_code'])),
@@ -130,14 +136,23 @@ export function Choropleth({
         },
         projection: 'equal-earth',
         marks: [
-          // No sphere outline (§6): land floats on the page surface.
-          Plot.geo(features, { fill: MAP_EMPTY, stroke: SURFACE, strokeWidth: 0.4 }),
-          Plot.geo(entries, {
+          // No sphere outline (§6): land floats on the page surface —
+          // unsurveyed land as the outlined neutral.
+          Plot.geo(features, { fill: MAP_EMPTY, stroke: MAP_EMPTY_OUTLINE, strokeWidth: 0.3 }),
+          Plot.geo(empty, {
+            geometry: (entry: MapEntry) => entry.feature,
+            fill: MAP_EMPTY,
+            stroke: MAP_EMPTY_OUTLINE,
+            strokeWidth: 0.8,
+            tip: TIP_OPTIONS,
+            title: tipOf,
+          }),
+          Plot.geo(valued, {
             geometry: (entry: MapEntry) => entry.feature,
             fill: fillOf,
             stroke: SURFACE,
             strokeWidth: 0.4,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           Plot.geo(highlighted, {
@@ -153,7 +168,7 @@ export function Choropleth({
             fill: fillOf,
             stroke: SURFACE,
             strokeWidth: 2,
-            tip: true,
+            tip: TIP_OPTIONS,
             title: tipOf,
           }),
           Plot.text(small, {
@@ -177,14 +192,33 @@ export function Choropleth({
   return <div ref={container} />
 }
 
-const legendValue = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+// Both ends of the legend at one precision: two decimals for a score,
+// one for a share.
+const legendScore = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+const legendShare = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
 
 /** Discrete legend for the quantized ramp (§6): a 140px ramp under the
  * subtitle with min and max values only — the title and subtitle above
  * already name the measure — plus an explicit swatch for countries with
  * no estimate, bordered so it reads apart from non-study land. */
-export function MapLegend({ domain, isShare }: { domain: [number, number]; isShare: boolean }) {
-  const render = (value: number) => `${legendValue.format(value)}${isShare ? '%' : ''}`
+export function MapLegend({
+  domain,
+  isShare,
+  pooled = false,
+}: {
+  domain: [number, number]
+  isShare: boolean
+  /** The US map: an entry for the outlined pooled small-state groups. */
+  pooled?: boolean
+}) {
+  const render = (value: number) =>
+    isShare ? `${legendShare.format(value)}%` : legendScore.format(value)
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, flexWrap: 'wrap' }}
@@ -208,12 +242,25 @@ export function MapLegend({ domain, isShare }: { domain: [number, number]; isSha
             width: 20,
             height: 10,
             background: MAP_EMPTY,
-            border: '1px solid var(--axis)',
+            border: `1px solid ${MAP_EMPTY_OUTLINE}`,
             display: 'inline-block',
           }}
         />
         <span>no estimate</span>
       </span>
+      {pooled && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              width: 20,
+              height: 10,
+              border: '1.5px dashed var(--ink)',
+              display: 'inline-block',
+            }}
+          />
+          <span>pooled small states (one estimate for the group)</span>
+        </span>
+      )}
     </div>
   )
 }

@@ -21,7 +21,7 @@ import pyarrow as pa
 from flourish_api.schemas import EstimateResponse, EstimateRow
 
 _SUBROW_KEYS = ("predictor", "level", "p", "leg", "from_level", "to_level", "measure")
-_CORRELATES_META = ("adjusted", "controls", "model")
+_CORRELATES_META = ("adjusted", "controls", "model", "min_n", "n_excluded")
 
 
 def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[EstimateRow]:

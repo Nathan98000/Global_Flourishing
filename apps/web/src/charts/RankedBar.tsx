@@ -12,17 +12,20 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
-import { ciExtents, fittedScale } from './domain'
+import { ciExtents, fittedScale, measureBounds } from './domain'
 import {
   BAR_RADIUS,
   FONT_FAMILY,
   INK,
   INK_SECONDARY,
+  MIN_ROWS,
   ROW_HEIGHT,
+  TIP_OPTIONS,
   WHISKER,
   plotCI,
   plotValue,
   tipText,
+  whiskerOverBars,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
@@ -76,6 +79,7 @@ export function RankedBar({
   labelWidth,
   labelFontSize = 13.5,
   reference,
+  axisTitle,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -100,6 +104,8 @@ export function RankedBar({
   labelFontSize?: number
   /** A reference figure to draw as a dashed rule (already plot-scaled). */
   reference?: Reference
+  /** A title for the value axis (fitted-window charts; absent = none). */
+  axisTitle?: string
 }) {
   const container = usePlot(
     (available) => {
@@ -134,14 +140,16 @@ export function RankedBar({
       // plot's right edge (§5).
       const marginRight = narrow ? 56 : 72
       const valueFontSize = narrow ? 12 : 14
-      const height = 44 + entries.length * ROW_HEIGHT
+      // Never shorter than four rows: the top ticks clear the first row
+      // and a zero rule is never a stub.
+      const height = 44 + Math.max(entries.length, MIN_ROWS) * ROW_HEIGHT
       const valueOf = (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat)
 
       if (!isShare) {
         // Location stats on a bounded scale: dot + CI on a fitted window.
         const scale = fittedScale(
           [...ciExtents(valid), ...(reference ? [reference.value] : []), ...(zeroRule ? [0] : [])],
-          { targetTicks: narrow ? 5 : 7 },
+          { targetTicks: narrow ? 5 : 7, bounds: measureBounds(responseMeta.stat, variable) },
         )
         const [lo, hi] = scale.domain
         return Plot.plot({
@@ -156,7 +164,9 @@ export function RankedBar({
             ticks: scale.ticks,
             tickFormat: scale.format,
             axis: 'top',
-            label: null,
+            label: axisTitle ?? null,
+            labelAnchor: 'center',
+            labelOffset: 44,
             grid: true,
           },
           y: { domain },
@@ -171,6 +181,7 @@ export function RankedBar({
                 x2: (entry: Entry) => entry.ci?.[1],
                 stroke: WHISKER,
                 strokeWidth: 1.5,
+                clip: true,
               },
             ),
             ...(zeroRule ? [Plot.ruleX([0], { stroke: INK })] : []),
@@ -198,7 +209,7 @@ export function RankedBar({
                 y: 'label',
                 x: (entry: Entry) => entry.value ?? lo,
                 title: (entry: Entry) => tipText(entry.row, entry.label),
-                fontFamily: FONT_FAMILY,
+                ...TIP_OPTIONS,
               }),
             ),
             ...referenceMarks,
@@ -235,14 +246,14 @@ export function RankedBar({
             insetTop: 3,
             insetBottom: 3,
           }),
-          Plot.ruleY(
+          // The whisker over a bar: a surface halo, then ink, so it reads
+          // on the bar's own hue.
+          ...whiskerOverBars(
             valid.filter((entry) => entry.ci !== null),
             {
               y: 'label',
               x1: (entry: Entry) => entry.ci?.[0],
               x2: (entry: Entry) => entry.ci?.[1],
-              stroke: WHISKER,
-              strokeWidth: 1.5,
             },
           ),
           Plot.text(entries, {
@@ -261,7 +272,7 @@ export function RankedBar({
               y: 'label',
               x: (entry: Entry) => entry.value ?? 0,
               title: (entry: Entry) => tipText(entry.row, entry.label),
-              fontFamily: FONT_FAMILY,
+              ...TIP_OPTIONS,
             }),
           ),
           ...referenceMarks,
@@ -282,6 +293,7 @@ export function RankedBar({
       labelWidth,
       labelFontSize,
       reference,
+      axisTitle,
     ],
   )
 

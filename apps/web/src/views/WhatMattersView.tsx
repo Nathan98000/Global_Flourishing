@@ -1,26 +1,26 @@
 // What Matters (Phase 5): the midyear survey — what people said mattered
-// most, by country; how that ranking shifts within one country by age
-// band (or another demographic); the two prepared crossings, each an
-// ordinary breakdown request made only when the catalog offers both
-// sides at one wave, with the Methods page's "associated with, not
-// caused by" framing; and the family's other questions, chartable one
-// at a time. The item list comes from the catalog by family; the
-// ranking set and the crossings are navigation copy in topics.ts.
+// most, as one matrix of countries × the seven importance items (the
+// tinted-table component the Correlates view uses); how that ranking
+// shifts within one country by age band (or another demographic); and
+// the family's other questions, chartable one at a time. The item list
+// comes from the catalog by family; the ranking set is navigation copy
+// in topics.ts.
 
-import { Link, getRouteApi } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { NetworkError } from '../api/errors'
-import { useEstimatesMany, type AggregateRequest } from '../api/estimates'
+import { useEstimatesMany } from '../api/estimates'
 import { useBootStatus, useMeta } from '../api/meta'
 import type { EstimateResponse, EstimateRow, Meta, Stat, VariableSummary } from '../api/types'
-import { useVariable, useVariableDetails, useVariables } from '../api/variables'
+import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { RankedBar } from '../charts/RankedBar'
 import { SmallMultiples } from '../charts/SmallMultiples'
 import { summarizeExtremes } from '../charts/summary'
-import { SERIES, outcomeColor } from '../charts/theme'
+import { SERIES, outcomeColor, quantizeSequential } from '../charts/theme'
+import { HeatTable, intervalText } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -28,6 +28,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
 import { RadioRow } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
+import { formatCount, formatEstimate } from '../format'
 import {
   columnLabel,
   groupValueLabel,
@@ -42,10 +43,10 @@ import {
   whatMattersSearchParams,
   type WhatMattersSearch,
 } from '../state/search'
-import { WHAT_MATTERS_CROSSINGS, crossingWave, splitMidyear } from '../topics'
+import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_TITLES } from '../waves'
-import { crossingUnavailableCopy, rankingRows } from './whatMattersRows'
+import { matrixCountryOrder, matrixRange, orderMatrixRows, rankingRows } from './whatMattersRows'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/what-matters')
@@ -94,7 +95,9 @@ export function WhatMattersView() {
     () => splitMidyear(variables.data?.list ?? []),
     [variables.data],
   )
-  const dir = search.dir ?? defaultDir(search.sort)
+  // The country order: A–Z, or by one importance item's value.
+  const sortKey = search.sort === 'name' ? 'name' : 'estimate'
+  const dir = search.dir ?? defaultDir(sortKey)
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate({ search: whatMattersSearchParams({ ...search, ...patch }) as never })
@@ -115,36 +118,7 @@ export function WhatMattersView() {
     [ranking, search.country, search.by],
   )
   const splitQuery = useEstimatesMany(splitRequests)
-  // 3. The prepared crossings, where the catalog allows them.
-  const crossings = useMemo(
-    () =>
-      WHAT_MATTERS_CROSSINGS.map((crossing) => ({
-        crossing,
-        wave: crossingWave(crossing, byName),
-      })),
-    [byName],
-  )
-  const crossingRequests = useMemo(
-    () =>
-      crossings.flatMap(({ crossing, wave }): AggregateRequest[] =>
-        wave === undefined
-          ? []
-          : [
-              {
-                outcome: crossing.outcome,
-                wave: wave as AggregateRequest['wave'],
-                stat: (byName[crossing.outcome]?.default_stat as Stat | undefined) ?? 'mean',
-                by: ['country_code', crossing.by],
-              },
-            ],
-      ),
-    [crossings, byName],
-  )
-  const crossingQuery = useEstimatesMany(crossingRequests)
-  const crossingDetails = useVariableDetails(
-    crossings.filter(({ wave }) => wave !== undefined).map(({ crossing }) => crossing.by),
-  )
-  // 4. One chartable item by country.
+  // 3. One chartable item by country.
   const item: VariableSummary | undefined =
     (search.item !== undefined ? byName[search.item] : undefined) ?? chartable[0]
   const itemRequests = useMemo(() => (item ? [whatMattersRequest(item.name, item)] : []), [item])
@@ -160,6 +134,14 @@ export function WhatMattersView() {
         ranking,
       ),
     [rankingQuery.results, ranking],
+  )
+  const countryOrder = useMemo(
+    () => (metaData ? matrixCountryOrder(rankingAll, metaData, search.sort, dir) : []),
+    [rankingAll, metaData, search.sort, dir],
+  )
+  const rankingOrdered = useMemo(
+    () => orderMatrixRows(rankingAll, countryOrder, ranking),
+    [rankingAll, countryOrder, ranking],
   )
   const splitAll = useMemo(
     () =>
@@ -178,8 +160,8 @@ export function WhatMattersView() {
       const level = search.level ?? itemLevels[0]?.value ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortAtlasRows(rows, metaData, search.sort, dir)
-  }, [itemQuery.results, metaData, item, search.level, search.sort, dir, itemLevels])
+    return sortAtlasRows(rows, metaData, sortKey, dir)
+  }, [itemQuery.results, metaData, item, search.level, sortKey, dir, itemLevels])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -193,7 +175,7 @@ export function WhatMattersView() {
     return (
       <section>
         <h2>What Matters</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -205,8 +187,8 @@ export function WhatMattersView() {
   const countryName = (code: number) => groupValueLabel('country_code', code, served)
   const first = ranking[0]
   const rankingSubtitle = first
-    ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}, 2024`
-    : `${MIDYEAR_TITLE}, 2024`
+    ? `${scaleSubtitle(first, 'mean')} · ${MIDYEAR_TITLE}`
+    : MIDYEAR_TITLE
   const csvFor = (response: EstimateResponse, stem: string): CsvExport => ({
     kind: 'client',
     onDownload: () =>
@@ -216,7 +198,7 @@ export function WhatMattersView() {
       ),
   })
   const rankingResponse = withMeta(
-    rankingAll,
+    rankingOrdered,
     rankingQuery.results[0]?.response,
     served,
     ranking.map((entry) => entry.name).join(','),
@@ -232,13 +214,13 @@ export function WhatMattersView() {
   const groupLabel = (column: string, value: string | number) =>
     column === 'outcome' ? byName[String(value)]?.display_name : undefined
   const offline = (error: unknown) =>
-    error instanceof NetworkError && boot.state !== 'ready' ? (
+    error instanceof NetworkError && !boot.apiReachable ? (
       <p className={styles.hint} role="status">
         This view needs the live data service, which is offline right now — the Atlas and Breakdowns
         still work.
       </p>
     ) : (
-      <ErrorState error={error} />
+      <ErrorState apiReachable={boot.apiReachable} error={error} />
     )
   const itemStat: Stat = (item?.default_stat as Stat | undefined) ?? 'mean'
   const itemLevel = search.level ?? itemLevels[0]?.value
@@ -250,27 +232,31 @@ export function WhatMattersView() {
             ? `share answering “${itemLevelLabel}”`
             : 'weighted share'
           : scaleSubtitle(item, itemStat)
-      } · ${MIDYEAR_TITLE}, 2024`
+      } · ${MIDYEAR_TITLE}`
     : ''
   const itemResponse = itemQuery.results[0]?.response
 
   const rankingOptions = (
     <>
-      <RadioRow
-        legend="Sort countries"
-        name="sort"
-        options={[
-          { value: 'name', label: 'A–Z' },
-          { value: 'estimate', label: 'By value' },
-        ]}
-        value={search.sort}
-        onChange={(sort) => setSearch({ sort, dir: undefined })}
-      />
+      <label className={styles.oriented}>
+        Sort countries{' '}
+        <select
+          value={ranking.some((item) => item.name === search.sort) ? search.sort : 'name'}
+          onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
+        >
+          <option value="name">A–Z</option>
+          {ranking.map((item) => (
+            <option key={item.name} value={item.name}>
+              By {item.display_name}
+            </option>
+          ))}
+        </select>
+      </label>
       <RadioRow
         legend="Order"
         name="dir"
         options={
-          search.sort === 'name'
+          sortKey === 'name'
             ? [
                 { value: 'asc', label: 'A to Z' },
                 { value: 'desc', label: 'Z to A' },
@@ -292,13 +278,18 @@ export function WhatMattersView() {
       <p className={styles.deck}>
         <span className={styles.deckLong}>
           What people said mattered most in their lives — money, relationships, meaning, health,
-          faith, happiness, being a good person — in the midyear survey of 2024, and how that
-          differs by country and by age.
+          faith, happiness, being a good person — in the midyear survey (Nov 2023–Dec 2024), and how
+          that differs by country and by age.
         </span>
         <span className={styles.deckShort}>
-          What people said mattered most, midyear 2024, by country and by age.
+          What people said mattered most, in the midyear survey, by country and by age.
         </span>
       </p>
+      <nav className={styles.anchors} aria-label="On this page">
+        <a href="#by-country">By country</a>
+        <a href="#within-country">Within a country</a>
+        <a href="#other-questions">The other midyear questions</a>
+      </nav>
       <InvalidParamsNotice
         invalid={search.invalid}
         onDismiss={() =>
@@ -319,6 +310,9 @@ export function WhatMattersView() {
         </EmptyState>
       ) : (
         <>
+          <h3 className={styles.sectionTitle} id="by-country">
+            By country
+          </h3>
           <div className={styles.controls}>
             {narrow ? (
               <details className={styles.moreOptions}>
@@ -337,31 +331,26 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
-              ariaLabel={`How important people rate ${ranking.length} things, one panel per country, ${MIDYEAR_TITLE} 2024. The data table below carries every number, with its n.`}
-              marks="dots"
+              ariaLabel={`How important people rate ${ranking.length} things in each of ${countryOrder.length} countries, as a matrix: a row per country, a column per thing, deeper tint for higher importance, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
+              marks="table"
               response={rankingResponse}
               meta={served}
               csv={csvFor(rankingResponse, 'what-matters')}
               isRefreshing={rankingQuery.isPlaceholderData}
               groupLabel={groupLabel}
             >
-              <SmallMultiples
+              <ImportanceMatrix
                 rows={rankingAll}
-                meta={served}
-                responseMeta={rankingResponse.meta}
-                variable={first as VariableSummary}
-                color={SERIES[0]}
-                levelColumn="outcome"
-                levelDomain={itemDomain}
-                sort={search.sort}
-                dir={dir}
-                labeler={itemLabeler}
-                labelWidth={230}
+                items={ranking}
+                countryOrder={countryOrder}
+                served={served}
               />
             </ChartFigure>
           )}
 
-          <h3 className={styles.sectionTitle}>How the ranking shifts within a country</h3>
+          <h3 className={styles.sectionTitle} id="within-country">
+            Within a country
+          </h3>
           <div className={styles.controls}>
             <label className={styles.oriented}>
               Country{' '}
@@ -407,7 +396,7 @@ export function WhatMattersView() {
             <ChartFigure
               title={`${countryName(search.country)} by ${columnLabel(search.by, served).toLowerCase()}`}
               subtitle={rankingSubtitle}
-              ariaLabel={`${countryName(search.country)}: how important people rate ${ranking.length} things, one panel per ${columnLabel(search.by, served).toLowerCase()}, ${MIDYEAR_TITLE} 2024. The data table below carries every number.`}
+              ariaLabel={`${countryName(search.country)}: how important people rate ${ranking.length} things, one panel per ${columnLabel(search.by, served).toLowerCase()}, ${MIDYEAR_TITLE}. The data table below carries every number.`}
               marks="dots"
               response={splitResponse}
               meta={served}
@@ -434,71 +423,11 @@ export function WhatMattersView() {
         </>
       )}
 
-      <h3 className={styles.sectionTitle}>Two things that travel together</h3>
-      <p className={styles.hint}>
-        Associated with, not caused by: people who answer one way also differ in a hundred
-        unmeasured ways. <Link to="/methods">How these numbers are made</Link>
-      </p>
-      {crossings.map(({ crossing, wave }, index) => {
-        if (wave === undefined) {
-          return (
-            <p key={crossing.key} className={styles.hint}>
-              {crossingUnavailableCopy(crossing, byName)}
-            </p>
-          )
-        }
-        const position = crossings
-          .slice(0, index)
-          .filter((entry) => entry.wave !== undefined).length
-        const response = crossingQuery.results[position]?.response
-        const detail = crossingDetails.details[position]
-        const outcome = byName[crossing.outcome]
-        if (crossingQuery.isPending || !outcome) {
-          return (
-            <LoadingBlock key={crossing.key} height={520} label={`Loading ${crossing.title}`} />
-          )
-        }
-        if (crossingQuery.isError || !response) {
-          return <div key={crossing.key}>{offline(crossingQuery.error)}</div>
-        }
-        const levels = new Map(outcomeLevels(detail).map((level) => [level.value, level.label]))
-        const labeler: LevelLabeler = (column, value) =>
-          column === crossing.by && typeof value === 'number' ? levels.get(value) : undefined
-        const rows =
-          outcome.default_stat === 'proportion'
-            ? response.rows.filter((row) => row.level === highestLevel(response.rows))
-            : response.rows
-        return (
-          <ChartFigure
-            key={crossing.key}
-            title={crossing.title}
-            subtitle={`${outcome.display_name} by ${byName[crossing.by]?.display_name ?? crossing.by} · ${WAVE_TITLES[wave] ?? wave}`}
-            ariaLabel={`${crossing.title}: ${outcome.display_name} for each answer to ${byName[crossing.by]?.display_name ?? crossing.by}, one panel per country. Associated with, not caused by. The data table below carries every number.`}
-            marks="dots"
-            response={{ ...response, rows }}
-            meta={served}
-            csv={csvFor({ ...response, rows }, `${crossing.outcome}-by-${crossing.by}`)}
-            isRefreshing={crossingQuery.isPlaceholderData}
-            groupLabel={labeler}
-          >
-            <SmallMultiples
-              rows={rows}
-              meta={served}
-              responseMeta={response.meta}
-              variable={outcome}
-              color={outcomeColor(outcome.name)}
-              levelColumn={crossing.by}
-              levelDomain={levelDomain(crossing.by, served, detail)}
-              sort="name"
-              labeler={labeler}
-            />
-          </ChartFigure>
-        )
-      })}
-
       {chartable.length > 0 && item && (
         <>
-          <h3 className={styles.sectionTitle}>The other midyear questions</h3>
+          <h3 className={styles.sectionTitle} id="other-questions">
+            The other midyear questions
+          </h3>
           <div className={styles.controls}>
             <label className={styles.oriented}>
               Question{' '}
@@ -567,5 +496,48 @@ export function WhatMattersView() {
         </>
       )}
     </section>
+  )
+}
+
+/** Countries × the importance items: each cell the weighted mean with a
+ * sequential tint over the matrix's range, the interval and n in its
+ * tooltip; the first column stays put while a phone scrolls the rest. */
+function ImportanceMatrix({
+  rows,
+  items,
+  countryOrder,
+  served,
+}: {
+  rows: readonly EstimateRow[]
+  items: readonly VariableSummary[]
+  countryOrder: readonly number[]
+  served: Meta
+}) {
+  const cells = new Map<string, EstimateRow>()
+  for (const row of rows)
+    cells.set(`${String(row.group['outcome'])}:${String(row.group['country_code'])}`, row)
+  const [lo, hi] = matrixRange(rows)
+  const tint = quantizeSequential([lo, hi])
+  return (
+    <HeatTable
+      caption={`Deeper tint, higher importance (${formatEstimate(lo, 'mean')}–${formatEstimate(hi, 'mean')})`}
+      corner="Country ↓ · what matters →"
+      columnNoun="things"
+      rows={countryOrder.map((code) => ({
+        key: String(code),
+        label: groupValueLabel('country_code', code, served),
+      }))}
+      columns={items.map((item) => ({ key: item.name, label: item.display_name }))}
+      cellAt={(row, column) => {
+        const cell = cells.get(`${column.key}:${row.key}`)
+        if (!cell) return undefined
+        return {
+          text: formatEstimate(cell.estimate, cell.stat),
+          title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+          tint: cell.estimate === null ? 'transparent' : tint(cell.estimate),
+          hidden: `, n = ${formatCount(cell.n)}`,
+        }
+      }}
+    />
   )
 }

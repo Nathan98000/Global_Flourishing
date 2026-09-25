@@ -34,6 +34,12 @@ export function scaleSubtitle(
   return `${lead}${range}${direction ? ` · ${direction}` : ''}`
 }
 
+/** The states a server state code stands for: itself, or a pooled
+ * group's members (from meta; the code's own underscores otherwise). */
+export function stateMembersOf(code: string, meta: Pick<Meta, 'state_labels'>): string[] {
+  return meta.state_labels?.[code]?.members ?? code.split('_').filter(Boolean)
+}
+
 export function columnLabel(column: string, meta: Meta): string {
   if (column === 'country_code') return 'Country'
   // A synthesized group column (Compare, What Matters): one measure per row.
@@ -56,6 +62,11 @@ export function groupValueLabel(
     const country = meta.countries.find((entry) => entry.code === value)
     if (country) return country.name
   }
+  // US state codes (and the pooled groups) are named by the server.
+  if (column === 'state') {
+    const state = meta.state_labels?.[String(value)]
+    if (state) return state.name
+  }
   const labels = meta.breakdown_labels[column]
   if (labels) {
     const level = labels.levels.find((entry) => entry.value === value)
@@ -75,7 +86,7 @@ export function rowGroupLabels(row: EstimateRow, by: readonly string[], meta: Me
 /** For proportion responses with no labelled levels (derived binaries:
  * phq2_positive's {0, 1}), show the highest level — the "positive" share
  * the score's own display name describes. */
-export function highestLevel(rows: EstimateRow[]): number | undefined {
+export function highestLevel(rows: readonly EstimateRow[]): number | undefined {
   let highest: number | undefined
   for (const row of rows) {
     if (row.level !== null && row.level !== undefined) {
@@ -83,6 +94,17 @@ export function highestLevel(rows: EstimateRow[]): number | undefined {
     }
   }
   return highest
+}
+
+/** The answer level a categorical outcome shows until the URL names one
+ * — Atlas's rule, shared by every view that shows one level: the first
+ * labelled answer; for a proportion with no labelled levels (derived
+ * binaries: phq2_positive's {0, 1}), the highest level present. */
+export function defaultLevel(
+  detail: VariableDetail | undefined,
+  rows: readonly EstimateRow[] = [],
+): number | undefined {
+  return outcomeLevels(detail)[0]?.value ?? highestLevel(rows)
 }
 
 /** Level display order for a breakdown column, from meta's labels — or,

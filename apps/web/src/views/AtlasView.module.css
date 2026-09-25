@@ -62,6 +62,18 @@
   margin: var(--space-2) 0 0;
 }
 
+/* A control with its prompt beside it ("pick up to four countries"). */
+.countryPrompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.countryPrompt .hint {
+  margin: 0;
+}
+
 .wording {
   margin-bottom: var(--space-3);
 }
@@ -93,8 +105,20 @@
 
 /* Section headings inside a multi-figure view (What Matters): serif,
    with the section rhythm above. */
+/* A section heading is never visually smaller than the chart titles it
+   contains (they share the title size). */
 .sectionTitle {
   margin: var(--space-7) 0 var(--space-3);
+  font-size: var(--text-h1);
+}
+
+/* In-page anchors under a lede: "On this page". */
+.anchors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: calc(-1 * var(--space-5)) 0 var(--space-6);
+  font-size: var(--text-sm);
 }
 
 /* US States: the national figure above the map, and the reason a control
@@ -105,8 +129,12 @@
   margin: 0 0 var(--space-3);
 }
 
+/* The plain reason a control is unavailable: its own line, readable ink. */
 .reason {
-  color: var(--ink-muted);
+  display: block;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
 }
 
 /* The disclosure the display options fold into under 40rem (§8) — only

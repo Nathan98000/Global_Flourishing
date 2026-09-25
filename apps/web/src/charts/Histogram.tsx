@@ -11,9 +11,12 @@ import { groupValueLabel } from '../labels'
 import { fittedScale } from './domain'
 import {
   BAR_RADIUS,
+  FACET_PADDING,
   FONT_FAMILY,
+  INK,
   INK_SECONDARY,
-  WHISKER,
+  SURFACE,
+  TIP_OPTIONS,
   plotCI,
   plotValue,
   tipText,
@@ -38,6 +41,24 @@ export function binEntries(rows: EstimateRow[], meta: Meta): BinEntry[] {
       value: plotValue(row),
       ci: plotCI(row),
     }))
+}
+
+/** The bins that get a tick label: every one when the widest label fits
+ * its bin, else every second (third, …) bin so no two labels touch — at
+ * 1280 px with three countries "8–9" and "9–10" ran together. The
+ * signed change buckets keep zero labelled. Widths are in px for the
+ * 11 px plot text (about 0.6 em a glyph, plus a gap). */
+export function thinnedTicks(
+  levels: readonly number[],
+  label: (level: number) => string,
+  facetWidth: number,
+): number[] {
+  if (levels.length === 0) return []
+  const binWidth = facetWidth / levels.length
+  const widest = Math.max(...levels.map((level) => label(level).length))
+  const stride = Math.max(1, Math.ceil((widest * 6.6 + 6) / binWidth))
+  const anchor = Math.max(0, levels.indexOf(0))
+  return levels.filter((_, index) => (index - anchor) % stride === 0)
 }
 
 export function Histogram({
@@ -83,11 +104,15 @@ export function Histogram({
       // countries in view; bars keep their zero baseline.
       const scale = fittedScale(
         valid.map((entry) => entry.ci?.[1] ?? entry.value ?? 0),
-        { targetTicks: 5, zeroBaseline: true },
+        { targetTicks: 5, zeroBaseline: true, bounds: [0, 100] },
       )
+      const width = chartWidth(Math.max(420, Math.min(900, facets.length * 260)), available)
+      // Plot's default side margins (40 + 20) and the facet padding leave
+      // each facet this wide for its bins.
+      const facetWidth = ((width - 60) / facets.length) * (faceted ? 1 - FACET_PADDING : 1)
       return Plot.plot({
         height: 300,
-        width: chartWidth(Math.max(420, Math.min(900, facets.length * 260)), available),
+        width,
         marginBottom: 44,
         style: {
           fontFamily: FONT_FAMILY,
@@ -101,9 +126,10 @@ export function Histogram({
           labelAnchor: 'center',
           tickSize: 0,
           tickFormat: label,
-          // Twenty-one signed buckets would collide on a phone: thin the
-          // tick labels while every bar stays.
-          ...(levels.length > 12 ? { ticks: levels.filter((level) => level % 2 === 0) } : {}),
+          // Every bar stays; labels thin out when a facet is too narrow
+          // for all of them (21 signed buckets on a phone, ten bins in
+          // three facets) so none touch.
+          ticks: thinnedTicks(levels, label, facetWidth),
         },
         y: {
           domain: scale.domain,
@@ -112,7 +138,9 @@ export function Histogram({
           grid: true,
           tickFormat: (d: number) => `${scale.format(d)}%`,
         },
-        ...(faceted ? { fx: { domain: facets, label: null } } : {}),
+        ...(faceted
+          ? { fx: { domain: facets, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          : {}),
         marks: [
           Plot.barY(valid, {
             ...facetChannel,
@@ -123,6 +151,7 @@ export function Histogram({
             insetLeft: 1,
             insetRight: 1,
           }),
+          // The whisker over a bar: a surface halo, then ink.
           Plot.ruleX(
             valid.filter((entry) => entry.ci !== null),
             {
@@ -130,8 +159,21 @@ export function Histogram({
               x: 'level',
               y1: (entry: BinEntry) => entry.ci?.[0],
               y2: (entry: BinEntry) => entry.ci?.[1],
-              stroke: WHISKER,
+              stroke: SURFACE,
+              strokeWidth: 4,
+              clip: true,
+            },
+          ),
+          Plot.ruleX(
+            valid.filter((entry) => entry.ci !== null),
+            {
+              ...facetChannel,
+              x: 'level',
+              y1: (entry: BinEntry) => entry.ci?.[0],
+              y2: (entry: BinEntry) => entry.ci?.[1],
+              stroke: INK,
               strokeWidth: 1.5,
+              clip: true,
             },
           ),
           Plot.tip(
@@ -145,7 +187,7 @@ export function Histogram({
                   entry.row,
                   `${entry.facet} · ${levelsProp ? 'change' : 'answer'} ${label(entry.level)}`,
                 ),
-              fontFamily: FONT_FAMILY,
+              ...TIP_OPTIONS,
             }),
           ),
         ],

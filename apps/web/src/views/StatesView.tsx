@@ -30,8 +30,8 @@ import { WordingPanel } from '../components/WordingPanel'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
-import { formatEstimate } from '../format'
-import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
+import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir } from '../sortRows'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -69,21 +69,46 @@ export function StatesView() {
   const request = chartable ? statesRequest(search, variable) : null
   const states = useStates(request)
   const response = states.data
-  // The US overall figure: the national cross-section on the national
-  // weight (the static tier already has it) — the reference the states
-  // are read against.
+  // The US overall figure the states are read against: the whole US on
+  // the same state weight (the server resolves it from the weight
+  // table for the state scope) — so the reference and the rows share a
+  // weight. The national-weight figure (the Atlas's, from the static
+  // tier) goes in the footnote.
+  const overall = useEstimates(
+    chartable
+      ? {
+          outcome: search.outcome,
+          wave: search.wave,
+          stat,
+          by: [],
+          scope: search.adj ? 'us_state_adj' : 'us_state',
+        }
+      : null,
+  )
   const national = useEstimates(
     chartable ? { outcome: search.outcome, wave: search.wave, stat, by: ['country_code'] } : null,
   )
-  const nationalRow = useMemo(() => {
-    const rows = national.data?.response.rows ?? []
-    const level = isCategorical ? (activeLevel ?? highestLevel(rows)) : undefined
-    return rows.find(
-      (row) =>
-        Number(row.group['country_code']) === US_COUNTRY_CODE &&
-        (level === undefined || row.level === level),
-    )
-  }, [national.data, isCategorical, activeLevel])
+  const pickLevel = (rows: readonly EstimateRow[]) => {
+    const level = isCategorical ? (activeLevel ?? highestLevel([...rows])) : undefined
+    return rows.find((row) => level === undefined || row.level === level)
+  }
+  const overallRow = useMemo(
+    () => pickLevel(overall.data?.response.rows ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [overall.data, isCategorical, activeLevel],
+  )
+  const nationalRow = useMemo(
+    () =>
+      pickLevel(
+        (national.data?.response.rows ?? []).filter(
+          (row) => Number(row.group['country_code']) === US_COUNTRY_CODE,
+        ),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [national.data, isCategorical, activeLevel],
+  )
+  const served = meta.data?.meta
+  const stateName = (code: string) => (served ? groupValueLabel('state', code, served) : code)
 
   const displayRows = useMemo(() => {
     if (!response) return []
@@ -92,8 +117,9 @@ export function StatesView() {
       const level = activeLevel ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortStateRows(rows, search.sort, dir)
-  }, [response, stat, activeLevel, search.sort, dir])
+    return sortStateRows(rows, search.sort, dir, stateName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response, stat, activeLevel, search.sort, dir, served])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -103,15 +129,14 @@ export function StatesView() {
       </section>
     )
   }
-  if (meta.isError || variables.isError || !meta.data || !variables.data) {
+  if (meta.isError || variables.isError || !served || !variables.data) {
     return (
       <section>
         <h2>US States</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
-  const served = meta.data.meta
 
   const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
     if (outcome === undefined) {
@@ -170,8 +195,16 @@ export function StatesView() {
   const marks: ChartMarks =
     search.view === 'map' ? 'state-map' : stat === 'proportion' ? 'bars' : 'dots'
   const reference: Reference | undefined =
+    overallRow && overallRow.estimate !== null
+      ? { value: plotValue(overallRow) as number, label: 'US overall (state weights)' }
+      : undefined
+  const nationalNote =
     nationalRow && nationalRow.estimate !== null
-      ? { value: plotValue(nationalRow) as number, label: 'US overall' }
+      ? `On the national weight, the US overall figure is ${formatEstimate(nationalRow.estimate, nationalRow.stat)}${
+          nationalRow.ci_lo !== null && nationalRow.ci_hi !== null
+            ? ` ${formatCI(nationalRow)} (${ciLabel(nationalRow.ci_level)})`
+            : ''
+        }, n = ${formatCount(nationalRow.n)}.`
       : undefined
   const extremes = (() => {
     const valid = displayRows.filter((row) => row.estimate !== null)
@@ -179,7 +212,7 @@ export function StatesView() {
     const sorted = [...valid].sort((a, b) => (b.estimate ?? 0) - (a.estimate ?? 0))
     const top = sorted[0] as EstimateRow
     const bottom = sorted[sorted.length - 1] as EstimateRow
-    return `Highest: ${String(top.group['state'])} ${formatEstimate(top.estimate, top.stat)}; lowest: ${String(bottom.group['state'])} ${formatEstimate(bottom.estimate, bottom.stat)}.`
+    return `Highest: ${stateName(String(top.group['state']))} ${formatEstimate(top.estimate, top.stat)}; lowest: ${stateName(String(bottom.group['state']))} ${formatEstimate(bottom.estimate, bottom.stat)}.`
   })()
 
   const displayOptions = (
@@ -255,7 +288,7 @@ export function StatesView() {
           onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
         />{' '}
         Adjusted state weights
-        {!adjAvailable && <span className={styles.reason}> — {adjReason}</span>}
+        {!adjAvailable && <span className={styles.reason}>{adjReason}</span>}
       </label>
     </>
   )
@@ -334,13 +367,13 @@ export function StatesView() {
       ) : states.isPending ? (
         <LoadingBlock height={480} label="Loading estimates" />
       ) : states.isError ? (
-        states.error instanceof NetworkError && boot.state !== 'ready' ? (
+        states.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={states.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={states.error} />
         )
       ) : response && variable ? (
         <>
@@ -359,9 +392,9 @@ export function StatesView() {
                     <WordingPanel detail={detail} />
                   </div>
                 )}
-                {nationalRow && (
+                {overallRow && (
                   <p className={styles.national}>
-                    US overall, on the national weight: <StatLine row={nationalRow} />
+                    US overall (state weights): <StatLine row={overallRow} />
                   </p>
                 )}
               </>
@@ -382,10 +415,12 @@ export function StatesView() {
                 ),
             }}
             isRefreshing={states.isPlaceholderData}
+            unit="state"
+            footnote={nationalNote}
           >
             {search.view === 'map' ? (
               <Suspense fallback={<Skeleton height={450} label="Loading the map of states" />}>
-                <StatesMapPanel rows={displayRows} responseMeta={response.meta} />
+                <StatesMapPanel rows={displayRows} responseMeta={response.meta} meta={served} />
               </Suspense>
             ) : (
               <RankedBar

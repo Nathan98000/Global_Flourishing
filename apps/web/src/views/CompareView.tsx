@@ -16,6 +16,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { CompareDomains } from '../charts/CompareDomains'
+import { measureBounds } from '../charts/domain'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SFI_DOMAINS } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
@@ -36,7 +37,7 @@ import {
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
-import { combineRows, compareUnits } from './compareRows'
+import { combineRows, compareUnits, defaultCompareCountries } from './compareRows'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/compare')
@@ -50,7 +51,16 @@ export function CompareView() {
   const variables = useVariables()
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const byName = useMemo(() => variables.data?.byName ?? {}, [variables.data])
-  const ready = search.countries.length >= COMPARE_MIN_COUNTRIES
+  // With no countries in the URL, three stand in — Indonesia, the United
+  // States and Japan, found by ISO code in meta (never by a code the
+  // front end owns); a release without all three starts empty.
+  const metaCountries = meta.data?.meta.countries
+  const defaultCountries = useMemo(
+    () => (metaCountries ? defaultCompareCountries(metaCountries) : []),
+    [metaCountries],
+  )
+  const countries = search.countries.length ? search.countries : defaultCountries
+  const ready = countries.length >= COMPARE_MIN_COUNTRIES
 
   const setSearch = (patch: Partial<CompareSearch>) => {
     void navigate({ search: compareSearchParams({ ...search, ...patch }) as never })
@@ -78,28 +88,31 @@ export function CompareView() {
 
   const metaData = meta.data?.meta
   const units = useMemo(
-    () => (metaData ? compareUnits(search.countries, metaData) : []),
-    [search.countries, metaData],
+    () => (metaData ? compareUnits(countries, metaData) : []),
+    [countries, metaData],
   )
   const domainRows = useMemo(
     () =>
       combineRows(
         domains.results.map((result) => result?.response),
         SFI_DOMAINS,
-        search.countries,
+        countries,
       ),
-    [domains.results, search.countries],
+    [domains.results, countries],
   )
   const extraRows = useMemo(
     () =>
-      extra
+      // A categorical item waits for its detail: the level shown is the
+      // first labelled answer (Atlas's default), never a guess.
+      extra && (extra.default_stat !== 'proportion' || extraDetail)
         ? combineRows(
             extraQuery.results.map((result) => result?.response),
             [extra.name],
-            search.countries,
+            countries,
+            { [extra.name]: extraDetail },
           )
         : [],
-    [extra, extraQuery.results, search.countries],
+    [extra, extraDetail, extraQuery.results, countries],
   )
   // Level labels for a survey-variable split come from its own value
   // labels (server truth); demographics are labelled by meta.
@@ -122,7 +135,7 @@ export function CompareView() {
     return (
       <section>
         <h2>Compare</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -247,6 +260,7 @@ export function CompareView() {
     rows: EstimateRow[],
     source: EstimatesManyResult,
     stem: string,
+    bounds: readonly [number, number] | undefined,
   ) => {
     const response = responseFor(rows, outcomes, source)
     return (
@@ -274,6 +288,7 @@ export function CompareView() {
           split={search.by}
           splitDomain={splitDomain}
           labeler={labeler}
+          bounds={bounds}
         />
       </ChartFigure>
     )
@@ -307,7 +322,7 @@ export function CompareView() {
       <div className={styles.controls}>
         <CountryFilter
           countries={served.countries}
-          selected={search.countries}
+          selected={countries}
           onChange={(countries) => setSearch({ countries })}
           max={COMPARE_MAX_COUNTRIES}
           capMessage={`Up to ${COMPARE_MAX_COUNTRIES} countries at a time — clear one to add another.`}
@@ -332,13 +347,13 @@ export function CompareView() {
       ) : domains.isPending ? (
         <LoadingBlock height={720} label="Loading estimates" />
       ) : domains.isError ? (
-        domains.error instanceof NetworkError && boot.state !== 'ready' ? (
+        domains.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={domains.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={domains.error} />
         )
       ) : (
         <>
@@ -352,12 +367,13 @@ export function CompareView() {
             domainRows,
             domains,
             'sfi-domains',
+            measureBounds('mean', firstDomain ?? { min: 0, max: 10 }),
           )}
           {extra &&
             (extraQuery.isPending ? (
               <LoadingBlock height={220} label="Loading the added measure" />
             ) : extraQuery.isError ? (
-              <ErrorState error={extraQuery.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={extraQuery.error} />
             ) : (
               figureFor(
                 extra.display_name,
@@ -366,6 +382,7 @@ export function CompareView() {
                 extraRows,
                 extraQuery,
                 extra.name,
+                measureBounds(extraStat, extra),
               )
             ))}
         </>

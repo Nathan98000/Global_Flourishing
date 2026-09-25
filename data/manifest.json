@@ -1,13 +1,13 @@
 {
-  "data_version": "gfs-w2my.0.1.0.23e22391",
+  "data_version": "gfs-w2my.0.2.0.23e22391",
   "engine_versions": {
     "duckdb": "1.5.5",
     "pandera": "0.33.1",
     "polars": "1.44.2",
     "pyarrow": "25.0.1"
   },
-  "generated_at_utc": "2026-09-17T20:44:30+00:00",
-  "git_sha": "0693a1e381ae6f38465fab4f4cf5d671428b14a9",
+  "generated_at_utc": "2026-09-24T18:38:52+00:00",
+  "git_sha": "ffacf9a327d5d066692e894e1344bd245038009a",
   "inputs": [
     {
       "bytes": 137525983,
@@ -30,16 +30,16 @@
   ],
   "outputs": [
     {
-      "bytes": 773363,
+      "bytes": 868559,
       "path": "data/catalog.json",
       "rows": null,
-      "sha256": "7ae50cf86033bd56b63529ef469e39dc5a823093ecadbcabf38dd8b368363817"
+      "sha256": "a57ec5ddd024072871e9b396e52040b1200244ef1eb43afb44faec98e33b5185"
     },
     {
-      "bytes": 7600,
+      "bytes": 7925,
       "path": "data/catalog.schema.json",
       "rows": null,
-      "sha256": "745db3d03a47a3baec80dbcc4043660db6322a047cb23b3f4ec55ae8e7b82669"
+      "sha256": "c8f907bd94dd24056845e315696807ec7379a35fe9d30a3257d1545645902138"
     },
     {
       "bytes": 378,
@@ -48,16 +48,16 @@
       "sha256": "1a39e2d1da872ef116310b71f25994c61e5d7f35971b6ea7d125a53830332698"
     },
     {
-      "bytes": 24682,
+      "bytes": 25228,
       "path": "data/catalog/variables.parquet",
       "rows": 182,
-      "sha256": "8b3065b0a9b3951f4635f849b93f09a2729e39750131e2b990648d652e98aa49"
+      "sha256": "4d44e547e45b5ed04c95a2709ab58cac7bb68978d8b5e4c19e5a0f8a401ac15b"
     },
     {
-      "bytes": 28224,
+      "bytes": 28806,
       "path": "data/catalog/value_labels.parquet",
       "rows": 3298,
-      "sha256": "dc7a222e574dd8554366baac5e344cf56d7a15ab0973b9fa7b9d6aeebef72f3f"
+      "sha256": "a03390f6c9143ea5846d14ab409287b82d715f80145c62a3e66c8e2e64192632"
     },
     {
       "bytes": 1518,
@@ -84,49 +84,50 @@
       "sha256": "771087c873175f88a8c5196770485b03678d9e4a01eeb54b0397acf4adc7f19b"
     },
     {
-      "bytes": 46196927,
+      "bytes": 45869212,
       "path": "data/parquet/responses_long.parquet",
       "rows": 33295632,
-      "sha256": "987506b37758c9773fd1efdfc99cea5cfab4e305efedfedcdcf30f76dcec02d6"
+      "sha256": "68b511be613c1f118e9b42119490090881aef41bc388dc55fd941948f3da89b1"
     },
     {
-      "bytes": 28224,
+      "bytes": 28806,
       "path": "data/parquet/value_labels.parquet",
       "rows": 3298,
-      "sha256": "dc7a222e574dd8554366baac5e344cf56d7a15ab0973b9fa7b9d6aeebef72f3f"
+      "sha256": "a03390f6c9143ea5846d14ab409287b82d715f80145c62a3e66c8e2e64192632"
     },
     {
-      "bytes": 24682,
+      "bytes": 25228,
       "path": "data/parquet/variables.parquet",
       "rows": 182,
-      "sha256": "8b3065b0a9b3951f4635f849b93f09a2729e39750131e2b990648d652e98aa49"
+      "sha256": "4d44e547e45b5ed04c95a2709ab58cac7bb68978d8b5e4c19e5a0f8a401ac15b"
     },
     {
-      "bytes": 6909,
+      "bytes": 6966,
       "path": "data/validation_report.md",
       "rows": null,
-      "sha256": "ed5c5ff70ac50bc0369b93bfdddd03a5557a0e04aa18301af67d08d7773f41b5"
+      "sha256": "3fac1c97a24ca2d0c33ad50370f382006cb8fd65e982d52ebc156744db13b338"
     },
     {
       "bytes": 340479,
       "path": "data/static/index.json",
       "rows": null,
-      "sha256": "457b1913cff2edf13995ce67fb24e0fef8523e882bca3f38b3abfd9da650d672"
+      "sha256": "fbbe4d316316716df228496991c3d9981fde86e960d713c2c5c4db7e989c3ead"
     },
     {
-      "bytes": 131870720,
+      "bytes": 149696512,
       "path": "data/flourish.duckdb",
       "rows": 33295632,
-      "sha256": "27850cf9d330e9bfc2c3b6007cfb06e0f7a8832059c6ad42aa33bf16ee9fe556"
+      "sha256": "904a4429b5da29fe0af98a948a896cea973fb4f52355d4d27b2e836e4b220324"
     }
   ],
-  "pipeline_version": "0.1.0",
+  "pipeline_version": "0.2.0",
   "stage_seconds": {
-    "aggregate": 232.8,
-    "codebook": 10.05,
-    "derive": 10.97,
-    "ingest": 2.46,
-    "reshape": 10.2,
-    "validate": 3.92
+    "aggregate": 157.2,
+    "codebook": 5.31,
+    "derive": 5.93,
+    "ingest": 1.59,
+    "manifest": 0.51,
+    "reshape": 5.99,
+    "validate": 1.81
   }
 }

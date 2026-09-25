@@ -11,11 +11,12 @@ import { Stat } from '../components/Stat'
 import { attendVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 
 describe('Stat', () => {
-  test('an estimate never appears without CI, n and weight', () => {
+  test('an estimate never appears without CI and n — and never with a weight code', () => {
     render(<Stat row={testRow()} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
     expect(screen.getByText(/\[7\.10, 7\.32\]/)).toBeInTheDocument()
-    expect(screen.getByText(/n = 1,204 · w_c1/)).toBeInTheDocument()
+    expect(screen.getByText('n = 1,204')).toBeInTheDocument()
+    expect(screen.queryByText(/w_c1/)).toBeNull()
   })
 
   test('a small cell appears with its n and no flag (ADR-0011)', () => {
@@ -43,6 +44,21 @@ describe('ErrorState', () => {
     // Plain words, not engineer words (F6).
     expect(screen.getByRole('alert')).toHaveTextContent('Live data service is offline')
     expect(screen.getByRole('alert')).toHaveTextContent('standard views still work')
+  })
+
+  test('with /health fine, a failed request is the service’s error, not an outage', () => {
+    const { rerender } = render(
+      <ErrorState error={new NetworkError(new TypeError('x'))} apiReachable />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load this view — the data service returned an error.",
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent('offline')
+    rerender(<ErrorState error={new ApiError('http', 500, ['Internal server error: X'])} />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load this view — the data service returned an error.",
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500: Internal server error: X')
   })
 })
 
@@ -113,10 +129,10 @@ describe('CountryFilter', () => {
     const { unmount } = render(
       <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-    expect(screen.getByText('All 2 countries')).toBeInTheDocument()
+    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
     unmount()
     render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
-    expect(screen.getByText('1 country')).toBeInTheDocument()
+    expect(screen.getByText('Countries: 1')).toBeInTheDocument()
   })
 
   test('Select all checks every country', () => {

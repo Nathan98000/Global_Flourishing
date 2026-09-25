@@ -11,6 +11,7 @@ import { useVariable } from '../api/variables'
 import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount, formatPercent } from '../format'
+import { WAVE_CHIPS } from '../waves'
 import { directionPhrase } from '../labels'
 import { topicName } from '../topics'
 import styles from './CodebookDetailView.module.css'
@@ -41,7 +42,7 @@ function ValueLabelTable({
             <td>{label.label}</td>
             <td>
               {countryName(label.country_code)}
-              {label.wave ? `, ${label.wave}` : ''}
+              {label.wave ? `, ${WAVE_CHIPS[label.wave] ?? label.wave}` : ''}
             </td>
             <td>{label.is_nonresponse ? 'yes' : ''}</td>
           </tr>
@@ -106,7 +107,8 @@ export function CodebookDetailView() {
       <p className={styles.facts}>
         {topicName(detail.family)} · {detail.scale_type}
         {detail.min !== null && detail.max !== null && ` (${detail.min}–${detail.max})`} ·{' '}
-        {directionPhrase(detail.direction)} · waves: {detail.waves_available.join(', ')}
+        {directionPhrase(detail.direction)} · asked:{' '}
+        {detail.waves_available.map((wave) => WAVE_CHIPS[wave] ?? wave).join(', ')}
       </p>
 
       {detail.servable ? (
@@ -175,7 +177,7 @@ export function CodebookDetailView() {
                 <th scope="col">Country</th>
                 {waves.map((wave) => (
                   <th key={wave} scope="col">
-                    {wave}
+                    {WAVE_CHIPS[wave] ?? wave}
                   </th>
                 ))}
               </tr>
@@ -195,11 +197,11 @@ export function CodebookDetailView() {
                       return (
                         <td key={wave} className={styles.num}>
                           {cell
-                            ? `${formatCount(cell.n_present)} (${
-                                cell.n_present > 0
-                                  ? formatPercent(cell.n_valid / cell.n_present)
-                                  : '—'
-                              } valid)`
+                            ? `${formatCount(cell.n_present)}${
+                                cell.n_present > 0 && cell.n_valid < cell.n_present
+                                  ? ` (${formatPercent(cell.n_valid / cell.n_present)} valid)`
+                                  : ''
+                              }`
                             : '—'}
                         </td>
                       )

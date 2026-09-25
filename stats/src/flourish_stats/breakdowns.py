@@ -9,9 +9,13 @@ owns a code→label map of its own.
 
 Labels come from the catalog wherever the release defines them (the
 respondent columns are recodes of the uppercase catalog variables in
-:data:`CATALOG_SOURCES`); the two purely-derived columns carry their
-literal definitions: ``age_band``'s bands, and ``income_quintile``'s
-within-country quintiles (pipeline ``derive.income_quintiles``).
+:data:`CATALOG_SOURCES`), preferring a level's curated ``short_label``
+(the overrides shorten answers whose codebook wording runs to a sentence
+— EDUCATION_3's three levels — so a chart axis or a control can hold
+them; the codebook keeps the full wording); the two purely-derived
+columns carry their literal definitions: ``age_band``'s bands, and
+``income_quintile``'s within-country quintiles (pipeline
+``derive.income_quintiles``).
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -98,7 +102,7 @@ def breakdown_labels(
             else column.replace("_", " ").capitalize()
         )
         by_code = {
-            int(row["code"]): str(row["label"])
+            int(row["code"]): str(row.get("short_label") or row["label"])
             for row in value_labels.filter(
                 (pl.col("variable") == source) & ~pl.col("is_nonresponse")
             ).iter_rows(named=True)

@@ -239,7 +239,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
-test('8 — What Matters with a combined-midyear country: the ranking, the split by age, no jargon', async ({
+test('8 — What Matters with a combined-midyear country: the matrix, the split by age, no jargon', async ({
   page,
 }) => {
   // The synthetic release administers the midyear survey both ways in
@@ -248,8 +248,7 @@ test('8 — What Matters with a combined-midyear country: the ranking, the split
   // country here; its midyear answers are ordinary cross-sections on the
   // midyear weight, and the view must show them without a word about
   // administration modes. The synthetic midyear family holds one
-  // importance item and no chartable item; the crossings' variables are
-  // not in its codebook, so both explain themselves.
+  // importance item and no chartable item.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.goto('/what-matters?country=22')
 
@@ -259,19 +258,24 @@ test('8 — What Matters with a combined-midyear country: the ranking, the split
   await expect(
     caption(page)
       .first()
-      .getByText(/Midyear survey, 2024/),
+      .getByText(/Midyear survey, Nov 2023–Dec 2024/),
   ).toBeVisible()
-  await expect(
-    page.getByRole('img', { name: /How important people rate 1 things, one panel per country/ }),
-  ).toBeVisible()
+  // One matrix: countries down, the importance items across.
+  const matrix = page.getByRole('img', {
+    name: /How important people rate 1 things .* as a matrix/,
+  })
+  await expect(matrix).toBeVisible()
+  await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
   await expect(
     page.getByRole('img', {
       name: /United States: how important people rate 1 things, one panel per age band/,
     }),
   ).toBeVisible()
-  // The crossings say why they cannot be made from this release, in plain words.
-  await expect(page.getByText(/Time on social media and mental health: not possible/)).toBeVisible()
-  await expect(page.getByText(/Associated with, not caused by/)).toBeVisible()
+  // Three anchors under the lede; the crossings section is gone.
+  await expect(
+    page.getByRole('navigation', { name: 'On this page' }).getByRole('link'),
+  ).toHaveCount(3)
+  await expect(page.getByText(/Two things that travel together/)).toHaveCount(0)
 
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(JARGON)
@@ -279,7 +283,7 @@ test('8 — What Matters with a combined-midyear country: the ranking, the split
 
   // The n rides on every row of the data table.
   await page.getByText('Data table', { exact: true }).first().click()
-  const table = page.getByRole('table').first()
+  const table = page.locator('details').first().getByRole('table')
   await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
 
@@ -292,11 +296,16 @@ test('8 — What Matters with a combined-midyear country: the ranking, the split
 test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({
   page,
 }) => {
-  await serveApi(page, { '/v1/states': apiFixture('states-HAPPY-Y1.json') })
+  await serveApi(page, {
+    '/v1/states': apiFixture('states-HAPPY-Y1.json'),
+    // The whole US on the state weight, which the states are read against.
+    '/v1/aggregate': apiFixture('states-HAPPY-Y1-overall.json'),
+  })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
-  await expect(page.getByText(/US overall, on the national weight/)).toBeVisible()
+  await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
+  await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
   // The map's own topology arrives as a lazy asset, never in the initial route.
   const figure = page.getByRole('img', { name: /Happiness by US state/ })
   await expect(figure).toBeVisible()
@@ -311,7 +320,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await page.getByText('Data table', { exact: true }).click()
   const table = page.getByRole('table')
   await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
-  await expect(table.getByText('CA', { exact: true })).toBeVisible()
+  await expect(table.getByText('California', { exact: true })).toBeVisible()
+  await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
 })
 
 test('10 — Correlates: pick an outcome, read the ranked list, switch to adjusted, open the model card', async ({
@@ -346,7 +356,9 @@ test('10 — Correlates: pick an outcome, read the ranked list, switch to adjust
 
   // Read the ranked list: measures named from the catalog, signed values,
   // no interval drawn or described — a correlation is a point estimate.
-  const ranked = page.getByRole('img', { name: /most strongly associated with it in Testland/ })
+  const ranked = page.getByRole('img', {
+    name: /most strongly associated with it in United States/,
+  })
   await expect(ranked).toBeVisible()
   await expect(ranked.getByText('Loneliness', { exact: true })).toBeVisible()
   await expect(ranked.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
@@ -360,7 +372,10 @@ test('10 — Correlates: pick an outcome, read the ranked list, switch to adjust
 
   // Switch to adjusted: intervals appear, the control set is spelled out,
   // and the figure links to the model card.
-  await page.getByRole('group', { name: 'Model' }).getByText('Adjusted', { exact: true }).click()
+  await page
+    .getByRole('group', { name: 'Model' })
+    .getByText('Adjusted difference', { exact: true })
+    .click()
   await expect(page).toHaveURL(/outcome=HAPPY&adjusted=true$/)
   await expect(page.getByText(/Lines are 95% confidence intervals/).first()).toBeVisible()
   await expect(page.getByText(/The model holds age band, gender/).first()).toBeVisible()

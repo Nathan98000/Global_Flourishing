@@ -44,6 +44,9 @@ class VariableInfo:
     name: str
     scale_type: str
     direction: str
+    #: which end of the coded scale is the most of the named thing
+    #: (``flourish_stats.io.POLARITIES``); signed statistics align on it
+    polarity: str
     min: int | None
     max: int | None
     waves: tuple[str, ...]
@@ -69,6 +72,10 @@ class Catalog:
                 name=str(row["name"]),
                 scale_type=str(row["scale_type"]),
                 direction=str(row["direction"]),
+                # A bake older than the polarity column (ADR-0015) still
+                # boots; its signed statistics are then unaligned, and the
+                # data_version says which bake is serving.
+                polarity=str(row.get("polarity") or "ascending"),
                 min=row["min"],
                 max=row["max"],
                 waves=tuple(row["waves_available"]),
@@ -81,6 +88,7 @@ class Catalog:
                 name=name,
                 scale_type=derived.scale_type,
                 direction=derived.direction,
+                polarity="ascending",
                 min=derived.min,
                 max=derived.max,
                 waves=DERIVED_WAVES,
@@ -216,6 +224,11 @@ def suppression_policy(request: Request) -> SuppressionPolicy:
     """FastAPI dependency: the serving policy built once in create_app."""
     policy: SuppressionPolicy = request.app.state.suppression_policy
     return policy
+
+
+def correlates_min_n(request: Request) -> int:
+    """FastAPI dependency: the ranked sweep's minimum n (FA_CORRELATES_MIN_N)."""
+    return int(request.app.state.correlates_min_n)
 
 
 def require_data(request: Request) -> DataStore:

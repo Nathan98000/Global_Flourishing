@@ -24,6 +24,14 @@ MEAN_SCALE_TYPES = frozenset({"scale_0_10", "count"})
 #: Scales the static exporter precomputes a full distribution for.
 DISTRIBUTION_SCALE_TYPES = frozenset({"scale_0_10"})
 
+#: Continuous derived scores (a mean of 0–10 items) are distributed over
+#: one-point bins — [0,1) … [8,9), and [9,10] closed so a perfect 10 is
+#: counted — served as ``level`` = the bin's lower edge and labelled
+#: "0–1" … "9–10" (ADR-0015). One rule, two consumers: the API's
+#: ``stat=distribution`` and the static exporter both bin with it, and
+#: both serve the labels as the score's value labels. Nothing else bins.
+SCORE_BIN_WIDTH = 1
+
 
 def default_stat(scale_type: str) -> str:
     """The statistic a view shows when the user hasn't chosen one.
@@ -110,6 +118,19 @@ def _sfi_domain(domain: str, items: tuple[str, str]) -> DerivedOutcome:
         components=items,
         scoring="The mean of the two questions below; 0–10.",
     )
+
+
+def score_bins(outcome: DerivedOutcome) -> list[tuple[int, str]]:
+    """``(level, label)`` per bin of a continuous derived score: the bin's
+    lower edge and its "lo–hi" label. Empty for a score that is not a
+    0–10 scale (the counts and screeners have their own integer levels).
+    """
+    if outcome.scale_type != "scale_0_10":
+        return []
+    return [
+        (lo, f"{lo}–{lo + SCORE_BIN_WIDTH}")
+        for lo in range(outcome.min, outcome.max, SCORE_BIN_WIDTH)
+    ]
 
 
 #: Derived outcomes served from the `derived` table (proposal §5.2 step 4).

@@ -210,3 +210,62 @@ class TestTransitionMatrix:
         rows = transition_matrix(TOY, "from", "to", TAYLOR, policy=NO_SUPPRESSION).to_pylist()
         assert {r["stat"] for r in rows} == {"transition"}
         assert {r["measure"] for r in rows} == {"transition_joint", "transition_conditional"}
+
+
+class TestPairedShareChange:
+    def test_equals_paired_change_of_the_indicator(self) -> None:
+        from flourish_stats import paired_share_change
+
+        table = paired_share_change(TOY, "from", "to", TAYLOR, levels=[1, 2], policy=NO_SUPPRESSION)
+        for level in (1, 2):
+            row = one_row(table, level=level)
+            indicator = TOY.with_columns(
+                (pl.col("from") == level).cast(pl.Int8).alias("_i1"),
+                (pl.col("to") == level).cast(pl.Int8).alias("_i2"),
+            )
+            expected = one_row(
+                paired_change(indicator, "_i1", "_i2", TAYLOR, policy=NO_SUPPRESSION)
+            )
+            assert row["estimate"] == pytest.approx(expected["estimate"], rel=1e-12)
+            assert row["se"] == pytest.approx(expected["se"], rel=1e-12)
+            assert row["n"] == 9 == expected["n"]
+            assert row["stat"] == "change_share" and row["ci_method"] == "normal"
+        # The shares sum to one at both waves, so the changes sum to zero.
+        assert sum(r["estimate"] for r in table.to_pylist()) == pytest.approx(0.0, abs=1e-12)
+
+    def test_incomplete_pairs_are_domain_exclusions(self) -> None:
+        from flourish_stats import paired_share_change
+
+        frame = TOY.with_columns(
+            pl.when(pl.col("psu") == 11).then(None).otherwise(pl.col("to")).alias("to")
+        )
+        row = one_row(
+            paired_share_change(frame, "from", "to", TAYLOR, levels=[1, 2], policy=NO_SUPPRESSION),
+            level=1,
+        )
+        assert row["n"] == 7
+        assert row["n_strata"] == 3  # the design keeps every stratum
+
+    def test_unheld_level_is_a_zero_not_an_absence(self) -> None:
+        from flourish_stats import paired_share_change
+
+        row = one_row(
+            paired_share_change(TOY, "from", "to", TAYLOR, levels=[1, 2, 3], policy=NO_SUPPRESSION),
+            level=3,
+        )
+        assert row["estimate"] == 0.0 and row["se"] == 0.0 and row["n"] == 9
+
+    def test_by_groups_and_validation(self) -> None:
+        from flourish_stats import paired_share_change
+
+        grouped = TOY.with_columns((pl.col("strata") == 1).alias("g"))
+        table = paired_share_change(
+            grouped, "from", "to", TAYLOR, levels=[1, 2], by=["g"], policy=NO_SUPPRESSION
+        )
+        assert {(r["g"], r["level"]) for r in table.to_pylist()} == {
+            (g, level) for g in (True, False) for level in (1, 2)
+        }
+        with pytest.raises(ValueError, match="distinct"):
+            paired_share_change(TOY, "from", "to", TAYLOR, levels=[1, 1])
+        with pytest.raises(ValueError, match="empty"):
+            paired_share_change(TOY, "from", "to", TAYLOR, levels=[])

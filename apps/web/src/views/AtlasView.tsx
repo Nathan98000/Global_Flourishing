@@ -27,7 +27,7 @@ import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvFilename, downloadTextFile, responseToCsv } from '../export/csv'
 import { formatCount } from '../format'
-import { highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -62,8 +62,13 @@ export function AtlasView() {
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
-  const activeLevel = search.level ?? levels[0]?.value
+  const activeLevel = search.level ?? defaultLevel(detail)
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
+  // A derived score's distribution bins arrive as its value labels
+  // ("0–1" … "9–10", the server's rule — ADR-0015); an item's own answer
+  // codes label themselves.
+  const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
+  const derivedBins = variable?.is_derived && levels.length > 0
 
   const request = chartable ? atlasRequest(search, variable) : null
   const estimates = useEstimates(request)
@@ -73,7 +78,7 @@ export function AtlasView() {
     if (!response) return []
     let rows = response.rows
     if (stat === 'proportion') {
-      const level = activeLevel ?? highestLevel(rows)
+      const level = search.level ?? defaultLevel(detail, rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
@@ -101,7 +106,7 @@ export function AtlasView() {
     return (
       <section>
         <h2>Atlas</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -349,7 +354,7 @@ export function AtlasView() {
               checked={search.oriented ?? false}
               onChange={(event) => setSearch({ oriented: event.target.checked || undefined })}
             />{' '}
-            Orient so higher = better (reverses this item; needs the live service)
+            Orient so higher = better (reverses this item)
           </label>
         )}
       </div>
@@ -371,19 +376,20 @@ export function AtlasView() {
             <EmptyState title="Choose countries to compare">
               <p>
                 The distribution view shows the full shape of answers for up to four countries —
-                pick them with the Countries control above.
+                pick them with the control above that reads “Countries: all{' '}
+                {meta.data.meta.countries.length}”.
               </p>
             </EmptyState>
           ) : estimates.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
-            estimates.error instanceof NetworkError && boot.state !== 'ready' ? (
+            estimates.error instanceof NetworkError && !boot.apiReachable ? (
               <p className={styles.hint} role="status">
                 This view needs the live data service, which is offline right now — the standard
                 views still work.
               </p>
             ) : (
-              <ErrorState error={estimates.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
           ) : response && variable ? (
             <>
@@ -410,6 +416,7 @@ export function AtlasView() {
                 meta={meta.data.meta}
                 csv={csv}
                 isRefreshing={estimates.isPlaceholderData}
+                levelLabel={stat === 'distribution' && derivedBins ? binLabel : undefined}
               >
                 {stat === 'distribution' ? (
                   <>
@@ -419,6 +426,13 @@ export function AtlasView() {
                       responseMeta={response.meta}
                       variable={variable}
                       color={outcomeColor(variable.name)}
+                      {...(derivedBins
+                        ? {
+                            levels: levels.map((entry) => entry.value),
+                            levelLabel: (level: number) => binLabel(level) ?? String(level),
+                            xLabel: `Score (${variable.min ?? 0}–${variable.max ?? 10}), 1-point bins`,
+                          }
+                        : {})}
                     />
                     {search.countries.length > 4 && (
                       <p className={styles.hint}>Showing the first four selected countries.</p>
@@ -430,7 +444,8 @@ export function AtlasView() {
                       rows={
                         stat === 'proportion'
                           ? response.rows.filter(
-                              (row) => row.level === (activeLevel ?? highestLevel(response.rows)),
+                              (row) =>
+                                row.level === (search.level ?? defaultLevel(detail, response.rows)),
                             )
                           : response.rows
                       }

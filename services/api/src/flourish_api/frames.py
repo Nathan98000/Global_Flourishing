@@ -24,11 +24,19 @@ from dataclasses import dataclass
 import polars as pl
 from flourish_stats import Design, WeightSpec, eligibility_expr, resolve, validate_frame
 from flourish_stats.correlations import DEFAULT_CONTROLS
+from flourish_stats.io import aligned_expr
+from flourish_stats.outcomes import MEAN_SCALE_TYPES
 
 from flourish_api.data import DataStore, VariableInfo
 from flourish_api.queries import AggregateQuery, ChangeQuery, CorrelatesQuery, DomainFilter
 
 VALUE_COLUMN = "value"
+#: The group column a state-scope response carries. The spec says which
+#: respondents column holds the state its weight is calibrated to (the
+#: Wave 1 state for the Wave 1 weight, the Wave 2 state after it —
+#: ``flourish_stats.weights``); the frame is grouped by that column,
+#: presented under this name.
+STATE_COLUMN = "state"
 #: Binary items enter associations as 0/1 indicators of this code: the
 #: release codes every yes/no item 1 = Yes, 2 = No, and the derived
 #: screeners code "positive" as 1 — so "1" is the event in both worlds.
@@ -37,6 +45,17 @@ BINARY_EVENT_CODE = 1
 
 def wave_column(wave: str) -> str:
     return f"value_{wave.lower()}"
+
+
+def align(frame: pl.DataFrame, column: str, variable: VariableInfo) -> pl.DataFrame:
+    """Re-code ``column`` so higher means more of what the variable's
+    display name names (ADR-0015): the load-time transform of
+    :func:`flourish_stats.io.aligned_expr`, applied wherever a signed
+    statistic — change, correlation, adjusted coefficient — is about to
+    be taken. Means and shares never pass through here."""
+    return frame.with_columns(
+        aligned_expr(column, polarity=variable.polarity, lo=variable.min, hi=variable.max)
+    )
 
 
 @dataclass(frozen=True)
@@ -65,6 +84,20 @@ def apply_domain_filters(
     return frame.with_columns(pl.when(condition).then(pl.col(value)).otherwise(None).alias(value))
 
 
+def state_columns(spec: WeightSpec) -> list[str]:
+    """The respondent columns a state scope must load: the spec's own
+    state column (nothing for the global scope)."""
+    return [spec.state_column] if spec.state_column is not None else []
+
+
+def present_state(frame: pl.DataFrame, spec: WeightSpec) -> pl.DataFrame:
+    """Expose the spec's state column as ``state``, the name every
+    state-scope group and response uses."""
+    if spec.state_column is None or spec.state_column == STATE_COLUMN:
+        return frame
+    return frame.with_columns(pl.col(spec.state_column).alias(STATE_COLUMN))
+
+
 def assemble_aggregate_frame(store: DataStore, query: AggregateQuery) -> AssembledFrame:
     """Load, scope, filter and validate the frame for one aggregate query."""
     assert store.catalog is not None
@@ -74,8 +107,7 @@ def assemble_aggregate_frame(store: DataStore, query: AggregateQuery) -> Assembl
     extra.extend(item.column for item in query.filters)
     # DEFAULT_COLUMNS carries the global weights; state scopes need theirs.
     extra.append(spec.weight)
-    if query.scope != "global":
-        extra.append("state")
+    extra.extend(state_columns(spec))
     frame = store.outcome_frame(
         query.outcome,
         query.wave,
@@ -84,7 +116,7 @@ def assemble_aggregate_frame(store: DataStore, query: AggregateQuery) -> Assembl
     )
 
     # The eligible rows for the weight spec ARE the design (ADR-0006).
-    frame = frame.filter(eligibility_expr(spec))
+    frame = present_state(frame.filter(eligibility_expr(spec)), spec)
     if query.countries:
         # Safe subset: strata nest within countries.
         frame = frame.filter(pl.col("country_code").is_in(list(query.countries)))
@@ -118,8 +150,7 @@ def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFram
     extra: list[str] = [c for c in query.by if c != "country_code"]
     extra.extend(item.column for item in query.filters)
     extra.append(spec.weight)
-    if query.scope != "global":
-        extra.append("state")
+    extra.extend(state_columns(spec))
 
     first, *rest = query.waves
     frame = store.outcome_frame(
@@ -132,8 +163,14 @@ def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFram
             "id", pl.col(VALUE_COLUMN).alias(wave_column(wave))
         )
         frame = frame.join(piece, on="id", how="left")
+    # A mean change is a signed number: taken on aligned values. A
+    # categorical item's change is the change in share at each of its
+    # own codes, which needs the codes as coded.
+    if query.outcome.scale_type in MEAN_SCALE_TYPES:
+        for wave in query.waves:
+            frame = align(frame, wave_column(wave), query.outcome)
 
-    frame = frame.filter(eligibility_expr(spec))
+    frame = present_state(frame.filter(eligibility_expr(spec)), spec)
     if query.countries:
         frame = frame.filter(pl.col("country_code").is_in(list(query.countries)))
     for wave in query.waves:
@@ -176,6 +213,13 @@ def assemble_correlates_frame(
     )
     frame = frame.filter(eligibility_expr(spec))
     frame = apply_domain_filters(frame, query.outcome.name, query.filters)
+    # Every correlation and coefficient is signed: the outcome and each
+    # ordered predictor are aligned to their labels first (ADR-0015). A
+    # binary item is aligned by its indicator instead — the event code is
+    # the named thing (1 = Yes), so the 0/1 column already runs upward.
+    for variable in variables:
+        if variable.scale_type != "binary":
+            frame = align(frame, variable.name, variable)
     binaries = [v.name for v in variables if v.scale_type == "binary"]
     if binaries:
         frame = frame.with_columns(

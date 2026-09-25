@@ -160,4 +160,42 @@ def test_json_export_round_trips() -> None:
 def test_flag_columns_cover_the_predicate() -> None:
     assert weights.get("y1").flag_columns == ()
     assert set(get("my_y2").flag_columns) == {"retained_y2", "has_midyear", "midyear_type"}
-    assert {"country_code", "state"} <= set(get("us_state:y2").flag_columns)
+    assert {"country_code", "state"} <= set(get("us_state:y1").flag_columns)
+    assert {"country_code", "state_y2"} <= set(get("us_state:y2").flag_columns)
+
+
+def test_state_scopes_name_the_state_their_weight_is_calibrated_to() -> None:
+    """The Wave 1 state weight follows the Wave 1 state; every later state
+    weight follows the Wave 2 state (the release calibrates them to
+    state_y2). Eligibility, validation and grouping all read that column."""
+    for spec in WEIGHT_TABLE:
+        if spec.scope == "global":
+            assert spec.state_column is None
+            assert "state" not in spec.flag_columns
+        elif spec.key == "us_state:y1":
+            assert spec.state_column == "state"
+            assert "state" in spec.flag_columns and "state_y2" not in spec.flag_columns
+        else:
+            assert spec.state_column == "state_y2", spec.key
+            assert "state_y2" in spec.flag_columns and "state" not in spec.flag_columns
+    # A retained US respondent with a Wave 1 state only: eligible for the
+    # Wave 1 cross-section, not for the Wave 2 one — and the Wave 2 frame
+    # that excludes them validates, weights and all.
+    frame = pl.DataFrame(
+        {
+            "country_code": [22, 22, 22],
+            "retained_y2": [True, True, True],
+            "state": ["CA", None, "TX"],
+            "state_y2": [None, "NY", "TX"],
+            "w_state_c1": [1.0, None, 1.0],
+            "w_state_c2": [None, 1.1, 1.1],
+        }
+    )
+    y1, y2 = get("us_state:y1"), get("us_state:y2")
+    assert frame.filter(eligibility_expr(y1))["state"].to_list() == ["CA", "TX"]
+    assert frame.filter(eligibility_expr(y2))["state_y2"].to_list() == ["NY", "TX"]
+    validate_frame(frame.filter(eligibility_expr(y1)), y1)
+    validate_frame(frame.filter(eligibility_expr(y2)), y2)
+    with pytest.raises(ValueError, match="not eligible"):
+        validate_frame(frame, y2)
+    assert json.loads(weight_table_json())[0]["state_column"] is None

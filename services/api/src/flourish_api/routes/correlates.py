@@ -18,10 +18,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import SuppressionPolicy, adjusted_association, weighted_correlations
-from flourish_stats.correlations import DEFAULT_CONTROLS
+from flourish_stats.correlations import CORRELATES_MIN_N, DEFAULT_CONTROLS
 from flourish_stats.outcomes import DERIVED_OUTCOMES
 
-from flourish_api.data import Catalog, DataStore, VariableInfo, require_data, suppression_policy
+from flourish_api.data import (
+    Catalog,
+    DataStore,
+    VariableInfo,
+    correlates_min_n,
+    require_data,
+    suppression_policy,
+)
 from flourish_api.frames import AssembledFrame, assemble_correlates_frame
 from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
@@ -129,28 +136,44 @@ def estimate_rows(
     }
 
 
-def rank_key(rows: list[EstimateRow], adjusted: bool) -> float:
+def rankable(rows: list[EstimateRow], adjusted: bool, min_n: int) -> list[EstimateRow]:
+    """The rows a predictor is ranked on: its per-SD coefficient when
+    adjusted, and only the groups with at least ``min_n`` complete cases
+    (ADR-0015 — the ranked list is an ordering, and an ordering of noise
+    misleads; the cells themselves are still served)."""
+    return [
+        row for row in rows if row.n >= min_n and (not adjusted or row.measure == RANKING_MEASURE)
+    ]
+
+
+def rank_key(rows: list[EstimateRow], adjusted: bool, min_n: int = 0) -> float:
     """Strength of a predictor across its groups: the median absolute
-    estimate (per-SD coefficient when adjusted). Predictors with no
-    defined estimate anywhere sort last."""
+    estimate (per-SD coefficient when adjusted) over the rankable groups.
+    Predictors with no defined estimate anywhere sort last."""
     values = [
-        abs(row.estimate)
-        for row in rows
-        if row.estimate is not None and (not adjusted or row.measure == RANKING_MEASURE)
+        abs(row.estimate) for row in rankable(rows, adjusted, min_n) if row.estimate is not None
     ]
     return median(values) if values else -math.inf
 
 
 def run_correlates(
-    store: DataStore, query: CorrelatesQuery, policy: SuppressionPolicy
+    store: DataStore,
+    query: CorrelatesQuery,
+    policy: SuppressionPolicy,
+    min_n: int = CORRELATES_MIN_N,
 ) -> EstimateResponse:
     assert store.catalog is not None
     predictors = list(query.against) or candidate_predictors(store.catalog, query)
     assembled = assemble_correlates_frame(store, query, predictors)
     estimated = list(estimate_rows(assembled, query, predictors, policy).items())
+    n_excluded = 0
     if not query.against:
-        estimated.sort(key=lambda item: (-rank_key(item[1], query.adjusted), item[0]))
-        estimated = estimated[: query.limit]
+        # A candidate with too few complete cases in every group is not
+        # ranked at all; the rest rank on their qualifying groups.
+        ranked = [item for item in estimated if rankable(item[1], query.adjusted, min_n)]
+        n_excluded = len(estimated) - len(ranked)
+        ranked.sort(key=lambda item: (-rank_key(item[1], query.adjusted, min_n), item[0]))
+        estimated = ranked[: query.limit]
     rows = [row for _, predictor_rows in estimated for row in predictor_rows]
     stat = "beta" if query.adjusted else f"{query.method}_r"
     meta = ResponseMeta(
@@ -179,6 +202,8 @@ def run_correlates(
         model=(
             ("binary" if query.family == "binomial" else "continuous") if query.adjusted else None
         ),
+        min_n=min_n,
+        n_excluded=n_excluded,
     )
     return EstimateResponse(meta=meta, rows=rows)
 
@@ -187,6 +212,7 @@ def run_correlates(
 def correlates(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
+    min_n: Annotated[int, Depends(correlates_min_n)],
     outcome: str,
     wave: str,
     against: Annotated[list[str] | None, Query()] = None,
@@ -203,8 +229,10 @@ def correlates(
     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
     ``against`` for the ranked sweep over every other servable ordered
     item at the wave, cut to ``limit`` predictors (ranked by the median
-    absolute association across the groups). Binary items enter as
-    indicators of code 1 (Yes / screen positive). Global scope only."""
+    absolute association across the groups with at least ``meta.min_n``
+    complete cases; ``meta.n_excluded`` candidates fell below it and are
+    not ranked). Binary items enter as indicators of code 1 (Yes / screen
+    positive). Global scope only."""
     assert store.catalog is not None
     query = parse_correlates_query(
         store.catalog,
@@ -217,4 +245,4 @@ def correlates(
         filters=filter or [],
         limit=limit,
     )
-    return run_correlates(store, query, policy)
+    return run_correlates(store, query, policy, min_n)

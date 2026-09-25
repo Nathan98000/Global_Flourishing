@@ -13,9 +13,19 @@ import { fetchApiJson } from './http'
 import { useMeta } from './meta'
 import type { EstimateResponse, EstimateRow, Wave } from './types'
 
-/** The stats /v1/change rows carry — never widened into `Stat`. */
-export type ChangeStat = 'change' | 'change_distribution' | 'transition'
-export const CHANGE_STATS: readonly ChangeStat[] = ['change', 'change_distribution', 'transition']
+/** The stats /v1/change rows carry — never widened into `Stat`. A
+ * numeric measure's change is `change` (the mean change on values
+ * aligned to the label) with its `change_distribution`; a categorical
+ * item's is `change_share` (the change in the share answering each
+ * level, a fraction — shown in percentage points) with its
+ * `transition` matrix. */
+export type ChangeStat = 'change' | 'change_share' | 'change_distribution' | 'transition'
+export const CHANGE_STATS: readonly ChangeStat[] = [
+  'change',
+  'change_share',
+  'change_distribution',
+  'transition',
+]
 
 export function isChangeStat(value: unknown): value is ChangeStat {
   return (CHANGE_STATS as readonly unknown[]).includes(value)
@@ -96,6 +106,15 @@ export function rowsOfStat(rows: readonly EstimateRow[], stat: ChangeStat): Esti
 export function changeRows(rows: readonly EstimateRow[], leg?: ChangeLeg): EstimateRow[] {
   const change = rowsOfStat(rows, 'change')
   return leg === undefined ? change : change.filter((row) => row.leg === leg)
+}
+
+/** The change in share answering one level (the chosen one, or the
+ * lowest level present while the codebook detail is still loading). */
+export function changeShareRows(rows: readonly EstimateRow[], level?: number): EstimateRow[] {
+  const share = rowsOfStat(rows, 'change_share')
+  if (share.length === 0) return share
+  const chosen = level ?? Math.min(...share.map((row) => row.level as number))
+  return share.filter((row) => row.level === chosen)
 }
 
 /** The histogram of individual change; `level` is the signed bucket. */

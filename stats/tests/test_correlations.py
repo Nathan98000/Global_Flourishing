@@ -320,6 +320,37 @@ def test_beta_per_sd_is_the_fit_on_standardised_x() -> None:
     assert per_sd["se"] == pytest.approx(direct["se"], rel=1e-12)
 
 
+def test_reflecting_the_predictor_flips_the_coefficient_only() -> None:
+    """The alignment transform (ADR-0015) reflects a descending item about
+    its scale: the adjusted coefficient changes sign and nothing else —
+    the SE, n and the fit's interval width are identical, so an adjusted
+    association on aligned values is the same model read in the label's
+    direction."""
+    from flourish_stats.io import aligned_expr
+
+    reflected = TOY_ADJ.with_columns(aligned_expr("x2", polarity="descending", lo=1, hi=9))
+    for design in (TAYLOR, KISH):
+        raw = {
+            r["measure"]: r
+            for r in adjusted_association(
+                TOY_ADJ, "y", "x2", design, controls=["g"], policy=NO_SUPPRESSION
+            ).to_pylist()
+        }
+        flipped = {
+            r["measure"]: r
+            for r in adjusted_association(
+                reflected, "y", "x2", design, controls=["g"], policy=NO_SUPPRESSION
+            ).to_pylist()
+        }
+        for measure in ("beta", "beta_per_sd"):
+            assert flipped[measure]["estimate"] == pytest.approx(
+                -raw[measure]["estimate"], rel=1e-10
+            )
+            assert flipped[measure]["se"] == pytest.approx(raw[measure]["se"], rel=1e-10)
+            assert flipped[measure]["n"] == raw[measure]["n"]
+    assert raw["beta"]["estimate"] > 0  # the toy runs upward as coded
+
+
 def test_country_fixed_effect_is_dropped_when_grouped_by_country() -> None:
     # Two countries with their own strata; the pooled fit carries a country
     # dummy, the per-country fits (by=country_code) must not — each equals

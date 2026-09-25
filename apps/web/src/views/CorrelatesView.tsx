@@ -41,10 +41,16 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
+  METHOD_HINT,
+  adjustedPhrase,
+  axisTitle,
+  belowFloor,
   controlsPhrase,
   defaultCountry,
+  excludedNote,
   heatCells,
   heatKey,
+  matrixCaption,
   outcomeUnit,
   rankedSubtitle,
   statisticPhrase,
@@ -115,7 +121,7 @@ export function CorrelatesView() {
     return (
       <section>
         <h2>Correlates</h2>
-        <ErrorState error={meta.error ?? variables.error} />
+        <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
@@ -160,7 +166,7 @@ export function CorrelatesView() {
         name="model"
         options={[
           { value: 'plain', label: 'Correlation' },
-          { value: 'adjusted', label: 'Adjusted' },
+          { value: 'adjusted', label: 'Adjusted difference' },
         ]}
         value={adjusted ? 'adjusted' : 'plain'}
         onChange={(value) => setSearch({ adjusted: value === 'adjusted' ? true : undefined })}
@@ -189,6 +195,7 @@ export function CorrelatesView() {
         value={search.method ?? 'pearson'}
         onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
       />
+      {!adjusted && <p className={styles.hint}>{METHOD_HINT}</p>}
     </>
   )
 
@@ -201,18 +208,22 @@ export function CorrelatesView() {
         responseToCsv(response),
       ),
   })
-  const footnote = (response: EstimateResponse) =>
-    adjusted ? (
+  const footnote = (response: EstimateResponse) => {
+    const excluded = excludedNote(response.meta)
+    return adjusted ? (
       <>
         {NOT_CAUSES} The model holds {controlsPhrase(response.meta, served)} fixed and nothing else.{' '}
         <Link to="/model-cards" hash={response.meta.model ?? 'continuous'}>
           Read the model card
         </Link>
-        .{' '}
+        . {excluded ? `${excluded} ` : ''}
       </>
     ) : (
-      <>{NOT_CAUSES} </>
+      <>
+        {NOT_CAUSES} {excluded ? `${excluded} ` : ''}
+      </>
     )
+  }
   const strongest = rankedRows.find((row) => row.estimate !== null)
   const rankedAria = `${title}: the ${predictors.length} measures most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(adjusted, search.method)}.${
     strongest?.predictor
@@ -322,13 +333,13 @@ export function CorrelatesView() {
       ) : ranked.isPending ? (
         <LoadingBlock height={520} label="Loading the ranked list" />
       ) : ranked.isError ? (
-        ranked.error instanceof NetworkError && boot.state !== 'ready' ? (
+        ranked.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
             Breakdowns still work.
           </p>
         ) : (
-          <ErrorState error={ranked.error} />
+          <ErrorState apiReachable={boot.apiReachable} error={ranked.error} />
         )
       ) : rankedResponse && variable ? (
         <>
@@ -337,7 +348,13 @@ export function CorrelatesView() {
           </p>
           <ChartFigure
             title={`What travels with ${title}`}
-            subtitle={rankedSubtitle(countryName, adjusted, search.method, search.wave)}
+            subtitle={rankedSubtitle(
+              countryName,
+              adjusted,
+              search.method,
+              search.wave,
+              adjustedPhrase(variable, rankedResponse.meta, served),
+            )}
             ariaLabel={rankedAria}
             marks="dots"
             intro={
@@ -365,6 +382,7 @@ export function CorrelatesView() {
               zeroRule
               labelWidth={narrow ? 200 : 230}
               labelFontSize={narrow ? 12 : 13.5}
+              axisTitle={axisTitle(adjusted, search.method, variable)}
             />
             {adjusted && (
               <p className={styles.hint}>
@@ -378,7 +396,7 @@ export function CorrelatesView() {
             (across.isPending ? (
               <LoadingBlock height={360} label="Loading the cross-country matrix" />
             ) : across.isError ? (
-              <ErrorState error={across.error} />
+              <ErrorState apiReachable={boot.apiReachable} error={across.error} />
             ) : acrossResponse ? (
               <ChartFigure
                 title="Across countries"
@@ -399,7 +417,7 @@ export function CorrelatesView() {
                   predictors={predictors}
                   rows={acrossRows}
                   cells={cells}
-                  adjusted={adjusted}
+                  minN={acrossResponse.meta.min_n}
                   nameOf={nameOf}
                   served={served}
                   outcome={title}
@@ -416,7 +434,7 @@ function CountryMatrix({
   predictors,
   rows,
   cells,
-  adjusted,
+  minN,
   nameOf,
   served,
   outcome,
@@ -424,34 +442,44 @@ function CountryMatrix({
   predictors: readonly string[]
   rows: readonly EstimateRow[]
   cells: Map<string, EstimateRow>
-  adjusted: boolean
+  /** The server's ranking floor: cells below it are shown, untinted. */
+  minN: number | null | undefined
   nameOf: (name: string) => string
   served: NonNullable<ReturnType<typeof useMeta>['data']>['meta']
   outcome: string
 }) {
-  const extent = tintExtent(rows, adjusted)
+  // The tint window fits the cells that count; a cell below the floor is
+  // shown in muted ink without a tint.
+  const ranked = rows.filter((row) => !belowFloor(row, minN))
+  const extent = tintExtent(ranked)
+  const stat = rows[0]?.stat ?? 'pearson_r'
   return (
-    <>
-      <HeatTable
-        caption={`${outcome} — rust below zero, teal above; deeper tint, stronger association${adjusted ? ` (tints span ±${formatEstimate(extent, 'beta').replace('+', '')})` : ''}`}
-        corner="Measure ↓ · country →"
-        rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
-        columns={served.countries.map((country) => ({
-          key: String(country.code),
-          label: country.name,
-        }))}
-        cellAt={(row, column) => {
-          const country = served.countries.find((entry) => String(entry.code) === column.key)
-          const cell = country ? cells.get(heatKey(row.key, country)) : undefined
-          if (!cell) return undefined
-          return {
-            text: formatEstimate(cell.estimate, cell.stat),
-            title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
-            tint: divergingTint(cell.estimate, extent),
-            hidden: `, n = ${formatCount(cell.n)}`,
-          }
-        }}
-      />
-    </>
+    <HeatTable
+      caption={matrixCaption(outcome, extent, stat)}
+      corner="Measure ↓ · country →"
+      columnNoun="countries"
+      rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
+      columns={served.countries.map((country) => ({
+        key: String(country.code),
+        label: country.name,
+      }))}
+      cellAt={(row, column) => {
+        const country = served.countries.find((entry) => String(entry.code) === column.key)
+        const cell = country ? cells.get(heatKey(row.key, country)) : undefined
+        if (!cell) return undefined
+        const muted = belowFloor(cell, minN)
+        return {
+          text: formatEstimate(cell.estimate, cell.stat),
+          title: muted
+            ? `n = ${formatCount(cell.n)} — too few to rank\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
+            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}\nn = ${formatCount(cell.n)}`,
+          tint: divergingTint(cell.estimate, extent),
+          hidden: muted
+            ? `, n = ${formatCount(cell.n)}, too few to rank`
+            : `, n = ${formatCount(cell.n)}`,
+          muted,
+        }
+      }}
+    />
   )
 }

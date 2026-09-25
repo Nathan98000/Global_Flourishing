@@ -135,11 +135,16 @@ describe('MapLegend', () => {
   test('labels both ends and shows a bordered no-data swatch (§6: no title — the figure names the measure)', () => {
     const { container } = render(<MapLegend domain={[5.89, 8.1]} isShare={false} />)
     const text = container.textContent ?? ''
+    // Both ends at one precision.
     expect(text).toContain('5.89')
-    expect(text).toContain('8.1')
+    expect(text).toContain('8.10')
     expect(text).toContain('no estimate')
-    // The empty swatch is bordered so it reads apart from non-study land.
-    expect(container.innerHTML).toContain('var(--axis)')
+    // The empty swatch wears the neutral's own outline, the token the
+    // maps outline "no estimate" areas with.
+    expect(container.innerHTML).toContain('var(--map-empty-outline)')
+    const shares = render(<MapLegend domain={[12.345, 40]} isShare />).container.textContent ?? ''
+    expect(shares).toContain('12.3%')
+    expect(shares).toContain('40.0%')
   })
 })
 
@@ -170,6 +175,8 @@ describe('Choropleth', () => {
     expect(svg).not.toBeNull()
     expect(svg?.innerHTML).toContain('var(--seq-')
     expect(svg?.innerHTML).toContain('var(--map-empty)')
+    // Unsurveyed land and countries without an estimate are outlined.
+    expect(svg?.innerHTML).toContain('var(--map-empty-outline)')
     expect(svg?.textContent).toContain('Hong Kong') // the centroid marker label
   })
 })

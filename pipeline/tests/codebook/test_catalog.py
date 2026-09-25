@@ -61,13 +61,17 @@ def test_expand_scale_labels_fills_unlabelled_codes() -> None:
 
 
 def _override(
-    name: str, family: str, special_codes: dict[int, str] | None = None
+    name: str,
+    family: str,
+    special_codes: dict[int, str] | None = None,
+    short_labels: dict[int, str] | None = None,
 ) -> VariableOverride:
     return VariableOverride(
         name=name,
         display_name=name.title(),
         family=family,
         special_codes=special_codes or {},
+        short_labels=short_labels or {},
     )
 
 
@@ -91,7 +95,7 @@ def _overrides(variables: dict[str, VariableOverride]) -> Overrides:
 def _fixture_overrides() -> Overrides:
     return _overrides(
         {
-            "ABUSED": _override("ABUSED", "childhood"),
+            "ABUSED": _override("ABUSED", "childhood", short_labels={1: "Yes (short)"}),
             "CNTRY_REL_BUD": _override("CNTRY_REL_BUD", "religion"),
             "HAPPY": VariableOverride(
                 name="HAPPY",
@@ -169,6 +173,16 @@ def test_scale_inference(built: Built) -> None:
     assert by_name["ID"].scale_type == "id"
     assert by_name["INCOME"].scale_type == "nominal"
     assert by_name["INCOME"].is_country_specific
+
+
+def test_short_labels_ride_on_the_value_labels(built: Built) -> None:
+    catalog, _ = built
+    abused = {r.code: r for r in catalog.value_labels if r.variable == "ABUSED"}
+    assert abused[1].short_label == "Yes (short)"
+    assert abused[1].label != "Yes (short)"  # the codebook wording stays
+    assert all(r.short_label is None for code, r in abused.items() if code != 1)
+    happy = [r for r in catalog.value_labels if r.variable == "HAPPY"]
+    assert all(r.short_label is None for r in happy)
 
 
 def test_happy_labels_expanded_to_full_scale(built: Built) -> None:

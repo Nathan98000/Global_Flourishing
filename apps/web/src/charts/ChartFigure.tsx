@@ -12,6 +12,11 @@ import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { downloadChartPng } from '../export/png'
 import styles from './ChartFigure.module.css'
 
+/** A subtitle starts with a capital, whatever clause leads it. */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
@@ -23,12 +28,19 @@ export type ChartMarks = 'dots' | 'bars' | 'bins' | 'map' | 'state-map' | 'table
  * what a confidence interval means; that is the Methods page's job. A
  * response of point estimates (`ci_method = "none"`: plain correlations)
  * says so instead of naming an interval that does not exist. */
-export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks, intervals = true): string {
+export function footnoteCopy(
+  meta: ResponseMeta,
+  marks: ChartMarks,
+  intervals = true,
+  unit: 'country' | 'state' = marks === 'state-map' ? 'state' : 'country',
+): string {
   const level = Math.round(meta.ci_level * 100)
+  // The noun follows the statistic that ships without an interval.
+  const noun = meta.stat === 'quantile' ? 'a median' : 'a correlation'
   const interval = !intervals
     ? marks === 'table'
-      ? 'Cells are point estimates — no confidence interval is computed for a correlation'
-      : 'Dots are point estimates — no confidence interval is computed for a correlation'
+      ? `Cells are point estimates — no confidence interval is computed for ${noun}`
+      : `Dots are point estimates — no confidence interval is computed for ${noun}`
     : marks === 'map'
       ? `Hover a country for its ${level}% confidence interval`
       : marks === 'state-map'
@@ -42,7 +54,6 @@ export function footnoteCopy(meta: ResponseMeta, marks: ChartMarks, intervals = 
       : marks === 'table'
         ? 'n in every cell and in the data table'
         : 'n shown per row in the data table'
-  const unit = marks === 'state-map' ? 'state' : 'country'
   return `${interval} · weighted so each ${unit}'s sample stands for its adult population · ${where}.`
 }
 
@@ -60,6 +71,7 @@ export function ChartFigure({
   groupLabel,
   predictorLabel,
   footnote,
+  unit,
   children,
 }: {
   title: string
@@ -84,6 +96,9 @@ export function ChartFigure({
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
+  /** Whose sample the weights stand for (a state view's chart is
+   * weighted by state whatever mark it draws). */
+  unit?: 'country' | 'state'
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -120,7 +135,7 @@ export function ChartFigure({
       <figcaption className={styles.caption}>
         <span className={styles.titles}>
           <span className={styles.title}>{title}</span>
-          {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
+          {subtitle && <span className={styles.subtitle}>{capitalize(subtitle)}</span>}
         </span>
         {/* Text links, not outlined buttons (§6): "Download CSV · PNG". */}
         <span className={styles.actions}>
@@ -172,7 +187,7 @@ export function ChartFigure({
         />
       </details>
       <p className={styles.provenance}>
-        {footnoteCopy(response.meta, marks, intervals)} {footnote}
+        {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
         <Link to="/methods">How these numbers are made</Link>
       </p>
     </figure>

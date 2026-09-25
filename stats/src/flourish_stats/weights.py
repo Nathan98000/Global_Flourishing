@@ -16,6 +16,14 @@ Two facts of the release make this table load-bearing:
   Wave 2 interview**, so a MY → Y2 comparison is only meaningful for the
   standalone midyear interviews (``midyear_type = 1``). The ``my_y2`` rows
   enforce that here, so no caller can get it wrong.
+- **The post-Wave-1 state weights are calibrated to the Wave 2 state.**
+  ``w_state_c1`` is populated exactly where ``state`` (the Wave 1 state)
+  is; every other ``w_state_*`` column is populated exactly where
+  ``state_y2`` is — 9 retained US respondents with a Wave 1 state but no
+  Wave 2 state carry no such weight, and 13 with a Wave 2 state only
+  carry all of them. Each state-scope spec therefore names its
+  ``state_column``: eligibility, validation and grouping read that one,
+  never a fixed ``state``.
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -53,6 +61,10 @@ class WeightSpec:
     requires_midyear_type_1: bool
     is_default: bool  # the spec `resolve()` returns for these waves
     rationale: str  # one sentence, quoted verbatim by docs/METHODS.md
+    #: the respondents column holding the state this weight is calibrated
+    #: to (state scopes only): ``state`` for the Wave 1 cross-section,
+    #: ``state_y2`` for every weight computed after Wave 1; None globally
+    state_column: str | None = None
 
     @property
     def flag_columns(self) -> tuple[str, ...]:
@@ -65,7 +77,8 @@ class WeightSpec:
         if self.requires_midyear_type_1:
             columns.append("midyear_type")
         if self.scope != "global":
-            columns.extend(["country_code", "state"])
+            assert self.state_column is not None
+            columns.extend(["country_code", self.state_column])
         return tuple(columns)
 
 
@@ -81,6 +94,7 @@ def _spec(
     midyear: bool = False,
     midyear_type_1: bool = False,
     default: bool = True,
+    state_column: str | None = None,
 ) -> WeightSpec:
     return WeightSpec(
         key=key if scope == "global" else f"{scope}:{key}",
@@ -93,6 +107,7 @@ def _spec(
         requires_midyear_type_1=midyear_type_1,
         is_default=default,
         rationale=rationale,
+        state_column=state_column,
     )
 
 
@@ -198,6 +213,11 @@ _STATE_RATIONALE = (
     " Scoped to US respondents with a state (157 US rows have none), using "
     "the state-population-calibrated weight."
 )
+_STATE_Y2_RATIONALE = (
+    " Calibrated to the respondent's Wave 2 state (state_y2): eligibility and "
+    "grouping use that state, and the 9 retained respondents with a Wave 1 "
+    "state only carry no such weight."
+)
 
 
 def _build_table() -> tuple[WeightSpec, ...]:
@@ -206,6 +226,10 @@ def _build_table() -> tuple[WeightSpec, ...]:
     for scope, keys in (("us_state", _STATE_KEYS), ("us_state_adj", _ADJ_KEYS)):
         for key in keys:
             g = by_key[key]
+            # Only the Wave 1 cross-section weight is calibrated to the
+            # Wave 1 state; everything computed after Wave 1 is calibrated
+            # to the Wave 2 state.
+            wave1_only = key == "y1"
             rows.append(
                 _spec(
                     key,
@@ -213,11 +237,12 @@ def _build_table() -> tuple[WeightSpec, ...]:
                     g.waves,
                     g.weight.removeprefix("w_"),
                     g.kind,
-                    g.rationale + _STATE_RATIONALE,
+                    g.rationale + _STATE_RATIONALE + ("" if wave1_only else _STATE_Y2_RATIONALE),
                     retained=g.requires_retained_y2,
                     midyear=g.requires_has_midyear,
                     midyear_type_1=g.requires_midyear_type_1,
                     default=g.is_default,
+                    state_column="state" if wave1_only else "state_y2",
                 )
             )
     return tuple(rows)
@@ -279,7 +304,12 @@ def eligibility_expr(spec: WeightSpec) -> pl.Expr:
     if spec.requires_midyear_type_1:
         expr = expr & (pl.col("midyear_type") == 1)
     if spec.scope != "global":
-        expr = expr & (pl.col("country_code") == US_COUNTRY_CODE) & pl.col("state").is_not_null()
+        assert spec.state_column is not None
+        expr = (
+            expr
+            & (pl.col("country_code") == US_COUNTRY_CODE)
+            & pl.col(spec.state_column).is_not_null()
+        )
     return expr
 
 

@@ -12,7 +12,9 @@ Per servable outcome × available wave:
 - the default stat (mean for numeric scales, proportions for categorical)
   by country — the Atlas view;
 - the same stat by country × each demographic — the Breakdowns view;
-- for 0–10 scales, the full distribution by country — the histograms.
+- for 0–10 scales, the full distribution by country — the histograms
+  (a continuous derived score binned by ``flourish_stats.outcomes.
+  score_bins``, the API's rule too).
 
 Plus the catalog tier (Phase 4): ``meta.json`` (the ``/v1/meta`` payload
 minus ``git_sha``), ``variables.json`` (the ``/v1/variables`` listing) and
@@ -56,7 +58,7 @@ from flourish_stats import (
     weighted_proportion,
 )
 from flourish_stats.breakdowns import BREAKDOWN_LEVELS, breakdown_labels
-from flourish_stats.io import analysis_frame, derived_frame
+from flourish_stats.io import analysis_frame, binned_expr, derived_frame
 from flourish_stats.outcomes import (
     DERIVED_OUTCOMES,
     DERIVED_WAVES,
@@ -64,7 +66,9 @@ from flourish_stats.outcomes import (
     NON_SUBSTANTIVE_SCALE_TYPES,
     SERVABLE_SCALE_TYPES,
     default_stat,
+    score_bins,
 )
+from flourish_stats.states import state_labels
 
 #: The Breakdowns view's demographics (mirrors the API's allow-list).
 DEMOGRAPHICS: tuple[str, ...] = (
@@ -275,6 +279,7 @@ def _summary_payload(row: dict[str, Any], servable: bool) -> dict[str, Any]:
         "family": str(row["family"]),
         "scale_type": str(row["scale_type"]),
         "direction": str(row["direction"]),
+        "polarity": str(row.get("polarity") or "ascending"),
         "min": row["min"],
         "max": row["max"],
         "waves_available": list(row["waves_available"]),
@@ -295,6 +300,7 @@ def _derived_summary_payload(name: str) -> dict[str, Any]:
         "family": "derived",
         "scale_type": derived.scale_type,
         "direction": derived.direction,
+        "polarity": "ascending",
         "min": derived.min,
         "max": derived.max,
         "waves_available": list(DERIVED_WAVES),
@@ -353,6 +359,7 @@ def export_catalog(
             "breakdowns": sorted(BREAKDOWN_LEVELS),
             "breakdown_labels": breakdown_labels(variables, value_labels),
             "families": sorted(variables["family"].unique().to_list()),
+            "state_labels": state_labels(),
         },
     )
 
@@ -370,7 +377,16 @@ def export_catalog(
             derived = DERIVED_OUTCOMES[name]
             detail = {
                 **summary,
-                "value_labels": [],
+                "value_labels": [
+                    {
+                        "code": level,
+                        "label": label,
+                        "wave": None,
+                        "country_code": None,
+                        "is_nonresponse": False,
+                    }
+                    for level, label in score_bins(derived)
+                ],
                 "missingness": [],
                 "scoring": derived.scoring,
                 "components": [
@@ -451,8 +467,17 @@ def export_static(
                             base, "value", design, by=groups, levels=levels, policy=policy
                         )
                     else:
+                        binned, bin_levels = base, levels
+                        if outcome.is_derived:
+                            bins = score_bins(DERIVED_OUTCOMES[outcome.name])
+                            if bins:
+                                assert outcome.min is not None and outcome.max is not None
+                                binned = base.with_columns(
+                                    binned_expr("value", lo=outcome.min, hi=outcome.max)
+                                )
+                                bin_levels = [level for level, _ in bins]
                         table = weighted_distribution(
-                            base, "value", design, by=groups, levels=levels, policy=policy
+                            binned, "value", design, by=groups, levels=bin_levels, policy=policy
                         )
                     envelope = _envelope(
                         data_version,

@@ -3,6 +3,7 @@
 // adjusted toggle. The figure links here with the family as the hash.
 // Like Methods, this route (marked included) is a lazy chunk.
 
+import { Link } from '@tanstack/react-router'
 import { marked } from 'marked'
 import { useMemo } from 'react'
 import binarySource from '../../../../docs/model-cards/binary.md?raw'
@@ -22,6 +23,9 @@ export function ModelCardsView() {
   )
   return (
     <section className={styles.methods}>
+      <p className={styles.back}>
+        <Link to="/correlates">← Correlates</Link>
+      </p>
       <h2>Model cards</h2>
       <div className={styles.summary}>
         <p>

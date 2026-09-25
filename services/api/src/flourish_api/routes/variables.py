@@ -18,6 +18,7 @@ from flourish_stats.outcomes import (
     DERIVED_OUTCOMES,
     NON_SUBSTANTIVE_SCALE_TYPES,
     default_stat,
+    score_bins,
 )
 
 from flourish_api.data import DataStore, require_data
@@ -51,6 +52,7 @@ def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummar
         family=str(row["family"]),
         scale_type=str(row["scale_type"]),
         direction=str(row["direction"]),
+        polarity=str(row.get("polarity") or "ascending"),
         min=row["min"],  # type: ignore[arg-type]
         max=row["max"],  # type: ignore[arg-type]
         waves_available=list(row["waves_available"]),  # type: ignore[call-overload]
@@ -71,6 +73,7 @@ def _derived_summary(name: str) -> VariableSummary:
         family="derived",
         scale_type=derived.scale_type,
         direction=derived.direction,
+        polarity="ascending",
         min=derived.min,
         max=derived.max,
         waves_available=["Y1", "Y2"],
@@ -161,7 +164,15 @@ def variable_detail(
         derived = DERIVED_OUTCOMES[name]
         return VariableDetail(
             **summary.model_dump(),
-            value_labels=[],
+            # A continuous score's distribution bins, as its levels: the
+            # front end labels the histogram from here, never from a rule
+            # of its own (ADR-0015).
+            value_labels=[
+                ValueLabelModel(
+                    code=level, label=label, wave=None, country_code=None, is_nonresponse=False
+                )
+                for level, label in score_bins(derived)
+            ],
             missingness=[],
             scoring=derived.scoring,
             components=[_component(store, item) for item in derived.components],

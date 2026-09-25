@@ -20,6 +20,7 @@ from .estimators import (
 from .panel import (
     paired_change,
     paired_change_distribution,
+    paired_share_change,
     three_point_panel,
     transition_matrix,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "kish_n_eff",
     "paired_change",
     "paired_change_distribution",
+    "paired_share_change",
     "pooled_population_weights",
     "resolve",
     "suppress",

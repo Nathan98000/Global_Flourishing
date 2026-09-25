@@ -15,7 +15,7 @@ import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
 import { footnoteCopy } from '../charts/ChartFigure'
 import { DIVERGING_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
-import { HeatTable, intervalText } from '../charts/TransitionTable'
+import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
 import {
@@ -27,9 +27,14 @@ import {
   testRow,
 } from '../test-utils/fixtures'
 import {
+  adjustedPhrase,
+  axisTitle,
+  belowFloor,
   controlsPhrase,
   defaultCountry,
+  excludedNote,
   heatCells,
+  matrixCaption,
   statisticPhrase,
   tintExtent,
 } from '../views/correlatesRows'
@@ -48,6 +53,7 @@ const lonelyVariable: VariableSummary = {
   name: 'LONELY',
   display_name: 'Loneliness',
   direction: 'lower_better',
+  polarity: 'ascending',
   waves_available: ['Y1'],
 }
 
@@ -57,6 +63,7 @@ const urbanVariable: VariableSummary = {
   display_name: 'Urban or rural',
   scale_type: 'nominal',
   direction: 'none',
+  polarity: 'ascending',
   min: 1,
   max: 4,
   default_stat: 'proportion',
@@ -73,7 +80,7 @@ const happyDetail: VariableDetail = {
 const CONTROLS = ['age_band', 'gender', 'education_3', 'employment', 'marital_status']
 
 /** An unadjusted row: a point estimate, no interval of any kind. */
-const plainRow = (predictor: string, estimate: number, code?: number) =>
+const plainRow = (predictor: string, estimate: number, code?: number, n = 54) =>
   testRow({
     group: code === undefined ? {} : { country_code: code },
     predictor,
@@ -84,7 +91,7 @@ const plainRow = (predictor: string, estimate: number, code?: number) =>
     ci_hi: null,
     ci_method: 'none',
     se_method: 'none',
-    n: 54,
+    n,
   })
 
 /** The adjusted pair of rows for one (predictor, group). */
@@ -109,20 +116,31 @@ const rankedPlain = testResponse([plainRow('LONELY', -0.52), plainRow('ATTEND_SV
   stat: 'pearson_r',
   se_method: 'none',
   by: [],
-  filters: { country_code: [1] },
+  filters: { country_code: [22] },
   adjusted: false,
   controls: [],
   model: null,
+  min_n: 20,
+  n_excluded: 1,
 })
 
+/** Across countries; the last cell rests on too few cases to rank. */
 const acrossPlain = testResponse(
   [
     plainRow('LONELY', -0.52, 1),
     plainRow('LONELY', -0.4, 22),
     plainRow('ATTEND_SVCS', 0.31, 1),
-    plainRow('ATTEND_SVCS', 0.05, 22),
+    plainRow('ATTEND_SVCS', 0.05, 22, 7),
   ],
-  { outcome: 'HAPPY', stat: 'pearson_r', se_method: 'none', by: ['country_code'], adjusted: false },
+  {
+    outcome: 'HAPPY',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: ['country_code'],
+    adjusted: false,
+    min_n: 20,
+    n_excluded: 0,
+  },
 )
 
 const rankedAdjusted = testResponse(
@@ -131,10 +149,12 @@ const rankedAdjusted = testResponse(
     outcome: 'HAPPY',
     stat: 'beta',
     by: [],
-    filters: { country_code: [1] },
+    filters: { country_code: [22] },
     adjusted: true,
     controls: CONTROLS,
     model: 'continuous',
+    min_n: 20,
+    n_excluded: 0,
   },
 )
 
@@ -189,8 +209,8 @@ const tier: Routes = {
   '/health': okHealth,
   '&adjusted=true&by=country_code': acrossAdjusted,
   '&by=country_code': acrossPlain,
-  '&adjusted=true&filter=country_code%3A1': rankedAdjusted,
-  'filter=country_code%3A1': rankedPlain,
+  '&adjusted=true&filter=country_code%3A22': rankedAdjusted,
+  'filter=country_code%3A22': rankedPlain,
 }
 
 /** What a reader sees: textContent minus the <style> blocks Plot embeds. */
@@ -247,7 +267,13 @@ describe('Correlates view', () => {
     expect(text).not.toContain('95%')
     expect(screen.getAllByText(/associations, not causes/i).length).toBeGreaterThanOrEqual(2)
     expect(screen.queryByRole('link', { name: 'Read the model card' })).toBeNull()
-    expect(within(main).getByLabelText('Country')).toHaveValue('1')
+    // The United States by default (found by its ISO code in meta).
+    expect(within(main).getByLabelText('Country')).toHaveValue('22')
+    // The ranking floor, in words, with the server's numbers.
+    expect(text).toContain('1 measure with fewer than 20 respondents is not ranked.')
+    // The one-line hint on the two correlations, and the axis title.
+    expect(text).toContain('Pearson measures how closely two answers follow a straight line')
+    expect(svgText).toContain('Weighted correlation (Pearson)')
     // The cross-country matrix follows, for the ranked measures only.
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     const table = within(matrix).getByRole('table')
@@ -268,12 +294,23 @@ describe('Correlates view', () => {
       '+0.31',
       '+0.05',
     ])
-    expect(cells[0]?.getAttribute('style')).toContain('var(--div-')
+    // Tints fit the data: the strongest cell wears the deepest tint.
+    expect(cells[0]?.getAttribute('style')).toContain('var(--div-n5)')
     expect(cells[0]?.getAttribute('title')).toContain('point estimate')
+    // A cell below the ranking floor is shown untinted, in muted ink,
+    // and its tooltip says why.
+    expect(cells[3]?.getAttribute('style')).toBeNull()
+    expect(cells[3]?.className).toContain('cellMuted')
+    expect(cells[3]?.getAttribute('title')).toContain('n = 7 — too few to rank')
+    expect(cells[3]?.textContent).toContain('too few to rank')
+    // The caption is plain words, above the scrolling table.
+    expect(
+      within(matrix).getByText(/rust: a negative association, teal: positive/),
+    ).toBeInTheDocument()
     // Two requests: the ranked sweep for the country, then its measures across countries.
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
-    expect(correlates[0]).toContain('filter=country_code%3A1')
+    expect(correlates[0]).toContain('filter=country_code%3A22')
     expect(correlates[0]).not.toContain('adjusted')
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
     // The data table names the measure and its n on every row.
@@ -297,14 +334,22 @@ describe('Correlates view', () => {
     expect(text).toContain(
       'The model holds age band, gender, education 3, employment and marital status fixed',
     )
+    // The subtitle states the unit and the control set, from the server.
+    expect(text).toContain(
+      'Happiness points per 1 SD of each measure, holding age band, gender, education 3, employment and marital status fixed',
+    )
     expect(text).toContain('per one standard deviation of the measure')
+    expect(figure.querySelector('svg')?.textContent).toContain(
+      'Happiness: points per 1 SD of the measure',
+    )
     const links = screen.getAllByRole('link', { name: 'Read the model card' })
     expect(links[0]).toHaveAttribute('href', '/model-cards#continuous')
     // The per-SD coefficient is what the chart draws; both units are in the table.
     expect(figure.querySelector('svg')?.textContent).toContain('−1.13') // −0.45 × 2.5
     expect(screen.getByRole('group', { name: 'Model' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Adjusted')).toBeChecked()
+    expect(screen.getByLabelText('Adjusted difference')).toBeChecked()
     expect(screen.getByLabelText('Pearson')).toBeDisabled()
+    expect(text).not.toContain('Pearson measures how closely')
     fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
     const data = screen.getAllByRole('table')[0] as HTMLElement
     expect(within(data).getByRole('columnheader', { name: 'Unit' })).toBeInTheDocument()
@@ -323,6 +368,12 @@ describe('Correlates view', () => {
     expect(document.getElementById('continuous')).not.toBeNull()
     expect(document.getElementById('binary')).not.toBeNull()
     expect(screen.getAllByText(/No causal claim/).length).toBe(2)
+    // The way back, and the tab's name.
+    expect(screen.getByRole('link', { name: '← Correlates' })).toHaveAttribute(
+      'href',
+      '/correlates',
+    )
+    expect(document.title).toBe('Model cards — Flourish Atlas')
   })
 
   test('a measure with no order says so instead of asking the API', async () => {
@@ -335,39 +386,42 @@ describe('Correlates view', () => {
   test('a wave the measure was not asked in says so', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?outcome=HAPPY&wave=MY')
-    expect(await screen.findByText('Not asked in Midyear survey')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Not asked in Midyear survey, Nov 2023–Dec 2024'),
+    ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
   })
 
-  test('choosing a country changes the request; the first country never reaches the URL', async () => {
+  test('choosing a country changes the request; the default country never reaches the URL', async () => {
     const calls = mockFetch({
       ...tier,
-      'filter=country_code%3A22': {
+      'filter=country_code%3A1': {
         ...rankedPlain,
-        meta: { ...rankedPlain.meta, filters: { country_code: [22] } },
+        meta: { ...rankedPlain.meta, filters: { country_code: [1] } },
       },
     })
     const router = await renderAt('/correlates?outcome=HAPPY')
     await screen.findByRole('img', { name: /most strongly associated with it/ })
-    fireEvent.change(screen.getByLabelText('Country'), { target: { value: '22' } })
-    await waitFor(() =>
-      expect(calls.some((url) => url.includes('filter=country_code%3A22'))).toBe(true),
-    )
-    expect(router.state.location.searchStr).toContain('country=22')
     fireEvent.change(screen.getByLabelText('Country'), { target: { value: '1' } })
+    await waitFor(() =>
+      expect(calls.some((url) => url.includes('filter=country_code%3A1'))).toBe(true),
+    )
+    expect(router.state.location.searchStr).toContain('country=1')
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: '22' } })
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
   })
 })
 
 describe('correlates helpers', () => {
-  test('the diverging tint is quantized onto the seven ramp tokens, never a resolved color', () => {
+  test('the diverging tint is quantized onto the eleven ramp tokens, never a resolved color', () => {
     expect(divergingTint(null)).toBe('transparent')
     expect(divergingTint(-1)).toBe(DIVERGING_RAMP[0])
-    expect(divergingTint(0)).toBe(DIVERGING_RAMP[3])
-    expect(divergingTint(1)).toBe(DIVERGING_RAMP[6])
-    expect(divergingTint(0.4)).toBe('var(--div-500)')
-    expect(divergingTint(-2)).toBe('var(--div-100)') // clamped
-    expect(divergingTint(1.5, 3)).toBe('var(--div-600)') // scaled to the extent
+    expect(divergingTint(0)).toBe(DIVERGING_RAMP[5])
+    expect(divergingTint(1)).toBe(DIVERGING_RAMP[10])
+    expect(divergingTint(0.4)).toBe('var(--div-p2)')
+    expect(divergingTint(-2)).toBe('var(--div-n5)') // clamped
+    expect(divergingTint(1.5, 3)).toBe('var(--div-p3)') // scaled to the extent
+    expect(DIVERGING_RAMP).toHaveLength(11)
     expect(signMark(-0.1)).toBe('var(--div-neg-mark)')
     expect(signMark(0.1)).toBe('var(--div-pos-mark)')
     expect(signMark(null)).toBe('var(--div-pos-mark)')
@@ -382,19 +436,56 @@ describe('correlates helpers', () => {
     expect(isAdjustedResponse(rankedAdjusted)).toBe(true)
     expect(isAdjustedResponse(rankedPlain)).toBe(false)
     expect(heatCells(acrossPlain.rows).get('LONELY:22')?.estimate).toBe(-0.4)
-    expect(defaultCountry(testMeta)).toBe(1)
+    // The United States by its ISO code; the first country without one.
+    expect(defaultCountry(testMeta)).toBe(22)
+    expect(defaultCountry({ countries: [{ code: 3, name: 'Elsewhere', iso3: 'ELS' }] })).toBe(3)
   })
 
-  test('the tint extent is 1 for correlations and the largest coefficient for models', () => {
-    expect(tintExtent(acrossPlain.rows, false)).toBe(1)
-    expect(tintExtent(chartRows(acrossAdjusted.rows), true)).toBeCloseTo(1.125)
-    expect(tintExtent([], true)).toBe(1)
+  test('the tint extent fits the data for correlations and coefficients alike', () => {
+    expect(tintExtent(acrossPlain.rows)).toBe(0.52)
+    expect(tintExtent(chartRows(acrossAdjusted.rows))).toBeCloseTo(1.125)
+    expect(tintExtent([])).toBe(1)
+    expect(matrixCaption('Happiness', 0.52, 'pearson_r')).toBe(
+      'Happiness — rust: a negative association, teal: positive; the deeper the tint, the stronger it is (the deepest tint is 0.52 either way)',
+    )
+  })
+
+  test('the ranking floor: the footnote counts, cells below it are known', () => {
+    expect(excludedNote({ min_n: 100, n_excluded: 3 })).toBe(
+      '3 measures with fewer than 100 respondents are not ranked.',
+    )
+    expect(excludedNote({ min_n: 100, n_excluded: 1 })).toBe(
+      '1 measure with fewer than 100 respondents is not ranked.',
+    )
+    expect(excludedNote({ min_n: 100, n_excluded: 0 })).toBeUndefined()
+    expect(excludedNote({ min_n: null, n_excluded: null })).toBeUndefined()
+    expect(belowFloor({ n: 7 }, 100)).toBe(true)
+    expect(belowFloor({ n: 100 }, 100)).toBe(false)
+    expect(belowFloor({ n: 7 }, null)).toBe(false)
+    // Columns past the visible edge of the matrix, for the "N more" hint.
+    expect(columnsPastEdge([100, 200, 300, 400], 250)).toBe(2)
+    expect(columnsPastEdge([100, 200], 250)).toBe(0)
   })
 
   test('wording comes from the response and meta, never a hard-coded list', () => {
     expect(statisticPhrase(false, undefined)).toBe('weighted correlation, −1 to 1')
     expect(statisticPhrase(false, 'spearman')).toBe('rank correlation, −1 to 1')
-    expect(statisticPhrase(true, 'spearman')).toContain('adjusted association')
+    expect(statisticPhrase(true, 'spearman')).toContain('adjusted difference')
+    expect(adjustedPhrase(happyVariable, { controls: ['age_band', 'gender'] }, testMeta)).toBe(
+      'Happiness points per 1 SD of each measure, holding age band and gender fixed',
+    )
+    expect(
+      adjustedPhrase(
+        { ...happyVariable, scale_type: 'binary' },
+        { controls: ['country_code'] },
+        testMeta,
+      ),
+    ).toBe('Happiness log-odds per 1 SD of each measure, holding country fixed')
+    expect(axisTitle(false, undefined, happyVariable)).toBe('Weighted correlation (Pearson)')
+    expect(axisTitle(false, 'spearman', happyVariable)).toBe('Rank correlation (Spearman)')
+    expect(axisTitle(true, undefined, happyVariable)).toBe(
+      'Happiness: points per 1 SD of the measure',
+    )
     expect(controlsPhrase({ controls: ['age_band', 'gender'] }, testMeta)).toBe(
       'age band and gender',
     )
@@ -405,6 +496,13 @@ describe('correlates helpers', () => {
   test('point estimates say so in tooltips and footnotes; signed formatting', () => {
     const plain = plainRow('LONELY', -0.52)
     expect(tipText(plain, 'Loneliness')).toContain('no interval is computed')
+    // The n rides in every tip; the weight's column name never does.
+    expect(tipText(plain, 'Loneliness')).toContain('n = 54')
+    expect(tipText(plain, 'Loneliness')).not.toContain('w_c1')
+    // The footnote's noun follows the statistic without an interval.
+    expect(footnoteCopy({ ...rankedPlain.meta, stat: 'quantile' }, 'dots', false)).toContain(
+      'no confidence interval is computed for a median',
+    )
     expect(intervalText(plain)).toContain('point estimate')
     expect(footnoteCopy(rankedPlain.meta, 'dots', false)).toContain('Dots are point estimates')
     expect(footnoteCopy(rankedPlain.meta, 'table', false)).toContain('Cells are point estimates')

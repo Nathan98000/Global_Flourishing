@@ -71,3 +71,49 @@ def test_special_code_rulings_present() -> None:
         "SVCS_FATHER",
     ):
         assert overrides.variables[name].special_codes == {97: "valid"}, name
+
+
+def test_polarity_follows_the_label_not_the_direction() -> None:
+    """ADR-0015: polarity says which end of the coded scale is the most of
+    what the display name names. Set from the labelled endpoints alone."""
+    overrides = load_overrides()
+    variables = overrides.variables
+    # The PHQ-2/GAD-2 items are 1 = Nearly every day: the lowest code is
+    # the most depressed/anxious, whatever the better-or-worse direction.
+    for name in ("DEPRESSED", "INTEREST", "FEEL_ANXIOUS", "CONTROL_WORRY"):
+        assert variables[name].polarity == "descending", name
+        assert variables[name].direction == "higher_better", name
+    # Every 1 = Yes / 2 = No item: the named thing is the Yes.
+    for name in ("CLOSE_TO", "DONATED", "VOLUNTEERED", "HELP_STRANGER", "ABUSED"):
+        assert variables[name].polarity == "descending", name
+    # Owner decision (24 Sept): Yes is better for these three, No for HEALTH_PROB.
+    for name in ("CLOSE_TO", "ACHIEVING", "BEAUTY"):
+        assert variables[name].direction == "lower_better", name
+    assert variables["HEALTH_PROB"].direction == "higher_better"
+    # 1 = Always … 4 = Never and 1 = More than once a week … 5 = Never.
+    for name in ("CAPABLE", "LIFE_BALANCE", "PEACE", "ATTEND_SVCS", "TRUST_PEOPLE"):
+        assert variables[name].polarity == "descending", name
+    assert all(variables[f"TRAITS{i}"].polarity == "descending" for i in range(1, 11))
+    # Named as their upward end: "Not feeling lonely" is 0 = Always … 10 = Never.
+    for name in ("LONELY", "SUFFERING", "BODILY_PAIN", "DISCRIMINATED", "EDUCATION_3"):
+        assert variables[name].polarity == "ascending", name
+    # The SFI items and every 0–10 scale run upward as coded.
+    assert all(v.polarity == "ascending" for v in variables.values() if v.sfi_domain)
+    assert sum(v.polarity == "descending" for v in variables.values()) == 46
+
+
+def test_short_labels_shorten_the_long_breakdown_answers() -> None:
+    """Answers whose codebook wording runs past ~30 characters carry a
+    short display label for controls and axes (the codebook keeps the
+    full wording)."""
+    overrides = load_overrides()
+    assert overrides.variables["EDUCATION_3"].short_labels == {
+        1: "Primary or less",
+        2: "Secondary",
+        3: "Tertiary",
+    }
+    assert overrides.variables["EMPLOYMENT"].short_labels == {
+        6: "Unemployed, looking",
+        8: "Out of work (reserve duty)",
+    }
+    assert overrides.variables["GENDER"].short_labels == {}

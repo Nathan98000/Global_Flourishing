@@ -10,6 +10,7 @@
 // opacity. The Correlates view builds its measures × countries matrix on
 // the same component with the diverging ramp. Never fetches.
 
+import { useEffect, useId, useRef, useState } from 'react'
 import type { EstimateRow } from '../api/types'
 import { ciLabel, formatCount, formatEstimate } from '../format'
 import styles from './TransitionTable.module.css'
@@ -39,6 +40,15 @@ export function transitionGrid(rows: readonly EstimateRow[]): TransitionGrid {
   return { levels: [...levels].sort((a, b) => a - b), cells }
 }
 
+/** The ink a ramp tint's text wears: every `--seq-*` and `--div-*` step
+ * names its own `-ink` companion in tokens.css (dark ink on the light
+ * steps, light ink on the dark ones, ≥ 4.5:1 each — the near-black ink
+ * on the deep teal read at 1.9:1). Any other tint keeps the default ink. */
+export function tintInk(tint: string): string | undefined {
+  const match = /^var\((--(?:seq|div)-[\w-]+)\)$/.exec(tint)
+  return match ? `var(${match[1]}-ink)` : undefined
+}
+
 /** Accent at graded opacity — a token-only heat scale. */
 export function cellTint(share: number | null): string {
   if (share === null) return 'transparent'
@@ -65,6 +75,8 @@ export interface HeatCell {
   tint: string
   /** Read by assistive tech after the number (the n, typically). */
   hidden?: string
+  /** Too few cases to rank: untinted, in muted ink (the tooltip says why). */
+  muted?: boolean
 }
 
 export interface HeatAxis {
@@ -72,13 +84,26 @@ export interface HeatAxis {
   label: string
 }
 
-/** The matrix: rows × columns, one cell lookup; an absent cell reads "—". */
+/** How many columns lie past the visible edge of a scroll container:
+ * those whose right edge sits beyond the container's, given each
+ * column's right edge and the container's — pure, so it is testable
+ * without layout. */
+export function columnsPastEdge(rights: readonly number[], edge: number): number {
+  return rights.filter((right) => right > edge + 1).length
+}
+
+/** The matrix: rows × columns, one cell lookup; an absent cell reads "—".
+ * The caption sits above the scroll container, not inside the table, so
+ * a wide matrix never widens the page to fit its caption; the first
+ * column is sticky, and when the matrix overflows a right-edge fade and
+ * an "N more …" hint say so. */
 export function HeatTable({
   caption,
   corner,
   rows,
   columns,
   cellAt,
+  columnNoun = 'columns',
 }: {
   caption: string
   /** The corner label naming both axes ("First answer ↓ · later answer →"). */
@@ -86,53 +111,90 @@ export function HeatTable({
   rows: readonly HeatAxis[]
   columns: readonly HeatAxis[]
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
+  /** What the columns are, for the overflow hint ("3 more countries →"). */
+  columnNoun?: string
 }) {
+  const captionId = useId()
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const [hiddenColumns, setHiddenColumns] = useState(0)
+  useEffect(() => {
+    const element = scroller.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const edge = element.getBoundingClientRect().right
+      const rights = [...element.querySelectorAll('thead th')]
+        .slice(1)
+        .map((th) => th.getBoundingClientRect().right)
+      setHiddenColumns(columnsPastEdge(rights, edge))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    element.addEventListener('scroll', measure, { passive: true })
+    return () => {
+      observer.disconnect()
+      element.removeEventListener('scroll', measure)
+    }
+  }, [columns.length, rows.length])
   if (rows.length === 0 || columns.length === 0) return null
   return (
-    <div className={styles.scroll}>
-      <table className={styles.table}>
-        <caption className={styles.caption}>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={styles.corner}>
-              <span className={styles.axis}>{corner}</span>
-            </th>
-            {columns.map((column) => (
-              <th key={column.key} scope="col">
-                {column.label}
+    <div className={styles.matrix}>
+      <p className={styles.caption} id={captionId}>
+        {caption}
+      </p>
+      <div className={styles.scroll} ref={scroller} data-overflow={hiddenColumns > 0 || undefined}>
+        <table className={styles.table} aria-labelledby={captionId}>
+          <thead>
+            <tr>
+              <th scope="col" className={styles.corner}>
+                <span className={styles.axis}>{corner}</span>
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <th scope="row">{row.label}</th>
-              {columns.map((column) => {
-                const cell = cellAt(row, column)
-                if (!cell) {
+              {columns.map((column) => (
+                <th key={column.key} scope="col">
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <th scope="row">{row.label}</th>
+                {columns.map((column) => {
+                  const cell = cellAt(row, column)
+                  if (!cell) {
+                    return (
+                      <td key={column.key} className={styles.cell}>
+                        —
+                      </td>
+                    )
+                  }
                   return (
-                    <td key={column.key} className={styles.cell}>
-                      —
+                    <td
+                      key={column.key}
+                      className={cell.muted ? styles.cellMuted : styles.cell}
+                      style={
+                        cell.muted
+                          ? undefined
+                          : { background: cell.tint, color: tintInk(cell.tint) }
+                      }
+                      title={cell.title}
+                    >
+                      {cell.text}
+                      {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
                     </td>
                   )
-                }
-                return (
-                  <td
-                    key={column.key}
-                    className={styles.cell}
-                    style={{ background: cell.tint }}
-                    title={cell.title}
-                  >
-                    {cell.text}
-                    {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hiddenColumns > 0 && (
+        <p className={styles.more} aria-hidden="true">
+          {hiddenColumns} more {columnNoun} →
+        </p>
+      )}
     </div>
   )
 }

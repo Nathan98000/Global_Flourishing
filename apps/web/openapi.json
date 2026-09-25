@@ -491,6 +491,13 @@
             ],
             "title": "Git Sha"
           },
+          "state_labels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StateLabelModel"
+            },
+            "title": "State Labels",
+            "type": "object"
+          },
           "suppression": {
             "$ref": "#/components/schemas/SuppressionModel"
           },
@@ -518,7 +525,8 @@
           "ci_level",
           "breakdowns",
           "breakdown_labels",
-          "families"
+          "families",
+          "state_labels"
         ],
         "title": "MetaResponse",
         "type": "object"
@@ -647,6 +655,17 @@
             "title": "Filters",
             "type": "object"
           },
+          "min_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min N"
+          },
           "model": {
             "anyOf": [
               {
@@ -657,6 +676,17 @@
               }
             ],
             "title": "Model"
+          },
+          "n_excluded": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Excluded"
           },
           "n_frame": {
             "title": "N Frame",
@@ -729,6 +759,28 @@
           "filters"
         ],
         "title": "ResponseMeta",
+        "type": "object"
+      },
+      "StateLabelModel": {
+        "description": "A US state code's display name and member states (a pooled group\nof small states lists several; ``flourish_stats.states``).",
+        "properties": {
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "members"
+        ],
+        "title": "StateLabelModel",
         "type": "object"
       },
       "SuppressionModel": {
@@ -914,6 +966,10 @@
             "title": "Name",
             "type": "string"
           },
+          "polarity": {
+            "title": "Polarity",
+            "type": "string"
+          },
           "scale_type": {
             "title": "Scale Type",
             "type": "string"
@@ -967,6 +1023,7 @@
           "family",
           "scale_type",
           "direction",
+          "polarity",
           "min",
           "max",
           "waves_available",
@@ -1059,6 +1116,10 @@
             "title": "Name",
             "type": "string"
           },
+          "polarity": {
+            "title": "Polarity",
+            "type": "string"
+          },
           "scale_type": {
             "title": "Scale Type",
             "type": "string"
@@ -1094,6 +1155,7 @@
           "family",
           "scale_type",
           "direction",
+          "polarity",
           "min",
           "max",
           "waves_available",
@@ -1139,6 +1201,17 @@
           "scope": {
             "title": "Scope",
             "type": "string"
+          },
+          "state_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Column"
           },
           "waves": {
             "items": {
@@ -1333,7 +1406,7 @@
     },
     "/v1/change": {
       "get": {
-        "description": "Mean within-person change with a design-based CI, plus (for\ninteger-coded items) the distribution of individual change and (for\ncategorical items) the transition matrix. ``from=Y1&via=MY&to=Y2``\nreturns the three panel legs under the three-point weight.",
+        "description": "Within-person change with a design-based CI. Numeric scales (0–10,\ncounts) report the mean change on values aligned so higher means more\nof what the measure names (``stat = \"change\"``), plus the distribution\nof individual change; categorical items report the change in the\nshare answering each level (``stat = \"change_share\"``, a fraction —\n× 100 for percentage points) plus the transition matrix.\n``from=Y1&via=MY&to=Y2`` returns the three panel legs under the\nthree-point weight (numeric scales only).",
         "operationId": "change_v1_change_get",
         "parameters": [
           {
@@ -1466,7 +1539,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Unadjusted rows are weighted Pearson or\nSpearman coefficients with no interval (``ci_method = \"none\"``);\n``adjusted=true`` returns the predictor's coefficient in a\nsurvey-weighted regression under the fixed control set (``stat =\n\"beta\"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups). Binary items enter as\nindicators of code 1 (Yes / screen positive). Global scope only.",
+        "description": "Associations, not causes. Unadjusted rows are weighted Pearson or\nSpearman coefficients with no interval (``ci_method = \"none\"``);\n``adjusted=true`` returns the predictor's coefficient in a\nsurvey-weighted regression under the fixed control set (``stat =\n\"beta\"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Binary items enter as indicators of code 1 (Yes / screen\npositive). Global scope only.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {

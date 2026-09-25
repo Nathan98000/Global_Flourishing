@@ -23,6 +23,45 @@ def test_states_adj_variant(client: TestClient) -> None:
     assert any("no weight exists for wave Y1" in m for m in resp.json()["detail"])
 
 
+def test_states_after_wave_1_follow_the_wave_2_state(client: TestClient) -> None:
+    """The Wave 2 and midyear state weights are calibrated to the Wave 2
+    state: a respondent with a Wave 1 state only is not in those frames
+    (no such weight exists for them — the 500 this used to raise), one
+    with a Wave 2 state only is, grouped by that state."""
+    from synthetic_db import US_STATES
+
+    # (No synthetic Californian is retained — CA is every third id — so
+    # the Wave 2 frame holds two states; the midyear one all three.)
+    for wave, weight, states, n_total in (
+        ("Y2", "w_state_c2", {"NY", "TX"}, 39),
+        ("MY", "w_state_l1m", set(US_STATES), 29),
+    ):
+        resp = client.get("/v1/states", params={"outcome": "BALANCE", "wave": wave})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["meta"]["weight"] == weight
+        assert body["meta"]["by"] == ["state"]
+        assert {r["group"]["state"] for r in body["rows"]} == states
+        # Everyone eligible on the Wave 2 state: 40 retained (30 midyear) US
+        # respondents minus the one with a Wave 1 state only.
+        assert sum(r["n"] for r in body["rows"]) == n_total
+    y1 = client.get("/v1/states", params={"outcome": "BALANCE", "wave": "Y1"}).json()["rows"]
+    # …and at Wave 1 the 60 US respondents minus the one with a Wave 2 state only.
+    assert sum(r["n"] for r in y1) == 59
+
+
+def test_us_overall_on_the_state_weight(client: TestClient) -> None:
+    """The reference the states are read against: the whole US on the
+    state weight, through /v1/aggregate's state scope with no group."""
+    resp = client.get(
+        "/v1/aggregate", params={"outcome": "BALANCE", "wave": "Y2", "scope": "us_state"}
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["meta"]["weight_key"] == "us_state:y2" and body["meta"]["by"] == []
+    assert len(body["rows"]) == 1 and body["rows"][0]["n"] == 39
+
+
 def test_states_extra_breakdown(client: TestClient) -> None:
     resp = client.get("/v1/states", params={"outcome": "HAPPY", "wave": "Y1", "by": "gender"})
     groups = [r["group"] for r in resp.json()["rows"]]

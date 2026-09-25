@@ -41,7 +41,8 @@ DATA_VERSION = "synthetic.0.0.1"
 
 #: API-only responses for the Phase 5/6 journeys: a 0-10 pair (change +
 #: histogram), an ordinal pair (adds the transition matrix), the
-#: three-point panel, two state cross-sections (plain and adjusted), and
+#: three-point panel, two state cross-sections (plain and adjusted) with
+#: the US overall on the state weight beside them, and
 #: the Correlates view's four shapes for two outcomes — the ranked list
 #: for Testland and the cross-country sweep, plain and adjusted.
 API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
@@ -61,6 +62,12 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
         {"outcome": "BALANCE", "from": "Y1", "via": "MY", "to": "Y2", "by": "country_code"},
     ),
     ("states-HAPPY-Y1.json", "/v1/states", {"outcome": "HAPPY", "wave": "Y1", "stat": "mean"}),
+    # The whole US on the state weight: the reference the states are read against.
+    (
+        "states-HAPPY-Y1-overall.json",
+        "/v1/aggregate",
+        {"outcome": "HAPPY", "wave": "Y1", "stat": "mean", "scope": "us_state"},
+    ),
     (
         "states-HAPPY-Y2-adj.json",
         "/v1/states",
@@ -94,7 +101,9 @@ def main() -> int:
         db_path = build_synthetic_db(Path(tmp))
         index = export_static(db_path, target, data_version=DATA_VERSION, only=FIXTURE_OUTCOMES)
 
-        client = TestClient(create_app(Settings(data_path=db_path)))
+        # 60 synthetic people per country: rank at a lower floor than the
+        # serving default (100) so the fixtures carry a ranked list.
+        client = TestClient(create_app(Settings(data_path=db_path, correlates_min_n=20)))
         sample = client.get(
             "/v1/export.csv", params={"outcome": "HAPPY", "wave": "Y1", "by": "country_code"}
         )

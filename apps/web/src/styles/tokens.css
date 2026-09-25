@@ -73,6 +73,9 @@
   --page: #f6f4ee;
   --surface: #fbfaf5;
   --surface-raised: #fffefb;
+  /* Plot's own variable, re-asserted on every figure (styles.css): the
+     tooltip fill — the surface, so the tip's text keeps its contrast */
+  --plot-background: #fbfaf5;
   --ink: #1b1a17;
   --ink-secondary: #57544c;
   /* Hairline-only (axis ticks, decorations): below AA for body text — never
@@ -116,27 +119,59 @@
   --error-text: #9d2c22;
   --ok-text: #1f5d55;
 
-  /* Sequential ramp (map): sand → teal, light→dark */
-  --seq-100: #f0e7d4;
+  /* Sequential ramp (map): sand → teal, light→dark; the first step is a
+     visible tint on the surface, and the empty fill is a *neutral* with
+     its own outline so "no estimate" and unsurveyed land never read as
+     the lowest bin */
+  --seq-100: #e9dcb8;
   --seq-200: #d9cfb0;
   --seq-300: #b3c0a4;
   --seq-400: #83a596;
-  --seq-500: #558a80;
+  --seq-500: #598e84;
   --seq-600: #356a65;
   --seq-700: #1e4a48;
-  --map-empty: #e8e3d7;
+  --map-empty: #dedad1;
+  --map-empty-outline: #8f8a7e;
+  /* Text over a tint (the tinted matrices): dark ink on the light steps,
+     light ink on the dark ones — each step names its ink, and every
+     pairing is ≥ 4.5:1 (tokens.test.ts) */
+  --tint-ink-dark: #1b1a17;
+  --tint-ink-light: #fbfaf5;
+  --seq-100-ink: var(--tint-ink-dark);
+  --seq-200-ink: var(--tint-ink-dark);
+  --seq-300-ink: var(--tint-ink-dark);
+  --seq-400-ink: var(--tint-ink-dark);
+  --seq-500-ink: var(--tint-ink-dark);
+  --seq-600-ink: var(--tint-ink-light);
+  --seq-700-ink: var(--tint-ink-light);
 
-  /* Diverging ramp (correlates matrix): rust ← page tone → teal, seven
-     tints that keep ink text AA on top; mark-grade hues for signed dots */
-  --div-100: #e9c0a8;
-  --div-200: #f1d6c6;
-  --div-300: #f8eae1;
-  --div-400: #f6f4ee;
-  --div-500: #dfe8de;
-  --div-600: #c5d8d2;
-  --div-700: #a9c6be;
+  /* Diverging ramp (correlates matrix): rust ← page tone → teal, five
+     tints per sign with a stronger end step, every one keeping ink text
+     AA on top; mark-grade hues for signed dots */
+  --div-n5: #c98761;
+  --div-n4: #d8aa8f;
+  --div-n3: #e1c0ac;
+  --div-n2: #e9d4c5;
+  --div-n1: #efe4d9;
+  --div-0: #f6f4ee;
+  --div-p1: #e0e5df;
+  --div-p2: #cbd6cf;
+  --div-p3: #b1c4bd;
+  --div-p4: #93afa8;
+  --div-p5: #648d86;
   --div-neg-mark: #b4531f;
   --div-pos-mark: #1f5d55;
+  --div-n5-ink: var(--tint-ink-dark);
+  --div-n4-ink: var(--tint-ink-dark);
+  --div-n3-ink: var(--tint-ink-dark);
+  --div-n2-ink: var(--tint-ink-dark);
+  --div-n1-ink: var(--tint-ink-dark);
+  --div-0-ink: var(--tint-ink-dark);
+  --div-p1-ink: var(--tint-ink-dark);
+  --div-p2-ink: var(--tint-ink-dark);
+  --div-p3-ink: var(--tint-ink-dark);
+  --div-p4-ink: var(--tint-ink-dark);
+  --div-p5-ink: var(--tint-ink-dark);
 
   /* Banners */
   --notice-bg: #eef1ea;
@@ -153,6 +188,7 @@
     --page: #141310;
     --surface: #1b1a16;
     --surface-raised: #23211c;
+    --plot-background: #1b1a16;
     --ink: #ece8de;
     --ink-secondary: #b6b1a4;
     --ink-muted: #7d7970;
@@ -189,24 +225,49 @@
     --error-text: #f0a79c;
     --ok-text: #7fb8ad;
 
-    --seq-100: #1e3a38;
+    --seq-100: #1f3f3c;
     --seq-200: #24504c;
     --seq-300: #356a65;
-    --seq-400: #558a80;
+    --seq-400: #598e84;
     --seq-500: #83a596;
     --seq-600: #b3c0a4;
     --seq-700: #d9cfb0;
-    --map-empty: #26241f;
+    --map-empty: #34322c;
+    --map-empty-outline: #6d6960;
+    --tint-ink-dark: #1b1a16;
+    --tint-ink-light: #ece8de;
+    --seq-100-ink: var(--tint-ink-light);
+    --seq-200-ink: var(--tint-ink-light);
+    --seq-300-ink: var(--tint-ink-light);
+    --seq-400-ink: var(--tint-ink-dark);
+    --seq-500-ink: var(--tint-ink-dark);
+    --seq-600-ink: var(--tint-ink-dark);
+    --seq-700-ink: var(--tint-ink-dark);
 
-    --div-100: #6a3a22;
-    --div-200: #4e2f20;
-    --div-300: #362820;
-    --div-400: #141310;
-    --div-500: #1e2b28;
-    --div-600: #24403b;
-    --div-700: #2f5a52;
+    --div-n5: #8a5b3c;
+    --div-n4: #5d3f2b;
+    --div-n3: #493324;
+    --div-n2: #37291d;
+    --div-n1: #281f17;
+    --div-0: #141310;
+    --div-p1: #1f2420;
+    --div-p2: #27312c;
+    --div-p3: #31403a;
+    --div-p4: #3c504a;
+    --div-p5: #4e6c65;
     --div-neg-mark: #d98b5a;
     --div-pos-mark: #7fb8ad;
+    --div-n5-ink: var(--tint-ink-light);
+    --div-n4-ink: var(--tint-ink-light);
+    --div-n3-ink: var(--tint-ink-light);
+    --div-n2-ink: var(--tint-ink-light);
+    --div-n1-ink: var(--tint-ink-light);
+    --div-0-ink: var(--tint-ink-light);
+    --div-p1-ink: var(--tint-ink-light);
+    --div-p2-ink: var(--tint-ink-light);
+    --div-p3-ink: var(--tint-ink-light);
+    --div-p4-ink: var(--tint-ink-light);
+    --div-p5-ink: var(--tint-ink-light);
 
     --notice-bg: #17201c;
     --notice-border: #2f4a42;
@@ -215,11 +276,18 @@
   }
 }
 
+/* …an explicit light stamp keeps native controls (selects, checkboxes,
+   scrollbars) light whatever the OS prefers… */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 /* …and an explicit dark stamp wins over an OS light preference. */
 :root[data-theme='dark'] {
   color-scheme: dark;
   --page: #141310;
   --surface: #1b1a16;
+  --plot-background: #1b1a16;
   --surface-raised: #23211c;
   --ink: #ece8de;
   --ink-secondary: #b6b1a4;
@@ -257,24 +325,49 @@
   --error-text: #f0a79c;
   --ok-text: #7fb8ad;
 
-  --seq-100: #1e3a38;
+  --seq-100: #1f3f3c;
   --seq-200: #24504c;
   --seq-300: #356a65;
-  --seq-400: #558a80;
+  --seq-400: #598e84;
   --seq-500: #83a596;
   --seq-600: #b3c0a4;
   --seq-700: #d9cfb0;
-  --map-empty: #26241f;
+  --map-empty: #34322c;
+  --map-empty-outline: #6d6960;
+  --tint-ink-dark: #1b1a16;
+  --tint-ink-light: #ece8de;
+  --seq-100-ink: var(--tint-ink-light);
+  --seq-200-ink: var(--tint-ink-light);
+  --seq-300-ink: var(--tint-ink-light);
+  --seq-400-ink: var(--tint-ink-dark);
+  --seq-500-ink: var(--tint-ink-dark);
+  --seq-600-ink: var(--tint-ink-dark);
+  --seq-700-ink: var(--tint-ink-dark);
 
-  --div-100: #6a3a22;
-  --div-200: #4e2f20;
-  --div-300: #362820;
-  --div-400: #141310;
-  --div-500: #1e2b28;
-  --div-600: #24403b;
-  --div-700: #2f5a52;
+  --div-n5: #8a5b3c;
+  --div-n4: #5d3f2b;
+  --div-n3: #493324;
+  --div-n2: #37291d;
+  --div-n1: #281f17;
+  --div-0: #141310;
+  --div-p1: #1f2420;
+  --div-p2: #27312c;
+  --div-p3: #31403a;
+  --div-p4: #3c504a;
+  --div-p5: #4e6c65;
   --div-neg-mark: #d98b5a;
   --div-pos-mark: #7fb8ad;
+  --div-n5-ink: var(--tint-ink-light);
+  --div-n4-ink: var(--tint-ink-light);
+  --div-n3-ink: var(--tint-ink-light);
+  --div-n2-ink: var(--tint-ink-light);
+  --div-n1-ink: var(--tint-ink-light);
+  --div-0-ink: var(--tint-ink-light);
+  --div-p1-ink: var(--tint-ink-light);
+  --div-p2-ink: var(--tint-ink-light);
+  --div-p3-ink: var(--tint-ink-light);
+  --div-p4-ink: var(--tint-ink-light);
+  --div-p5-ink: var(--tint-ink-light);
 
   --notice-bg: #17201c;
   --notice-border: #2f4a42;

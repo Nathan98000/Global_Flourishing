@@ -39,7 +39,9 @@ def test_ordinal_outcome_gets_a_transition_matrix(client: TestClient) -> None:
         client, outcome="ATTEND_SVCS", **{"from": "Y1"}, to="Y2", filter="country_code:1"
     )
     stats = {r["stat"] for r in rows}
-    assert stats == {"change", "change_distribution", "transition"}
+    # A categorical item's change is the change in share at each answer
+    # plus the transitions — never a mean of its codes (ADR-0015).
+    assert stats == {"change_share", "transition"}
     joint = [r for r in rows if r["measure"] == "transition_joint"]
     assert {(r["from_level"], r["to_level"]) for r in joint} == {
         (i, j) for i in (1, 2, 3) for j in (1, 2, 3)
@@ -53,6 +55,41 @@ def test_ordinal_outcome_gets_a_transition_matrix(client: TestClient) -> None:
     assert all(not r["suppressed"] for r in joint)
     conditional = [r for r in rows if r["measure"] == "transition_conditional"]
     assert len(conditional) == 9
+
+
+def test_categorical_change_is_the_share_change_in_the_right_sign(client: TestClient) -> None:
+    """The synthetic retained Testlanders answer 2 or 3 first and 3 or 1
+    later: the share answering 1 rises, the share answering 2 falls, and
+    the three changes sum to zero (shares sum to one at both waves). The
+    estimate is a fraction — the front end shows percentage points."""
+    _, rows = get_change(
+        client, outcome="ATTEND_SVCS", **{"from": "Y1"}, to="Y2", filter="country_code:1"
+    )
+    share = {r["level"]: r for r in rows if r["stat"] == "change_share"}
+    assert sorted(share) == [1, 2, 3]
+    assert share[1]["estimate"] > 0.4 and share[2]["estimate"] < -0.4
+    assert abs(sum(r["estimate"] for r in share.values())) < 1e-12
+    assert all(r["n"] == 40 for r in share.values())  # complete pairs, every level
+    assert all(r["ci_lo"] is not None and r["ci_hi"] is not None for r in share.values())
+    assert all(-1 <= r["estimate"] <= 1 for r in share.values())
+    # No histogram of individual change for a categorical item: the
+    # transition table is its individual-level view.
+    assert not any(r["stat"] == "change_distribution" for r in rows)
+
+
+def test_three_point_panel_is_numeric_only(client: TestClient) -> None:
+    resp = client.get(
+        "/v1/change",
+        params={
+            "outcome": "ATTEND_SVCS",
+            "from": "Y1",
+            "via": "MY",
+            "to": "Y2",
+            "by": "country_code",
+        },
+    )
+    assert resp.status_code == 422
+    assert any("three-point" in problem for problem in resp.json()["detail"])
 
 
 def test_rect_reaches_the_rectangular_weight(client: TestClient) -> None:
