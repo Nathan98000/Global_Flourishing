@@ -1,7 +1,7 @@
 // The What Matters view's row bookkeeping, kept out of the component so
 // fast refresh stays clean: the seven items' rows as one set, the
-// country order the matrix and the data table share, the range the
-// matrix's tints span, and the columns' labels and width.
+// country order the matrix and the data table share, each column's
+// tint window, and the columns' labels and width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
@@ -123,14 +123,26 @@ export function orderMatrixRows(
   )
 }
 
-/** The [lowest, highest] estimate in the matrix — what its tints span. */
-export function matrixRange(rows: readonly EstimateRow[]): [number, number] {
-  let lo = Infinity
-  let hi = -Infinity
+/** Each column's tint window, keyed by item: its own [lowest, highest]
+ * estimate across the rows shown, so a column's shades compare the
+ * rows on that item alone — widened to at least `minSpan` points about
+ * its midpoint, or a column of near-equal values (US money by age runs
+ * 7.46–7.66) would spread a fifth of a point over the whole ramp. */
+export function columnRanges(
+  rows: readonly EstimateRow[],
+  minSpan = 1,
+): Map<string, [number, number]> {
+  const ranges = new Map<string, [number, number]>()
   for (const row of rows) {
     if (row.estimate === null) continue
-    lo = Math.min(lo, row.estimate)
-    hi = Math.max(hi, row.estimate)
+    const item = String(row.group['outcome'])
+    const [lo, hi] = ranges.get(item) ?? [Infinity, -Infinity]
+    ranges.set(item, [Math.min(lo, row.estimate), Math.max(hi, row.estimate)])
   }
-  return Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : [0, 1]
+  for (const [item, [lo, hi]] of ranges) {
+    if (hi - lo >= minSpan) continue
+    const mid = (lo + hi) / 2
+    ranges.set(item, [mid - minSpan / 2, mid + minSpan / 2])
+  }
+  return ranges
 }

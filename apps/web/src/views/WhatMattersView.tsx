@@ -20,7 +20,7 @@ import type { LevelLabeler } from '../charts/DotPlot'
 import { RankedBar } from '../charts/RankedBar'
 import { SmallMultiples } from '../charts/SmallMultiples'
 import { summarizeExtremes } from '../charts/summary'
-import { SERIES, outcomeColor, quantizeSequential } from '../charts/theme'
+import { SEQUENTIAL_RAMP, SERIES, outcomeColor, quantizeSequential } from '../charts/theme'
 import { HEAT_CELL_PAD, HeatTable, headerFont, intervalText } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -50,9 +50,9 @@ import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
+  columnRanges,
   itemLabel,
   matrixCountryOrder,
-  matrixRange,
   narrowestWrap,
   orderMatrixRows,
   rankingRows,
@@ -398,7 +398,7 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
-              ariaLabel={`How important people rate ${ranking.length} things in each of ${countryOrder.length} countries, as a matrix: a row per country, a column per thing, deeper tint for higher importance, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
+              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
               marks="table"
               response={rankingResponse}
               meta={served}
@@ -577,10 +577,35 @@ export function WhatMattersView() {
   )
 }
 
-/** Countries × the importance items: each cell the weighted mean with a
- * sequential tint over the matrix's range, the interval in its tooltip;
- * every column one width, its short label wrapping over it; the first
- * column stays put while a phone scrolls the rest. */
+/** "1 item", "7 items". */
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/** The matrix's key, in its caption's place: the seven ramp steps from
+ * lower to higher — the tokens themselves, so it reads true in either
+ * theme — and the rule that each column is shaded on its own range. */
+function TintLegend() {
+  return (
+    <span className={styles.legend}>
+      <span className={styles.legendKey}>
+        Lower{' '}
+        <span className={styles.ramp} aria-hidden="true">
+          {SEQUENTIAL_RAMP.map((token) => (
+            <span key={token} style={{ background: token }} />
+          ))}
+        </span>{' '}
+        Higher
+      </span>{' '}
+      · each column shaded on its own range
+    </span>
+  )
+}
+
+/** Countries × the importance items: each cell the weighted mean, tinted
+ * on its column's own range (the legend says so), the interval in its
+ * tooltip; every column one width, its short label wrapping over it;
+ * the first column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
   rows,
   items,
@@ -597,11 +622,16 @@ function ImportanceMatrix({
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
     cells.set(`${String(row.group['outcome'])}:${String(row.group['country_code'])}`, row)
-  const [lo, hi] = matrixRange(rows)
-  const tint = quantizeSequential([lo, hi])
+  // One scale per column, over the rows on screen.
+  const shown = new Set(countryOrder)
+  const tints = new Map(
+    [...columnRanges(rows.filter((row) => shown.has(Number(row.group['country_code']))))].map(
+      ([item, range]) => [item, quantizeSequential(range)],
+    ),
+  )
   return (
     <HeatTable
-      caption={`Deeper tint, higher importance (${formatEstimate(lo, 'mean')}–${formatEstimate(hi, 'mean')})`}
+      caption={<TintLegend />}
       corner="Country ↓ · what matters →"
       rows={countryOrder.map((code) => ({
         key: String(code),
@@ -615,7 +645,10 @@ function ImportanceMatrix({
         return {
           text: formatEstimate(cell.estimate, cell.stat),
           title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
-          tint: cell.estimate === null ? 'transparent' : tint(cell.estimate),
+          tint:
+            cell.estimate === null
+              ? 'transparent'
+              : (tints.get(column.key)?.(cell.estimate) ?? 'transparent'),
         }
       }}
     />

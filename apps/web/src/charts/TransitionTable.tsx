@@ -10,7 +10,7 @@
 // opacity. The Correlates view builds its measures × countries matrix on
 // the same component with the diverging ramp. Never fetches.
 
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import styles from './TransitionTable.module.css'
@@ -121,7 +121,8 @@ export function HeatTable({
   cellAt,
   columnWidth,
 }: {
-  caption: string
+  /** Above the table: what the tints mean (words, or a legend). */
+  caption: ReactNode
   /** The corner label naming both axes ("First answer ↓ · later answer →"). */
   corner: string
   rows: readonly HeatAxis[]

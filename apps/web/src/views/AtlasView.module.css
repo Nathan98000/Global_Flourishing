@@ -105,6 +105,32 @@
   cursor: pointer;
 }
 
+/* What Matters' tint key, in the matrix caption's place: "Lower", the
+   seven ramp swatches, "Higher · …" — the map legend's 20 × 10 steps,
+   in the legend voice (12px, secondary ink, not the caption's bold). */
+.legend {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--ink-secondary);
+}
+
+/* "Lower ▭ Higher" never comes apart on a phone; the note after it wraps. */
+.legendKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ramp {
+  display: inline-flex;
+}
+
+.ramp > span {
+  width: 20px;
+  height: 10px;
+}
+
 /* US States: the national figure above the map, and the reason a control
    is unavailable, inline in secondary ink. */
 .national {

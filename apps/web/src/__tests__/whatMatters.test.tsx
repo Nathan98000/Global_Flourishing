@@ -8,14 +8,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
+import { SEQUENTIAL_RAMP } from '../charts/theme'
 import { tintInk } from '../charts/TransitionTable'
 import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
+  columnRanges,
   itemLabel,
   matrixCountryOrder,
-  matrixRange,
   narrowestWrap,
   orderMatrixRows,
   rankingRows,
@@ -204,7 +205,7 @@ describe('the midyear family from the catalog', () => {
     expect(splitMidyear([]).ranking).toEqual([])
   })
 
-  test('the matrix orders countries A–Z or by one item, nulls last; its tints span the range', () => {
+  test('the matrix orders countries A–Z or by one item, nulls last', () => {
     const rows = rankingRows(
       [byCountry('MONEY', 0), byCountry('GOOD_RELATION', 1)],
       [money, relation],
@@ -219,8 +220,6 @@ describe('the midyear family from the catalog', () => {
         : row,
     )
     expect(matrixCountryOrder(withNull, testMeta, 'MONEY', 'desc')).toEqual([1, 22])
-    expect(matrixRange(rows)).toEqual([6, 8])
-    expect(matrixRange([])).toEqual([0, 1])
     expect(
       orderMatrixRows(rows, [22, 1], [money, relation]).map((row) => [
         row.group['country_code'],
@@ -232,6 +231,33 @@ describe('the midyear family from the catalog', () => {
       [1, 'MONEY'],
       [1, 'GOOD_RELATION'],
     ])
+  })
+
+  test('each column is tinted on its own range, never narrower than a point', () => {
+    const at = (outcome: string, code: number, estimate: number | null) => ({
+      ...testRow({ group: { outcome, country_code: code }, estimate }),
+    })
+    const ranges = columnRanges([
+      at('GOOD_RELATION', 1, 6),
+      at('GOOD_RELATION', 2, 9),
+      at('GOOD_RELATION', 3, null),
+      // A near-flat column (US money by age runs 7.46–7.66) widens to one
+      // point about its midpoint instead of spanning the whole ramp.
+      at('MONEY', 1, 7.46),
+      at('MONEY', 2, 7.66),
+      at('MEANINGFUL', 1, 5),
+      at('REL_LIFE', 1, null),
+    ])
+    expect(ranges.get('GOOD_RELATION')).toEqual([6, 9])
+    const [lo, hi] = ranges.get('MONEY') ?? [0, 0]
+    expect(lo).toBeCloseTo(7.06)
+    expect(hi).toBeCloseTo(8.06)
+    expect(ranges.get('MEANINGFUL')).toEqual([4.5, 5.5])
+    // A column with no estimate has no range (its cells are untinted).
+    expect(ranges.has('REL_LIFE')).toBe(false)
+    // Exactly a point wide is wide enough; a wider minimum can be asked for.
+    expect(columnRanges([at('MONEY', 1, 6), at('MONEY', 2, 7)]).get('MONEY')).toEqual([6, 7])
+    expect(columnRanges([at('MONEY', 1, 6), at('MONEY', 2, 7)], 2).get('MONEY')).toEqual([5.5, 7.5])
   })
 
   test('a ramp tint names its ink; the accent tints and "no cell" keep the page ink', () => {
@@ -286,7 +312,7 @@ describe('What Matters view', () => {
     const calls = mockFetch(tier)
     await renderAt('/what-matters')
     const ranking = await screen.findByRole('img', {
-      name: /How important people rate 2 things in each of 2 countries, as a matrix/,
+      name: /How important people rate 2 items in each of 2 countries, as a matrix: a row per country, a column per item, Midyear/,
     })
     // One matrix: a row per country, a column per item (catalog order),
     // every cell a mean with the interval and n in its tooltip.
@@ -313,17 +339,27 @@ describe('What Matters view', () => {
     // The interval in brackets; the n lives in the data table (ADR-0016).
     expect(cells[0]?.getAttribute('title')).toContain('95% CI [')
     expect(cells[0]?.getAttribute('title')).not.toContain('n =')
-    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-')
+    // Each column is shaded on its own range: the same 7.00 is the low
+    // end of Good relationships (7–8) and the high end of Money (6–7).
+    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
+    expect(cells[1]?.getAttribute('style')).toContain('var(--seq-100)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
     expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
     // The number wears the ink its tint step names (light ink on the
     // deep teal), never the page ink at 1.9:1.
     expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
     expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
-    // The caption names the tint rule and the range, not the subtitle again.
+    // A legend replaces the caption: the seven ramp tokens, lower to
+    // higher (so it reads true in either theme), and the column rule.
+    const legend = within(ranking).getByText(/· each column shaded on its own range/)
+    expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
+      'Lower Higher · each column shaded on its own range',
+    )
     expect(
-      within(ranking).getByText('Deeper tint, higher importance (6.00–8.00)'),
-    ).toBeInTheDocument()
-    expect(within(ranking).queryByText(/— deeper tint/)).toBeNull()
+      [...legend.querySelectorAll('span[style]')].map((swatch) => swatch.getAttribute('style')),
+    ).toEqual(SEQUENTIAL_RAMP.map((token) => `background: ${token};`))
+    expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
+    expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
     // The sort control: A–Z or by one of the items.
     const sort = screen.getByLabelText(/^Sort countries/) as HTMLSelectElement
     expect([...sort.options].map((option) => option.textContent)).toEqual([

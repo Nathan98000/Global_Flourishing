@@ -313,7 +313,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   ).toBeVisible()
   await expect(caption(page).getByText(/Midyear survey, Nov 2023–Dec 2024/)).toBeVisible()
   const matrix = page.getByRole('img', {
-    name: /How important people rate 1 things .* as a matrix/,
+    name: /How important people rate 1 item in each of 2 countries, as a matrix/,
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
