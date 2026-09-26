@@ -453,10 +453,14 @@ export function changeRequest(search: ChangeSearch): ChangeRequest {
 // --- What Matters (Phase 5) --------------------------------------------------
 // The midyear family at wave MY: rankings by country, the shift by a
 // demographic (age band by default) within one country, and the
-// chartable items.
+// chartable items — one of the three on screen at a time (`view`).
 
 export interface WhatMattersSearch {
-  /** The country whose ranking is split by `by`; absent = choose one. */
+  /** Which chart is on screen: the matrix by country, the split within
+   * one country, or one of the other midyear questions. */
+  view: 'country' | 'within' | 'questions'
+  /** The country whose ranking is split by `by`; absent = the United
+   * States (else the first country A–Z), resolved from meta. */
   country?: number
   by: string
   /** A chartable (non-ranking) midyear item to show by country. */
@@ -467,13 +471,19 @@ export interface WhatMattersSearch {
    * code (by that item's value); an unknown code reads as 'name'. */
   sort: string
   dir?: SortDir
+  /** The other questions' chart has its own order, Atlas's controls and
+   * defaults (by value, high first) — never the matrix's. */
+  qsort: 'estimate' | 'name'
+  qdir?: SortDir
   invalid?: string[]
   invalidRaw?: RawParams
 }
 
 export const WHAT_MATTERS_DEFAULTS = {
+  view: 'country' as const,
   by: 'age_band',
   sort: 'name',
+  qsort: 'estimate' as const,
 }
 
 const parseBreakdownColumn = (value: unknown): string | undefined => {
@@ -489,12 +499,20 @@ const parseCountryCode = (value: unknown): number | undefined => {
 export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
   const collect = new Collector()
   const search: WhatMattersSearch = {
+    view: collect.take(
+      'view',
+      raw,
+      parseEnum('country', 'within', 'questions'),
+      WHAT_MATTERS_DEFAULTS.view,
+    ),
     country: collect.take('country', raw, parseCountryCode, undefined),
     by: collect.take('by', raw, parseBreakdownColumn, WHAT_MATTERS_DEFAULTS.by),
     item: collect.take('item', raw, parseName, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
     sort: collect.take('sort', raw, parseName, WHAT_MATTERS_DEFAULTS.sort),
     dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    qsort: collect.take('qsort', raw, parseEnum('estimate', 'name'), WHAT_MATTERS_DEFAULTS.qsort),
+    qdir: collect.take('qdir', raw, parseEnum('asc', 'desc'), undefined),
   }
   return collect.finish(search)
 }
@@ -504,6 +522,7 @@ export function whatMattersSearchParams(
 ): Record<string, unknown> {
   return withInvalidRaw(
     {
+      view: search.view === WHAT_MATTERS_DEFAULTS.view ? undefined : search.view,
       country: search.country,
       by: search.by === WHAT_MATTERS_DEFAULTS.by ? undefined : search.by,
       item: search.item,
@@ -513,6 +532,11 @@ export function whatMattersSearchParams(
         search.dir === defaultDir(search.sort ?? WHAT_MATTERS_DEFAULTS.sort)
           ? undefined
           : search.dir,
+      qsort: search.qsort === WHAT_MATTERS_DEFAULTS.qsort ? undefined : search.qsort,
+      qdir:
+        search.qdir === defaultDir(search.qsort ?? WHAT_MATTERS_DEFAULTS.qsort)
+          ? undefined
+          : search.qdir,
     },
     search.invalidRaw,
   )

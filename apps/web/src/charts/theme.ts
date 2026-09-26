@@ -104,17 +104,40 @@ export function divergingTint(value: number | null | undefined, extent = 1): str
   return DIVERGING_RAMP[step] ?? 'transparent'
 }
 
-/** A CI whisker drawn over a bar: a halo in the surface colour, then
- * the ink line, so the whisker is visible on the bar's own hue (a
- * whisker in the bar's tone vanished). Plot's rule marks take the
- * channels; the two share them. */
+/** A whisker's end cap: a vertical tick through the row's centre, drawn
+ * by Plot's dot mark as a custom symbol (Plot sizes a symbol πr², so r
+ * is the tick's half length). */
+const WHISKER_CAP = {
+  draw(
+    context: { moveTo(x: number, y: number): void; lineTo(x: number, y: number): void },
+    size: number,
+  ) {
+    const half = Math.sqrt(size / Math.PI)
+    context.moveTo(0, -half)
+    context.lineTo(0, half)
+  },
+}
+
+/** A CI whisker drawn over a bar: one rule in the page ink, 1.25px,
+ * with short end caps (6px) — it reads on the bar's own hue in either
+ * theme, and the caps mark where the interval ends. No halo: a
+ * surface-coloured one read as a white scratch through the bar (and a
+ * whisker in the bar's tone vanished). `y` names the row; `x1` and `x2`
+ * are the interval's ends. */
 export function whiskerOverBars<Datum>(
   data: Datum[],
-  channels: Record<string, string | ((datum: Datum) => number | undefined)>,
+  channels: {
+    y: string
+    x1: (datum: Datum) => number | undefined
+    x2: (datum: Datum) => number | undefined
+  },
 ) {
+  const ink = { stroke: INK, strokeWidth: 1.25, clip: true } as const
+  const cap = { y: channels.y, symbol: WHISKER_CAP, r: 3, fill: 'none', ...ink }
   return [
-    Plot.ruleY(data, { ...channels, stroke: SURFACE, strokeWidth: 4, clip: true }),
-    Plot.ruleY(data, { ...channels, stroke: INK, strokeWidth: 1.5, clip: true }),
+    Plot.ruleY(data, { ...channels, ...ink }),
+    Plot.dot(data, { ...cap, x: channels.x1 }),
+    Plot.dot(data, { ...cap, x: channels.x2 }),
   ]
 }
 

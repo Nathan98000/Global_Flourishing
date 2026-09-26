@@ -4,7 +4,8 @@
    the accent tints keep the page ink. Scrolls sideways inside its own
    container rather than breaking the column or widening the page; the
    caption sits above the scroll container so it wraps at the column's
-   width, not the table's. */
+   width, not the table's. With a fixed column width (What Matters)
+   every column takes it and the headers wrap. */
 .matrix {
   position: relative;
   min-width: 0;
@@ -12,14 +13,27 @@
   margin-bottom: var(--space-4);
 }
 
+/* The fade's frame: the table box alone, so the caption and the
+   "N more →" button never sit under it. */
+.frame {
+  position: relative;
+}
+
 .scroll {
   overflow-x: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll {
+    scroll-behavior: auto;
+  }
 }
 
 /* The right-edge fade says "there is more" without a scrollbar. */
-.matrix:has(.scroll[data-overflow])::after {
+.frame:has(.scroll[data-overflow])::after {
   content: '';
   position: absolute;
   top: 0;
@@ -30,11 +44,46 @@
   background: linear-gradient(to right, transparent, var(--surface));
 }
 
+/* "N more →": a text button that pages the box sideways. */
 .more {
-  margin: var(--space-1) 0 0;
-  text-align: right;
-  color: var(--ink-secondary);
+  display: block;
+  margin: var(--space-1) 0 0 auto;
+  border: 0;
+  background: none;
+  padding: var(--space-1) 0;
+  color: var(--accent);
   font-size: var(--text-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--accent-hover);
+}
+
+@media (max-width: 40rem) {
+  .more {
+    min-height: 44px;
+  }
+}
+
+/* A cell's tooltip in the Plot tips' look — their face, size and
+   hairline come inline from theme.ts TIP_OPTIONS — secondary ink on the
+   plot background with the same soft shadow. The pointer passes through
+   it, so it never takes the hover from the cell under it. */
+.tip {
+  position: absolute;
+  z-index: 3;
+  padding: 5px 8px;
+  border: 1px solid;
+  background: var(--plot-background);
+  color: var(--ink-secondary);
+  line-height: 1.4;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 20%));
 }
 
 .table {
@@ -80,8 +129,35 @@
   vertical-align: bottom;
 }
 
-.corner {
+/* The column the rows are sorted by reads in ink, beside its ▼ / ▲. */
+.table thead th[aria-sort] {
+  color: var(--ink);
+}
+
+/* Left, over the row labels (it outranks `.table th`'s right). */
+.table .corner {
   text-align: left;
+}
+
+/* Fixed-width columns: the header text wraps over the column (bottom
+   aligned, so short labels sit on the rule), and header and number are
+   centred so each value stands under its label. */
+.table[data-fixed] thead th {
+  white-space: normal;
+}
+
+.table[data-fixed] thead th:not(.corner),
+.table[data-fixed] td {
+  width: var(--heat-column);
+  min-width: var(--heat-column);
+  padding-inline: var(--space-2);
+  text-align: center;
+}
+
+/* A wrapped corner label keeps to two or three lines, its arrows with
+   their words ("Age band ↓ · what / matters →"). */
+.table[data-fixed] .corner {
+  min-width: 8rem;
 }
 
 .axis {

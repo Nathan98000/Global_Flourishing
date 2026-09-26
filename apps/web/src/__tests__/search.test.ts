@@ -240,20 +240,24 @@ describe('change search (Phase 5)', () => {
 })
 
 describe('what-matters search (Phase 5)', () => {
-  test('defaults: no country chosen, split by age band, countries A–Z', () => {
+  test('defaults: the matrix by country, no country chosen, split by age band, countries A–Z', () => {
     const search = parseWhatMattersSearch({})
     expect(search).toEqual({
+      view: 'country',
       by: 'age_band',
       sort: 'name',
       country: undefined,
       dir: undefined,
       item: undefined,
+      qsort: 'estimate',
+      qdir: undefined,
     })
     expect(stringifySearch(whatMattersSearchParams(search))).toBe('')
   })
 
   test('round-trips and degrades', () => {
     const search = parseWhatMattersSearch({
+      view: 'within',
       country: '22',
       by: 'gender',
       item: 'NATURE',
@@ -261,8 +265,30 @@ describe('what-matters search (Phase 5)', () => {
       dir: 'asc',
     })
     const serialized = stringifySearch(whatMattersSearchParams(search))
-    expect(serialized).toBe('?country=22&by=gender&item=NATURE&sort=estimate&dir=asc')
+    expect(serialized).toBe('?view=within&country=22&by=gender&item=NATURE&sort=estimate&dir=asc')
     expect(parseWhatMattersSearch(parseSearchString(serialized))).toEqual(search)
+    // The default view never reaches the URL; an unknown one degrades to it.
+    expect(stringifySearch(whatMattersSearchParams({ ...search, view: 'country' }))).not.toContain(
+      'view=',
+    )
+    const unknown = parseWhatMattersSearch({ view: 'map' })
+    expect(unknown.view).toBe('country')
+    expect(unknown.invalid).toEqual(['view'])
+    // The other questions' chart sorts on its own params, Atlas's
+    // defaults (by value, high first) omitted from the URL.
+    const questions = parseWhatMattersSearch({ view: 'questions', qsort: 'name', qdir: 'desc' })
+    expect(questions).toMatchObject({ qsort: 'name', qdir: 'desc', sort: 'name', dir: undefined })
+    expect(stringifySearch(whatMattersSearchParams(questions))).toBe(
+      '?view=questions&qsort=name&qdir=desc',
+    )
+    expect(
+      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'estimate', qdir: 'desc' })),
+    ).toBe('?view=questions')
+    expect(
+      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'name', qdir: 'asc' })),
+    ).toBe('?view=questions&qsort=name')
+    expect(parseWhatMattersSearch({ qsort: 'gap' }).invalid).toEqual(['qsort'])
+    expect(parseWhatMattersSearch({ qdir: 'up' }).invalid).toEqual(['qdir'])
     expect(parseWhatMattersSearch({ country: 'US' }).invalid).toEqual(['country'])
     expect(parseWhatMattersSearch({ country: '0' }).invalid).toEqual(['country'])
     expect(whatMattersRequest('MONEY', happyVariable, 'age_band')).toEqual({

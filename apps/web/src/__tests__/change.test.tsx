@@ -540,9 +540,17 @@ describe('change chart helpers', () => {
     )
     expect(screen.getAllByText('70.0%')).toHaveLength(2)
     expect(screen.getAllByText('30.0%')).toHaveLength(2)
-    // The interval rides in the tooltip; the n lives in the data table.
+    // The interval rides in the (styled) tooltip; the n lives in the
+    // data table.
     expect(screen.queryAllByText(/n = 30/)).toHaveLength(0)
-    expect(screen.getAllByTitle(/95% CI \[/)).toHaveLength(4)
+    const cells = screen.getAllByRole('cell')
+    expect(cells).toHaveLength(4)
+    for (const cell of cells) {
+      expect(cell).not.toHaveAttribute('title')
+      fireEvent.pointerEnter(cell)
+      expect(screen.getByRole('tooltip').textContent).toMatch(/later said “(Yes|No)”\n95% CI \[/)
+      fireEvent.pointerLeave(cell)
+    }
     expect(screen.getByRole('rowheader', { name: 'Yes' })).toBeInTheDocument()
   })
 

@@ -246,8 +246,8 @@ export function RankedBar({
             insetTop: 3,
             insetBottom: 3,
           }),
-          // The whisker over a bar: a surface halo, then ink, so it reads
-          // on the bar's own hue.
+          // The whisker over a bar: a thin ink rule with end caps, so it
+          // reads on the bar's own hue.
           ...whiskerOverBars(
             valid.filter((entry) => entry.ci !== null),
             {

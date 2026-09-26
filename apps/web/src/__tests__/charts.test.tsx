@@ -147,6 +147,23 @@ describe('RankedBar', () => {
     const text = svg?.textContent ?? ''
     // Rounded bars render as paths in the "bar" mark group.
     expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(2) // bars stay bars
+    // Each interval: one ink rule at 1.25px with 6px end caps — no
+    // surface halo under it (it read as a scratch through the bar).
+    // (Clipped marks nest their styled group inside the clip group.)
+    const styled = (label: string) =>
+      [...(svg?.querySelectorAll(`[aria-label="${label}"] g[stroke]`) ?? [])].map((group) => [
+        group.getAttribute('stroke'),
+        group.getAttribute('stroke-width'),
+        group.getAttribute('fill'),
+        group.children.length,
+      ])
+    expect(styled('rule')).toEqual([['var(--ink)', '1.25', null, 2]])
+    expect(styled('dot')).toEqual([
+      ['var(--ink)', '1.25', 'none', 2],
+      ['var(--ink)', '1.25', 'none', 2],
+    ])
+    expect(svg?.querySelector('[aria-label="dot"] path')?.getAttribute('d')).toBe('M0,-3L0,3')
+    expect(svg?.innerHTML).not.toContain('var(--surface)')
     expect(text).toContain('0%') // and keep their zero baseline
     expect(text).toContain('61.0%')
     expect(text).toContain('22.0%')

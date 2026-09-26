@@ -173,12 +173,16 @@ export interface EstimatesManyResult {
  * same fetcher and cache keys as useEstimates, so a view that later asks
  * for one of them alone finds it already loaded. The list may change
  * length between renders (it comes from the catalog); useQueries keeps
- * the hook count constant. */
-export function useEstimatesMany(requests: readonly AggregateRequest[]): EstimatesManyResult {
+ * the hook count constant. `enabled: false` holds every request (a view
+ * that isn't on screen fetches nothing). */
+export function useEstimatesMany(
+  requests: readonly AggregateRequest[],
+  options: { enabled?: boolean } = {},
+): EstimatesManyResult {
   const meta = useMeta()
   const variables = useVariables()
   const dataVersion = meta.data?.meta.data_version ?? null
-  const enabled = meta.isSuccess && variables.isSuccess
+  const enabled = (options.enabled ?? true) && meta.isSuccess && variables.isSuccess
   return useQueries({
     queries: requests.map((request) => ({
       queryKey: ['estimates', dataVersion, canonicalKey(request)],
