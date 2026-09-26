@@ -1,6 +1,6 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
-// plus the Phase 5 launch-checklist journeys and the Phase 6 Correlates
-// journey. No API runs in this suite: every Phase 4 view is static-first
+// plus the Phase 5 launch-checklist journeys and the Correlates journey
+// (its four views, ADR-0018). No API runs in this suite: every Phase 4 view is static-first
 // (journey 6 blocks the API at the network level to prove it), and the
 // API-only Phase 5/6 views are served their real synthetic responses back
 // through route interception from public/data/_fixtures (written by
@@ -420,65 +420,129 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
 })
 
-test('10 — Correlates: pick an outcome, read the ranked list, switch to adjusted, open the model card', async ({
+/** A fixture by name, or a 404 the page will show — never a silent stand-in. */
+function fixtureOr404(name: string) {
+  try {
+    return { json: apiFixture(name) }
+  } catch {
+    return { status: 404, json: { detail: `no fixture ${name}` } }
+  }
+}
+
+test('10 — Correlates: a ranked list, Compare two and Swap, Compare several, back to a pair, across countries', async ({
   page,
 }) => {
-  // The view makes two requests per state — the ranked list for one
-  // country and its measures across countries — plain or adjusted; the
-  // fixture is chosen from the request's own parameters.
+  // Every request is answered by the synthetic response made for it
+  // (scripts/web_fixtures.py plans this journey's path), named from the
+  // request's own parameters.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
-    const outcome = url.searchParams.get('outcome') === 'HAPPY' ? 'HAPPY' : 'sfi'
     const shape = url.searchParams.getAll('by').includes('country_code') ? 'across' : 'ranked'
-    const adjusted = url.searchParams.get('adjusted') === 'true' ? '-adjusted' : ''
-    return route.fulfill({ json: apiFixture(`correlates-${outcome}-Y1-${shape}${adjusted}.json`) })
+    return route.fulfill(
+      fixtureOr404(`correlates-${url.searchParams.get('outcome')}-Y1-${shape}.json`),
+    )
   })
+  await page.route(`${API}/v1/correlations/pair**`, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill(
+      fixtureOr404(
+        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}.json`,
+      ),
+    )
+  })
+  await page.route(
+    (url) => url.pathname === '/v1/correlations',
+    (route) => {
+      const url = new URL(route.request().url())
+      return route.fulfill(
+        fixtureOr404(`correlations-table-${url.searchParams.getAll('vars').join('-')}.json`),
+      )
+    },
+  )
 
   await page.goto('/correlates')
   await expect(
-    caption(page).first().getByText('What travels with Secure Flourishing Index', { exact: true }),
+    caption(page).getByText('What goes with Secure Flourishing Index', { exact: true }),
   ).toBeVisible()
   // The caveat is a sentence in the deck, not a box.
-  await expect(page.getByText(/These are associations, not causes/)).toBeVisible()
+  await expect(
+    page.getByText(/Things that go together aren’t necessarily cause and effect/),
+  ).toBeVisible()
 
   // Pick an outcome: topic first, then its measure.
   await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
   await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
-  await expect(
-    caption(page).first().getByText('What travels with Happiness', { exact: true }),
-  ).toBeVisible()
+  await expect(caption(page).getByText('What goes with Happiness', { exact: true })).toBeVisible()
   await expect(page).toHaveURL(/outcome=HAPPY$/)
 
-  // Read the ranked list: measures named from the catalog, signed values,
-  // no interval drawn or described — a correlation is a point estimate.
-  const ranked = page.getByRole('img', {
+  // Read the ranked list: measures named from the catalog, signed values
+  // on a fixed −1 to 1 axis, no interval drawn or described.
+  const ranked = page.getByRole('group', {
     name: /most strongly associated with it in United States/,
   })
   await expect(ranked).toBeVisible()
   await expect(ranked.getByText('Loneliness', { exact: true })).toBeVisible()
   await expect(ranked.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
+  await expect(ranked.getByText('goes with higher Happiness →')).toBeVisible()
   await expect(page.getByText(/Dots are point estimates/).first()).toBeVisible()
   expect(await page.locator('main').innerText()).not.toContain('95%')
-  // The same measures across every country, as a tinted matrix.
+
+  // Select a row: Compare two opens with that pair.
+  await ranked.getByRole('button', { name: /^Loneliness, .*see it beside Happiness$/ }).click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY&view=pair&x=LONELY$/)
+  await expect(caption(page).getByText('Happiness by Loneliness', { exact: true })).toBeVisible()
+  const pair = page.getByRole('img', { name: /Happiness by Loneliness in United States/ })
+  await expect(pair.locator('[aria-label="dot"] circle').first()).toBeVisible()
+  await expect(page.getByText('Larger dot = more people gave that answer')).toBeVisible()
+
+  // Swap: the compared question becomes the measure.
+  await page.getByRole('button', { name: 'Swap' }).click()
+  await expect(page).toHaveURL(/\?outcome=LONELY&view=pair&x=HAPPY$/)
+  await expect(caption(page).getByText('Loneliness by Happiness', { exact: true })).toBeVisible()
+
+  // Compare several: the measure and its top five, never empty.
+  await page
+    .getByRole('group', { name: 'View' })
+    .getByText('Compare several', { exact: true })
+    .click()
+  const chips = page.getByRole('list', { name: 'Questions in this table' }).getByRole('listitem')
+  await expect(chips).toHaveCount(6)
+  await expect(chips.first()).toHaveText(/^1 · Loneliness/)
+  await expect(
+    caption(page).getByText('Correlations among 6 questions', { exact: true }),
+  ).toBeVisible()
+
+  // Add one, remove one.
+  await page.getByLabel('Add a question').fill('balance')
+  await page.getByRole('button', { name: 'Life balance' }).click()
+  await expect(chips).toHaveCount(7)
+  await expect(
+    caption(page).getByText('Correlations among 7 questions', { exact: true }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Remove PHQ-2 depression score' }).click()
+  await expect(chips).toHaveCount(6)
+  const table = page.getByRole('group', { name: /Correlations among 6 questions/ })
+  await expect(table.getByRole('columnheader', { name: '1 · Loneliness' })).toBeVisible()
+
+  // Select a cell: it returns to Compare two, row on y, column on x.
+  await table.getByRole('button', { name: /^GAD-2 anxiety score and Loneliness, / }).click()
+  await expect(page).toHaveURL(/outcome=gad2_score&view=pair&x=LONELY/)
+  await expect(
+    caption(page).getByText('GAD-2 anxiety score by Loneliness', { exact: true }),
+  ).toBeVisible()
+
+  // Across countries: the chosen country is the first column.
+  await page
+    .getByRole('group', { name: 'View' })
+    .getByText('Across countries', { exact: true })
+    .click()
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
-  await expect(matrix.getByRole('columnheader', { name: 'Testland' })).toBeVisible()
-  await expect(matrix.getByRole('rowheader', { name: 'Loneliness' })).toBeVisible()
-
-  // Switch to adjusted: intervals appear, the control set is spelled out,
-  // and the figure links to the model card.
-  await page
-    .getByRole('group', { name: 'Model' })
-    .getByText('Adjusted difference', { exact: true })
-    .click()
-  await expect(page).toHaveURL(/outcome=HAPPY&adjusted=true$/)
-  await expect(page.getByText(/Lines are 95% confidence intervals/).first()).toBeVisible()
-  await expect(page.getByText(/The model holds age band, gender/).first()).toBeVisible()
-  await page.getByRole('link', { name: 'Read the model card' }).first().click()
-  await expect(page).toHaveURL(/\/model-cards#continuous$/)
-  await expect(page.getByRole('heading', { name: 'Model card: continuous outcomes' })).toBeVisible()
-  await expect(page.getByText(/No causal claim/).first()).toBeVisible()
+  const headers = matrix.getByRole('columnheader')
+  await expect(headers.nth(1)).toHaveText('United States')
+  await expect(headers.nth(2)).toHaveText('Testland')
+  expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 })
 
 async function streamToString(download: {
