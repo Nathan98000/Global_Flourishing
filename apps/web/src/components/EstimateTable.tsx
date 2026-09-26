@@ -45,7 +45,7 @@ export function EstimateTable({
    * 0–10 scale labels only its ends — ADR-0016). */
   levelLabel?: (level: number) => string | undefined
   /** Labels for a group column meta cannot name (e.g. a measure code in
-   * the Compare view); falls back to meta's labels. */
+   * What Matters); falls back to meta's labels. */
   groupLabel?: (column: string, value: string | number) => string | undefined
   /** Display names for the `predictor` sub-row key (the Correlates view's
    * catalog names); absent = the code. */

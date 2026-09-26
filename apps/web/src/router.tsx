@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  redirect,
   type RouterHistory,
   type SearchSchemaInput,
 } from '@tanstack/react-router'
@@ -14,13 +15,12 @@ import {
   breakdownsSearchParams,
   changeSearchParams,
   codebookSearchParams,
-  compareSearchParams,
+  compareRedirectSearch,
   correlatesSearchParams,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
   parseCodebookSearch,
-  parseCompareSearch,
   parseCorrelatesSearch,
   parseStatesSearch,
   parseWhatMattersSearch,
@@ -85,8 +85,8 @@ const indexRoute = createRoute({
   component: AtlasView,
 })
 
-// Phase 5: four API-only views, each a lazy chunk (the initial route stays
-// the Atlas alone — budget ≤ 250 kB gz).
+// Phase 5: API-only views, each a lazy chunk (the initial route stays the
+// Atlas alone — budget ≤ 250 kB gz).
 const changeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/change',
@@ -96,13 +96,15 @@ const changeRoute = createRoute({
   component: lazyRouteComponent(() => import('./views/ChangeView'), 'ChangeView'),
 })
 
-const compareRoute = createRoute({
+// Compare is retired (ADR-0017): a single-country split is what
+// Segments does. Its old links land there with the outcome and wave
+// they carried, when valid; every other param is dropped, unannounced.
+const compareRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/compare',
-  ...titled('Compare'),
-  validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCompareSearch(raw),
-  search: { middlewares: [omitDefaults(compareSearchParams)] },
-  component: lazyRouteComponent(() => import('./views/CompareView'), 'CompareView'),
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/segments', search: compareRedirectSearch(search), replace: true })
+  },
 })
 
 const whatMattersRoute = createRoute({
@@ -140,13 +142,25 @@ const statesRoute = createRoute({
   component: lazyRouteComponent(() => import('./views/StatesView'), 'StatesView'),
 })
 
+// Breakdowns, shown as Segments (ADR-0017): the view, its code and its
+// URL params keep the old name; only the address and the words change.
 const breakdownsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/breakdowns',
-  ...titled('Breakdowns'),
+  path: '/segments',
+  ...titled('Segments'),
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseBreakdownsSearch(raw),
   search: { middlewares: [omitDefaults(breakdownsSearchParams)] },
   component: lazyRouteComponent(() => import('./views/BreakdownsView'), 'BreakdownsView'),
+})
+
+// The old address keeps shared links working: every param rides along
+// and Segments parses it exactly as Breakdowns did.
+const breakdownsRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/breakdowns',
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: '/segments', search, replace: true })
+  },
 })
 
 const codebookRoute = createRoute({
@@ -175,12 +189,13 @@ const methodsRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   changeRoute,
-  compareRoute,
+  compareRedirectRoute,
   whatMattersRoute,
   correlatesRoute,
   modelCardsRoute,
   statesRoute,
   breakdownsRoute,
+  breakdownsRedirectRoute,
   codebookRoute,
   codebookDetailRoute,
   methodsRoute,

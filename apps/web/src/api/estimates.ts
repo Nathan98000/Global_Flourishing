@@ -169,11 +169,11 @@ export interface EstimatesManyResult {
   isSuccess: boolean
 }
 
-/** Several cross-sections at once (Compare's six domains, What Matters'
- * seven items) — the same fetcher and cache keys as useEstimates, so a
- * view that later asks for one of them alone finds it already loaded.
- * The list may change length between renders (it comes from the
- * catalog); useQueries keeps the hook count constant. */
+/** Several cross-sections at once (What Matters' seven items) — the
+ * same fetcher and cache keys as useEstimates, so a view that later asks
+ * for one of them alone finds it already loaded. The list may change
+ * length between renders (it comes from the catalog); useQueries keeps
+ * the hook count constant. */
 export function useEstimatesMany(requests: readonly AggregateRequest[]): EstimatesManyResult {
   const meta = useMeta()
   const variables = useVariables()

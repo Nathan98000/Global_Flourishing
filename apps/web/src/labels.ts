@@ -43,7 +43,7 @@ export function stateMembersOf(code: string, meta: Pick<Meta, 'state_labels'>): 
 
 export function columnLabel(column: string, meta: Meta): string {
   if (column === 'country_code') return 'Country'
-  // A synthesized group column (Compare, What Matters): one measure per row.
+  // A synthesized group column (What Matters): one measure per row.
   if (column === 'outcome') return 'Measure'
   // The US States view groups by the release's state codes.
   if (column === 'state') return 'State'

@@ -5,7 +5,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
-import { CompareDomains } from '../charts/CompareDomains'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
@@ -426,42 +425,6 @@ describe('column labels and the top axis', () => {
     const svg = container.querySelector('svg')
     expect(svg?.textContent).toContain('Female')
     expectColumnLabelsAboveTicks(svg)
-  })
-
-  test('a Compare split puts its country labels a line above the top ticks; the row header is haloed', () => {
-    const rows = [1, 22].flatMap((code) =>
-      [1, 2].map((gender) =>
-        testRow({
-          group: { country_code: code, gender, outcome: 'sfi_happiness' },
-          estimate: 6 + gender * 0.2,
-          ci_lo: 5.9,
-          ci_hi: 7.5,
-        }),
-      ),
-    )
-    const { container } = render(
-      <CompareDomains
-        rows={rows}
-        meta={testMeta}
-        outcomes={['sfi_happiness']}
-        outcomeLabel={() => 'SFI: happiness & life satisfaction'}
-        units={['Testland', 'United States']}
-        split="gender"
-        splitDomain={['Male', 'Female']}
-      />,
-    )
-    const svg = container.querySelector('svg')
-    expectColumnLabelsAboveTicks(svg)
-    // The row header reads across the row, with a surface halo so the
-    // next column's frame line never cuts through it.
-    const header = [...(svg?.querySelectorAll('text') ?? [])].find((node) =>
-      node.textContent?.startsWith('SFI: happiness'),
-    )
-    expect(header).toBeDefined()
-    // Plot puts a mark's styles on its per-facet group.
-    const group = header?.parentElement
-    expect(group?.getAttribute('stroke')).toBe('var(--surface)')
-    expect(group?.getAttribute('paint-order')).toBe('stroke')
   })
 })
 
