@@ -253,14 +253,51 @@ in that country (`FA_CORRELATES_MIN_N`; the constant lives with the
 other correlates rules in the engine). This is a deliberate exception to
 the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
-matrix shows them untinted, in muted ink, with the n and the reason in
-their tooltip — and the footnote says how many measures were left out.
+matrix shows each as a muted dash, with its number and the reason in its
+tooltip and the data table — and the footnote says how many measures were
+left out.
+
+**One construct, once.** A score and the questions it is built from are
+associated by construction, so a ranked list never holds two measures
+that share answers: of two such measures in the list, only the one built
+from more answers stays (the PHQ-2 depression score over its two
+questions), and of two built from as many, the score over its yes/no
+screen flag. The list then fills up again from further down the ranking,
+so it always holds as many measures as it shows, and the footnote names
+what stood in for what. Only measures that made the list compete: a score
+ranked below the cut never displaces its own question.
+
+**Two questions side by side** (Compare two). For the measure (y) and one
+other question (x) in one country, the view shows their weighted
+correlation and, for each answer to x, the weighted average of y among
+the people who gave it — the same estimator, weight and design-based
+interval as every average in the app — with each dot sized by the share
+of people who gave that answer. A question with more than eleven answers
+(a count such as age, or a score that is an average of answers) is cut
+into equal-width ranges between its weighted 1st and 99th percentiles —
+ten ranges for a score, whole-number ranges for a count — the two end
+ranges taking in the few people beyond them, and their labels say so. The
+answers run from least to most of what x's label names, so a positive
+correlation slopes up; for a measure whose lowest code is the most of
+what it names, the vertical axis runs downward in codes so that up is
+still "more". An answer given by fewer than 100 people (`FA_CORRELATES_MIN_N`)
+is drawn hollow and named. Each dot is an average of many people's
+answers; no individual's answers are ever shown.
+
+**A table of several** (Compare several) sets 2 to 10 questions against
+each other in one country: every pair's weighted correlation, as the
+ranked list would compute it, on the people who answered both. A pair
+built from the same answers is marked and not computed; a pair resting on
+fewer than 100 people reads a dash.
 
 ## Adjusted and unadjusted associations
 
-The Correlates view answers "what travels with this measure?" in two
-ways, and the difference between them is the most important thing on
-the page.
+Every association on the Correlates page is **unadjusted**: the plain
+weighted correlation above. The statistics engine can also compute
+**adjusted** associations; they are not on the site (the API offers them
+only where a server switches them on, `FA_ADJUSTED_ENABLED`), but the
+difference between the two is what "associations, not causes" means, so
+both are described here.
 
 **Unadjusted** means the plain weighted correlation above: how far two
 answers move together across everyone in a country, on a −1 to 1 scale.
@@ -276,11 +313,10 @@ for a 0–10 outcome, the change in the outcome (in points of its scale)
 associated with a one-unit change in the measure *among people who are
 alike on every control*; for a yes/no outcome, the same thing on the
 log-odds scale (the model is a weighted logistic regression). Because
-measures live on different scales, the view charts the coefficient per
+measures live on different scales, the coefficient is also reported per
 one standard deviation of the measure — the fit you would get by
 standardising the measure first, an exact rescaling — so a 0–10 item and
-a three-level item can share one ranked list; the data table carries
-both quantities. Standard errors are design-based (the same Taylor
+a three-level item can share one ranked list. Standard errors are design-based (the same Taylor
 linearisation as every mean in the app, applied to the coefficient's
 influence values — R `svyglm`'s number), and the interval is a 95%
 normal interval.
@@ -298,17 +334,17 @@ difference *between* countries, so the pooled coefficient is a
 within-country association and says nothing about why countries differ.
 The set of controls is the same for every outcome and every measure — it
 is never chosen per pair — and each model family has a card
-(`docs/model-cards/`, rendered in the app) stating the specification, the
-weight, the standard error and the limitations in full.
+(`docs/model-cards/`) stating the specification, the weight, the standard
+error and the limitations in full.
 
-Two smaller rules the view follows. Yes/no items enter every model as
-0/1 indicators of "Yes" (the release codes Yes as 1, No as 2; the derived
-screeners code "positive" as 1). And a ranked list leaves out any
-measure built from the same answers as the outcome — the flourishing
-index and one of its component questions, or two screeners that share an
-item — because they are associated by construction, not by anything in
-the world; items with no order (nominal codes) have no correlation and
-are left out too.
+Two smaller rules the Correlates page follows. Yes/no items enter every
+correlation (and model) as 0/1 indicators of "Yes" (the release codes Yes
+as 1, No as 2; the derived screeners code "positive" as 1). And a ranked
+list leaves out any measure built from the same answers as the outcome —
+the flourishing index and one of its component questions, or two
+screeners that share an item — because they are associated by
+construction, not by anything in the world; items with no order (nominal
+codes) have no correlation and are left out too.
 
 ## Associations, not causes
 

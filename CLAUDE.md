@@ -86,9 +86,12 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   subtopic *names* (`apps/web/src/topics.ts` — display names for the
   catalog's family and `subfamily` codes, owner decisions, design review
   Sept 2026 and ADR-0016; which measures sit under each topic and
-  subtopic is still the server's). Chart colors are `var(--token)`
-  strings from `tokens.css`, never hex in chart code (ADR-0010; scale
-  windows fit the data — see its "Revised" section).
+  subtopic is still the server's, bar one web-side move: the PHQ-2 and
+  GAD-2 scores and flags are listed under Mental health, ADR-0018).
+  Chart colors are `var(--token)` strings from `tokens.css`, never hex
+  in chart code (ADR-0010; scale windows fit the data — see its
+  "Revised" section — except a correlation's, fixed at −1 to 1,
+  ADR-0018).
 - **The generated client is committed and drift-checked**: after any
   API schema change run `uv run python -m flourish_api.openapi >
   apps/web/openapi.json && pnpm -C apps/web gen:api` and commit both.
@@ -100,7 +103,9 @@ only, clean tree; pushes the tag that triggers `.github/workflows/deploy.yml`).
   intercepts the exact path `/healthz` on `*.run.app` and returns its own 404
   before the container sees the request.
 - Numbers shown to users always carry weight and CI; the unweighted n
-  lives in the data table and the CSV, never in a tooltip (ADR-0016);
+  lives in the data table and the CSV, never in a tooltip (ADR-0016) —
+  except on the Correlates page, whose tooltips say how many people
+  answered both (a correlation has no interval; ADR-0018);
   associations, not causes (proposal §4.4).
 
 ## Phases (docs/PROPOSAL.md §7)
