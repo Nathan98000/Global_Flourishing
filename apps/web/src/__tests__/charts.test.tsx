@@ -2,13 +2,14 @@
 // labels come from meta, suppression renders in place, colors are token
 // vars (never hex) so both themes recolor the same SVG.
 
-import { render, screen } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
 import { RankedBar, rankEntries } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { chartWidth, usePlot } from '../charts/usePlot'
 import {
   attendVariable,
   happyVariable,
@@ -447,4 +448,58 @@ describe('column labels and the top axis', () => {
 
 test('screen has no leaked chart between tests', () => {
   expect(screen.queryByText('United States')).toBeNull()
+})
+
+describe('usePlot', () => {
+  /** A chart whose build records the width it was given and draws an
+   * SVG that wide — the contract every Plot chart follows. */
+  function Probe({ builds }: { builds: (number | null)[] }) {
+    const container = usePlot((available) => {
+      builds.push(available)
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('width', String(chartWidth(660, available)))
+      return svg
+    }, [])
+    return <div ref={container} data-testid="host" />
+  }
+
+  test("a chart rebuilds at its column's new width, growing as well as shrinking (review M5)", () => {
+    // jsdom has no layout and no ResizeObserver: the host's width is
+    // faked, and the observer hands its callback to the test.
+    let width = 707
+    const notify: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notify.push(callback)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width }) as DOMRect)
+    try {
+      const builds: (number | null)[] = []
+      render(<Probe builds={builds} />)
+      const drawn = () => screen.getByTestId('host').querySelector('svg')?.getAttribute('width')
+      expect(drawn()).toBe('707') // 768px window, 30.7px padding a side
+      const resize = (next: number) => {
+        width = next
+        act(() => notify.forEach((callback) => callback()))
+      }
+      resize(896) // → 1100px: the column grows
+      expect(drawn()).toBe('896')
+      resize(644) // → 700px
+      expect(drawn()).toBe('644')
+      resize(896) // and back up
+      expect(drawn()).toBe('896')
+      expect(builds.slice(-4)).toEqual([707, 896, 644, 896])
+    } finally {
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
 })
