@@ -99,17 +99,48 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await page.evaluate('window.scrollTo(0, 240)')
   const scrolled = await page.evaluate<number>('window.scrollY')
   expect(scrolled).toBeGreaterThan(200)
+  // The control's own <details> — not the "More options" fold that wraps
+  // it at phone width.
   const countries = page.locator('details', {
-    has: page.locator('summary', { hasText: /^Countries:/ }),
+    has: page.locator('summary', { hasText: /All \d+|selected|Choose up to/ }),
+    hasNot: page.locator('summary', { hasText: 'More options' }),
   })
-  await countries.locator('summary').click()
+  const trigger = countries.locator('summary')
+  const panel = countries.locator(':scope > div').first()
+  const insideColumn = async () => {
+    const column = await page.locator('main').boundingBox()
+    const box = await panel.boundingBox()
+    expect(box).not.toBeNull()
+    expect(column).not.toBeNull()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(column!.x + column!.width + 1)
+    expect(box!.x).toBeGreaterThanOrEqual(column!.x - 1)
+  }
+  // The trigger keeps its place and size across a selection change — a
+  // label above it and a minimum width (25 Sept fix) — and the open
+  // panel stays inside the page column.
+  const before = await trigger.boundingBox()
+  await trigger.click()
   await expect(countries).toHaveAttribute('open', '')
+  await insideColumn()
   const boxes = countries.getByRole('checkbox')
   await boxes.nth(0).check()
+  await expect(page).toHaveURL(/countries=1$/)
+  const after = await trigger.boundingBox()
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(Math.abs(after![key] - before![key])).toBeLessThanOrEqual(2)
+  }
   await boxes.nth(1).check()
   await expect(page).toHaveURL(/countries=1(%2C|,)22/)
   expect(Math.abs((await page.evaluate<number>('window.scrollY')) - scrolled)).toBeLessThan(4)
   await expect(countries).toHaveAttribute('open', '')
+
+  // At phone width the control lives in the "More options" fold; its open
+  // panel still stays inside the column.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByText('More options — chart, sort, countries').click()
+  await trigger.click()
+  await expect(countries).toHaveAttribute('open', '')
+  await insideColumn()
 })
 
 test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {
@@ -137,7 +168,7 @@ test('3 — a small cell renders with its n and no flag, not a gap', async ({ pa
   // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
   // were withheld; since ADR-0011 every cell is shown, with its n in the
   // data table so a reader can see what the number rests on.
-  await page.goto('/breakdowns?outcome=HAPPY&by=gender')
+  await page.goto('/segments?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
 

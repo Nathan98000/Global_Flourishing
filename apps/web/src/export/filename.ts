@@ -9,7 +9,7 @@
 export interface ExportName {
   /** The measure's display name ("Secure Flourishing Index"). */
   measure: string
-  /** The view in words ("By country", "Change", "Compare", "By state"). */
+  /** The view in words ("By country", "Change", "By state"). */
   view: string
   /** The wave or waves in words ("2023", "2023 to 2024", "Midyear"). */
   waves: string

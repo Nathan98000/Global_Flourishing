@@ -5,8 +5,6 @@ import { describe, expect, test } from 'vitest'
 import {
   ATLAS_DEFAULTS,
   CHANGE_DEFAULTS,
-  COMPARE_MAX_COUNTRIES,
-  COMPARE_MIN_COUNTRIES,
   CORRELATES_DEFAULTS,
   atlasRequest,
   atlasSearchParams,
@@ -14,8 +12,7 @@ import {
   breakdownsSearchParams,
   changeRequest,
   changeSearchParams,
-  compareRequest,
-  compareSearchParams,
+  compareRedirectSearch,
   correlatesAcrossCountries,
   correlatesRequest,
   correlatesSearchParams,
@@ -23,7 +20,6 @@ import {
   parseBreakdownsSearch,
   parseChangeSearch,
   parseCodebookSearch,
-  parseCompareSearch,
   parseCorrelatesSearch,
   parseStatesSearch,
   parseWhatMattersSearch,
@@ -108,9 +104,6 @@ describe('atlas search', () => {
     // raw: the notice must be recomputed from the raw alone.
     const rebuilt = parseAtlasSearch({ countries: [], invalidRaw: { countries: 'x,y' } })
     expect(rebuilt.invalid).toEqual(['countries'])
-    expect(
-      parseCompareSearch({ countries: [], invalidRaw: { countries: '1,2,3,4,5,6' } }).invalid,
-    ).toEqual(['countries'])
     // Repeated keys still combine.
     expect(parseAtlasSearch({ countries: ['1', '22'] }).countries).toEqual([1, 22])
   })
@@ -175,6 +168,17 @@ describe('breakdowns search', () => {
       '?by=gender&by=ATTEND_SVCS&sort=gap',
     )
   })
+
+  test('a retired Compare link keeps only a valid outcome and wave', () => {
+    expect(
+      compareRedirectSearch(
+        parseSearchString('?countries=1%2C22&wave=Y2&by=gender&outcome=HAPPY&topic=wellbeing'),
+      ),
+    ).toEqual({ outcome: 'HAPPY', wave: 'Y2' })
+    // An invalid value is dropped, not carried into a notice.
+    expect(compareRedirectSearch({ outcome: 'not a name', wave: 'Y9' })).toEqual({})
+    expect(compareRedirectSearch({ countries: '1,2' })).toEqual({})
+  })
 })
 
 describe('codebook search', () => {
@@ -232,37 +236,6 @@ describe('change search (Phase 5)', () => {
     expect(misplaced.invalid).toEqual(['via'])
     expect(parseChangeSearch({ via: 'Y2' }).invalid).toEqual(['via'])
     expect(parseChangeSearch({ sort: 'level' }).invalid).toEqual(['sort'])
-  })
-})
-
-describe('compare search (Phase 5)', () => {
-  test('two to five countries; more than five is rejected, not truncated', () => {
-    expect(parseCompareSearch({ countries: '1,22' }).countries).toEqual([1, 22])
-    const capped = parseCompareSearch({ countries: '1,2,3,4,5,6' })
-    expect(capped.countries).toEqual([])
-    expect(capped.invalid).toEqual(['countries'])
-    expect(COMPARE_MAX_COUNTRIES).toBe(5)
-    expect(COMPARE_MIN_COUNTRIES).toBe(2)
-  })
-
-  test('round-trips wave, split and the extra item; defaults omitted', () => {
-    expect(stringifySearch(compareSearchParams(parseCompareSearch({})))).toBe('')
-    const search = parseCompareSearch({
-      countries: '1,22',
-      wave: 'Y2',
-      by: 'gender',
-      outcome: 'HAPPY',
-    })
-    const serialized = stringifySearch(compareSearchParams(search))
-    expect(serialized).toBe('?countries=1%2C22&wave=Y2&by=gender&outcome=HAPPY')
-    expect(parseCompareSearch(parseSearchString(serialized))).toEqual(search)
-    expect(parseCompareSearch({ by: 'country_code' }).invalid).toEqual(['by'])
-    expect(compareRequest(search, 'sfi_health', happyVariable)).toEqual({
-      outcome: 'sfi_health',
-      wave: 'Y2',
-      stat: 'mean',
-      by: ['country_code', 'gender'],
-    })
   })
 })
 

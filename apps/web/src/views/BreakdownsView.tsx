@@ -1,4 +1,5 @@
-// Breakdowns (§2.6): outcome × one demographic as small multiples by
+// Breakdowns (§2.6), shown to readers as Segments at /segments
+// (ADR-0017): outcome × one demographic as small multiples by
 // country, sortable, every cell shown with its n. A second breakdown —
 // another demographic, or one categorical survey variable — is answered
 // by the live service only (the static tier facets by one demographic).
@@ -45,7 +46,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
-const route = getRouteApi('/breakdowns')
+const route = getRouteApi('/segments')
 
 export function BreakdownsView() {
   const search = route.useSearch()
@@ -129,25 +130,21 @@ export function BreakdownsView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Breakdowns</h2>
-        <Skeleton height={420} label="Loading breakdowns" />
+        <h2>Segments</h2>
+        <Skeleton height={420} label="Loading segments" />
       </section>
     )
   }
   if (meta.isError || variables.isError || !meta.data || !variables.data) {
     return (
       <section>
-        <h2>Breakdowns</h2>
+        <h2>Segments</h2>
         <ErrorState apiReachable={boot.apiReachable} error={meta.error ?? variables.error} />
       </section>
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const wave =
       target && !target.waves_available.includes(search.wave)
@@ -311,7 +308,7 @@ export function BreakdownsView() {
 
   return (
     <section>
-      <h2 className="visually-hidden">Breakdowns</h2>
+      <h2 className="visually-hidden">Segments</h2>
       <p className={styles.deck}>
         One measure split by a demographic, one panel per country — the Atlas&rsquo;s estimates, cut
         finer.

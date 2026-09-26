@@ -140,11 +140,7 @@ export function StatesView() {
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const wave =
       target && !target.waves_available.includes(search.wave)
@@ -376,7 +372,7 @@ export function StatesView() {
         states.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
-            Breakdowns still work.
+            Segments still work.
           </p>
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={states.error} />

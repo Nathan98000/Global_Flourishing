@@ -176,11 +176,7 @@ export function ChangeView() {
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const waves = target?.waves_available ?? []
     // Keep the comparison when the new measure supports it; otherwise
@@ -270,6 +266,10 @@ export function ChangeView() {
       : undefined
   const withRows = (rows: EstimateRow[]): EstimateResponse =>
     response ? { ...response, rows } : { meta: meta.data.meta as never, rows }
+  // The lede's years come from the supported pair, never from literals:
+  // if the only pair ever changes, the lede follows.
+  const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
+  const ledeYears = `${WAVE_MOMENTS[ledePair.from]} to ${WAVE_MOMENTS[ledePair.to]}`
 
   const displayOptions = (
     <>
@@ -300,16 +300,11 @@ export function ChangeView() {
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
       />
-      <div className={styles.countryPrompt}>
-        <CountryFilter
-          countries={meta.data.meta.countries}
-          selected={search.countries}
-          onChange={(countries) => setSearch({ countries })}
-        />
-        <span className={styles.hint}>
-          Pick up to four countries to see how individual answers moved.
-        </span>
-      </div>
+      <CountryFilter
+        countries={meta.data.meta.countries}
+        selected={search.countries}
+        onChange={(countries) => setSearch({ countries })}
+      />
     </>
   )
 
@@ -318,10 +313,12 @@ export function ChangeView() {
       <h2 className="visually-hidden">Change</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          How the same people answered a year later. Each number is the average change within one
-          country&rsquo;s respondents who answered both times, with its margin of error.
+          How the same people&rsquo;s answers changed from {ledeYears}, country by country, among
+          those who answered both years.
         </span>
-        <span className={styles.deckShort}>How the same people answered a year later.</span>
+        <span className={styles.deckShort}>
+          How the same people&rsquo;s answers changed from {ledeYears}.
+        </span>
       </p>
       <InvalidParamsNotice
         invalid={search.invalid}
@@ -342,7 +339,7 @@ export function ChangeView() {
           onSelect={handlePick}
           fields={narrow ? 'measure' : 'all'}
         />
-        {supportedPairs.length > 1 ? (
+        {supportedPairs.length > 1 && (
           <RadioRow
             legend="Compare"
             name="pair"
@@ -356,15 +353,6 @@ export function ChangeView() {
                 setSearch({ from: candidate.from, to: candidate.to, via: candidate.via })
             }}
           />
-        ) : (
-          <p className={styles.hint}>
-            Comparing {pairTitle(search.from, search.to, search.via)}. The midyear survey asked
-            different questions, so change is measured{' '}
-            {supportedPairs[0]
-              ? pairTitle(supportedPairs[0].from, supportedPairs[0].to, supportedPairs[0].via)
-              : pair}
-            .
-          </p>
         )}
         {isCategorical && levels.length > 0 && (
           <RadioRow
@@ -419,7 +407,7 @@ export function ChangeView() {
         change.error instanceof NetworkError && !boot.apiReachable ? (
           <p className={styles.hint} role="status">
             This view needs the live data service, which is offline right now — the Atlas and
-            Breakdowns still work.
+            Segments still work.
           </p>
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={change.error} />

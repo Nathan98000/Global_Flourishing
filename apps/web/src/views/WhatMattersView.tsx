@@ -298,7 +298,7 @@ export function WhatMattersView() {
   const offline = (error: unknown) =>
     error instanceof NetworkError && !boot.apiReachable ? (
       <p className={styles.hint} role="status">
-        This view needs the live data service, which is offline right now — the Atlas and Breakdowns
+        This view needs the live data service, which is offline right now — the Atlas and Segments
         still work.
       </p>
     ) : (

@@ -109,11 +109,7 @@ export function AtlasView() {
     )
   }
 
-  const handlePick = ({ outcome, topic }: { outcome?: string; topic?: string }) => {
-    if (outcome === undefined) {
-      setSearch({ topic })
-      return
-    }
+  const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
     const wave =
       target && !target.waves_available.includes(search.wave)
@@ -342,8 +338,7 @@ export function AtlasView() {
             <EmptyState title="Choose countries to compare">
               <p>
                 The distribution view shows the full shape of answers for up to four countries —
-                pick them with the control above that reads “Countries: all{' '}
-                {meta.data.meta.countries.length}”.
+                pick them with the Countries control above.
               </p>
             </EmptyState>
           ) : estimates.isPending ? (

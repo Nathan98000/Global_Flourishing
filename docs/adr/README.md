@@ -22,3 +22,4 @@ it.
 | [ADR-0014](ADR-0014-adjusted-associations.md) | Phase 6 — adjusted associations on numpy, the `svyglm` sandwich, a fixed control set, ranked correlations without intervals | Accepted |
 | [ADR-0015](ADR-0015-label-aligned-signs-and-display-rules.md) | Signed statistics follow the label; categorical change in share; a ranking floor; binned derived scores | Accepted |
 | [ADR-0016](ADR-0016-home-page-design-pass.md) | The home-page design pass — no world map, interval-only tooltips, no orient checkbox, scale endpoints, server-owned subtopics | Accepted |
+| [ADR-0017](ADR-0017-compare-retired-segments.md) | Compare retired as redundant with a single-country split; Breakdowns renamed Segments; the old addresses redirect | Accepted |

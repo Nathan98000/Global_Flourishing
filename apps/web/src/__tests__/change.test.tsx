@@ -253,9 +253,11 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/Y1/mean_by-country_code'))).toBe(false)
     // Plain-words copy, wave into the subtitle, sign on every change;
     // the estimate and its interval are still on the page.
-    expect(screen.getAllByText(/How the same people answered a year later/).length).toBeGreaterThan(
-      0,
-    )
+    // The lede states the years of the supported pair, never a "margin of error".
+    expect(
+      screen.getAllByText(/How the same people’s answers changed from 2023 to 2024/).length,
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/margin of error/)).toBeNull()
     expect(
       within(figure.closest('figure') as HTMLElement).getByText(/2023 → 2024/),
     ).toBeInTheDocument()
@@ -265,8 +267,8 @@ describe('Change view', () => {
     expect(within(table).getByText('−0.12')).toBeInTheDocument()
     expect(within(table).getByText('[−0.17, −0.07]')).toBeInTheDocument()
     expect(within(table).getByText('1,500')).toBeInTheDocument()
-    // The histogram waits for a country choice.
-    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
+    // The Countries control stands alone: no hint beside it (25 Sept).
+    expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
 
   test('a chosen country adds the histogram of individual change, zero on the axis', async () => {
@@ -385,21 +387,18 @@ describe('Change view', () => {
     })
     await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('img', { name: /average change among the same people/ })
-    // No measure spans the midyear survey: no radio group, one sentence.
+    // No measure spans the midyear survey: no pair control at all, and no
+    // sentence about it (25 Sept); the multi-pair path keeps its control.
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
-    expect(
-      screen.getByText(
-        /The midyear survey asked different questions, so change is measured 2023 → 2024\./,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/Comparing 2023/)).toBeNull()
+    expect(screen.queryByText(/midyear survey asked different questions/)).toBeNull()
     // Loneliness (asked once) is not offered; the count follows.
     const measure = screen.getByLabelText('Measure', { exact: true })
     expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
     expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
-    // The prompt sits beside the country control, which reads its state.
-    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
-    expect(screen.getByText(/Pick up to four countries/)).toBeInTheDocument()
+    // The country control reads its state; no prompt beside it.
+    expect(screen.getByText('All 2')).toBeInTheDocument()
   })
 
   test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {

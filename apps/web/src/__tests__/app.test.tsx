@@ -115,7 +115,7 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  // Phase 6 nav order — nine items, Correlates after What Matters.
+  // Phase 6 nav order less Compare (ADR-0017) — eight items.
   expect(
     within(nav)
       .getAllByRole('link')
@@ -123,11 +123,10 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   ).toEqual([
     'Atlas',
     'Change',
-    'Compare',
     'What Matters',
     'Correlates',
     'US States',
-    'Breakdowns',
+    'Segments',
     'Codebook',
     'Methods',
   ])
@@ -171,10 +170,12 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   const measure = screen.getByLabelText('Measure') as HTMLSelectElement
   expect(measure.value).toBe('sfi')
 
-  // Changing topic keeps the chart until a measure is picked.
+  // Changing topic picks that topic's first listed measure (25 Sept), so
+  // the old measure and its settings never linger: the chart follows.
   fireEvent.change(topic, { target: { value: 'wellbeing' } })
   const measureAfter = (await screen.findByLabelText('Measure')) as HTMLSelectElement
-  expect(measureAfter.value).toBe('') // "Choose a measure…"
+  expect(measureAfter.value).toBe('HAPPY')
+  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
 
   // The search field selects a measure directly and re-infers its topic.
   fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
@@ -327,7 +328,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   expect(statistic).toHaveDisplayValue('Mean')
 })
 
-test('on a phone the secondary five nav items collapse behind "More" (type unchanged)', async () => {
+test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -352,11 +353,10 @@ test('on a phone the secondary five nav items collapse behind "More" (type uncha
   expect(inline).toEqual([
     'Atlas',
     'Change',
-    'Compare',
     'What Matters',
     'Correlates',
     'US States',
-    'Breakdowns',
+    'Segments',
     'Codebook',
     'Methods',
   ])
@@ -385,11 +385,10 @@ test('entering an API-only view fires one warm-up ping; the Atlas does not', asy
   expect(screen.queryByText(/Every view on this deployment/)).toBeNull()
 })
 
-test('the four new routes exist, parse their URL state and say what they are', async () => {
+test('the Phase 5 routes exist, parse their URL state and say what they are', async () => {
   mockFetch(staticTier)
   for (const [path, heading] of [
     ['/change?via=MY', 'Change'],
-    ['/compare?countries=1,22', 'Compare'],
     ['/what-matters?by=gender', 'What Matters'],
     ['/states?wave=Y2&adj=true', 'US States'],
   ] as const) {
@@ -401,4 +400,53 @@ test('the four new routes exist, parse their URL state and say what they are', a
   // Bad params degrade with the notice, never a crash.
   await renderAt('/states?adj=true')
   expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
+})
+
+test('an old Compare link lands on Segments with its outcome and wave, and no notice', async () => {
+  mockFetch(staticTier)
+  for (const [path, href, outcome] of [
+    // sfi is the Segments default, so the address omits it (defaults
+    // never reach the URL); the view still shows sfi.
+    ['/compare?outcome=sfi&countries=1,2', '/segments', 'sfi'],
+    [
+      '/compare?countries=1,22&wave=Y2&by=gender&outcome=HAPPY&topic=wellbeing',
+      '/segments?outcome=HAPPY&wave=Y2',
+      'HAPPY',
+    ],
+    // Invalid values are dropped silently, like every other param.
+    ['/compare?outcome=HAPPY&wave=Y9', '/segments?outcome=HAPPY', 'HAPPY'],
+  ] as const) {
+    const router = await renderAt(path)
+    expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.href).toBe(href))
+    // Compare's countries and split did not come along.
+    expect(router.state.matches.at(-1)?.search).toMatchObject({
+      outcome,
+      countries: [],
+      by: ['age_band'],
+    })
+    expect(screen.queryByText(/were invalid and were reset/)).toBeNull()
+    cleanup()
+  }
+})
+
+test('an old Breakdowns link lands on Segments with every param it carried', async () => {
+  mockFetch(staticTier)
+  for (const [path, href] of [
+    ['/breakdowns?by=gender', '/segments?by=gender'],
+    [
+      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+    ],
+  ] as const) {
+    const router = await renderAt(path)
+    expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.href).toBe(href))
+    expect(document.title).toBe('Segments — Flourish Atlas')
+    cleanup()
+  }
+  // A bad value rides along too, and Segments flags it as Breakdowns did.
+  const router = await renderAt('/breakdowns?wave=Y9')
+  await waitFor(() => expect(router.state.location.href).toBe('/segments?wave=Y9'))
+  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('wave')
 })
