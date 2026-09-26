@@ -1,22 +1,20 @@
-// Correlates (Phase 6): what travels with a measure. Two views, one on
+// Correlates (Phase 6): what goes with a measure. Two views, one on
 // screen at a time (`view`, owner decision 25 Sept 2026): the ranked list
 // for one country (the server sweeps every other ordered item, ranks by
 // strength and cuts the list) and the same items across every country —
 // a view that is not on screen mounts nothing and fetches nothing beyond
-// the ranked list it is built from. Unadjusted rows are plain weighted
-// correlations, point estimates only, so no interval is ever drawn for
-// them; the adjusted toggle swaps in the fixed-control models, whose
-// coefficients carry a design-based interval and whose figure links to
-// the model card. Every number is the server's; this view chooses,
-// labels and renders. Associations, not causes — said in the deck and in
-// the footnote, in plain sentences.
+// the ranked list it is built from. Rows are weighted correlations, point
+// estimates only, so no interval is ever drawn for them. The adjusted
+// models are not offered here (ADR-0018). Every number is the server's;
+// this view chooses, labels and renders. Associations, not causes — said
+// in the deck and in the footnote, in plain sentences.
 
-import { Link, getRouteApi } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
-import { chartRows, predictorOrder, useCorrelates } from '../api/correlates'
+import { predictorOrder, useCorrelates, type CorrelationMethod } from '../api/correlates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateResponse, EstimateRow, Wave } from '../api/types'
+import type { EstimateResponse, EstimateRow, Meta, Wave } from '../api/types'
 import { WAVES } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
@@ -29,6 +27,7 @@ import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
+import { Disclosure } from '../components/controls/Disclosure'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -47,19 +46,19 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
   METHOD_HINT,
-  adjustedPhrase,
   axisTitle,
   belowFloor,
-  controlsPhrase,
+  countriesByName,
   defaultCountry,
   excludedNote,
   heatCells,
   heatKey,
   matrixCaption,
-  outcomeUnit,
+  methodLabel,
   rankedSubtitle,
   statisticPhrase,
   tintExtent,
+  waveNote,
 } from './correlatesRows'
 import styles from './AtlasView.module.css'
 
@@ -68,6 +67,11 @@ const route = getRouteApi('/correlates')
 /** The one sentence this view owes its reader, in both places. */
 const NOT_CAUSES =
   'Associations, not causes: two answers moving together in one survey, at one time, says nothing about which one moves the other.'
+
+const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
+  { value: 'pearson', label: 'Straight-line (Pearson)' },
+  { value: 'spearman', label: 'By rank (Spearman)' },
+]
 
 export function CorrelatesView() {
   useWarmApi()
@@ -84,7 +88,7 @@ export function CorrelatesView() {
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const served = meta.data?.meta
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
-  const adjusted = search.adjusted === true
+  const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
 
   const setSearch = (patch: Partial<CorrelatesSearch>) => {
     void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
@@ -104,14 +108,8 @@ export function CorrelatesView() {
       : null
   const across = useCorrelates(acrossRequest, { enabled: search.view === 'countries' })
   const acrossResponse = across.data
-  const rankedRows = useMemo(
-    () => (rankedResponse ? chartRows(rankedResponse.rows) : []),
-    [rankedResponse],
-  )
-  const acrossRows = useMemo(
-    () => (acrossResponse ? chartRows(acrossResponse.rows) : []),
-    [acrossResponse],
-  )
+  const rankedRows = rankedResponse?.rows ?? []
+  const acrossRows = useMemo(() => acrossResponse?.rows ?? [], [acrossResponse])
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
 
   if (meta.isPending || variables.isPending) {
@@ -155,67 +153,25 @@ export function CorrelatesView() {
     { value: 'countries', label: 'Across countries' },
   ]
 
+  // An option the measure was not asked in stays in the row, disabled,
+  // and the line under the row says why.
   const waveOptions: RadioOption<Wave>[] = WAVES.map((wave) => ({
     value: wave,
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable !== undefined && !variable.waves_available.includes(wave),
-    title:
-      variable !== undefined && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : undefined,
   }))
-
-  const displayOptions = (
-    <>
-      <RadioRow<'plain' | 'adjusted'>
-        legend="Model"
-        name="model"
-        options={[
-          { value: 'plain', label: 'Correlation' },
-          { value: 'adjusted', label: 'Adjusted difference' },
-        ]}
-        value={adjusted ? 'adjusted' : 'plain'}
-        onChange={(value) => setSearch({ adjusted: value === 'adjusted' ? true : undefined })}
-      />
-      <RadioRow<'pearson' | 'spearman'>
-        legend="Correlation"
-        name="method"
-        options={[
-          {
-            value: 'pearson',
-            label: 'Pearson',
-            disabled: adjusted,
-            title: adjusted
-              ? 'The adjusted model reports a coefficient, not a correlation'
-              : undefined,
-          },
-          {
-            value: 'spearman',
-            label: 'Spearman',
-            disabled: adjusted,
-            title: adjusted
-              ? 'The adjusted model reports a coefficient, not a correlation'
-              : undefined,
-          },
-        ]}
-        value={search.method ?? 'pearson'}
-        onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
-      />
-      {!adjusted && <p className={styles.hint}>{METHOD_HINT}</p>}
-    </>
-  )
 
   // What a download is called, in words (ADR-0016): the ranked list for
   // one country, or the same measures across countries.
   const rankedName: ExportName = {
     measure: title,
-    view: adjusted ? 'Adjusted correlates' : 'Correlates',
+    view: 'Correlates',
     waves: WAVE_CHIPS[search.wave] ?? search.wave,
     ...(countryName ? { country: countryName } : {}),
   }
   const acrossName: ExportName = {
     measure: title,
-    view: adjusted ? 'Adjusted correlates across countries' : 'Correlates across countries',
+    view: 'Correlates across countries',
     waves: WAVE_CHIPS[search.wave] ?? search.wave,
   }
   const csvFor = (response: EstimateResponse, name: ExportName) => ({
@@ -224,15 +180,7 @@ export function CorrelatesView() {
   })
   const footnote = (response: EstimateResponse) => {
     const excluded = excludedNote(response.meta)
-    return adjusted ? (
-      <>
-        {NOT_CAUSES} The model holds {controlsPhrase(response.meta, served)} fixed and nothing else.{' '}
-        <Link to="/model-cards" hash={response.meta.model ?? 'continuous'}>
-          Read the model card
-        </Link>
-        . {excluded ? `${excluded} ` : ''}
-      </>
-    ) : (
+    return (
       <>
         {NOT_CAUSES} {excluded ? `${excluded} ` : ''}
       </>
@@ -248,7 +196,7 @@ export function CorrelatesView() {
       <ErrorState apiReachable={boot.apiReachable} error={error} />
     )
   const strongest = rankedRows.find((row) => row.estimate !== null)
-  const rankedAria = `${title}: the ${predictors.length} measures most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(adjusted, search.method)}.${
+  const rankedAria = `${title}: the ${predictors.length} measures most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
@@ -259,12 +207,11 @@ export function CorrelatesView() {
       <h2 className="visually-hidden">Correlates</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          What travels with a measure: for one country, the other questions whose answers move
-          together with it, ranked by the strength of the association in either direction. These are
-          associations, not causes — things that go together in one survey, at one time.
+          Pick a question to see which other answers tend to go with it, in one country. Things that
+          go together aren&rsquo;t necessarily cause and effect.
         </span>
         <span className={styles.deckShort}>
-          What travels with a measure — associations, not causes.
+          Which other answers go with the one you pick, in one country.
         </span>
       </p>
       <InvalidParamsNotice
@@ -278,13 +225,15 @@ export function CorrelatesView() {
           )
         }
       />
-      <div className={styles.controls}>
+      {/* Every control sits under its own label line, so the row aligns
+          on the labels and the wave's note hangs below it. */}
+      <div className={`${styles.controls} ${styles.controlsTop}`}>
         <OutcomePicker
           variables={variables.data.list}
           value={search.outcome}
           topic={search.topic}
           onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          pairs
         />
         <RadioRow
           legend="Wave"
@@ -292,46 +241,49 @@ export function CorrelatesView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
+          note={variable ? waveNote(variable.waves_available) : undefined}
         />
-        <label className={styles.countrySelect}>
-          Country{' '}
-          <select
-            value={country ?? ''}
-            onChange={(event) =>
-              setSearch({
-                country:
-                  Number(event.target.value) === defaultCountry(served)
-                    ? undefined
-                    : Number(event.target.value),
-              })
-            }
-          >
-            {served.countries.map((entry) => (
-              <option key={entry.code} value={entry.code}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — model, correlation, topic</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={variables.data.list}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
+        <div className={styles.pairRow}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Country</span>
+            <select
+              value={country ?? ''}
+              onChange={(event) =>
+                setSearch({
+                  country:
+                    Number(event.target.value) === defaultCountry(served)
+                      ? undefined
+                      : Number(event.target.value),
+                })
+              }
+            >
+              {countries.map((entry) => (
+                <option key={entry.code} value={entry.code}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={styles.field}>
+            {/* An empty label line keeps the button level with the selects. */}
+            <span className={styles.fieldLabel} aria-hidden="true">
+              &nbsp;
+            </span>
+            <Disclosure label={methodLabel(search.method)}>
+              <RadioRow<CorrelationMethod>
+                legend="Correlation type"
+                name="method"
+                options={METHOD_OPTIONS}
+                value={search.method ?? 'pearson'}
+                onChange={(value) =>
+                  setSearch({ method: value === 'spearman' ? 'spearman' : undefined })
+                }
               />
-              {displayOptions}
-            </div>
-          </details>
-        ) : (
-          displayOptions
-        )}
+              <p className={styles.methodHint}>{METHOD_HINT}</p>
+            </Disclosure>
+          </div>
+        </div>
       </div>
-
       <div className={styles.controls}>
         <RadioRow
           legend="View"
@@ -373,13 +325,7 @@ export function CorrelatesView() {
             </p>
             <ChartFigure
               title={`What travels with ${title}`}
-              subtitle={rankedSubtitle(
-                countryName,
-                adjusted,
-                search.method,
-                search.wave,
-                adjustedPhrase(variable, rankedResponse.meta, served),
-              )}
+              subtitle={rankedSubtitle(countryName, search.method, search.wave)}
               ariaLabel={rankedAria}
               marks="dots"
               intro={
@@ -408,14 +354,8 @@ export function CorrelatesView() {
                 zeroRule
                 labelWidth={narrow ? 200 : 230}
                 labelFontSize={narrow ? 12 : 13.5}
-                axisTitle={axisTitle(adjusted, search.method, variable)}
+                axisTitle={axisTitle(search.method)}
               />
-              {adjusted && (
-                <p className={styles.hint}>
-                  Each dot: the change in {title}, in {outcomeUnit(variable)}, per one standard
-                  deviation of the measure, among people alike on every control.
-                </p>
-              )}
             </ChartFigure>
           </>
         ) : predictors.length === 0 ? (
@@ -432,7 +372,7 @@ export function CorrelatesView() {
         ) : acrossResponse ? (
           <ChartFigure
             title="Across countries"
-            subtitle={`The same measures in every country · ${statisticPhrase(adjusted, search.method)} · ${WAVE_TITLES[search.wave] ?? search.wave}`}
+            subtitle={`The same measures in every country · ${statisticPhrase(search.method)} · ${WAVE_TITLES[search.wave] ?? search.wave}`}
             ariaLabel={`${title}: the ${predictors.length} measures ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix. Rust cells are negative associations, teal cells positive; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
@@ -449,7 +389,7 @@ export function CorrelatesView() {
               cells={cells}
               minN={acrossResponse.meta.min_n}
               nameOf={nameOf}
-              served={served}
+              countries={countries}
               outcome={title}
             />
           </ChartFigure>
@@ -465,7 +405,7 @@ function CountryMatrix({
   cells,
   minN,
   nameOf,
-  served,
+  countries,
   outcome,
 }: {
   predictors: readonly string[]
@@ -474,7 +414,8 @@ function CountryMatrix({
   /** The server's ranking floor: cells below it are shown, untinted. */
   minN: number | null | undefined
   nameOf: (name: string) => string
-  served: NonNullable<ReturnType<typeof useMeta>['data']>['meta']
+  /** The columns, A–Z. */
+  countries: Meta['countries']
   outcome: string
 }) {
   // The tint window fits the cells that count; a cell below the floor is
@@ -487,12 +428,12 @@ function CountryMatrix({
       caption={matrixCaption(outcome, extent, stat)}
       corner="Measure ↓ · country →"
       rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
-      columns={served.countries.map((country) => ({
+      columns={countries.map((country) => ({
         key: String(country.code),
         label: country.name,
       }))}
       cellAt={(row, column) => {
-        const country = served.countries.find((entry) => String(entry.code) === column.key)
+        const country = countries.find((entry) => String(entry.code) === column.key)
         const cell = country ? cells.get(heatKey(row.key, country)) : undefined
         if (!cell) return undefined
         const muted = belowFloor(cell, minN)

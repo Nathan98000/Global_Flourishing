@@ -52,6 +52,14 @@
   cursor: not-allowed;
 }
 
+/* Why the disabled options are unavailable: one plain line under the
+   row, in readable secondary ink (not the muted grey of the options). */
+.note {
+  max-width: 24rem;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
 /* The ring only for keyboard focus (never after a click). */
 .option:has(:focus-visible) {
   outline: 2px solid var(--focus-ring);

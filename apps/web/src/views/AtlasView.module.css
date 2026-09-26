@@ -39,14 +39,26 @@
   margin-bottom: var(--space-5);
 }
 
-/* A single-country choice (Correlates): a native select under a 13px
-   label, the quiet control voice of the segmented rows. */
-.countrySelect {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
+/* Correlates: the row aligns on its label lines (every control has one),
+   so a note under the Wave row hangs below it without pulling the other
+   controls down to its baseline. */
+.controlsTop {
+  align-items: flex-start;
+}
+
+/* Country and the Method button: side by side on every width. */
+.pairRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+/* The line under the correlation choice, inside the Method panel. */
+.methodHint {
+  margin: 0;
   color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 
 .oriented {
@@ -168,5 +180,18 @@
     grid-template-columns: 1fr;
     gap: var(--space-3);
     align-items: end;
+  }
+
+  /* Correlates on a phone: Country and Method share a row, halves. */
+  .pairRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  /* A 44px touch target, level with the Method button beside it. */
+  .pairRow select {
+    width: 100%;
+    min-height: 44px;
   }
 }

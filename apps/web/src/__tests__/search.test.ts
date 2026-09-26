@@ -336,7 +336,7 @@ describe('correlates search (Phase 6)', () => {
 
   test('a full URL round-trips exactly', () => {
     const raw = parseSearchString(
-      '?outcome=HAPPY&wave=Y2&country=22&view=countries&adjusted=true&method=spearman&topic=wellbeing',
+      '?outcome=HAPPY&wave=Y2&country=22&view=countries&method=spearman&topic=wellbeing',
     )
     const search = parseCorrelatesSearch(raw)
     expect(search).toMatchObject({
@@ -344,13 +344,12 @@ describe('correlates search (Phase 6)', () => {
       wave: 'Y2',
       country: 22,
       view: 'countries',
-      adjusted: true,
       method: 'spearman',
       topic: 'wellbeing',
     })
     expect(search.invalid).toBeUndefined()
     expect(stringifySearch(correlatesSearchParams(search))).toBe(
-      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&view=countries&adjusted=true&method=spearman',
+      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&view=countries&method=spearman',
     )
   })
 
@@ -374,13 +373,12 @@ describe('correlates search (Phase 6)', () => {
     const search = parseCorrelatesSearch(raw)
     expect(search.outcome).toBe('HAPPY')
     expect(search.country).toBeUndefined()
-    expect(search.adjusted).toBeUndefined()
     expect(search.method).toBeUndefined()
     expect(search.wave).toBe(CORRELATES_DEFAULTS.wave)
-    expect(search.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(search.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // The rejected raws ride along, so a re-parse reports the same notice.
     const again = parseCorrelatesSearch(correlatesSearchParams(search))
-    expect(again.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(again.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // Dismissed: they drop out.
     expect(
       stringifySearch(
@@ -392,14 +390,30 @@ describe('correlates search (Phase 6)', () => {
     expect(parseCorrelatesSearch({ outcome: '9lives' }).invalid).toEqual(['outcome'])
   })
 
-  test('the requests carry the API vocabulary; adjusted drops the method', () => {
-    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman' })
+  test("the adjusted model left the page: an old link's `adjusted` is reported, whatever it says", () => {
+    for (const value of ['true', 'false', 'yes']) {
+      const search = parseCorrelatesSearch({ outcome: 'HAPPY', adjusted: value })
+      expect(search.invalid).toEqual(['adjusted'])
+      expect(search).not.toHaveProperty('adjusted')
+      // It stays in the URL (so the notice survives a re-parse) until dismissed.
+      expect(stringifySearch(correlatesSearchParams(search))).toBe(
+        `?outcome=HAPPY&adjusted=${value}`,
+      )
+      expect(
+        stringifySearch(
+          correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+        ),
+      ).toBe('?outcome=HAPPY')
+    }
+  })
+
+  test('the requests carry the API vocabulary, and never the adjusted model', () => {
+    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman', adjusted: 'true' })
     expect(correlatesRequest(search, 9)).toEqual({
       outcome: 'HAPPY',
       wave: 'Y1',
       by: [],
       countries: [9],
-      adjusted: undefined,
       method: 'spearman',
     })
     expect(correlatesAcrossCountries(search, ['LONELY', 'BALANCE'])).toEqual({
@@ -407,15 +421,7 @@ describe('correlates search (Phase 6)', () => {
       wave: 'Y1',
       against: ['LONELY', 'BALANCE'],
       by: ['country_code'],
-      adjusted: undefined,
       method: 'spearman',
     })
-    const adjusted = parseCorrelatesSearch({
-      outcome: 'HAPPY',
-      method: 'spearman',
-      adjusted: 'true',
-    })
-    expect(correlatesRequest(adjusted, 9).method).toBeUndefined()
-    expect(correlatesRequest(adjusted, 9).adjusted).toBe(true)
   })
 })

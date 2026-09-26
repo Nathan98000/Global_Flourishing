@@ -79,9 +79,22 @@ function mockFetch(routes: Routes) {
   return calls
 }
 
+/** A derived score whose catalog family is `derived`, which the picker
+ * lists under Mental health (ADR-0018). */
+const phq2Variable = {
+  ...sfiVariable,
+  name: 'phq2_score',
+  display_name: 'PHQ-2 depression score',
+  label: 'Sum of the two PHQ-2 items rescored 0–3 each; 0–6.',
+  scale_type: 'count',
+  direction: 'lower_better',
+  min: 0,
+  max: 6,
+}
+
 const staticTier: Routes = {
   '/data/meta.json': testMeta,
-  '/data/variables.json': { variables: [sfiVariable, happyVariable] },
+  '/data/variables.json': { variables: [sfiVariable, happyVariable, phq2Variable] },
   '/data/v1/sfi/variable.json': sfiDetail,
   '/data/v1/sfi/Y1/mean_by-country_code.json': sfiByCountry,
   '/data/v1/HAPPY/variable.json': happyDetail,
@@ -167,6 +180,14 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   const topic = (await screen.findByLabelText('Topic')) as HTMLSelectElement
   expect(topic.value).toBe('derived') // inferred from the sfi outcome
   expect(screen.getByRole('option', { name: 'Flourishing index & its domains (1)' })).toBeVisible()
+  // The PHQ-2 and GAD-2 scores are catalogued as derived scores but
+  // listed under Mental health, not beside the flourishing index.
+  expect(screen.getByRole('option', { name: 'Mental health (1)' })).toBeVisible()
+  expect([...topic.options].map((option) => option.textContent)).toEqual([
+    'Flourishing index & its domains (1)',
+    'Wellbeing (1)',
+    'Mental health (1)',
+  ])
   const measure = screen.getByLabelText('Measure') as HTMLSelectElement
   expect(measure.value).toBe('sfi')
 
@@ -181,6 +202,13 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
   fireEvent.click(await screen.findByRole('button', { name: /Happiness/ }))
   expect((await screen.findByLabelText('Topic')) as HTMLSelectElement).toHaveValue('wellbeing')
+  // …and a PHQ-2 score found by search lands in Mental health.
+  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'PHQ-2' } })
+  fireEvent.click(await screen.findByRole('button', { name: /PHQ-2 depression score/ }))
+  await waitFor(() =>
+    expect(screen.getByLabelText('Topic') as HTMLSelectElement).toHaveValue('mental_health'),
+  )
+  expect(screen.getByLabelText('Measure') as HTMLSelectElement).toHaveValue('phq2_score')
 })
 
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {
