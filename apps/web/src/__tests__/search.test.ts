@@ -17,6 +17,7 @@ import {
   correlatesRequest,
   correlatesSearchParams,
   pairRequest,
+  tableRequest,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
@@ -381,6 +382,33 @@ describe('correlates search (Phase 6)', () => {
     // Absent: the view resolves the default from the ranked list.
     expect(parseCorrelatesSearch({ view: 'pair' }).x).toBeUndefined()
     expect(parseCorrelatesSearch({ view: 'pair', x: '9lives' }).invalid).toEqual(['x'])
+  })
+
+  test("Compare several: `view=matrix` and the table's questions (`vars`, 2 to 10, in order)", () => {
+    const table = parseCorrelatesSearch(
+      parseSearchString('?outcome=HAPPY&view=matrix&vars=HAPPY,LONELY,sfi'),
+    )
+    expect(table).toMatchObject({ view: 'matrix', vars: ['HAPPY', 'LONELY', 'sfi'] })
+    expect(table.invalid).toBeUndefined()
+    expect(stringifySearch(correlatesSearchParams(table))).toBe(
+      '?outcome=HAPPY&view=matrix&vars=HAPPY%2CLONELY%2Csfi',
+    )
+    // Repeated keys read the same.
+    expect(parseCorrelatesSearch({ vars: ['HAPPY', 'LONELY'] }).vars).toEqual(['HAPPY', 'LONELY'])
+    expect(tableRequest(table, ['HAPPY', 'LONELY'], 22)).toEqual({
+      vars: ['HAPPY', 'LONELY'],
+      wave: 'Y1',
+      country: 22,
+      method: undefined,
+    })
+    // One, eleven, a repeat or a bad name: reported, and the default stands.
+    const eleven = Array.from({ length: 11 }, (_, i) => `Q${i}`).join(',')
+    for (const bad of ['HAPPY', eleven, 'HAPPY,HAPPY', 'HAPPY,9lives']) {
+      const parsed = parseCorrelatesSearch({ vars: bad })
+      expect(parsed.vars).toBeUndefined()
+      expect(parsed.invalid).toEqual(['vars'])
+    }
+    expect(parseCorrelatesSearch({ view: 'matrix' }).vars).toBeUndefined()
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {

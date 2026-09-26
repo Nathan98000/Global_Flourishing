@@ -15,6 +15,7 @@ import { predictorOrder } from '../api/correlates'
 import { resetNegativePathCache } from '../api/estimates'
 import type {
   ApiHealth,
+  CorrelationsResponse,
   EstimateRow,
   PairResponse,
   VariableDetail,
@@ -175,6 +176,41 @@ const pairFixture: PairResponse = {
   ],
 }
 
+/** A three-question table: one pair estimated, one built from the same
+ * answers (never estimated), one resting on too few people. */
+const tableFixture: CorrelationsResponse = {
+  meta: {
+    data_version: 'test.1.0.0',
+    vars: ['HAPPY', 'LONELY', 'ATTEND_SVCS'],
+    wave: 'Y1',
+    stat: 'pearson_r',
+    weight_key: 'y1',
+    weight: 'w_c1',
+    ci_level: 0.95,
+    suppression: { threshold: 0, flag_below: 0 },
+    n_frame: 60,
+    filters: { country_code: [22] },
+    min_n: 20,
+  },
+  pairs: [
+    {
+      a: 'HAPPY',
+      b: 'LONELY',
+      shares_answers: false,
+      below_min_n: false,
+      correlation: plainRow('LONELY', -0.52),
+    },
+    { a: 'HAPPY', b: 'ATTEND_SVCS', shares_answers: true, below_min_n: false, correlation: null },
+    {
+      a: 'LONELY',
+      b: 'ATTEND_SVCS',
+      shares_answers: false,
+      below_min_n: true,
+      correlation: plainRow('ATTEND_SVCS', 0.2, undefined, 7),
+    },
+  ],
+}
+
 type Routes = Record<string, unknown | Response>
 
 function mockFetch(routes: Routes) {
@@ -207,6 +243,7 @@ const tier: Routes = {
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/health': okHealth,
   '/v1/correlations/pair': pairFixture,
+  '/v1/correlations?': tableFixture,
   '&by=country_code': acrossPlain,
   'filter=country_code%3A22': rankedPlain,
 }
@@ -582,6 +619,118 @@ describe('Correlates view', () => {
         /Secure Flourishing Index is shown; its individual questions are left out\./,
       ),
     ).toBeInTheDocument()
+  })
+
+  test('Compare several: the measure and its top correlates, as a lower-triangle table', async () => {
+    const calls = mockFetch(tier)
+    const router = await renderAt('/correlates?outcome=HAPPY&view=matrix')
+    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
+    // The default table: the measure and its top correlates (never empty).
+    const request = calls.find((url) => url.includes('/v1/correlations?')) as string
+    expect(request).toContain('vars=HAPPY&vars=LONELY&vars=ATTEND_SVCS&wave=Y1')
+    expect(router.state.location.searchStr).not.toContain('vars=')
+    const chips = within(screen.getByRole('list', { name: 'Questions in this table' }))
+    expect(chips.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '1 · Happiness×',
+      '2 · Loneliness×',
+      '3 · Service attendance×',
+    ])
+    expect(screen.getByText('Correlations among 3 questions')).toBeInTheDocument()
+    expect(
+      screen.getByText('United States · Wave 1, 2023 · correlation, −1 to 1'),
+    ).toBeInTheDocument()
+    const table = within(figure).getByRole('table')
+    expect(
+      within(table)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['1 · Happiness', '2 · Loneliness', '3 · Service attendance'])
+    // Columns are numbers; their full names are the accessible names.
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['1', '2', '3'])
+    expect(within(table).getByRole('columnheader', { name: '2 · Loneliness' })).toBeInTheDocument()
+    // Lower triangle only: 3 blank cells on and above the diagonal per…
+    const cells = within(table).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      '',
+      '',
+      '',
+      '−0.52',
+      '',
+      '',
+      '·, built from the same answers',
+      '—, too few respondents',
+      '',
+    ])
+    expect(cells[3]?.getAttribute('style')).toContain('var(--div-n5)')
+    // The legend adds the dot's meaning.
+    expect(within(figure).getByText('· built from the same answers')).toBeInTheDocument()
+    expect(within(figure).getByText('— too few respondents')).toBeInTheDocument()
+    expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
+    // A cell is a button: row on y, column on x.
+    const cell = within(table).getByRole('button', {
+      name: 'Loneliness and Happiness, −0.52: see the two questions together',
+    })
+    fireEvent.focus(cell)
+    expect(within(figure).getByRole('tooltip')).toHaveTextContent(
+      '−0.52 Loneliness · Happiness 54 people answered both',
+    )
+    fireEvent.click(cell)
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe(
+        '?outcome=LONELY&view=pair&x=HAPPY&vars=HAPPY%2CLONELY%2CATTEND_SVCS',
+      ),
+    )
+    // The pair built from the same answers is no button.
+    expect(within(table).getAllByRole('button')).toHaveLength(2)
+  })
+
+  test('Compare several: add a question, remove one; two at least, ten at most', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates?outcome=HAPPY&view=matrix')
+    await screen.findByRole('group', { name: /Correlations among 3 questions/ })
+    fireEvent.change(screen.getByLabelText('Add a question'), { target: { value: 'secure' } })
+    fireEvent.click(await screen.findByRole('button', { name: /Secure Flourishing Index/ }))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toContain('vars=HAPPY%2CLONELY%2CATTEND_SVCS%2Csfi'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Loneliness' }))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toContain('vars=HAPPY%2CATTEND_SVCS%2Csfi'),
+    )
+    // At two, nothing more can go.
+    const two = await renderAt('/correlates?outcome=HAPPY&view=matrix&vars=HAPPY,LONELY')
+    await waitFor(() => expect(two.state.location.searchStr).toContain('vars='))
+    const removers = await screen.findAllByRole('button', { name: /^Remove / })
+    expect(removers.slice(-2).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
+    // At ten, the add control says so.
+    const ten = ['HAPPY', 'LONELY', 'ATTEND_SVCS', 'sfi', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6']
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          lonelyVariable,
+          ...ten.slice(4).map((name) => ({ ...happyVariable, name, display_name: `Q ${name}` })),
+        ],
+      },
+    })
+    await renderAt(`/correlates?outcome=HAPPY&view=matrix&vars=${ten.join(',')}`)
+    const fields = await screen.findAllByPlaceholderText('Up to 10 questions')
+    expect(fields[fields.length - 1]).toBeDisabled()
+  })
+
+  test('Compare several: a linked question not asked at the wave is left out, and named', async () => {
+    mockFetch(tier)
+    // LONELY is asked at Y1 only.
+    await renderAt('/correlates?outcome=HAPPY&wave=Y2&view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    expect(
+      await screen.findByText('Left out, not asked in Wave 2, 2024: Loneliness.'),
+    ).toBeInTheDocument()
+    const chips = within(screen.getByRole('list', { name: 'Questions in this table' }))
+    expect(chips.getAllByRole('listitem')).toHaveLength(2)
   })
 
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {

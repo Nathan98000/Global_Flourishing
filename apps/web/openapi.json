@@ -87,6 +87,162 @@
         "title": "ComponentModel",
         "type": "object"
       },
+      "CorrelationPairModel": {
+        "description": "One cell of a correlation table (/v1/correlations): the questions\n``a`` and ``b``, ``a`` before ``b`` in the order they were asked for.",
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "string"
+          },
+          "b": {
+            "title": "B",
+            "type": "string"
+          },
+          "below_min_n": {
+            "title": "Below Min N",
+            "type": "boolean"
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimateRow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shares_answers": {
+            "title": "Shares Answers",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "shares_answers",
+          "below_min_n",
+          "correlation"
+        ],
+        "title": "CorrelationPairModel",
+        "type": "object"
+      },
+      "CorrelationsMeta": {
+        "description": "What a correlation table says about itself.",
+        "properties": {
+          "ci_level": {
+            "title": "Ci Level",
+            "type": "number"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "filters": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Filters",
+            "type": "object"
+          },
+          "min_n": {
+            "title": "Min N",
+            "type": "integer"
+          },
+          "n_frame": {
+            "title": "N Frame",
+            "type": "integer"
+          },
+          "stat": {
+            "title": "Stat",
+            "type": "string"
+          },
+          "suppression": {
+            "$ref": "#/components/schemas/SuppressionModel"
+          },
+          "vars": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Vars",
+            "type": "array"
+          },
+          "wave": {
+            "title": "Wave",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          },
+          "weight_key": {
+            "title": "Weight Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_version",
+          "vars",
+          "wave",
+          "stat",
+          "weight_key",
+          "weight",
+          "ci_level",
+          "suppression",
+          "n_frame",
+          "filters",
+          "min_n"
+        ],
+        "title": "CorrelationsMeta",
+        "type": "object"
+      },
+      "CorrelationsResponse": {
+        "description": "Every pair of 2–10 questions in one country (/v1/correlations).",
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/CorrelationsMeta"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationPairModel"
+            },
+            "title": "Pairs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "pairs"
+        ],
+        "title": "CorrelationsResponse",
+        "type": "object"
+      },
       "CountryModel": {
         "properties": {
           "code": {
@@ -1775,6 +1931,93 @@
           }
         },
         "summary": "What travels with an outcome: ranked associations"
+      }
+    },
+    "/v1/correlations": {
+      "get": {
+        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's.",
+        "operationId": "correlations_v1_correlations_get",
+        "parameters": [
+          {
+            "description": "2 to 10 ordered questions asked at the wave, repeatable, in table order.",
+            "in": "query",
+            "name": "vars",
+            "required": true,
+            "schema": {
+              "description": "2 to 10 ordered questions asked at the wave, repeatable, in table order.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Vars",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "title": "Filter"
+            }
+          },
+          {
+            "description": "pearson (default) or spearman.",
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "default": "pearson",
+              "description": "pearson (default) or spearman.",
+              "title": "Method",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "A correlation table: every pair among 2–10 questions"
       }
     },
     "/v1/correlations/pair": {

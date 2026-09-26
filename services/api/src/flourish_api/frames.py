@@ -33,6 +33,7 @@ from flourish_api.queries import (
     ChangeQuery,
     CorrelatesQuery,
     DomainFilter,
+    MatrixQuery,
     PairQuery,
 )
 
@@ -314,5 +315,38 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
         spec=spec,
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
         value=PAIR_Y,
+        groups=(),
+    )
+
+
+def assemble_matrix_frame(store: DataStore, query: MatrixQuery) -> AssembledFrame:
+    """Every question of a correlation table on the country's eligible
+    frame, each aligned to its label (a yes/no item as its indicator of
+    "yes"), so every pair's correlation carries the sign the ranked list
+    would give it. A non-country filter nulls every question outside its
+    domain: each pair's complete cases lie in the domain, while the rows
+    stay in the design."""
+    spec = resolve((query.wave,), "global")
+    extra: list[str] = [item.column for item in query.filters]
+    extra.append(spec.weight)
+    frame = store.wide_frame(
+        list(query.variables),
+        query.wave,
+        extra_columns=tuple(dict.fromkeys(extra)),
+        country_codes=query.countries,
+    )
+    frame = frame.filter(eligibility_expr(spec))
+    for variable in query.variables:
+        frame = apply_domain_filters(frame, variable.name, query.filters)
+        if variable.scale_type == "binary":
+            frame = frame.with_columns(_indicator(variable.name).alias(variable.name))
+        else:
+            frame = align(frame, variable.name, variable)
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=query.variables[0].name,
         groups=(),
     )

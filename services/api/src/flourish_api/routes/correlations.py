@@ -1,4 +1,4 @@
-"""GET /v1/correlations/pair — two questions side by side (ADR-0018).
+"""GET /v1/correlations/pair and /v1/correlations — questions side by side (ADR-0018).
 
 The Correlates page's "Compare two" view: the weighted correlation of
 two ordered items in one country, and the outcome Y's weighted mean in
@@ -9,6 +9,11 @@ to eleven) or, for a long scale, equal-width bins between its weighted
 correlation slopes up. Only group means are served — never a
 respondent's answers — and a group resting on fewer than the ranking
 floor's people is flagged, not dropped.
+
+The "Compare several" view's table: every pair among 2–10 ordered items
+in one country, each row's correlations taken in one pass over the frame
+(``weighted_correlations``); a pair built from the same answers is marked
+and never estimated.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ from flourish_stats import (
     Design,
     SuppressionPolicy,
     weighted_correlation,
+    weighted_correlations,
     weighted_mean,
     weighted_quantile,
 )
@@ -41,10 +47,20 @@ from flourish_api.frames import (
     PAIR_X,
     PAIR_Y,
     PAIR_Y_ALIGNED,
+    assemble_matrix_frame,
     assemble_pair_frame,
 )
-from flourish_api.queries import PairQuery, parse_pair_query
+from flourish_api.queries import (
+    MatrixQuery,
+    PairQuery,
+    parse_matrix_query,
+    parse_pair_query,
+    shares_answers,
+)
 from flourish_api.schemas import (
+    CorrelationPairModel,
+    CorrelationsMeta,
+    CorrelationsResponse,
     EstimateResponse,
     EstimateRow,
     PairGroupModel,
@@ -360,3 +376,95 @@ def correlation_pair(
         store.catalog, y=y, x=x, wave=wave, method=method, filters=filter or []
     )
     return run_pair(store, query, policy, min_n)
+
+
+def run_matrix(
+    store: DataStore, query: MatrixQuery, policy: SuppressionPolicy, min_n: int
+) -> CorrelationsResponse:
+    """Every pair i < j: row i's correlations with the questions after it
+    in one engine pass, the pairs built from the same answers left out
+    of the pass and marked."""
+    assembled = assemble_matrix_frame(store, query)
+    frame, design = assembled.frame, assembled.design
+    variables = list(query.variables)
+    pairs: list[CorrelationPairModel] = []
+    for i, a in enumerate(variables[:-1]):
+        later = variables[i + 1 :]
+        estimated: dict[str, EstimateRow] = {}
+        others = [b.name for b in later if not shares_answers(a, b)]
+        if others:
+            table = weighted_correlations(
+                frame,
+                a.name,
+                others,
+                design,
+                method="spearman" if query.method == "spearman" else "pearson",
+                policy=policy,
+            )
+            for row in rows_from_table(table, []):
+                assert row.predictor is not None
+                estimated[row.predictor] = row
+        for b in later:
+            row = estimated.get(b.name)
+            pairs.append(
+                CorrelationPairModel(
+                    a=a.name,
+                    b=b.name,
+                    shares_answers=row is None,
+                    below_min_n=row is not None and row.n < min_n,
+                    correlation=row,
+                )
+            )
+    meta = CorrelationsMeta(
+        data_version=store.data_version,
+        vars=[v.name for v in variables],
+        wave=query.wave,
+        stat=f"{query.method}_r",
+        weight_key=assembled.spec.key,
+        weight=assembled.spec.weight,
+        ci_level=0.95,
+        suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
+        n_frame=frame.height,
+        filters={
+            "country_code": list(query.countries),
+            **{item.column: list(item.values) for item in query.filters},
+        },
+        min_n=min_n,
+    )
+    return CorrelationsResponse(meta=meta, pairs=pairs)
+
+
+@router.get("/correlations", summary="A correlation table: every pair among 2–10 questions")
+def correlations(
+    store: Annotated[DataStore, Depends(require_data)],
+    policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
+    min_n: Annotated[int, Depends(correlates_min_n)],
+    names: Annotated[
+        list[str],
+        Query(
+            alias="vars",
+            description="2 to 10 ordered questions asked at the wave, repeatable, in table order.",
+        ),
+    ],
+    wave: str,
+    filter: Annotated[
+        list[str] | None,
+        Query(description="Exactly one country_code:N, plus optional demographic domains."),
+    ] = None,
+    method: Annotated[str, Query(description="pearson (default) or spearman.")] = "pearson",
+) -> CorrelationsResponse:
+    """Associations, not causes. Every pair i < j of the questions named,
+    in the order named: the weighted Pearson or Spearman correlation over
+    the people who answered both (a point estimate with no interval; the
+    number /v1/correlates reports for the pair), its n, and ``below_min_n``
+    when fewer than ``meta.min_n`` people answered both. A pair built from
+    the same answers (a score and its own question) is marked
+    ``shares_answers`` and carries no correlation — it goes together by
+    construction. Each row's correlations are taken in one pass over the
+    frame. Both items of every pair are aligned to their labels, so the
+    signs are the ranked list's."""
+    assert store.catalog is not None
+    query = parse_matrix_query(
+        store.catalog, names=names, wave=wave, method=method, filters=filter or []
+    )
+    return run_matrix(store, query, policy, min_n)

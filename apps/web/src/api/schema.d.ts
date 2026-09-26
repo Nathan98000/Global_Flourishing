@@ -113,6 +113,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/correlations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A correlation table: every pair among 2–10 questions
+         * @description Associations, not causes. Every pair i < j of the questions named,
+         *     in the order named: the weighted Pearson or Spearman correlation over
+         *     the people who answered both (a point estimate with no interval; the
+         *     number /v1/correlates reports for the pair), its n, and ``below_min_n``
+         *     when fewer than ``meta.min_n`` people answered both. A pair built from
+         *     the same answers (a score and its own question) is marked
+         *     ``shares_answers`` and carries no correlation — it goes together by
+         *     construction. Each row's correlations are taken in one pass over the
+         *     frame. Both items of every pair are aligned to their labels, so the
+         *     signs are the ranked list's.
+         */
+        get: operations["correlations_v1_correlations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/correlations/pair": {
         parameters: {
             query?: never;
@@ -284,6 +313,60 @@ export interface components {
             value_labels: components["schemas"]["ValueLabelModel"][];
             /** Wording */
             wording: string | null;
+        };
+        /**
+         * CorrelationPairModel
+         * @description One cell of a correlation table (/v1/correlations): the questions
+         *     ``a`` and ``b``, ``a`` before ``b`` in the order they were asked for.
+         */
+        CorrelationPairModel: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Below Min N */
+            below_min_n: boolean;
+            correlation: components["schemas"]["EstimateRow"] | null;
+            /** Shares Answers */
+            shares_answers: boolean;
+        };
+        /**
+         * CorrelationsMeta
+         * @description What a correlation table says about itself.
+         */
+        CorrelationsMeta: {
+            /** Ci Level */
+            ci_level: number;
+            /** Data Version */
+            data_version: string | null;
+            /** Filters */
+            filters: {
+                [key: string]: (string | number | boolean | null)[];
+            };
+            /** Min N */
+            min_n: number;
+            /** N Frame */
+            n_frame: number;
+            /** Stat */
+            stat: string;
+            suppression: components["schemas"]["SuppressionModel"];
+            /** Vars */
+            vars: string[];
+            /** Wave */
+            wave: string;
+            /** Weight */
+            weight: string;
+            /** Weight Key */
+            weight_key: string;
+        };
+        /**
+         * CorrelationsResponse
+         * @description Every pair of 2–10 questions in one country (/v1/correlations).
+         */
+        CorrelationsResponse: {
+            meta: components["schemas"]["CorrelationsMeta"];
+            /** Pairs */
+            pairs: components["schemas"]["CorrelationPairModel"][];
         };
         /** CountryModel */
         CountryModel: {
@@ -815,6 +898,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EstimateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlations_v1_correlations_get: {
+        parameters: {
+            query: {
+                /** @description 2 to 10 ordered questions asked at the wave, repeatable, in table order. */
+                vars: string[];
+                wave: string;
+                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                filter?: string[] | null;
+                /** @description pearson (default) or spearman. */
+                method?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrelationsResponse"];
                 };
             };
             /** @description Validation Error */

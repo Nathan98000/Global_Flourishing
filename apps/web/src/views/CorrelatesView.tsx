@@ -1,22 +1,24 @@
 // Correlates (Phase 6): what goes with a measure. Its views, one on
 // screen at a time (`view`, owner decision 25 Sept 2026): the ranked list
 // for one country (the server sweeps every other ordered item, ranks by
-// strength and cuts the list), the same items across every country, and
-// the measure beside one other question (Compare two: y's average for
-// each answer to x) — a view that is not on screen mounts nothing and
-// fetches nothing beyond the ranked list its defaults come from.
+// strength and cuts the list), the same items across every country, the
+// measure beside one other question (Compare two: y's average for each
+// answer to x), and a table of several (Compare several: every pair
+// among 2–10 questions) — a view that is not on screen mounts nothing
+// and fetches nothing beyond the ranked list its defaults come from.
 // Correlations are point estimates, so no interval is ever drawn for
 // them. The adjusted models are not offered here (ADR-0018). Every number
 // is the server's; this view chooses, labels and renders. Associations,
 // not causes — said in the deck and in the footnote, in plain sentences.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { predictorOrder, useCorrelates, type CorrelationMethod } from '../api/correlates'
-import { usePair } from '../api/correlations'
+import { useCorrelationTable, usePair } from '../api/correlations'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
 import type {
+  CorrelationsResponse,
   Country,
   EstimateResponse,
   EstimateRow,
@@ -40,9 +42,10 @@ import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { WordingPanel } from '../components/WordingPanel'
 import { Disclosure } from '../components/controls/Disclosure'
+import { QuestionSearch } from '../components/controls/QuestionSearch'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { correlationTableToCsv, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount, formatEstimate } from '../format'
 import { groupValueLabel, outcomeLevels } from '../labels'
@@ -52,6 +55,9 @@ import {
   correlatesRequest,
   correlatesSearchParams,
   pairRequest,
+  tableRequest,
+  TABLE_MAX,
+  TABLE_MIN,
   type CorrelatesSearch,
   type CorrelatesViewName,
 } from '../state/search'
@@ -119,6 +125,7 @@ export function CorrelatesView() {
   const served = meta.data?.meta
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
+  const chipsLabel = useId()
 
   const setSearch = (patch: Partial<CorrelatesSearch>) => {
     void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
@@ -130,7 +137,8 @@ export function CorrelatesView() {
   const needsRanked =
     search.view === 'ranked' ||
     search.view === 'countries' ||
-    (search.view === 'pair' && search.x === undefined)
+    (search.view === 'pair' && search.x === undefined) ||
+    (search.view === 'matrix' && search.vars === undefined)
   const rankedRequest =
     askedAtWave && country !== undefined ? correlatesRequest(search, country) : null
   const ranked = useCorrelates(rankedRequest, { enabled: needsRanked })
@@ -161,6 +169,32 @@ export function CorrelatesView() {
       ? pairRequest(search, xName, country)
       : null,
     { enabled: search.view === 'pair' },
+  )
+  // Compare several: the table's questions, else the measure and its
+  // top five correlates (after the overlap dedupe) — never empty.
+  const tableVars = useMemo(
+    () => search.vars ?? (predictors.length > 0 ? [search.outcome, ...predictors.slice(0, 5)] : []),
+    [search.vars, search.outcome, predictors],
+  )
+  const usableVars = useMemo(
+    () =>
+      tableVars.filter((name) => {
+        const candidate = byName?.[name]
+        return (
+          candidate !== undefined &&
+          candidate.servable &&
+          candidate.scale_type !== 'nominal' &&
+          candidate.waves_available.includes(search.wave)
+        )
+      }),
+    [tableVars, byName, search.wave],
+  )
+  const leftOut = tableVars.filter((name) => !usableVars.includes(name))
+  const table = useCorrelationTable(
+    askedAtWave && country !== undefined && usableVars.length >= TABLE_MIN
+      ? tableRequest(search, usableVars, country)
+      : null,
+    { enabled: search.view === 'matrix' },
   )
 
   if (meta.isPending || variables.isPending) {
@@ -195,22 +229,29 @@ export function CorrelatesView() {
       wave: waves.includes(search.wave)
         ? search.wave
         : ((waves[0] as Wave | undefined) ?? search.wave),
-      // A new measure starts from its own defaults: its top correlate.
+      // A new measure starts from its own defaults: its top correlate,
+      // its own table.
       x: undefined,
+      vars: undefined,
       invalid: undefined,
       invalidRaw: undefined,
     })
   }
-  // A wave the compared question was not asked in drops it.
+  // A wave the compared question was not asked in drops it; the table
+  // keeps the questions asked then (its default, when fewer than two).
   const pickWave = (wave: Wave) => {
-    const x = search.x !== undefined ? variables.data.byName[search.x] : undefined
-    setSearch({ wave, x: x?.waves_available.includes(wave) ? search.x : undefined })
+    const asked = (name: string) =>
+      variables.data.byName[name]?.waves_available.includes(wave) ?? false
+    const x = search.x !== undefined && asked(search.x) ? search.x : undefined
+    const kept = search.vars?.filter(asked)
+    setSearch({ wave, x, vars: kept && kept.length >= TABLE_MIN ? kept : undefined })
   }
 
   const viewOptions: RadioOption<CorrelatesViewName>[] = [
     { value: 'ranked', label: countryName ? `In ${countryName}` : 'In one country' },
     { value: 'countries', label: 'Across countries' },
     { value: 'pair', label: 'Compare two' },
+    { value: 'matrix', label: 'Compare several' },
   ]
 
   // What the measure can be set beside: every other ordered question
@@ -374,6 +415,47 @@ export function CorrelatesView() {
           onChange={(view) => setSearch({ view })}
         />
       </div>
+      {search.view === 'matrix' && askedAtWave && tableVars.length > 0 && (
+        <div className={`${styles.controls} ${styles.controlsTop}`}>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel} id={chipsLabel}>
+              Questions in this table
+            </span>
+            <ol className={styles.chips} aria-labelledby={chipsLabel}>
+              {usableVars.map((name, index) => (
+                <li key={name} className={styles.chip}>
+                  <span>
+                    {index + 1} · {nameOf(name)}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.chipRemove}
+                    aria-label={`Remove ${nameOf(name)}`}
+                    disabled={usableVars.length <= TABLE_MIN}
+                    onClick={() =>
+                      setSearch({ vars: usableVars.filter((entry) => entry !== name) })
+                    }
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ol>
+            {leftOut.length > 0 && (
+              <span className={styles.reason}>
+                Left out, not asked in {WAVE_TITLES[search.wave] ?? search.wave}:{' '}
+                {leftOut.map(nameOf).join(', ')}.
+              </span>
+            )}
+          </div>
+          <QuestionSearch
+            label="Add a question"
+            candidates={pairCandidates.filter((candidate) => !usableVars.includes(candidate.name))}
+            onAdd={(name) => setSearch({ vars: [...usableVars, name] })}
+            full={usableVars.length >= TABLE_MAX ? `Up to ${TABLE_MAX} questions` : undefined}
+          />
+        </div>
+      )}
       {search.view === 'pair' && askedAtWave && (
         <div className={`${styles.controls} ${styles.controlsTop}`}>
           <OutcomePicker
@@ -421,6 +503,37 @@ export function CorrelatesView() {
             one of those waves above.
           </p>
         </EmptyState>
+      ) : search.view === 'matrix' ? (
+        search.vars === undefined && ranked.isPending ? (
+          <LoadingBlock height={420} label="Loading the ranked list" />
+        ) : search.vars === undefined && ranked.isError ? (
+          offline(ranked.error)
+        ) : usableVars.length < TABLE_MIN ? (
+          <EmptyState title="Pick two questions or more">
+            <p>
+              A table needs at least two questions asked in{' '}
+              {WAVE_TITLES[search.wave] ?? search.wave} — add them under “Add a question”.
+            </p>
+          </EmptyState>
+        ) : table.isPending ? (
+          <LoadingBlock height={420} label="Loading the table" />
+        ) : table.isError ? (
+          offline(table.error)
+        ) : table.data ? (
+          <TableFigure
+            table={table.data}
+            vars={usableVars}
+            nameOf={nameOf}
+            countryName={countryName}
+            wave={search.wave}
+            method={search.method}
+            isRefreshing={table.isPlaceholderData}
+            served={served}
+            onOpenPair={(y, x) =>
+              setSearch({ view: 'pair', outcome: y, x, vars: usableVars, topic: undefined })
+            }
+          />
+        ) : null
       ) : search.view === 'pair' ? (
         search.x === undefined && ranked.isPending ? (
           <LoadingBlock height={420} label="Loading the ranked list" />
@@ -728,6 +841,167 @@ function PairFigure({
   )
 }
 
+/** Compare several: every pair among the table's questions as a
+ * lower-triangle matrix — rows "1 · name", columns numbered (their full
+ * names in the tooltip and the accessible name) — tinted on the
+ * diverging ramp; a pair built from the same answers reads a muted "·",
+ * one resting on too few people a muted "—"; selecting a cell opens
+ * Compare two with that pair (row on y, column on x). */
+function TableFigure({
+  table,
+  vars,
+  nameOf,
+  countryName,
+  wave,
+  method,
+  isRefreshing,
+  served,
+  onOpenPair,
+}: {
+  table: CorrelationsResponse
+  vars: readonly string[]
+  nameOf: (name: string) => string
+  countryName: string
+  wave: Wave
+  method: CorrelationMethod | undefined
+  isRefreshing: boolean
+  served: NonNullable<ReturnType<typeof useMeta>['data']>['meta']
+  onOpenPair: (y: string, x: string) => void
+}) {
+  const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
+  const counted = table.pairs.flatMap((pair) =>
+    pair.correlation && !pair.below_min_n ? [pair.correlation] : [],
+  )
+  const extent = tintExtent(counted)
+  const minN = table.meta.min_n
+  const name: ExportName = {
+    measure: `Correlations among ${vars.length} questions`,
+    view: 'Compare several',
+    waves: WAVE_CHIPS[wave] ?? wave,
+    ...(countryName ? { country: countryName } : {}),
+  }
+  // The data table: one row per pair with a correlation, named in words.
+  const response: EstimateResponse = {
+    meta: {
+      data_version: table.meta.data_version,
+      outcome: table.meta.vars.join(','),
+      scale_type: 'correlation table',
+      direction: 'none',
+      stat: table.meta.stat,
+      waves: [table.meta.wave],
+      scope: 'global',
+      oriented: false,
+      weight_key: table.meta.weight_key,
+      weight: table.meta.weight,
+      se_method: 'none',
+      ci_level: table.meta.ci_level,
+      suppression: table.meta.suppression,
+      n_frame: table.meta.n_frame,
+      // (Not shown: each pair's own n is on its row.)
+      n_valid: 0,
+      by: ['question', 'with'],
+      filters: table.meta.filters,
+      min_n: minN,
+    },
+    rows: table.pairs.flatMap((pair) =>
+      pair.correlation
+        ? [{ ...pair.correlation, predictor: null, group: { question: pair.b, with: pair.a } }]
+        : [],
+    ),
+  }
+  const strongest = [...counted].sort(
+    (a, b) => Math.abs(b.estimate ?? 0) - Math.abs(a.estimate ?? 0),
+  )[0]
+  const strongestPair = strongest
+    ? table.pairs.find((pair) => pair.correlation === strongest)
+    : undefined
+  return (
+    <ChartFigure
+      title={`Correlations among ${vars.length} questions`}
+      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      ariaLabel={`Correlations among ${vars.length} questions in ${countryName}, as a table: ${vars
+        .map((entry, index) => `${index + 1}, ${nameOf(entry)}`)
+        .join('; ')}.${
+        strongestPair && strongest
+          ? ` Strongest: ${nameOf(strongestPair.a)} and ${nameOf(strongestPair.b)}, ${formatEstimate(strongest.estimate, strongest.stat)}.`
+          : ''
+      } Select a cell to see the two questions together; the data table below carries every number.`}
+      marks="table"
+      interactive
+      response={response}
+      meta={served}
+      csv={{
+        kind: 'client',
+        onDownload: () =>
+          downloadTextFile(exportFilename(name, 'csv'), correlationTableToCsv(table)),
+      }}
+      exportName={name}
+      isRefreshing={isRefreshing}
+      groupLabel={(column, value) =>
+        column === 'question' || column === 'with' ? nameOf(String(value)) : undefined
+      }
+      columnName={(column) =>
+        column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
+      }
+      footnote={<>{NOT_CAUSES} </>}
+    >
+      <HeatTable
+        caption={
+          <DivergingLegend
+            extent={extent}
+            stat={table.meta.stat}
+            hues="rust: as one goes up, the other goes down · teal: they go up together"
+            extra="· built from the same answers"
+          />
+        }
+        corner="Question ↓ · with →"
+        rows={vars.map((entry, index) => ({
+          key: entry,
+          label: `${index + 1} · ${nameOf(entry)}`,
+        }))}
+        columns={vars.map((entry, index) => ({
+          key: entry,
+          label: String(index + 1),
+          title: `${index + 1} · ${nameOf(entry)}`,
+        }))}
+        cellAt={(row, column) => {
+          const i = vars.indexOf(row.key)
+          const j = vars.indexOf(column.key)
+          if (j >= i) return { text: '', title: '', tint: 'transparent', blank: true }
+          const pair = pairs.get(`${column.key}|${row.key}`)
+          if (!pair) return undefined
+          const [y, x] = [nameOf(row.key), nameOf(column.key)]
+          if (pair.shares_answers || !pair.correlation) {
+            return {
+              text: '·',
+              title: `${y} · ${x}\nBuilt from the same answers: not correlated`,
+              tint: 'transparent',
+              muted: true,
+              hidden: ', built from the same answers',
+            }
+          }
+          const correlation = pair.correlation
+          const value = formatEstimate(correlation.estimate, correlation.stat)
+          const people = `${formatCount(correlation.n)} people answered both`
+          const muted = pair.below_min_n
+          return {
+            text: muted ? '—' : value,
+            title: muted
+              ? `Too few respondents (fewer than ${formatCount(minN)})\n${value}  ${y} · ${x}\n${people}`
+              : `${value}  ${y} · ${x}\n${people}`,
+            tint: divergingTint(correlation.estimate, extent),
+            muted,
+            hidden: muted ? ', too few respondents' : undefined,
+            onSelect: () => onOpenPair(row.key, column.key),
+            name: `${y} and ${x}, ${muted ? 'too few respondents' : value}: see the two questions together`,
+          }
+        }}
+      />
+      <p className={styles.hint}>Select a cell to see the two questions together.</p>
+    </ChartFigure>
+  )
+}
+
 /** The key to a diverging matrix, in its caption's place (outside the
  * scroll box, regular weight): the eleven ramp tokens between the
  * window's two ends — the tokens themselves, so it reads true in either
@@ -736,11 +1010,15 @@ export function DivergingLegend({
   extent,
   stat,
   short,
+  hues,
   extra,
 }: {
   extent: number
   stat: string
-  short: string
+  /** The measure the hues are read against ("goes with higher …"). */
+  short?: string
+  /** The hues in words when there is no one measure (Compare several). */
+  hues?: string
   /** One more entry after the dash's (Compare several's "·"). */
   extra?: string
 }) {
@@ -757,7 +1035,7 @@ export function DivergingLegend({
         <span>{hi}</span>
       </span>
       <span>
-        rust: goes with lower {short} · teal: goes with higher {short}
+        {hues ?? `rust: goes with lower ${short ?? ''} · teal: goes with higher ${short ?? ''}`}
       </span>
       <span>— too few respondents</span>
       {extra && <span>{extra}</span>}

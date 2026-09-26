@@ -129,5 +129,6 @@ def test_openapi_lists_every_v1_endpoint(client: TestClient) -> None:
         "/v1/export.csv",
         "/v1/correlates",
         "/v1/correlations/pair",
+        "/v1/correlations",
         "/health",
     } <= paths

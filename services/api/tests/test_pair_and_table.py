@@ -212,3 +212,113 @@ def test_pair_floor_follows_the_setting(synthetic_data_dir) -> None:
     body = get_pair(served, y="HAPPY", x="ATTEND_SVCS", wave="Y1", filter="country_code:1")
     assert body["means"]["meta"]["min_n"] == 10
     assert not any(g["below_min_n"] for g in body["groups"])
+
+
+# --- /v1/correlations ---------------------------------------------------------
+
+
+def get_table(client: TestClient, **params) -> dict:
+    resp = client.get("/v1/correlations", params=params)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def test_table_covers_every_pair_in_order(client: TestClient) -> None:
+    names = ["HAPPY", "LONELY", "ATTEND_SVCS", "BALANCE"]
+    body = get_table(client, vars=names, wave="Y1", filter="country_code:1")
+    meta = body["meta"]
+    assert meta["vars"] == names and meta["stat"] == "pearson_r"
+    assert meta["weight"] == "w_c1" and meta["filters"] == {"country_code": [1]}
+    assert meta["min_n"] == 20
+    assert [(p["a"], p["b"]) for p in body["pairs"]] == [
+        ("HAPPY", "LONELY"),
+        ("HAPPY", "ATTEND_SVCS"),
+        ("HAPPY", "BALANCE"),
+        ("LONELY", "ATTEND_SVCS"),
+        ("LONELY", "BALANCE"),
+        ("ATTEND_SVCS", "BALANCE"),
+    ]
+    for pair in body["pairs"]:
+        corr = pair["correlation"]
+        assert not pair["shares_answers"]
+        assert corr["predictor"] == pair["b"] and corr["ci_method"] == "none"
+        assert -1 <= corr["estimate"] <= 1
+        assert pair["below_min_n"] is (corr["n"] < 20)
+
+
+def test_table_numbers_are_the_ranked_lists_numbers(client: TestClient) -> None:
+    """A pair's correlation is /v1/correlates' for it, sign and all
+    (ATTEND_SVCS is descending: aligned before it is correlated)."""
+    for method in ("pearson", "spearman"):
+        body = get_table(
+            client,
+            vars=["HAPPY", "ATTEND_SVCS", "phq2_positive"],
+            wave="Y1",
+            filter="country_code:22",
+            method=method,
+        )
+        cells = {(p["a"], p["b"]): p["correlation"] for p in body["pairs"]}
+        for b in ("ATTEND_SVCS", "phq2_positive"):
+            ranked = client.get(
+                "/v1/correlates",
+                params={
+                    "outcome": "HAPPY",
+                    "wave": "Y1",
+                    "against": b,
+                    "filter": "country_code:22",
+                    "method": method,
+                },
+            ).json()["rows"][0]
+            assert cells[("HAPPY", b)]["estimate"] == pytest.approx(ranked["estimate"], rel=1e-12)
+            assert cells[("HAPPY", b)]["n"] == ranked["n"]
+
+
+def test_pairs_built_from_the_same_answers_are_marked_not_estimated(client: TestClient) -> None:
+    body = get_table(
+        client,
+        vars=["phq2_score", "phq2_positive", "LONELY"],
+        wave="Y1",
+        filter="country_code:1",
+    )
+    cells = {(p["a"], p["b"]): p for p in body["pairs"]}
+    shared = cells[("phq2_score", "phq2_positive")]
+    assert shared["shares_answers"] is True and shared["correlation"] is None
+    assert shared["below_min_n"] is False
+    assert cells[("phq2_score", "LONELY")]["correlation"]["estimate"] is not None
+
+
+def test_table_validation(client: TestClient) -> None:
+    def detail(**params) -> list[str]:
+        resp = client.get("/v1/correlations", params=params)
+        assert resp.status_code == 422, resp.text
+        return resp.json()["detail"]
+
+    base = {"wave": "Y1", "filter": "country_code:1"}
+    assert any("2 to 10" in m for m in detail(vars=["HAPPY"], **base))
+    eleven = ["HAPPY", "LONELY", "ATTEND_SVCS", "BALANCE", "CHILD_MEM", "sfi", "sfi_health"]
+    eleven += ["sfi_meaning", "sfi_character", "sfi_relationships", "sfi_financial"]
+    assert any("2 to 10" in m for m in detail(vars=eleven, **base))
+    assert any("duplicate" in m for m in detail(vars=["HAPPY", "HAPPY"], **base))
+    assert any("has no order" in m for m in detail(vars=["HAPPY", "URBAN_RURAL"], **base))
+    assert any("not asked at Y1" in m for m in detail(vars=["HAPPY", "MONEY"], **base))
+    assert any("method must be" in m for m in detail(vars=["HAPPY", "LONELY"], method="x", **base))
+    assert any("exactly one country" in m for m in detail(vars=["HAPPY", "LONELY"], wave="Y1"))
+    # A request without vars at all is FastAPI's own 422.
+    assert client.get("/v1/correlations", params=base).status_code == 422
+
+
+def test_table_serves_pairs_never_people(client: TestClient) -> None:
+    resp = client.get(
+        "/v1/correlations",
+        params={"vars": ["HAPPY", "LONELY"], "wave": "Y1", "filter": "country_code:1"},
+    )
+    assert set(resp.json()) == {"meta", "pairs"}
+    assert resp.headers["cache-control"] == CACHE_CONTROL and resp.headers["etag"]
+
+
+def test_table_503_without_data(absent_client: TestClient) -> None:
+    resp = absent_client.get(
+        "/v1/correlations",
+        params={"vars": ["HAPPY", "LONELY"], "wave": "Y1", "filter": "country_code:1"},
+    )
+    assert resp.status_code == 503

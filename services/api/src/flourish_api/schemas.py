@@ -296,3 +296,48 @@ class PairResponse(BaseModel):
     #: ``groups`` and in its order
     means: EstimateResponse
     groups: list[PairGroupModel]
+
+
+class CorrelationPairModel(BaseModel):
+    """One cell of a correlation table (/v1/correlations): the questions
+    ``a`` and ``b``, ``a`` before ``b`` in the order they were asked for."""
+
+    a: str
+    b: str
+    #: built from the same answers (a score and its own question):
+    #: associated by construction, so no correlation is taken
+    shares_answers: bool
+    #: fewer than ``meta.min_n`` people answered both
+    below_min_n: bool
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``, ``predictor`` = b); null
+    #: when the two share answers
+    correlation: EstimateRow | None
+
+
+class CorrelationsMeta(BaseModel):
+    """What a correlation table says about itself."""
+
+    data_version: str | None
+    #: the questions, in the order asked (the table's rows and columns)
+    vars: list[str]
+    wave: str
+    #: ``pearson_r`` or ``spearman_r``
+    stat: str
+    weight_key: str
+    weight: str
+    ci_level: float
+    suppression: SuppressionModel
+    #: respondents in the eligible design frame
+    n_frame: int
+    filters: dict[str, list[GroupValue]]
+    #: the floor below which a pair is flagged (``FA_CORRELATES_MIN_N``)
+    min_n: int
+
+
+class CorrelationsResponse(BaseModel):
+    """Every pair of 2–10 questions in one country (/v1/correlations)."""
+
+    meta: CorrelationsMeta
+    #: every pair i < j, row by row: (1, 2), (1, 3), … (2, 3), …
+    pairs: list[CorrelationPairModel]

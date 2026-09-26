@@ -86,11 +86,21 @@ export interface HeatCell {
   hidden?: string
   /** Too few cases to rank: untinted, in muted ink (the tooltip says why). */
   muted?: boolean
+  /** No value at all (a correlation table's diagonal and upper
+   * triangle): an empty cell, no tooltip. */
+  blank?: boolean
+  /** The cell is a choice: a button (keyboard reachable) that calls this. */
+  onSelect?: () => void
+  /** That button's accessible name. */
+  name?: string
 }
 
 export interface HeatAxis {
   key: string
   label: string
+  /** A column headed by a short label (a number): its full name, as the
+   * header's tooltip and accessible name. */
+  title?: string
 }
 
 /** A fixed-width column's side padding (--space-2 in
@@ -181,9 +191,11 @@ export function HeatTable({
   const [hiddenColumns, setHiddenColumns] = useState(0)
   const [tip, setTip] = useState<TipAnchor | null>(null)
   const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
-  const anchor = (cell: Element, key: string, text: string, pinned: boolean) => {
+  const anchor = (element: Element, key: string, text: string, pinned: boolean) => {
     const box = matrix.current?.getBoundingClientRect()
     if (!box) return null
+    // A focused button anchors on its cell.
+    const cell = element.closest('td, th') ?? element
     const rect = cell.getBoundingClientRect()
     const x = rect.left + rect.width / 2 - box.left
     return { key, text, x, top: rect.top - box.top, bottom: rect.bottom - box.top, pinned }
@@ -204,6 +216,7 @@ export function HeatTable({
   }, [tip])
   // A scroll of the box moves the cells from under the tooltip: it goes.
   // A tapped one also goes on the next tap anywhere but this matrix's cells.
+  // (Cells are anchored as `td`; a header's tip goes with its pointer.)
   useEffect(() => {
     if (!tip) return
     const element = scroller.current
@@ -303,7 +316,27 @@ export function HeatTable({
                       aria-sort={
                         dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
                       }
+                      aria-label={column.title}
                       data-highlight={column.key === highlight || undefined}
+                      onPointerEnter={
+                        column.title
+                          ? (event) => {
+                              if (event.pointerType === 'touch') return
+                              const title = column.title ?? ''
+                              setTip(
+                                anchor(event.currentTarget, `head:${column.key}`, title, false),
+                              )
+                            }
+                          : undefined
+                      }
+                      onPointerLeave={
+                        column.title
+                          ? (event) => {
+                              if (event.pointerType === 'touch') return
+                              setTip((current) => (current?.pinned ? current : null))
+                            }
+                          : undefined
+                      }
                     >
                       <span className={styles.head}>
                         {column.label}
@@ -330,12 +363,22 @@ export function HeatTable({
                         </td>
                       )
                     }
+                    if (cell.blank) {
+                      return <td key={column.key} className={styles.blank} />
+                    }
                     const key = `${row.key}:${column.key}`
+                    const content = (
+                      <>
+                        {cell.text}
+                        {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
+                      </>
+                    )
                     return (
                       <td
                         key={column.key}
                         className={cell.muted ? styles.cellMuted : styles.cell}
                         data-highlight={marked}
+                        data-select={cell.onSelect ? true : undefined}
                         style={
                           cell.muted
                             ? undefined
@@ -350,13 +393,29 @@ export function HeatTable({
                           setTip((current) => (current?.pinned ? current : null))
                         }}
                         onPointerUp={(event) => {
-                          if (event.pointerType !== 'touch') return
+                          if (event.pointerType !== 'touch' || cell.onSelect) return
                           const next = anchor(event.currentTarget, key, cell.title, true)
                           setTip((current) => (current?.key === key ? null : next))
                         }}
                       >
-                        {cell.text}
-                        {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
+                        {cell.onSelect ? (
+                          // A choice: the whole cell is the button; focus
+                          // shows the same tooltip as hover.
+                          <button
+                            type="button"
+                            className={styles.cellButton}
+                            aria-label={cell.name}
+                            onClick={cell.onSelect}
+                            onFocus={(event) =>
+                              setTip(anchor(event.currentTarget, key, cell.title, false))
+                            }
+                            onBlur={() => setTip(null)}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          content
+                        )}
                       </td>
                     )
                   })}

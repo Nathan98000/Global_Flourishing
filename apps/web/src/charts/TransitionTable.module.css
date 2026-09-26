@@ -246,3 +246,38 @@
     text-align: center;
   }
 }
+
+/* A correlation table's diagonal and upper triangle: nothing there. */
+.blank {
+  border-top-color: transparent;
+}
+
+/* A cell that is a choice (Compare several): the whole cell is the
+   button — its text, tint and ink are the cell's own; a pointer, and the
+   focus ring for the keyboard. */
+.table td[data-select] {
+  padding: 0;
+}
+
+.cellButton {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  border: 0;
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.cellButton:hover {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.cellButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}

@@ -20,6 +20,8 @@ export type EstimateRow = components['schemas']['EstimateRow']
 export type ResponseMeta = components['schemas']['ResponseMeta']
 export type PairResponse = components['schemas']['PairResponse']
 export type PairGroup = components['schemas']['PairGroupModel']
+export type CorrelationsResponse = components['schemas']['CorrelationsResponse']
+export type CorrelationPair = components['schemas']['CorrelationPairModel']
 
 export type Wave = 'Y1' | 'MY' | 'Y2'
 export const WAVES: readonly Wave[] = ['Y1', 'MY', 'Y2']
