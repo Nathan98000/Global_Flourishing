@@ -416,22 +416,11 @@ describe('Correlates view', () => {
     ).toEqual(['Albania', 'Testland', 'United States'])
   })
 
-  test('the model card route renders both cards with their anchors', async () => {
+  test('the model cards are retired: an old link lands on the not-found page', async () => {
     mockFetch(tier)
-    await renderAt('/model-cards')
-    expect(
-      await screen.findByRole('heading', { name: 'Model card: continuous outcomes' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Model card: binary outcomes' })).toBeInTheDocument()
-    expect(document.getElementById('continuous')).not.toBeNull()
-    expect(document.getElementById('binary')).not.toBeNull()
-    expect(screen.getAllByText(/No causal claim/).length).toBe(2)
-    // The way back, and the tab's name.
-    expect(screen.getByRole('link', { name: '← Correlates' })).toHaveAttribute(
-      'href',
-      '/correlates',
-    )
-    expect(document.title).toBe('Model cards — Flourish Atlas')
+    await renderAt('/model-cards#continuous')
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    expect(screen.queryByText(/Model card/)).toBeNull()
   })
 
   test('a measure with no order says so instead of asking the API', async () => {

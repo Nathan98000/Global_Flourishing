@@ -1,9 +1,7 @@
 // Navigation copy and the data-view rule, kept out of the shell
 // component so fast refresh stays clean. Nav order (Phase 5 brief, plus
 // Phase 6, less Compare — retired 25 Sept): Atlas · Change · What Matters ·
-// Correlates · US States · Segments · Codebook · Methods. The model
-// cards are reached from the Correlates figure and from Methods, not
-// from here.
+// Correlates · US States · Segments · Codebook · Methods.
 
 export const NAV_ITEMS: readonly { to: string; label: string }[] = [
   { to: '/', label: 'Atlas' },

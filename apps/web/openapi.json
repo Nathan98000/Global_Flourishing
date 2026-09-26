@@ -629,6 +629,20 @@
             "title": "Direction",
             "type": "string"
           },
+          "dropped_overlap": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dropped Overlap"
+          },
           "filters": {
             "additionalProperties": {
               "items": {
@@ -1563,7 +1577,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Unadjusted rows are weighted Pearson or\nSpearman coefficients with no interval (``ci_method = \"none\"``);\n``adjusted=true`` returns the predictor's coefficient in a\nsurvey-weighted regression under the fixed control set (``stat =\n\"beta\"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Binary items enter as indicators of code 1 (Yes / screen\npositive). Global scope only.",
+        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {
@@ -1615,16 +1629,6 @@
           },
           {
             "in": "query",
-            "name": "adjusted",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Adjusted",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
             "name": "by",
             "required": false,
             "schema": {
@@ -1669,6 +1673,18 @@
               "default": 20,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
+            "in": "query",
+            "name": "adjusted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
+              "title": "Adjusted",
+              "type": "boolean"
             }
           }
         ],

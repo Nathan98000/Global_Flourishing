@@ -4,11 +4,13 @@ import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 from flourish_api.config import Settings
-from flourish_api.data import DataStore
+from flourish_api.data import ADJUSTED_OFF, DataStore, VariableInfo
 from flourish_api.frames import assemble_correlates_frame
 from flourish_api.main import create_app
 from flourish_api.queries import parse_correlates_query
-from flourish_api.routes.correlates import candidate_predictors
+from flourish_api.routes import correlates as correlates_route
+from flourish_api.routes.correlates import candidate_predictors, drop_overlaps, stands_in_for
+from flourish_api.schemas import EstimateRow
 from flourish_stats import Design, adjusted_association, weighted_correlation
 from flourish_stats.correlations import DEFAULT_CONTROLS
 
@@ -33,6 +35,11 @@ HAPPY_Y1_PREDICTORS = {
     "gad2_positive",
 }
 
+#: What the ranked sweep leaves out as overlap: each screen-positive flag
+#: shares both its answers with its score, and the score (non-binary)
+#: stands in for it (ADR-0018).
+HAPPY_Y1_OVERLAP = {"phq2_positive": "phq2_score", "gad2_positive": "gad2_score"}
+
 
 def get_correlates(client: TestClient, **params) -> tuple[dict, list[dict]]:
     resp = client.get("/v1/correlates", params=params)
@@ -43,7 +50,8 @@ def get_correlates(client: TestClient, **params) -> tuple[dict, list[dict]]:
 
 def test_ranked_sweep_covers_every_other_ordered_item(client: TestClient) -> None:
     meta, rows = get_correlates(client, outcome="HAPPY", wave="Y1", filter="country_code:1")
-    assert {r["predictor"] for r in rows} == HAPPY_Y1_PREDICTORS
+    assert {r["predictor"] for r in rows} == HAPPY_Y1_PREDICTORS - set(HAPPY_Y1_OVERLAP)
+    assert meta["dropped_overlap"] == HAPPY_Y1_OVERLAP
     assert meta["stat"] == "pearson_r" and meta["adjusted"] is False
     assert meta["weight_key"] == "y1" and meta["weight"] == "w_c1"
     assert meta["controls"] == [] and meta["model"] is None
@@ -65,11 +73,13 @@ def test_ranked_sweep_excludes_predictors_below_min_n(synthetic_data_dir) -> Non
     meta, rows = get_correlates(client, outcome="HAPPY", wave="Y1", filter="country_code:1")
     assert rows == []
     assert meta["min_n"] == 100 and meta["n_excluded"] == len(HAPPY_Y1_PREDICTORS) + 1
+    assert meta["dropped_overlap"] == {}
     meta, named = get_correlates(
         client, outcome="HAPPY", wave="Y1", against="LONELY", filter="country_code:1"
     )
     assert len(named) == 1 and named[0]["n"] == 54 and named[0]["estimate"] is not None
     assert meta["min_n"] == 100 and meta["n_excluded"] == 0
+    assert meta["dropped_overlap"] == {}
     # Grouped: a predictor ranks on the groups that clear the floor.
     lowered = TestClient(
         create_app(Settings(data_path=synthetic_data_dir / "flourish.duckdb", correlates_min_n=54))
@@ -162,9 +172,14 @@ def test_named_predictors_keep_their_order_and_ignore_the_limit(client: TestClie
     assert [r["predictor"] for r in rows] == ["gad2_score"] * 2 + ["LONELY"] * 2 + ["BALANCE"] * 2
 
 
-def test_adjusted_routes_to_the_model(client: TestClient, store: DataStore) -> None:
+def test_adjusted_routes_to_the_model(adjusted_client: TestClient, store: DataStore) -> None:
     meta, rows = get_correlates(
-        client, outcome="HAPPY", wave="Y1", against="LONELY", adjusted="true", by="country_code"
+        adjusted_client,
+        outcome="HAPPY",
+        wave="Y1",
+        against="LONELY",
+        adjusted="true",
+        by="country_code",
     )
     assert meta["stat"] == "beta" and meta["adjusted"] is True and meta["model"] == "continuous"
     # Grouped by country: the country fixed effect leaves the control set.
@@ -205,9 +220,9 @@ def test_adjusted_routes_to_the_model(client: TestClient, store: DataStore) -> N
         assert row["se"] == pytest.approx(expected["se"])
 
 
-def test_binary_outcome_takes_the_logistic_model(client: TestClient) -> None:
+def test_binary_outcome_takes_the_logistic_model(adjusted_client: TestClient) -> None:
     meta, rows = get_correlates(
-        client,
+        adjusted_client,
         outcome="phq2_positive",
         wave="Y1",
         against="LONELY",
@@ -220,14 +235,129 @@ def test_binary_outcome_takes_the_logistic_model(client: TestClient) -> None:
     assert all(r["estimate"] is not None for r in rows)
 
 
-def test_adjusted_ranked_sweep(client: TestClient) -> None:
+def test_adjusted_ranked_sweep(adjusted_client: TestClient) -> None:
     _, rows = get_correlates(
-        client, outcome="HAPPY", wave="Y1", adjusted="true", filter="country_code:1", limit=4
+        adjusted_client,
+        outcome="HAPPY",
+        wave="Y1",
+        adjusted="true",
+        filter="country_code:1",
+        limit=4,
     )
     predictors = [r["predictor"] for r in rows[::2]]
     assert len(predictors) == 4 and len(rows) == 8
     per_sd = [abs(r["estimate"]) for r in rows if r["measure"] == "beta_per_sd"]
     assert per_sd == sorted(per_sd, reverse=True)
+
+
+def test_adjusted_is_refused_by_default_before_any_work(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-0018: with FA_ADJUSTED_ENABLED unset (the default, and the
+    deploy's) an adjusted request is a 422 with the plain message, and
+    nothing is parsed, loaded or estimated for it."""
+
+    def no_work(*args: object, **kwargs: object) -> None:
+        raise AssertionError("an adjusted request did work while the setting is off")
+
+    monkeypatch.setattr(correlates_route, "parse_correlates_query", no_work)
+    monkeypatch.setattr(correlates_route, "run_correlates", no_work)
+    monkeypatch.setattr(correlates_route, "assemble_correlates_frame", no_work)
+    assert Settings().adjusted_enabled is False
+    resp = client.get(
+        "/v1/correlates",
+        params={"outcome": "HAPPY", "wave": "Y1", "adjusted": "true", "by": "country_code"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == [ADJUSTED_OFF]
+    assert ADJUSTED_OFF == "Adjusted associations are not offered on this server."
+    # adjusted=false is the ordinary request.
+    monkeypatch.undo()
+    ok = client.get(
+        "/v1/correlates",
+        params={"outcome": "HAPPY", "wave": "Y1", "adjusted": "false", "filter": "country_code:1"},
+    )
+    assert ok.status_code == 200 and ok.json()["meta"]["adjusted"] is False
+
+
+def test_the_openapi_description_says_adjusted_is_off(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()
+    parameters = schema["paths"]["/v1/correlates"]["get"]["parameters"]
+    adjusted = next(p for p in parameters if p["name"] == "adjusted")
+    assert "disabled unless the server enables it" in adjusted["description"]
+
+
+def _info(name: str, scale_type: str = "scale_0_10", derived: bool = False) -> VariableInfo:
+    return VariableInfo(
+        name=name,
+        display_name=name,
+        scale_type=scale_type,
+        direction="higher_better",
+        polarity="ascending",
+        min=0,
+        max=10,
+        waves=("Y1",),
+        is_derived=derived,
+    )
+
+
+def test_a_score_stands_in_for_its_questions_and_its_flag() -> None:
+    score = _info("phq2_score", "count", derived=True)
+    flag = _info("phq2_positive", "binary", derived=True)
+    item = _info("DEPRESSED", "ordinal")
+    sfi, domain = _info("sfi", derived=True), _info("sfi_meaning", derived=True)
+    # More answers wins; on a tie the non-binary one; a full tie never flips.
+    assert stands_in_for(score, item) and not stands_in_for(item, score)
+    assert stands_in_for(score, flag) and not stands_in_for(flag, score)
+    assert stands_in_for(flag, item)
+    assert stands_in_for(sfi, domain) and not stands_in_for(domain, sfi)
+    assert not stands_in_for(score, score)
+
+
+def test_drop_overlaps_keeps_the_score_and_backfills_to_the_limit() -> None:
+    """The prompt's example: phq2_score beats its items DEPRESSED and
+    INTEREST, and beats phq2_positive; the list backfills from further
+    down so the limit still holds, in rank order."""
+    names = {
+        "DEPRESSED": ("ordinal", False),
+        "LONELY": ("scale_0_10", False),
+        "phq2_score": ("count", True),
+        "INTEREST": ("ordinal", False),
+        "phq2_positive": ("binary", True),
+        "BALANCE": ("scale_0_10", False),
+        "HOPE": ("scale_0_10", False),
+        "CALM": ("scale_0_10", False),
+    }
+    infos = {name: _info(name, scale, derived) for name, (scale, derived) in names.items()}
+    ranked = [(name, list[EstimateRow]()) for name in names]  # strongest first
+    kept, dropped = drop_overlaps(ranked, infos, limit=4)
+    assert [name for name, _ in kept] == ["LONELY", "phq2_score", "BALANCE", "HOPE"]
+    assert dropped == {
+        "DEPRESSED": "phq2_score",
+        "INTEREST": "phq2_score",
+        "phq2_positive": "phq2_score",
+    }
+    # Only kept predictors compete: a score below the cut never displaces
+    # its question, and nothing past the cut is reported.
+    kept, dropped = drop_overlaps(ranked, infos, limit=2)
+    assert [name for name, _ in kept] == ["DEPRESSED", "LONELY"]
+    assert dropped == {}
+
+
+def test_the_ranked_sweep_backfills_after_dropping_overlap(client: TestClient) -> None:
+    """End to end on the synthetic data: however the cut falls, no two
+    predictors in the list share answers and the list is `limit` long."""
+    _, everything = get_correlates(client, outcome="HAPPY", wave="Y1", filter="country_code:1")
+    for limit in range(1, len(everything) + 1):
+        meta, rows = get_correlates(
+            client, outcome="HAPPY", wave="Y1", filter="country_code:1", limit=limit
+        )
+        listed = [r["predictor"] for r in rows]
+        assert len(listed) == limit
+        assert not ({"phq2_score", "phq2_positive"} <= set(listed))
+        assert not ({"gad2_score", "gad2_positive"} <= set(listed))
+        assert set(meta["dropped_overlap"]) <= set(HAPPY_Y1_OVERLAP)
+        assert all(winner in listed for winner in meta["dropped_overlap"].values())
 
 
 def test_filters_apply_as_domains(client: TestClient) -> None:

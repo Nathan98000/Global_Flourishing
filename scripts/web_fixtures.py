@@ -43,8 +43,9 @@ DATA_VERSION = "synthetic.0.0.1"
 #: histogram), an ordinal pair (adds the transition matrix), the
 #: three-point panel, two state cross-sections (plain and adjusted) with
 #: the US overall on the state weight beside them, and
-#: the Correlates view's four shapes for two outcomes — the ranked list
-#: for Testland and the cross-country sweep, plain and adjusted.
+#: the Correlates view's two shapes for two outcomes — the ranked list
+#: for Testland and the cross-country sweep (the page never asks for the
+#: adjusted models, ADR-0018).
 API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     (
         "change-HAPPY-Y1-Y2.json",
@@ -75,18 +76,16 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     ),
     *(
         (
-            f"correlates-{outcome}-Y1-{shape}{'-adjusted' if adjusted else ''}.json",
+            f"correlates-{outcome}-Y1-{shape}.json",
             "/v1/correlates",
             {
                 "outcome": outcome,
                 "wave": "Y1",
                 **({"filter": "country_code:1"} if shape == "ranked" else {"by": "country_code"}),
-                **({"adjusted": "true"} if adjusted else {}),
             },
         )
         for outcome in ("sfi", "HAPPY")
         for shape in ("ranked", "across")
-        for adjusted in (False, True)
     ),
 )
 

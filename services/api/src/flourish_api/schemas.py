@@ -248,6 +248,12 @@ class ResponseMeta(BaseModel):
     #: every group (0 when the predictors were named).
     min_n: int | None = None
     n_excluded: int | None = None
+    #: /v1/correlates ranked sweeps only: the predictors left out because
+    #: they share answers with a predictor kept in the list (a score and
+    #: its own questions, or a score and its screen-positive flag — ADR-0018),
+    #: each mapped to the one that stands in for it; empty when nothing
+    #: overlapped, null on every other response.
+    dropped_overlap: dict[str, str] | None = None
 
 
 class EstimateResponse(BaseModel):

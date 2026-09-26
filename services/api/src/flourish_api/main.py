@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         flag_below=settings.suppression_flag_below,
     )
     app.state.correlates_min_n = settings.correlates_min_n
+    app.state.adjusted_enabled = settings.adjusted_enabled
 
     init_sentry(settings)
     install_middleware(app, settings)

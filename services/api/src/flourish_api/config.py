@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # predictors are always served — the matrix mutes such cells instead.
     correlates_min_n: int = CORRELATES_MIN_N
 
+    # The adjusted associations (ADR-0014) are the API's most expensive
+    # request and nothing on the site asks for them since ADR-0018, so
+    # `/v1/correlates?adjusted=true` is a 422 unless FA_ADJUSTED_ENABLED
+    # is set. The statistics code and its tests stay; setting the variable
+    # (and restoring the model-card route) brings them back.
+    adjusted_enabled: bool = False
+
     # In-process LRU over /v1 GET responses (entries, not bytes; responses
     # are small aggregates). 0 disables.
     cache_size: int = 256

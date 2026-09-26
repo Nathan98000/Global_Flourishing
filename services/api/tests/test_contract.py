@@ -62,8 +62,11 @@ CASES: dict[str, dict] = {
         "path": "/v1/correlates",
         "params": {"outcome": "HAPPY", "wave": "Y1", "filter": "country_code:1", "limit": 5},
     },
+    # The adjusted models are off by default (ADR-0018): this golden is
+    # taken with them switched on, so the code they run stays pinned.
     "correlates_adjusted": {
         "path": "/v1/correlates",
+        "adjusted": True,
         "params": {
             "outcome": "HAPPY",
             "wave": "Y1",
@@ -76,9 +79,10 @@ CASES: dict[str, dict] = {
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
-def test_golden_response(name: str, client: TestClient) -> None:
+def test_golden_response(name: str, client: TestClient, adjusted_client: TestClient) -> None:
     case = CASES[name]
-    resp = client.get(case["path"], params=case["params"])
+    served = adjusted_client if case.get("adjusted") else client
+    resp = served.get(case["path"], params=case["params"])
     assert resp.status_code == 200, resp.text
     body = resp.json()
     path = GOLDEN_DIR / f"{name}.json"

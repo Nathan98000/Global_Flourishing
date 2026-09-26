@@ -86,17 +86,23 @@ export interface paths {
         };
         /**
          * What travels with an outcome: ranked associations
-         * @description Associations, not causes. Unadjusted rows are weighted Pearson or
-         *     Spearman coefficients with no interval (``ci_method = "none"``);
-         *     ``adjusted=true`` returns the predictor's coefficient in a
-         *     survey-weighted regression under the fixed control set (``stat =
-         *     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
+         * @description Associations, not causes. Rows are weighted Pearson or Spearman
+         *     coefficients with no interval (``ci_method = "none"``). Omit
          *     ``against`` for the ranked sweep over every other servable ordered
          *     item at the wave, cut to ``limit`` predictors (ranked by the median
          *     absolute association across the groups with at least ``meta.min_n``
          *     complete cases; ``meta.n_excluded`` candidates fell below it and are
-         *     not ranked). Binary items enter as indicators of code 1 (Yes / screen
-         *     positive). Global scope only.
+         *     not ranked). Of two kept predictors built from the same answers only
+         *     the one built from more of them stays (a score over its questions; on
+         *     a tie, a score over its screen-positive flag); the list backfills to
+         *     ``limit`` and ``meta.dropped_overlap`` names what was left out, and
+         *     what stands in for it. Binary items enter as indicators of code 1
+         *     (Yes / screen positive). Global scope only.
+         *
+         *     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
+         *     regression under the fixed control set (``stat = "beta"``, plus a
+         *     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
+         *     server enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.
          */
         get: operations["correlates_v1_correlates_get"];
         put?: never;
@@ -414,6 +420,10 @@ export interface components {
             data_version: string | null;
             /** Direction */
             direction: string;
+            /** Dropped Overlap */
+            dropped_overlap?: {
+                [key: string]: string;
+            } | null;
             /** Filters */
             filters: {
                 [key: string]: (string | number | boolean | null)[];
@@ -718,10 +728,11 @@ export interface operations {
                 wave: string;
                 against?: string[] | null;
                 method?: string;
-                adjusted?: boolean;
                 by?: string[] | null;
                 filter?: string[] | null;
                 limit?: number;
+                /** @description The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422. */
+                adjusted?: boolean;
             };
             header?: never;
             path?: never;
