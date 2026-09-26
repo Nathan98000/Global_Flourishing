@@ -34,8 +34,11 @@ import {
   defaultCountry,
   excludedNote,
   heatCells,
-  matrixCaption,
+  acrossSubtitle,
+  legendEnds,
   methodLabel,
+  pinnedFirst,
+  shortName,
   statisticPhrase,
   tintExtent,
   waveNote,
@@ -311,7 +314,7 @@ describe('Correlates view', () => {
     expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
   })
 
-  test('Across countries: the ranked measures in every country, as a tinted matrix', async () => {
+  test('Across countries: the ranked measures in every country, the chosen one pinned first', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?outcome=HAPPY')
     await screen.findByRole('img', { name: /most strongly associated with it/ })
@@ -320,26 +323,39 @@ describe('Correlates view', () => {
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
     expect(screen.queryByRole('img', { name: /most strongly associated with it/ })).toBeNull()
-    const table = within(matrix).getByRole('table')
+    expect(screen.getByText('Happiness, across countries')).toBeInTheDocument()
     expect(
-      within(table)
-        .getAllByRole('columnheader')
-        .map((th) => th.textContent),
-    ).toEqual(['Measure ↓ · country →', 'Testland', 'United States'])
+      screen.getByText(
+        'The 2 measures ranked for United States, in every country · Wave 1, 2023 · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+    const table = within(matrix).getByRole('table')
+    // The chosen country first, marked; the rest A–Z.
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.map((th) => th.textContent)).toEqual([
+      'Measure ↓ · country →',
+      'United States',
+      'Testland',
+    ])
+    expect(headers[1]).toHaveAttribute('data-highlight')
+    expect(headers[2]).not.toHaveAttribute('data-highlight')
     expect(
       within(table)
         .getAllByRole('rowheader')
         .map((th) => th.textContent),
     ).toEqual(['Loneliness', 'Service attendance'])
     const cells = within(table).getAllByRole('cell')
-    expect(cells.map((cell) => cell.textContent?.replace(/, too few to rank$/, ''))).toEqual([
-      '−0.52',
+    // A cell below the ranking floor reads a muted dash; its number is
+    // in the tooltip and the data table.
+    expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.40',
+      '−0.52',
+      '—, too few respondents',
       '+0.31',
-      '+0.05',
     ])
+    expect(cells[0]).toHaveAttribute('data-highlight')
     // Tints fit the data: the strongest cell wears the deepest tint.
-    expect(cells[0]?.getAttribute('style')).toContain('var(--div-n5)')
+    expect(cells[1]?.getAttribute('style')).toContain('var(--div-n5)')
     // The tooltip is styled, on hover (never a native title).
     const tipOf = (cell: HTMLElement | undefined) => {
       fireEvent.pointerEnter(cell as HTMLElement)
@@ -349,17 +365,21 @@ describe('Correlates view', () => {
     }
     expect(cells[0]).not.toHaveAttribute('title')
     expect(tipOf(cells[0])).toContain('point estimate')
-    // A cell below the ranking floor is shown untinted, in muted ink,
-    // and its tooltip says why.
-    expect(cells[3]?.getAttribute('style')).toBeNull()
-    expect(cells[3]?.className).toContain('cellMuted')
-    expect(tipOf(cells[3])).toContain('Too few respondents to rank (fewer than ')
-    expect(tipOf(cells[3])).not.toContain('n =')
-    expect(cells[3]?.textContent).toContain('too few to rank')
-    // The caption is plain words, above the scrolling table.
+    expect(cells[2]?.getAttribute('style')).toBeNull()
+    expect(cells[2]?.className).toContain('cellMuted')
+    expect(tipOf(cells[2])).toContain('Too few respondents to rank (fewer than ')
+    expect(tipOf(cells[2])).toContain('+0.05')
+    expect(tipOf(cells[2])).not.toContain('n =')
+    // The legend, above the scrolling table in plain words: the window's
+    // ends around the ramp, the hues, the dash.
+    expect(matrix.querySelector('[class*=legendKey]')?.textContent).toBe('−0.52+0.52')
     expect(
-      within(matrix).getByText(/rust: a negative association, teal: positive/),
+      within(matrix).getByText(
+        'rust: goes with lower Happiness · teal: goes with higher Happiness',
+      ),
     ).toBeInTheDocument()
+    expect(within(matrix).getByText('— too few respondents')).toBeInTheDocument()
+    expect(within(matrix).queryByText(/deeper the tint/)).toBeNull()
     // The ranked sweep for the country, then its measures across countries.
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
@@ -408,12 +428,13 @@ describe('Correlates view', () => {
       'Testland',
       'United States',
     ])
+    // The chosen country pinned first, then the rest A–Z.
     expect(
       within(matrix)
         .getAllByRole('columnheader')
         .slice(1)
         .map((th) => th.textContent),
-    ).toEqual(['Albania', 'Testland', 'United States'])
+    ).toEqual(['United States', 'Albania', 'Testland'])
   })
 
   test('the model cards are retired: an old link lands on the not-found page', async () => {
@@ -489,12 +510,33 @@ describe('correlates helpers', () => {
     expect(defaultCountry({ countries: [{ code: 3, name: 'Elsewhere', iso3: 'ELS' }] })).toBe(3)
   })
 
-  test('the tint extent fits the data', () => {
+  test('the tint extent fits the data; the legend and subtitle say so in words', () => {
     expect(tintExtent(acrossPlain.rows)).toBe(0.52)
     expect(tintExtent([])).toBe(1)
-    expect(matrixCaption('Happiness', 0.52, 'pearson_r')).toBe(
-      'Happiness — rust: a negative association, teal: positive; the deeper the tint, the stronger it is (the deepest tint is 0.52 either way)',
+    expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
+    expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
+      'The 20 measures ranked for Japan, in every country · Wave 2, 2024 · correlation, −1 to 1',
     )
+    expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 measure ranked for Japan')
+    const countries = [
+      { code: 22, name: 'United States', iso3: 'USA' },
+      { code: 30, name: 'China', iso3: 'CHN' },
+      { code: 2, name: 'Sweden', iso3: 'SWE' },
+    ]
+    expect(pinnedFirst(countries, 2).map((country) => country.name)).toEqual([
+      'Sweden',
+      'China',
+      'United States',
+    ])
+    expect(pinnedFirst(countries, undefined).map((country) => country.name)).toEqual([
+      'China',
+      'Sweden',
+      'United States',
+    ])
+    // A short name only when the catalog serves one; the display name otherwise.
+    expect(shortName(happyVariable)).toBe('Happiness')
+    expect(shortName({ ...happyVariable, short_label: 'SFI' })).toBe('SFI')
+    expect(shortName({ ...happyVariable, short_label: ' ' })).toBe('Happiness')
   })
 
   test('the ranking floor: the footnote counts, cells below it are known', () => {

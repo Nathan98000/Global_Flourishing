@@ -70,6 +70,7 @@ export function ChartFigure({
   predictorLabel,
   footnote,
   unit,
+  wide = false,
   children,
 }: {
   title: string
@@ -100,6 +101,10 @@ export function ChartFigure({
   /** Whose sample the weights stand for (a state view's chart is
    * weighted by state whatever mark it draws). */
   unit?: 'country' | 'state'
+  /** The chart may be wider than the text column (a HeatTable with
+   * `wide`, which scrolls in its own box below 1200px): the chart node
+   * lets it out rather than clipping it. */
+  wide?: boolean
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -175,6 +180,7 @@ export function ChartFigure({
         aria-label={ariaLabel}
         className={styles.chart}
         data-refreshing={isRefreshing || undefined}
+        data-wide={wide || undefined}
       >
         {children}
       </div>

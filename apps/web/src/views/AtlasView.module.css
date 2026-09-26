@@ -103,6 +103,22 @@
   color: var(--ink-secondary);
 }
 
+/* The diverging key (Correlates): its entries side by side, wrapping
+   between entries, never inside the swatch run. */
+.legendRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+
+/* The diverging ramp's middle step is the page tone: a hairline frame
+   shows where the scale runs. */
+.rampFramed {
+  box-shadow: 0 0 0 1px var(--grid);
+}
+
 /* "Lower ▭ Higher" never comes apart on a phone; the note after it wraps. */
 .legendKey {
   display: inline-flex;

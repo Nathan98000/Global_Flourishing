@@ -210,6 +210,21 @@ describe.each([
   })
 })
 
+test('dark diverging steps stay apart: every neighbouring pair clears 1.3:1 (ADR-0018)', () => {
+  // The review found +0.35 … +0.70 all near-black green in dark mode;
+  // the widened ramp keeps each step visibly apart from the next, both
+  // ways from the neutral middle.
+  for (const side of [DIVERGING.slice(0, 5).reverse(), DIVERGING.slice(6)]) {
+    for (let i = 1; i < side.length; i += 1) {
+      const [a, b] = [side[i - 1] as string, side[i] as string]
+      expect(
+        contrast(darkStamped[a] as string, darkStamped[b] as string),
+        `dark: ${a} vs ${b}`,
+      ).toBeGreaterThanOrEqual(1.3)
+    }
+  }
+})
+
 test('the dark media block and the dark stamp define identical tokens', () => {
   expect(darkMedia).toEqual(darkStamped)
 })

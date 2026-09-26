@@ -2,7 +2,7 @@
 // Nothing here computes a statistic — the rows arrive ranked and
 // estimated; this file only names, keys and scales them for display.
 
-import type { Country, EstimateRow, Meta, ResponseMeta } from '../api/types'
+import type { Country, EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
 import { formatCount, formatEstimate } from '../format'
@@ -19,6 +19,23 @@ export function defaultCountry(meta: Pick<Meta, 'countries'>): number | undefine
  * country axis on this page. */
 export function countriesByName(countries: readonly Country[]): Country[] {
   return [...countries].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Every country A–Z, the chosen one pinned first (the matrix's columns). */
+export function pinnedFirst(countries: readonly Country[], chosen: number | undefined): Country[] {
+  const byName = countriesByName(countries)
+  const pinned = byName.find((country) => country.code === chosen)
+  return pinned ? [pinned, ...byName.filter((country) => country !== pinned)] : byName
+}
+
+/** What the page calls a measure in its keys and axis ends ("goes with
+ * higher …"): the catalog's short label when it serves one, else the
+ * display name — the catalog serves no variable-level short label today
+ * (only answers have one), so this is the display name. */
+export function shortName(
+  variable: Pick<VariableSummary, 'display_name'> & { short_label?: string | null },
+): string {
+  return variable.short_label?.trim() || variable.display_name
 }
 
 /** "A", "A and B", "A, B and C". */
@@ -55,10 +72,15 @@ export function tintExtent(rows: readonly EstimateRow[]): number {
   return extent > 0 ? extent : 1
 }
 
-/** The matrix caption in plain words: what the hues mean and what the
- * deepest tint stands for. */
-export function matrixCaption(outcome: string, extent: number, stat: string): string {
-  return `${outcome} — rust: a negative association, teal: positive; the deeper the tint, the stronger it is (the deepest tint is ${formatEstimate(extent, stat).replace('+', '')} either way)`
+/** The diverging legend's ends: "−0.52" and "+0.52". */
+export function legendEnds(extent: number, stat: string): [string, string] {
+  return [formatEstimate(-extent, stat), formatEstimate(extent, stat)]
+}
+
+/** The Across countries subtitle: which measures, where, when, what. */
+export function acrossSubtitle(count: number, countryName: string, wave: string): string {
+  const measures = count === 1 ? 'The 1 measure' : `The ${count} measures`
+  return `${measures} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · correlation, −1 to 1`
 }
 
 /** The ranked sweep's floor, in words, when it left measures out. */

@@ -14,13 +14,13 @@ import { useMemo } from 'react'
 import { predictorOrder, useCorrelates, type CorrelationMethod } from '../api/correlates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateResponse, EstimateRow, Meta, Wave } from '../api/types'
+import type { Country, EstimateResponse, EstimateRow, Wave } from '../api/types'
 import { WAVES } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
 import { RankedBar } from '../charts/RankedBar'
-import { divergingTint, signMark } from '../charts/theme'
+import { DIVERGING_RAMP, divergingTint, signMark } from '../charts/theme'
 import { HeatTable, intervalText } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -46,6 +46,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
   METHOD_HINT,
+  acrossSubtitle,
   axisTitle,
   belowFloor,
   countriesByName,
@@ -53,9 +54,11 @@ import {
   excludedNote,
   heatCells,
   heatKey,
-  matrixCaption,
+  legendEnds,
   methodLabel,
+  pinnedFirst,
   rankedSubtitle,
+  shortName,
   statisticPhrase,
   tintExtent,
   waveNote,
@@ -132,6 +135,7 @@ export function CorrelatesView() {
   const nameOf = (name: string) => variables.data.byName[name]?.display_name ?? name
   const countryName = country !== undefined ? groupValueLabel('country_code', country, served) : ''
   const title = variable?.display_name ?? search.outcome
+  const short = variable ? shortName(variable) : title
 
   const handlePick = ({ outcome }: { outcome: string }) => {
     const target = variables.data.byName[outcome]
@@ -371,9 +375,9 @@ export function CorrelatesView() {
           offline(across.error)
         ) : acrossResponse ? (
           <ChartFigure
-            title="Across countries"
-            subtitle={`The same measures in every country · ${statisticPhrase(search.method)} · ${WAVE_TITLES[search.wave] ?? search.wave}`}
-            ariaLabel={`${title}: the ${predictors.length} measures ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix. Rust cells are negative associations, teal cells positive; the data table below carries every number.`}
+            title={`${title}, across countries`}
+            subtitle={acrossSubtitle(predictors.length, countryName, search.wave)}
+            ariaLabel={`${title}: the ${predictors.length} measures ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with lower ${short}, teal cells with higher; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
             meta={served}
@@ -382,6 +386,7 @@ export function CorrelatesView() {
             isRefreshing={across.isPlaceholderData}
             predictorLabel={nameOf}
             footnote={footnote(acrossResponse)}
+            wide
           >
             <CountryMatrix
               predictors={predictors}
@@ -389,13 +394,51 @@ export function CorrelatesView() {
               cells={cells}
               minN={acrossResponse.meta.min_n}
               nameOf={nameOf}
-              countries={countries}
-              outcome={title}
+              countries={pinnedFirst(served.countries, country)}
+              chosen={country}
+              short={short}
             />
           </ChartFigure>
         ) : null
       ) : null}
     </section>
+  )
+}
+
+/** The key to a diverging matrix, in its caption's place (outside the
+ * scroll box, regular weight): the eleven ramp tokens between the
+ * window's two ends — the tokens themselves, so it reads true in either
+ * theme — what the two hues mean, and the dash. */
+export function DivergingLegend({
+  extent,
+  stat,
+  short,
+  extra,
+}: {
+  extent: number
+  stat: string
+  short: string
+  /** One more entry after the dash's (Compare several's "·"). */
+  extra?: string
+}) {
+  const [lo, hi] = legendEnds(extent, stat)
+  return (
+    <span className={`${styles.legend} ${styles.legendRow}`}>
+      <span className={styles.legendKey}>
+        <span>{lo}</span>
+        <span className={`${styles.ramp} ${styles.rampFramed}`} aria-hidden="true">
+          {DIVERGING_RAMP.map((token) => (
+            <span key={token} style={{ background: token }} />
+          ))}
+        </span>
+        <span>{hi}</span>
+      </span>
+      <span>
+        rust: goes with lower {short} · teal: goes with higher {short}
+      </span>
+      <span>— too few respondents</span>
+      {extra && <span>{extra}</span>}
+    </span>
   )
 }
 
@@ -406,44 +449,48 @@ function CountryMatrix({
   minN,
   nameOf,
   countries,
-  outcome,
+  chosen,
+  short,
 }: {
   predictors: readonly string[]
   rows: readonly EstimateRow[]
   cells: Map<string, EstimateRow>
-  /** The server's ranking floor: cells below it are shown, untinted. */
+  /** The server's ranking floor: cells below it read a muted "—". */
   minN: number | null | undefined
   nameOf: (name: string) => string
-  /** The columns, A–Z. */
-  countries: Meta['countries']
-  outcome: string
+  /** The columns: the chosen country, then the rest A–Z. */
+  countries: readonly Country[]
+  chosen: number | undefined
+  short: string
 }) {
-  // The tint window fits the cells that count; a cell below the floor is
-  // shown in muted ink without a tint.
+  // The tint window fits the cells that count; a cell below the floor
+  // reads a muted dash, its number in the tooltip and the data table.
   const ranked = rows.filter((row) => !belowFloor(row, minN))
   const extent = tintExtent(ranked)
   const stat = rows[0]?.stat ?? 'pearson_r'
   return (
     <HeatTable
-      caption={matrixCaption(outcome, extent, stat)}
+      caption={<DivergingLegend extent={extent} stat={stat} short={short} />}
       corner="Measure ↓ · country →"
       rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
       columns={countries.map((country) => ({
         key: String(country.code),
         label: country.name,
       }))}
+      highlight={chosen !== undefined ? String(chosen) : undefined}
+      wide
       cellAt={(row, column) => {
         const country = countries.find((entry) => String(entry.code) === column.key)
         const cell = country ? cells.get(heatKey(row.key, country)) : undefined
         if (!cell) return undefined
         const muted = belowFloor(cell, minN)
         return {
-          text: formatEstimate(cell.estimate, cell.stat),
+          text: muted ? '—' : formatEstimate(cell.estimate, cell.stat),
           title: muted
             ? `Too few respondents to rank (fewer than ${formatCount(minN ?? 0)})\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
             : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: divergingTint(cell.estimate, extent),
-          hidden: muted ? ', too few to rank' : undefined,
+          hidden: muted ? ', too few respondents' : undefined,
           muted,
         }
       }}

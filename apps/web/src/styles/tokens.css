@@ -244,20 +244,23 @@
     --seq-600-ink: var(--tint-ink-dark);
     --seq-700-ink: var(--tint-ink-dark);
 
-    --div-n5: #8a5b3c;
-    --div-n4: #5d3f2b;
-    --div-n3: #493324;
-    --div-n2: #37291d;
-    --div-n1: #281f17;
+    /* Diverging, dark (widened in ADR-0018): each step climbs about 9 L*
+       (the end step 16), so neighbouring tints stay apart on the dark
+       page; the end steps are light enough to take the dark ink. */
+    --div-n5: #b97a56;
+    --div-n4: #83563b;
+    --div-n3: #65442e;
+    --div-n2: #493223;
+    --div-n1: #2e2117;
     --div-0: #141310;
-    --div-p1: #1f2420;
-    --div-p2: #27312c;
-    --div-p3: #31403a;
-    --div-p4: #3c504a;
-    --div-p5: #4e6c65;
+    --div-p1: #192622;
+    --div-p2: #223c35;
+    --div-p3: #2a5349;
+    --div-p4: #326a5e;
+    --div-p5: #4b9686;
     --div-neg-mark: #d98b5a;
     --div-pos-mark: #7fb8ad;
-    --div-n5-ink: var(--tint-ink-light);
+    --div-n5-ink: var(--tint-ink-dark);
     --div-n4-ink: var(--tint-ink-light);
     --div-n3-ink: var(--tint-ink-light);
     --div-n2-ink: var(--tint-ink-light);
@@ -267,7 +270,7 @@
     --div-p2-ink: var(--tint-ink-light);
     --div-p3-ink: var(--tint-ink-light);
     --div-p4-ink: var(--tint-ink-light);
-    --div-p5-ink: var(--tint-ink-light);
+    --div-p5-ink: var(--tint-ink-dark);
 
     --notice-bg: #17201c;
     --notice-border: #2f4a42;
@@ -344,20 +347,21 @@
   --seq-600-ink: var(--tint-ink-dark);
   --seq-700-ink: var(--tint-ink-dark);
 
-  --div-n5: #8a5b3c;
-  --div-n4: #5d3f2b;
-  --div-n3: #493324;
-  --div-n2: #37291d;
-  --div-n1: #281f17;
+  /* Diverging, dark: as in the media block above (ADR-0018). */
+  --div-n5: #b97a56;
+  --div-n4: #83563b;
+  --div-n3: #65442e;
+  --div-n2: #493223;
+  --div-n1: #2e2117;
   --div-0: #141310;
-  --div-p1: #1f2420;
-  --div-p2: #27312c;
-  --div-p3: #31403a;
-  --div-p4: #3c504a;
-  --div-p5: #4e6c65;
+  --div-p1: #192622;
+  --div-p2: #223c35;
+  --div-p3: #2a5349;
+  --div-p4: #326a5e;
+  --div-p5: #4b9686;
   --div-neg-mark: #d98b5a;
   --div-pos-mark: #7fb8ad;
-  --div-n5-ink: var(--tint-ink-light);
+  --div-n5-ink: var(--tint-ink-dark);
   --div-n4-ink: var(--tint-ink-light);
   --div-n3-ink: var(--tint-ink-light);
   --div-n2-ink: var(--tint-ink-light);
@@ -367,7 +371,7 @@
   --div-p2-ink: var(--tint-ink-light);
   --div-p3-ink: var(--tint-ink-light);
   --div-p4-ink: var(--tint-ink-light);
-  --div-p5-ink: var(--tint-ink-light);
+  --div-p5-ink: var(--tint-ink-dark);
 
   --notice-bg: #17201c;
   --notice-border: #2f4a42;

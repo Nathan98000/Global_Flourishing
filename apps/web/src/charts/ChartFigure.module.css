@@ -75,6 +75,11 @@
   overflow-x: auto;
 }
 
+/* A matrix that may leave the text column scrolls in its own box. */
+.chart[data-wide] {
+  overflow-x: visible;
+}
+
 /* Every numeric surface is tabular (§2): value labels and axis ticks. */
 .chart :global(svg) {
   font-variant-numeric: tabular-nums;

@@ -140,9 +140,13 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * `columnWidth` every column takes that width and its header wraps over
  * it; without, columns fit their labels on one line. A `sort` column
  * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. A
- * cell's tooltip is the Plot tips' look, at once on hover and on tap for
- * touch; cells are never tab stops (the data table carries the same
- * numbers and intervals). */
+ * `highlight` column (the chosen country, pinned first) wears a marked
+ * header and an outline. `wide`: from 1200px the matrix leaves the text
+ * column — centred on it, up to 1216px — and its column headers stand
+ * upright, so two dozen columns fit without scrolling. A cell's tooltip
+ * is the Plot tips' look, at once on hover and on tap for touch; cells
+ * are never tab stops (the data table carries the same numbers and
+ * intervals). */
 export function HeatTable({
   caption,
   corner,
@@ -151,6 +155,8 @@ export function HeatTable({
   cellAt,
   columnWidth,
   sort,
+  highlight,
+  wide = false,
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
@@ -163,6 +169,10 @@ export function HeatTable({
   columnWidth?: number
   /** The column the rows are ordered by, and which way. */
   sort?: { column: string; dir: SortDir }
+  /** The key of a column to mark: a highlighted header, an outline. */
+  highlight?: string
+  /** From 1200px: out of the text column, up to 1216px, upright headers. */
+  wide?: boolean
 }) {
   const captionId = useId()
   const matrix = useRef<HTMLDivElement | null>(null)
@@ -259,7 +269,7 @@ export function HeatTable({
   }
   if (rows.length === 0 || columns.length === 0) return null
   return (
-    <div className={styles.matrix} ref={matrix}>
+    <div className={styles.matrix} ref={matrix} data-wide={wide || undefined}>
       <p className={styles.caption} id={captionId}>
         {caption}
       </p>
@@ -293,11 +303,14 @@ export function HeatTable({
                       aria-sort={
                         dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
                       }
+                      data-highlight={column.key === highlight || undefined}
                     >
-                      {column.label}
-                      {dir && (
-                        <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
-                      )}
+                      <span className={styles.head}>
+                        {column.label}
+                        {dir && (
+                          <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
+                        )}
+                      </span>
                     </th>
                   )
                 })}
@@ -309,9 +322,10 @@ export function HeatTable({
                   <th scope="row">{row.label}</th>
                   {columns.map((column) => {
                     const cell = cellAt(row, column)
+                    const marked = column.key === highlight || undefined
                     if (!cell) {
                       return (
-                        <td key={column.key} className={styles.cell}>
+                        <td key={column.key} className={styles.cell} data-highlight={marked}>
                           —
                         </td>
                       )
@@ -321,6 +335,7 @@ export function HeatTable({
                       <td
                         key={column.key}
                         className={cell.muted ? styles.cellMuted : styles.cell}
+                        data-highlight={marked}
                         style={
                           cell.muted
                             ? undefined
