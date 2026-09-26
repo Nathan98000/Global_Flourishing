@@ -1,7 +1,7 @@
 // PNG serializer (token inlining, stamping), the download names and CSV helpers.
 
 import { describe, expect, test } from 'vitest'
-import { responseToCsv } from '../export/csv'
+import { correlationTableToCsv, responseToCsv } from '../export/csv'
 import { exportFilename, slugify } from '../export/filename'
 import { CITATION_LINE, inlineTokenColors, serializeSvg, stampLines } from '../export/png'
 import { testResponse, testRow } from '../test-utils/fixtures'
@@ -98,5 +98,55 @@ describe('CSV helpers', () => {
     expect(csv.split('\n').find((line) => !line.startsWith('#'))).toContain(
       'country_code,stat,estimate',
     )
+  })
+})
+
+describe('correlation table CSV (Compare several)', () => {
+  test('its own meta, then every pair — a pair built from the same answers with no numbers', () => {
+    const correlation = testRow({
+      group: {},
+      predictor: 'LONELY',
+      stat: 'pearson_r',
+      estimate: -0.52,
+      se: null,
+      ci_lo: null,
+      ci_hi: null,
+      ci_method: 'none',
+      se_method: 'none',
+      n: 54,
+      sum_w: 55.5,
+    })
+    const csv = correlationTableToCsv({
+      meta: {
+        data_version: 'test.1.0.0',
+        vars: ['HAPPY', 'LONELY', 'sfi'],
+        wave: 'Y1',
+        stat: 'pearson_r',
+        weight_key: 'y1',
+        weight: 'w_c1',
+        ci_level: 0.95,
+        suppression: { threshold: 0, flag_below: 0 },
+        n_frame: 60,
+        filters: { country_code: [22] },
+        min_n: 100,
+      },
+      pairs: [
+        { a: 'HAPPY', b: 'LONELY', shares_answers: false, below_min_n: true, correlation },
+        { a: 'HAPPY', b: 'sfi', shares_answers: true, below_min_n: false, correlation: null },
+      ],
+    })
+    const lines = csv.trim().split('\n')
+    expect(lines).toContain('# vars: HAPPY,LONELY,sfi')
+    expect(lines).toContain('# min_n: 100')
+    expect(lines).toContain('# suppression: none (all cells shown)')
+    expect(lines).toContain('# filter country_code: 22')
+    const header = lines.find((line) => line.startsWith('a,b,'))
+    expect(header).toBe(
+      'a,b,shares_answers,below_min_n,stat,estimate,se,ci_lo,ci_hi,ci_level,ci_method,n,sum_w,n_psu,n_strata,df,se_method,weight,suppressed,flagged',
+    )
+    expect(lines).toContain(
+      'HAPPY,LONELY,False,True,pearson_r,-0.52,,,,0.95,none,54,55.5,120,12,108,none,w_c1,False,False',
+    )
+    expect(lines[lines.length - 1]).toBe('HAPPY,sfi,True,False,,,,,,,,,,,,,,,,')
   })
 })

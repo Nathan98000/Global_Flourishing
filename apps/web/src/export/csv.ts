@@ -4,7 +4,7 @@
 // API is unreachable — and pinned to a real server response by the
 // parity test against _fixtures/export-sample.csv.
 
-import type { EstimateResponse, EstimateRow } from '../api/types'
+import type { CorrelationsResponse, EstimateResponse, EstimateRow } from '../api/types'
 
 const SUBROW_KEYS = ['predictor', 'level', 'p', 'leg', 'from_level', 'to_level', 'measure'] as const
 
@@ -96,6 +96,47 @@ export function responseToCsv(response: EstimateResponse): string {
         ...groupColumns.map((column) => cell(row.group[column])),
         ...subrowKeys.map((key) => cell(row[key])),
         ...RECORD_FIELDS.map((field) => cell(row[field as keyof EstimateRow])),
+      ]
+        .map(quoted)
+        .join(','),
+    )
+  }
+  return `${lines.join('\n')}\n`
+}
+
+/** A correlation table (/v1/correlations) as CSV: its own meta as `#`
+ * lines, then one line per pair — both questions, whether they share
+ * answers or rest on too few people, and the correlation's record (empty
+ * where none was taken). Same value rendering as responseToCsv. */
+export function correlationTableToCsv(table: CorrelationsResponse): string {
+  const meta = table.meta
+  const lines = [
+    `# data_version: ${pythonStr(meta.data_version)}`,
+    `# vars: ${meta.vars.join(',')}`,
+    `# wave: ${meta.wave}`,
+    `# stat: ${meta.stat}`,
+    `# weight_key: ${meta.weight_key}`,
+    `# weight: ${meta.weight}`,
+    `# ci_level: ${pythonStr(meta.ci_level)}`,
+    `# n_frame: ${meta.n_frame}`,
+    `# min_n: ${meta.min_n}`,
+    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
+      ? '# suppression: none (all cells shown)'
+      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    ...Object.entries(meta.filters).map(
+      ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
+    ),
+  ]
+  lines.push(['a', 'b', 'shares_answers', 'below_min_n', ...RECORD_FIELDS].map(quoted).join(','))
+  for (const pair of table.pairs) {
+    const row = pair.correlation
+    lines.push(
+      [
+        pair.a,
+        pair.b,
+        pythonStr(pair.shares_answers),
+        pythonStr(pair.below_min_n),
+        ...RECORD_FIELDS.map((field) => (row ? cell(row[field as keyof EstimateRow]) : '')),
       ]
         .map(quoted)
         .join(','),

@@ -6,6 +6,9 @@
     "controls": [],
     "data_version": "synthetic.0.0.1",
     "direction": "higher_better",
+    "dropped_overlap": {
+      "phq2_positive": "phq2_score"
+    },
     "filters": {
       "country_code": [
         1
@@ -143,7 +146,7 @@
       "ci_lo": null,
       "ci_method": "none",
       "df": null,
-      "estimate": -0.12190764358674251,
+      "estimate": 0.12140404457902622,
       "flagged": false,
       "from_level": null,
       "group": {},
@@ -154,7 +157,7 @@
       "n_psu": null,
       "n_strata": null,
       "p": null,
-      "predictor": "phq2_positive",
+      "predictor": "BALANCE",
       "se": null,
       "se_method": "none",
       "stat": "pearson_r",

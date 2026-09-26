@@ -23,3 +23,4 @@ it.
 | [ADR-0015](ADR-0015-label-aligned-signs-and-display-rules.md) | Signed statistics follow the label; categorical change in share; a ranking floor; binned derived scores | Accepted |
 | [ADR-0016](ADR-0016-home-page-design-pass.md) | The home-page design pass — no world map, interval-only tooltips, no orient checkbox, scale endpoints, server-owned subtopics | Accepted |
 | [ADR-0017](ADR-0017-compare-retired-segments.md) | Compare retired as redundant with a single-country split; Breakdowns renamed Segments; the old addresses redirect | Accepted |
+| [ADR-0018](ADR-0018-correlates-views-and-adjusted-off.md) | Correlates in four views (a ranked list, across countries, two questions side by side, a table of several); overlap left out of the ranking; two pair endpoints; the adjusted models off the page and off by default | Accepted |

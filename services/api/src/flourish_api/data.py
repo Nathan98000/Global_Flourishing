@@ -21,11 +21,11 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Annotated, Any
 
 import duckdb
 import polars as pl
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Query, Request
 from flourish_stats import SuppressionPolicy
 from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame, wide_frame
 
@@ -236,6 +236,31 @@ def suppression_policy(request: Request) -> SuppressionPolicy:
 def correlates_min_n(request: Request) -> int:
     """FastAPI dependency: the ranked sweep's minimum n (FA_CORRELATES_MIN_N)."""
     return int(request.app.state.correlates_min_n)
+
+
+#: The 422 a request for the adjusted models gets while they are off.
+ADJUSTED_OFF = "Adjusted associations are not offered on this server."
+
+
+def adjusted_gate(
+    request: Request,
+    adjusted: Annotated[
+        bool,
+        Query(
+            description=(
+                "The adjusted associations under the fixed control set (ADR-0014) "
+                "instead of plain correlations — disabled unless the server enables "
+                "it (FA_ADJUSTED_ENABLED); otherwise a 422."
+            )
+        ),
+    ] = False,
+) -> bool:
+    """FastAPI dependency: the ``adjusted`` flag, refused with a 422 before
+    any work is done while the server has the adjusted models switched
+    off (the default — ADR-0018)."""
+    if adjusted and not request.app.state.adjusted_enabled:
+        raise HTTPException(status_code=422, detail=[ADJUSTED_OFF])
+    return adjusted
 
 
 def require_data(request: Request) -> DataStore:

@@ -5,6 +5,17 @@
 // the chart renders at the real column width — full-bleed in a wide
 // column, honest per-row heights on a phone (a 23-row chart scrolls, it
 // never shrinks). The design width only serves until the first measure.
+//
+// It re-fits on every change of that width, growing as well as
+// shrinking: the ResizeObserver's width becomes state and the build
+// reruns at it. Browsers deliver those observations with the page's
+// rendering, so a hidden document (a background tab, an occluded
+// window) gets them — and re-fits — when it is next shown. Until then
+// an SVG built wider than its host is scaled down by Plot's max-width:
+// 100%, which makes a missed shrink look right while a missed growth
+// shows (the Correlates review's "doesn't widen on resize", 25 Sept
+// 2026, reproduced only in a hidden tab; a rendering page re-fits on
+// dev and the live build alike — see the test in charts.test.tsx).
 
 import { useEffect, useRef, useState } from 'react'
 

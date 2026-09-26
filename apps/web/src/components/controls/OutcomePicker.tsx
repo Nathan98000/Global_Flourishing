@@ -14,8 +14,22 @@
 
 import { useId, useMemo, useState } from 'react'
 import type { VariableSummary } from '../../api/types'
-import { subtopicsOf, topicsOf } from '../../topics'
+import { subtopicsOf, topicFamily, topicsOf } from '../../topics'
 import styles from './OutcomePicker.module.css'
+
+export interface PickerLabels {
+  topic: string
+  subtopic: string
+  measure: string
+  search: string
+}
+
+export const PICKER_LABELS: PickerLabels = {
+  topic: 'Topic',
+  subtopic: 'Subtopic',
+  measure: 'Measure',
+  search: 'Or search',
+}
 
 export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
   const needle = query.trim().toLowerCase()
@@ -36,6 +50,8 @@ export function OutcomePicker({
   topic,
   onSelect,
   fields = 'all',
+  pairs = false,
+  labels = PICKER_LABELS,
 }: {
   variables: VariableSummary[]
   /** The current outcome (may be unknown to the catalog). */
@@ -50,6 +66,12 @@ export function OutcomePicker({
    * fold, Topic + search move into the disclosure. Each narrow instance
    * renders its own subset; the search's query state stays local. */
   fields?: 'all' | 'measure' | 'topic-and-search'
+  /** On a phone, Topic and Measure side by side with the search under
+   * them (the Correlates layout) rather than one field per row. */
+  pairs?: boolean
+  /** The fields' names, when a page holds two pickers (Compare two's
+   * "Compare with" beside the Measure). */
+  labels?: PickerLabels
 }) {
   const [query, setQuery] = useState('')
   // A subtopic chosen mid-selection (no measure picked yet) — local, like
@@ -62,10 +84,10 @@ export function OutcomePicker({
 
   const topics = useMemo(() => topicsOf(variables), [variables])
   const current = variables.find((variable) => variable.name === value)
-  const activeTopic = topic ?? current?.family
+  const activeTopic = topic ?? (current ? topicFamily(current) : undefined)
   const active = topics.find((entry) => entry.family === activeTopic)
   const subtopics = useMemo(() => (active ? subtopicsOf(active.measures) : []), [active])
-  const inTopic = current !== undefined && current.family === activeTopic
+  const inTopic = current !== undefined && topicFamily(current) === activeTopic
   const activeSubtopic =
     subtopics.length === 0
       ? undefined
@@ -104,11 +126,11 @@ export function OutcomePicker({
   }
 
   return (
-    <div className={styles.picker}>
+    <div className={styles.picker} data-pairs={pairs || undefined}>
       {fields !== 'measure' && (
-        <div className={styles.field}>
+        <div className={styles.field} data-field="topic">
           <label className={styles.label} htmlFor={topicId}>
-            Topic
+            {labels.topic}
           </label>
           <select
             id={topicId}
@@ -130,9 +152,9 @@ export function OutcomePicker({
         </div>
       )}
       {fields !== 'topic-and-search' && subtopics.length > 0 && activeTopic !== undefined && (
-        <div className={styles.field}>
+        <div className={styles.field} data-field="subtopic">
           <label className={styles.label} htmlFor={subtopicId}>
-            Subtopic
+            {labels.subtopic}
           </label>
           <select
             id={subtopicId}
@@ -149,9 +171,9 @@ export function OutcomePicker({
         </div>
       )}
       {fields !== 'topic-and-search' && (
-        <div className={styles.field}>
+        <div className={styles.field} data-field="measure">
           <label className={styles.label} htmlFor={measureId}>
-            Measure
+            {labels.measure}
           </label>
           <select
             id={measureId}
@@ -175,9 +197,9 @@ export function OutcomePicker({
         </div>
       )}
       {fields !== 'measure' && (
-        <div className={styles.field}>
+        <div className={styles.field} data-field="search">
           <label className={styles.label} htmlFor={searchId}>
-            Or search
+            {labels.search}
           </label>
           <div className={styles.searchWrap}>
             <input

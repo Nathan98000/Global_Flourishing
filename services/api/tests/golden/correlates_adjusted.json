@@ -14,6 +14,7 @@
     ],
     "data_version": "synthetic.0.0.1",
     "direction": "higher_better",
+    "dropped_overlap": {},
     "filters": {},
     "min_n": 20,
     "model": "continuous",

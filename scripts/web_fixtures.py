@@ -43,8 +43,10 @@ DATA_VERSION = "synthetic.0.0.1"
 #: histogram), an ordinal pair (adds the transition matrix), the
 #: three-point panel, two state cross-sections (plain and adjusted) with
 #: the US overall on the state weight beside them, and
-#: the Correlates view's four shapes for two outcomes — the ranked list
-#: for Testland and the cross-country sweep, plain and adjusted.
+#: the Correlates view's two shapes for the outcomes journey 10 visits —
+#: the ranked list for Testland and the cross-country sweep (the page
+#: never asks for the adjusted models, ADR-0018). The Compare two and
+#: Compare several responses that journey needs are planned below.
 API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     (
         "change-HAPPY-Y1-Y2.json",
@@ -75,20 +77,55 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     ),
     *(
         (
-            f"correlates-{outcome}-Y1-{shape}{'-adjusted' if adjusted else ''}.json",
+            f"correlates-{outcome}-Y1-{shape}.json",
             "/v1/correlates",
             {
                 "outcome": outcome,
                 "wave": "Y1",
                 **({"filter": "country_code:1"} if shape == "ranked" else {"by": "country_code"}),
-                **({"adjusted": "true"} if adjusted else {}),
             },
         )
-        for outcome in ("sfi", "HAPPY")
+        for outcome in ("sfi", "HAPPY", "LONELY", "gad2_score")
         for shape in ("ranked", "across")
-        for adjusted in (False, True)
     ),
 )
+
+#: Journey 10's path through Compare two and Compare several, in the
+#: synthetic data: HAPPY's "Loneliness" row opens the pair, Swap turns it
+#: round, Compare several starts from LONELY and its top five, the
+#: journey adds BALANCE ("Life balance"), removes phq2_score, and opens
+#: the table's first cell (its second question beside its first).
+JOURNEY_ADDED = "BALANCE"
+JOURNEY_REMOVED = "phq2_score"
+
+
+def correlation_fixtures(client: TestClient) -> list[tuple[str, str, dict[str, object]]]:
+    """(file, path, params) for journey 10's pair and table requests,
+    named from the request itself so the journey finds them by it."""
+    ranked = client.get(
+        "/v1/correlates", params={"outcome": "LONELY", "wave": "Y1", "filter": "country_code:1"}
+    )
+    ranked.raise_for_status()
+    top = [row["predictor"] for row in ranked.json()["rows"]][:5]
+    default = ["LONELY", *top]
+    added = [*default, JOURNEY_ADDED]
+    kept = [name for name in added if name != JOURNEY_REMOVED]
+    pairs = [("HAPPY", "LONELY"), ("LONELY", "HAPPY"), (kept[1], kept[0])]
+    base = {"wave": "Y1", "filter": "country_code:1"}
+    return [
+        *(
+            (f"correlations-pair-{y}-{x}.json", "/v1/correlations/pair", {"y": y, "x": x, **base})
+            for y, x in pairs
+        ),
+        *(
+            (
+                f"correlations-table-{'-'.join(names)}.json",
+                "/v1/correlations",
+                {"vars": names, **base},
+            )
+            for names in (default, added, kept)
+        ),
+    ]
 
 
 def main() -> int:
@@ -111,7 +148,7 @@ def main() -> int:
         fixtures = target / "_fixtures"
         fixtures.mkdir()
         (fixtures / "export-sample.csv").write_text(sample.text)
-        for name, path, params in API_FIXTURES:
+        for name, path, params in (*API_FIXTURES, *correlation_fixtures(client)):
             response = client.get(path, params=params)
             response.raise_for_status()
             (fixtures / name).write_text(response.text)

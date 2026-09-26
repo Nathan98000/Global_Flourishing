@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from flourish_api.routes.aggregate import router as aggregate_router
 from flourish_api.routes.change import router as change_router
 from flourish_api.routes.correlates import router as correlates_router
+from flourish_api.routes.correlations import router as correlations_router
 from flourish_api.routes.export import router as export_router
 from flourish_api.routes.meta import router as meta_router
 from flourish_api.routes.states import router as states_router
@@ -18,3 +19,4 @@ v1.include_router(change_router)
 v1.include_router(states_router)
 v1.include_router(export_router)
 v1.include_router(correlates_router)
+v1.include_router(correlations_router)

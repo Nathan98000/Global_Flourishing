@@ -2,11 +2,10 @@
 // the static tier precomputes no associations, so this module never tries
 // a static path. One request answers either the ranked sweep (every other
 // ordered item, strongest first, cut by the server) or the predictors it
-// names, across the groups asked for. Unadjusted rows are point estimates
-// (`ci_method = "none"`) and are drawn without an interval; adjusted rows
-// are model coefficients with a design-based CI, two per group (`measure`:
-// `beta`, the raw coefficient, and `beta_per_sd`, the same per one SD of
-// the measure — the one the charts compare across measures).
+// names, across the groups asked for. Rows are weighted correlations —
+// point estimates (`ci_method = "none"`), drawn without an interval. The
+// page never asks for the adjusted models (ADR-0018: off by default on
+// the server, and no longer offered here).
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL } from '../config'
@@ -18,9 +17,6 @@ import type { EstimateResponse, EstimateRow, Wave } from './types'
 export type CorrelationMethod = 'pearson' | 'spearman'
 export const CORRELATION_METHODS: readonly CorrelationMethod[] = ['pearson', 'spearman']
 
-/** The two rows an adjusted association ships per group. */
-export type AssociationMeasure = 'beta' | 'beta_per_sd'
-
 /** One /v1/correlates request, in the API's own vocabulary. */
 export interface CorrelatesRequest {
   outcome: string
@@ -28,7 +24,6 @@ export interface CorrelatesRequest {
   /** Named predictors, reported in this order; absent = the ranked sweep. */
   against?: readonly string[]
   method?: CorrelationMethod
-  adjusted?: boolean
   /** Group columns (country_code for the cross-country matrix; none for one country). */
   by: readonly string[]
   countries?: readonly number[]
@@ -44,7 +39,6 @@ export function canonicalCorrelatesParams(request: CorrelatesRequest): URLSearch
   params.set('wave', request.wave)
   for (const name of request.against ?? []) params.append('against', name)
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
-  if (request.adjusted) params.set('adjusted', 'true')
   for (const column of request.by) params.append('by', column)
   for (const code of request.countries ?? []) params.append('filter', `country_code:${code}`)
   for (const filter of request.filters ?? [])
@@ -63,7 +57,12 @@ export function fetchCorrelates(request: CorrelatesRequest): Promise<EstimateRes
   )
 }
 
-export function useCorrelates(request: CorrelatesRequest | null) {
+/** `enabled: false` keeps a view's query idle while another view is on
+ * screen (the request is still known, so the cache key is stable). */
+export function useCorrelates(
+  request: CorrelatesRequest | null,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const meta = useMeta()
   const dataVersion = meta.data?.meta.data_version ?? null
   return useQuery({
@@ -72,7 +71,7 @@ export function useCorrelates(request: CorrelatesRequest | null) {
       dataVersion,
       request === null ? 'none' : canonicalCorrelatesKey(request),
     ],
-    enabled: request !== null,
+    enabled: request !== null && enabled,
     // Refetch keeps the frame (dimmed, with the progress bar) — no block flash.
     placeholderData: keepPreviousData,
     queryFn: () => {
@@ -83,22 +82,6 @@ export function useCorrelates(request: CorrelatesRequest | null) {
 }
 
 // --- Row narrowing ---------------------------------------------------------
-
-/** Whether a response carries adjusted-model coefficients (`stat = "beta"`). */
-export function isAdjustedResponse(response: Pick<EstimateResponse, 'meta'>): boolean {
-  return response.meta.stat === 'beta'
-}
-
-/** The rows a chart draws: one per (predictor, group). An adjusted
- * response contributes its per-SD coefficient — the one quantity that
- * compares across measures with different scales; the raw coefficient
- * stays in the data table. */
-export function chartRows(
-  rows: readonly EstimateRow[],
-  measure: AssociationMeasure = 'beta_per_sd',
-): EstimateRow[] {
-  return rows.filter((row) => row.stat !== 'beta' || row.measure === measure)
-}
 
 /** Predictor names in the order the server returned them (ranked, for a sweep). */
 export function predictorOrder(rows: readonly EstimateRow[]): string[] {

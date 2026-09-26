@@ -36,6 +36,7 @@ export function EstimateTable({
   levelLabel,
   groupLabel,
   predictorLabel,
+  columnName,
 }: {
   response: EstimateResponse
   meta: Meta
@@ -50,6 +51,10 @@ export function EstimateTable({
   /** Display names for the `predictor` sub-row key (the Correlates view's
    * catalog names); absent = the code. */
   predictorLabel?: (name: string) => string | undefined
+  /** A header for a group column meta cannot name (a survey variable
+   * the rows are grouped by: Compare two's question); falls back to
+   * meta's labels. */
+  columnName?: (column: string) => string | undefined
 }) {
   const by = response.meta.by
   const rows = response.rows
@@ -85,7 +90,7 @@ export function EstimateTable({
             {hasPredictor && <th scope="col">Measure</th>}
             {by.map((column) => (
               <th key={column} scope="col">
-                {columnLabel(column, meta)}
+                {columnName?.(column) ?? columnLabel(column, meta)}
               </th>
             ))}
             {hasLeg && <th scope="col">Period</th>}

@@ -16,6 +16,8 @@ import {
   correlatesAcrossCountries,
   correlatesRequest,
   correlatesSearchParams,
+  pairRequest,
+  tableRequest,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
@@ -336,21 +338,77 @@ describe('correlates search (Phase 6)', () => {
 
   test('a full URL round-trips exactly', () => {
     const raw = parseSearchString(
-      '?outcome=HAPPY&wave=Y2&country=22&adjusted=true&method=spearman&topic=wellbeing',
+      '?outcome=HAPPY&wave=Y2&country=22&view=countries&method=spearman&topic=wellbeing',
     )
     const search = parseCorrelatesSearch(raw)
     expect(search).toMatchObject({
       outcome: 'HAPPY',
       wave: 'Y2',
       country: 22,
-      adjusted: true,
+      view: 'countries',
       method: 'spearman',
       topic: 'wellbeing',
     })
     expect(search.invalid).toBeUndefined()
     expect(stringifySearch(correlatesSearchParams(search))).toBe(
-      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&adjusted=true&method=spearman',
+      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&view=countries&method=spearman',
     )
+  })
+
+  test('the view: the ranked list by default, never in the URL; an unknown one is reported', () => {
+    expect(parseCorrelatesSearch({}).view).toBe('ranked')
+    expect(stringifySearch(correlatesSearchParams(parseCorrelatesSearch({ view: 'ranked' })))).toBe(
+      '',
+    )
+    const countries = parseCorrelatesSearch({ view: 'countries' })
+    expect(countries.view).toBe('countries')
+    expect(stringifySearch(correlatesSearchParams(countries))).toBe('?view=countries')
+    const bad = parseCorrelatesSearch({ view: 'globe' })
+    expect(bad.view).toBe('ranked')
+    expect(bad.invalid).toEqual(['view'])
+  })
+
+  test('Compare two: `view=pair` and the question beside the measure (`x`)', () => {
+    const pair = parseCorrelatesSearch({ outcome: 'HAPPY', view: 'pair', x: 'LONELY' })
+    expect(pair).toMatchObject({ view: 'pair', x: 'LONELY' })
+    expect(stringifySearch(correlatesSearchParams(pair))).toBe('?outcome=HAPPY&view=pair&x=LONELY')
+    expect(pairRequest(pair, 'LONELY', 22)).toEqual({
+      y: 'HAPPY',
+      x: 'LONELY',
+      wave: 'Y1',
+      country: 22,
+      method: undefined,
+    })
+    // Absent: the view resolves the default from the ranked list.
+    expect(parseCorrelatesSearch({ view: 'pair' }).x).toBeUndefined()
+    expect(parseCorrelatesSearch({ view: 'pair', x: '9lives' }).invalid).toEqual(['x'])
+  })
+
+  test("Compare several: `view=matrix` and the table's questions (`vars`, 2 to 10, in order)", () => {
+    const table = parseCorrelatesSearch(
+      parseSearchString('?outcome=HAPPY&view=matrix&vars=HAPPY,LONELY,sfi'),
+    )
+    expect(table).toMatchObject({ view: 'matrix', vars: ['HAPPY', 'LONELY', 'sfi'] })
+    expect(table.invalid).toBeUndefined()
+    expect(stringifySearch(correlatesSearchParams(table))).toBe(
+      '?outcome=HAPPY&view=matrix&vars=HAPPY%2CLONELY%2Csfi',
+    )
+    // Repeated keys read the same.
+    expect(parseCorrelatesSearch({ vars: ['HAPPY', 'LONELY'] }).vars).toEqual(['HAPPY', 'LONELY'])
+    expect(tableRequest(table, ['HAPPY', 'LONELY'], 22)).toEqual({
+      vars: ['HAPPY', 'LONELY'],
+      wave: 'Y1',
+      country: 22,
+      method: undefined,
+    })
+    // One, eleven, a repeat or a bad name: reported, and the default stands.
+    const eleven = Array.from({ length: 11 }, (_, i) => `Q${i}`).join(',')
+    for (const bad of ['HAPPY', eleven, 'HAPPY,HAPPY', 'HAPPY,9lives']) {
+      const parsed = parseCorrelatesSearch({ vars: bad })
+      expect(parsed.vars).toBeUndefined()
+      expect(parsed.invalid).toEqual(['vars'])
+    }
+    expect(parseCorrelatesSearch({ view: 'matrix' }).vars).toBeUndefined()
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {
@@ -360,13 +418,12 @@ describe('correlates search (Phase 6)', () => {
     const search = parseCorrelatesSearch(raw)
     expect(search.outcome).toBe('HAPPY')
     expect(search.country).toBeUndefined()
-    expect(search.adjusted).toBeUndefined()
     expect(search.method).toBeUndefined()
     expect(search.wave).toBe(CORRELATES_DEFAULTS.wave)
-    expect(search.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(search.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // The rejected raws ride along, so a re-parse reports the same notice.
     const again = parseCorrelatesSearch(correlatesSearchParams(search))
-    expect(again.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(again.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // Dismissed: they drop out.
     expect(
       stringifySearch(
@@ -378,14 +435,30 @@ describe('correlates search (Phase 6)', () => {
     expect(parseCorrelatesSearch({ outcome: '9lives' }).invalid).toEqual(['outcome'])
   })
 
-  test('the requests carry the API vocabulary; adjusted drops the method', () => {
-    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman' })
+  test("the adjusted model left the page: an old link's `adjusted` is reported, whatever it says", () => {
+    for (const value of ['true', 'false', 'yes']) {
+      const search = parseCorrelatesSearch({ outcome: 'HAPPY', adjusted: value })
+      expect(search.invalid).toEqual(['adjusted'])
+      expect(search).not.toHaveProperty('adjusted')
+      // It stays in the URL (so the notice survives a re-parse) until dismissed.
+      expect(stringifySearch(correlatesSearchParams(search))).toBe(
+        `?outcome=HAPPY&adjusted=${value}`,
+      )
+      expect(
+        stringifySearch(
+          correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+        ),
+      ).toBe('?outcome=HAPPY')
+    }
+  })
+
+  test('the requests carry the API vocabulary, and never the adjusted model', () => {
+    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman', adjusted: 'true' })
     expect(correlatesRequest(search, 9)).toEqual({
       outcome: 'HAPPY',
       wave: 'Y1',
       by: [],
       countries: [9],
-      adjusted: undefined,
       method: 'spearman',
     })
     expect(correlatesAcrossCountries(search, ['LONELY', 'BALANCE'])).toEqual({
@@ -393,15 +466,7 @@ describe('correlates search (Phase 6)', () => {
       wave: 'Y1',
       against: ['LONELY', 'BALANCE'],
       by: ['country_code'],
-      adjusted: undefined,
       method: 'spearman',
     })
-    const adjusted = parseCorrelatesSearch({
-      outcome: 'HAPPY',
-      method: 'spearman',
-      adjusted: 'true',
-    })
-    expect(correlatesRequest(adjusted, 9).method).toBeUndefined()
-    expect(correlatesRequest(adjusted, 9).adjusted).toBe(true)
   })
 })

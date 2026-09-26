@@ -3,15 +3,61 @@
 // estimated; this file only names, keys and scales them for display.
 
 import type { Country, EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
+import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
-import { formatCount, formatEstimate } from '../format'
-import { WAVE_TITLES } from '../waves'
+import { ciLabel, formatCount, formatEstimate } from '../format'
+import { WAVE_CHIPS, WAVE_NAMES, WAVE_TITLES } from '../waves'
 
 /** The country a URL without one shows: the United States (by its
  * ISO code in meta — the front end owns no country list), else the
  * catalog's first. */
 export function defaultCountry(meta: Pick<Meta, 'countries'>): number | undefined {
   return meta.countries.find((country) => country.iso3 === 'USA')?.code ?? meta.countries[0]?.code
+}
+
+/** Countries A–Z by name (never by code): the Country select and every
+ * country axis on this page. */
+export function countriesByName(countries: readonly Country[]): Country[] {
+  return [...countries].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Every country A–Z, the chosen one pinned first (the matrix's columns). */
+export function pinnedFirst(countries: readonly Country[], chosen: number | undefined): Country[] {
+  const byName = countriesByName(countries)
+  const pinned = byName.find((country) => country.code === chosen)
+  return pinned ? [pinned, ...byName.filter((country) => country !== pinned)] : byName
+}
+
+/** What the page calls a measure in its keys and axis ends ("goes with
+ * higher …"): the catalog's short label when it serves one, else the
+ * display name — the catalog serves no variable-level short label today
+ * (only answers have one), so this is the display name. */
+export function shortName(
+  variable: Pick<VariableSummary, 'display_name'> & { short_label?: string | null },
+): string {
+  return variable.short_label?.trim() || variable.display_name
+}
+
+/** "A", "A and B", "A, B and C". */
+function listAnd(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
+
+/** Why the Wave options a measure was not asked in are unavailable, in
+ * one line under the control; undefined when every wave is open (or
+ * none is — the page says so in its own empty state). */
+export function waveNote(asked: readonly string[]): string | undefined {
+  const missing = WAVES.filter((wave) => !asked.includes(wave))
+  const present = WAVES.filter((wave) => asked.includes(wave))
+  if (missing.length === 0 || present.length === 0) return undefined
+  const chips = listAnd(missing.map((wave) => WAVE_CHIPS[wave] ?? wave))
+  if (missing.length === 1) {
+    const [wave] = missing as [string]
+    return `${chips} isn't available: this question wasn't asked in ${WAVE_NAMES[wave] ?? wave}.`
+  }
+  const only = listAnd(present.map((wave) => WAVE_NAMES[wave] ?? wave))
+  return `${chips} aren't available: this question was asked only in ${only}.`
 }
 
 /** The largest absolute estimate in view — the symmetric window the
@@ -26,10 +72,20 @@ export function tintExtent(rows: readonly EstimateRow[]): number {
   return extent > 0 ? extent : 1
 }
 
-/** The matrix caption in plain words: what the hues mean and what the
- * deepest tint stands for. */
-export function matrixCaption(outcome: string, extent: number, stat: string): string {
-  return `${outcome} — rust: a negative association, teal: positive; the deeper the tint, the stronger it is (the deepest tint is ${formatEstimate(extent, stat).replace('+', '')} either way)`
+/** The diverging legend's ends: "−0.52" and "+0.52". */
+export function legendEnds(extent: number, stat: string): [string, string] {
+  return [formatEstimate(-extent, stat), formatEstimate(extent, stat)]
+}
+
+/** The Across countries subtitle: which measures, where, when, what. */
+export function acrossSubtitle(
+  count: number,
+  countryName: string,
+  wave: string,
+  method?: CorrelationMethod,
+): string {
+  const measures = count === 1 ? 'The 1 measure' : `The ${count} measures`
+  return `${measures} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
 /** The ranked sweep's floor, in words, when it left measures out. */
@@ -47,23 +103,14 @@ export function belowFloor(row: Pick<EstimateRow, 'n'>, minN: number | null | un
   return minN !== null && minN !== undefined && row.n < minN
 }
 
-/** The one-line hint under the correlation choice. */
-export const METHOD_HINT =
-  'Pearson measures how closely two answers follow a straight line; Spearman, how consistently one rises with the other, by rank.'
-
-/** The value axis title for the ranked list. */
-export function axisTitle(
-  adjusted: boolean,
-  method: CorrelationMethod | undefined,
-  variable: Pick<VariableSummary, 'display_name' | 'scale_type' | 'min' | 'max'>,
-): string {
-  if (adjusted) {
-    return variable.scale_type === 'binary'
-      ? `${variable.display_name}: log-odds per 1 SD of the measure`
-      : `${variable.display_name}: points per 1 SD of the measure`
-  }
-  return method === 'spearman' ? 'Rank correlation (Spearman)' : 'Weighted correlation (Pearson)'
+/** The Method disclosure: its button names the correlation in use. */
+export function methodLabel(method: CorrelationMethod | undefined): string {
+  return method === 'spearman' ? 'Method: by-rank correlation' : 'Method: straight-line correlation'
 }
+
+/** The line under the correlation choice, in plain words. */
+export const METHOD_HINT =
+  'Straight-line: how closely two answers follow a line. By rank: how consistently one rises with the other.'
 
 /** Predictor × country lookup for the cross-country matrix. */
 export function heatCells(rows: readonly EstimateRow[]): Map<string, EstimateRow> {
@@ -80,52 +127,138 @@ export function heatKey(predictor: string, country: Country): string {
 }
 
 /** The statistic in words, for subtitles: what the number is and its range. */
-export function statisticPhrase(adjusted: boolean, method: CorrelationMethod | undefined): string {
-  if (adjusted) return 'adjusted difference per 1 SD of each measure'
-  return method === 'spearman' ? 'rank correlation, −1 to 1' : 'weighted correlation, −1 to 1'
+export function statisticPhrase(method: CorrelationMethod | undefined): string {
+  return method === 'spearman' ? 'correlation by rank, −1 to 1' : 'correlation, −1 to 1'
 }
 
-/** The adjusted subtitle's unit and control set, both from the server:
- * "Happiness points per 1 SD of each measure, holding age band, gender
- * … fixed". */
-export function adjustedPhrase(
-  variable: Pick<VariableSummary, 'display_name' | 'scale_type'>,
-  meta: Pick<ResponseMeta, 'controls'>,
-  served: Meta,
-): string {
-  const unit = variable.scale_type === 'binary' ? 'log-odds' : 'points'
-  return `${variable.display_name} ${unit} per 1 SD of each measure, holding ${controlsPhrase(meta, served)} fixed`
-}
-
-/** The controls the server says it held fixed, in words, from meta. */
-export function controlsPhrase(meta: Pick<ResponseMeta, 'controls'>, served: Meta): string {
-  const names = (meta.controls ?? []).map((column) =>
-    column === 'country_code'
-      ? 'country'
-      : (served.breakdown_labels[column]?.display_name ?? column.replace(/_/g, ' ')).toLowerCase(),
-  )
-  if (names.length === 0) return 'nothing'
-  if (names.length === 1) return names[0] as string
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-}
-
-/** Subtitle for the ranked list: where, what, when. The adjusted phrase
- * (unit and controls, from the server) replaces the statistic's name. */
+/** Subtitle for the ranked list: where, when, what. */
 export function rankedSubtitle(
   countryName: string,
-  adjusted: boolean,
   method: CorrelationMethod | undefined,
   wave: string,
-  adjustedWording?: string,
 ): string {
-  const what = adjusted && adjustedWording ? adjustedWording : statisticPhrase(adjusted, method)
-  return `Strongest associations in ${countryName} · ${what} · ${WAVE_TITLES[wave] ?? wave}`
+  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
-/** What the outcome's scale means for an adjusted coefficient. */
-export function outcomeUnit(variable: Pick<VariableSummary, 'scale_type' | 'min' | 'max'>): string {
-  if (variable.scale_type === 'binary') return 'log-odds of answering yes'
-  if (variable.min !== null && variable.max !== null)
-    return `points on its ${variable.min}–${variable.max} scale`
-  return 'points on its own scale'
+/** The ranked list's fixed window: a correlation always spans −1 to 1,
+ * so "far right" is the same number for every measure (three ticks on a
+ * phone). */
+export const CORRELATION_SCALE = {
+  domain: [-1, 1] as [number, number],
+  ticks: [-1, -0.5, 0, 0.5, 1],
+  narrowTicks: [-1, 0, 1],
+}
+
+/** The words under the axis's two ends. */
+export function axisEnds(short: string): [string, string] {
+  return [`← goes with lower ${short}`, `goes with higher ${short} →`]
+}
+
+/** A ranked row's tooltip: the signed value and the measure, then how
+ * many people answered both (a correlation has no interval; its n is
+ * the number that says how much it rests on — ADR-0018). */
+export function rankedTip(
+  row: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>,
+  label: string,
+): string {
+  return `${formatEstimate(row.estimate, row.stat)} · ${label}\n${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'} answered both`
+}
+
+/** What the ranked sweep left out as overlap, in one sentence built from
+ * the server's map (dropped → the one that stands in for it): "PHQ-2
+ * depression score and GAD-2 anxiety score are shown; their individual
+ * questions and screen-positive flags are left out." */
+export function overlapNote(
+  dropped: Record<string, string> | null | undefined,
+  byName: Record<string, Pick<VariableSummary, 'display_name' | 'is_derived' | 'scale_type'>>,
+): string | undefined {
+  const pairs = Object.entries(dropped ?? {})
+  if (pairs.length === 0) return undefined
+  const kept = [...new Set(pairs.map(([, winner]) => winner))]
+  const kinds = new Set<string>(
+    pairs.map(([name]) => {
+      const variable = byName[name]
+      if (!variable?.is_derived) return 'individual questions'
+      return variable.scale_type === 'binary' ? 'screen-positive flags' : 'domain scores'
+    }),
+  )
+  const order = ['individual questions', 'domain scores', 'screen-positive flags']
+  const names = listAnd(kept.map((name) => byName[name]?.display_name ?? name))
+  const [verb, their] = kept.length === 1 ? ['is', 'its'] : ['are', 'their']
+  return `${names} ${verb} shown; ${their} ${listAnd(order.filter((kind) => kinds.has(kind)))} are left out.`
+}
+
+// --- Compare two ------------------------------------------------------------
+
+/** The correlation in words, for a subtitle: "straight-line" or "by rank". */
+export function methodWords(method: CorrelationMethod | undefined): string {
+  return method === 'spearman' ? 'by rank' : 'straight-line'
+}
+
+/** Compare two's subtitle: where, when, what each dot is, and the
+ * correlation with its n. */
+export function pairSubtitle({
+  countryName,
+  wave,
+  y,
+  x,
+  binary,
+  binned,
+  correlation,
+  method,
+}: {
+  countryName: string
+  wave: string
+  y: string
+  x: string
+  /** A yes/no Y: each dot is the share answering yes. */
+  binary: boolean
+  /** X's groups are bins of a long scale, not its answers. */
+  binned: boolean
+  correlation: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>
+  method: CorrelationMethod | undefined
+}): string {
+  const what = binary ? `share answering yes to ${y}` : `average ${y}`
+  const per = binned ? `across the range of ${x}` : `for each answer to ${x}`
+  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${what} ${per} · correlation ${formatEstimate(correlation.estimate, correlation.stat)} (${methodWords(method)}), ${formatCount(correlation.n)} people`
+}
+
+/** A group's share of the people, as a whole percent (one decimal
+ * under 1%, so a sliver never reads 0%). */
+export function shareText(share: number): string {
+  const percent = share * 100
+  return percent > 0 && percent < 1 ? `${percent.toFixed(1)}%` : `${Math.round(percent)}%`
+}
+
+/** One group's tooltip: its share of the people, Y there with its
+ * interval, and how many people it rests on (the pair view's rule —
+ * ADR-0018 — since a group's n is what its dot's size and its flag
+ * are about). */
+export function pairTip(
+  point: { label: string; share: number; row: EstimateRow },
+  { yShort, binary, binned }: { yShort: string; binary: boolean; binned: boolean },
+): string {
+  const { row } = point
+  const who = binned
+    ? `${shareText(point.share)} at ${point.label}`
+    : `${shareText(point.share)} answered ${point.label}`
+  const interval =
+    row.ci_lo !== null && row.ci_hi !== null
+      ? ` (${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)}–${formatEstimate(row.ci_hi, row.stat)})`
+      : ''
+  const value = `${binary ? 'Answered yes' : `Average ${yShort}`}: ${formatEstimate(row.estimate, row.stat)}${interval}`
+  return [who, value, `${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'}`].join('\n')
+}
+
+/** The footnote's words for the hollow groups, when there are any. */
+export function hollowNote(
+  labels: readonly string[],
+  minN: number,
+  binned: boolean,
+): string | undefined {
+  if (labels.length === 0) return undefined
+  const named = listAnd(labels.map((label) => `“${label}”`))
+  const where = binned ? `are in ${named}` : `gave ${named}`
+  const dots = labels.length === 1 ? 'its dot is' : 'their dots are'
+  return `Fewer than ${formatCount(minN)} people ${where}: ${dots} drawn hollow.`
 }

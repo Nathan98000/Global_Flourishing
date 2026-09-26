@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from fastapi import HTTPException
 from flourish_stats import WeightSpec, get, resolve
 from flourish_stats.breakdowns import BREAKDOWN_LEVELS
-from flourish_stats.outcomes import MEAN_SCALE_TYPES
+from flourish_stats.outcomes import DERIVED_OUTCOMES, MEAN_SCALE_TYPES
 
 from flourish_api.data import Catalog, VariableInfo
 
@@ -458,6 +458,22 @@ class CorrelatesQuery:
         return "binomial" if self.outcome.scale_type == "binary" else "gaussian"
 
 
+def answers_of(info: VariableInfo) -> set[str]:
+    """The questions a variable is made of (itself, plus the components of
+    a derived score)."""
+    if info.is_derived:
+        return {info.name, *DERIVED_OUTCOMES[info.name].components}
+    return {info.name}
+
+
+def shares_answers(a: VariableInfo, b: VariableInfo) -> bool:
+    """A score and one of its components (or two scores sharing a
+    question) are associated by construction, not by anything in the
+    world: the sweep leaves them out, and a pair or a table never
+    correlates them."""
+    return bool(answers_of(a) & answers_of(b))
+
+
 def _ordered_item(problems: _Problems, info: VariableInfo, role: str) -> None:
     if info.scale_type not in ORDERED_SCALE_TYPES:
         problems.add(
@@ -599,4 +615,152 @@ def parse_correlates_query(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
         limit=limit,
+    )
+
+
+# --- /v1/correlations/pair and /v1/correlations ------------------------------
+
+
+@dataclass(frozen=True)
+class PairQuery:
+    """A validated /v1/correlations/pair request: two ordered items at one
+    wave, in one country (the global weights are normalised within
+    country, so a pair is never pooled across countries)."""
+
+    y: VariableInfo
+    x: VariableInfo
+    wave: str
+    method: str
+    countries: tuple[int, ...]
+    filters: tuple[DomainFilter, ...]
+
+
+def _ordered_at_wave(
+    catalog: Catalog, problems: _Problems, name: str, wave: str, role: str
+) -> VariableInfo | None:
+    """A servable ordered item asked at ``wave``, or a problem saying why not."""
+    info = catalog.outcome(name)
+    if info is None:
+        problems.add(
+            f"{role}={name!r} is not a servable variable — see /v1/variables "
+            f"(country-specific and design variables cannot be correlated)"
+        )
+        return None
+    if info.scale_type not in ORDERED_SCALE_TYPES:
+        _ordered_item(problems, info, role)
+        return None
+    if wave in WAVES and wave not in info.waves:
+        problems.add(f"{role}={name!r} is not asked at {wave} (available: {', '.join(info.waves)})")
+        return None
+    return info
+
+
+def _one_country(
+    catalog: Catalog, filters: list[str], problems: _Problems
+) -> tuple[list[int], dict[str, list[str | int]]]:
+    countries, domain_filters = _parse_country_and_domain_filters(
+        catalog, filters, set(BREAKDOWNS), problems
+    )
+    if len(countries) != 1:
+        problems.add(
+            "filter to exactly one country (filter=country_code:N) — weights are "
+            "normalised within country, so a correlation is taken one country at a time"
+        )
+    return countries, domain_filters
+
+
+def parse_pair_query(
+    catalog: Catalog,
+    *,
+    y: str,
+    x: str,
+    wave: str,
+    method: str,
+    filters: list[str],
+) -> PairQuery:
+    """Validate a pair request; every problem is reported at once as a 422."""
+    problems = _Problems()
+    if wave not in WAVES:
+        problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    y_info = _ordered_at_wave(catalog, problems, y, wave, "y")
+    x_info = _ordered_at_wave(catalog, problems, x, wave, "x")
+    if y_info is not None and x_info is not None:
+        if y_info.name == x_info.name:
+            problems.add("x and y must be two different questions")
+        elif shares_answers(y_info, x_info):
+            problems.add(
+                f"{x_info.display_name} and {y_info.display_name} are built from the same "
+                f"answers, so they go together by construction — compare "
+                f"{y_info.display_name} with another question"
+            )
+    if method not in CORRELATION_METHODS:
+        problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
+    countries, domain_filters = _one_country(catalog, filters, problems)
+    problems.raise_if_any()
+    assert y_info is not None and x_info is not None
+    return PairQuery(
+        y=y_info,
+        x=x_info,
+        wave=wave,
+        method=method,
+        countries=tuple(countries),
+        filters=tuple(
+            DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
+        ),
+    )
+
+
+#: A correlation table holds this many questions at least, and at most.
+MATRIX_MIN_VARS = 2
+MATRIX_MAX_VARS = 10
+
+
+@dataclass(frozen=True)
+class MatrixQuery:
+    """A validated /v1/correlations request: 2–10 ordered items at one
+    wave, in one country."""
+
+    variables: tuple[VariableInfo, ...]
+    wave: str
+    method: str
+    countries: tuple[int, ...]
+    filters: tuple[DomainFilter, ...]
+
+
+def parse_matrix_query(
+    catalog: Catalog,
+    *,
+    names: list[str],
+    wave: str,
+    method: str,
+    filters: list[str],
+) -> MatrixQuery:
+    """Validate a correlation-table request; every problem at once, 422."""
+    problems = _Problems()
+    if wave not in WAVES:
+        problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    if not MATRIX_MIN_VARS <= len(names) <= MATRIX_MAX_VARS:
+        problems.add(
+            f"vars must name {MATRIX_MIN_VARS} to {MATRIX_MAX_VARS} questions, got {len(names)}"
+        )
+    variables: list[VariableInfo] = []
+    for name in names:
+        if any(v.name == name for v in variables):
+            problems.add(f"duplicate vars={name!r}")
+            continue
+        info = _ordered_at_wave(catalog, problems, name, wave, "vars")
+        if info is not None:
+            variables.append(info)
+    if method not in CORRELATION_METHODS:
+        problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
+    countries, domain_filters = _one_country(catalog, filters, problems)
+    problems.raise_if_any()
+    return MatrixQuery(
+        variables=tuple(variables),
+        wave=wave,
+        method=method,
+        countries=tuple(countries),
+        filters=tuple(
+            DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
+        ),
     )

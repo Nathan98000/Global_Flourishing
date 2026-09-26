@@ -19,7 +19,11 @@
   position: relative;
 }
 
+/* Positioned, so the cells' visually-hidden notes (absolute) are held
+   and clipped by this box rather than by the frame outside it — else
+   they widen the page past a phone's edge. */
 .scroll {
+  position: relative;
   overflow-x: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
@@ -174,4 +178,106 @@
 .cellMuted {
   color: var(--ink-muted);
   min-width: 4.5rem;
+}
+
+/* The marked column (Across countries: the chosen country, pinned
+   first): its header in ink and bold, the column outlined in ink —
+   drawn as inset rules so the cells' tints stay whole. */
+.table thead th[data-highlight] {
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink),
+    inset 0 1px 0 var(--ink);
+}
+
+.table td[data-highlight] {
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink);
+}
+
+.table tbody tr:last-child td[data-highlight] {
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink),
+    inset 0 -1px 0 var(--ink);
+}
+
+/* Wide (Across countries) from 1200px: the matrix leaves the 60rem text
+   column, centred on it, up to 1216px wide (never closer than 2rem to
+   the window's edges); the column headers stand upright, reading
+   upward from the cells, and the cells shed their minimum width, so all
+   23 countries fit without a sideways scroll. The row labels wrap. */
+@media (min-width: 75rem) {
+  .matrix[data-wide] {
+    width: min(76rem, calc(100vw - 4rem));
+    max-width: none;
+    margin-left: calc(50% - min(38rem, 50vw - 2rem));
+  }
+
+  .matrix[data-wide] .table {
+    width: 100%;
+  }
+
+  .matrix[data-wide] thead th:not(.corner) {
+    padding: var(--space-2) 2px;
+    text-align: center;
+    vertical-align: bottom;
+  }
+
+  .matrix[data-wide] thead th:not(.corner) .head {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: left;
+  }
+
+  .matrix[data-wide] th[scope='row'] {
+    white-space: normal;
+    min-width: 11rem;
+    max-width: 16rem;
+  }
+
+  .matrix[data-wide] td {
+    min-width: 0;
+    padding-inline: 4px;
+    text-align: center;
+  }
+}
+
+/* A correlation table's diagonal and upper triangle: nothing there. */
+.blank {
+  border-top-color: transparent;
+}
+
+/* A cell that is a choice (Compare several): the whole cell is the
+   button — its text, tint and ink are the cell's own; a pointer, and the
+   focus ring for the keyboard. */
+.table td[data-select] {
+  padding: 0;
+}
+
+.cellButton {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  border: 0;
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.cellButton:hover {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.cellButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }

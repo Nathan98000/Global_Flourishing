@@ -87,6 +87,162 @@
         "title": "ComponentModel",
         "type": "object"
       },
+      "CorrelationPairModel": {
+        "description": "One cell of a correlation table (/v1/correlations): the questions\n``a`` and ``b``, ``a`` before ``b`` in the order they were asked for.",
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "string"
+          },
+          "b": {
+            "title": "B",
+            "type": "string"
+          },
+          "below_min_n": {
+            "title": "Below Min N",
+            "type": "boolean"
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimateRow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shares_answers": {
+            "title": "Shares Answers",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "shares_answers",
+          "below_min_n",
+          "correlation"
+        ],
+        "title": "CorrelationPairModel",
+        "type": "object"
+      },
+      "CorrelationsMeta": {
+        "description": "What a correlation table says about itself.",
+        "properties": {
+          "ci_level": {
+            "title": "Ci Level",
+            "type": "number"
+          },
+          "data_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Version"
+          },
+          "filters": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Filters",
+            "type": "object"
+          },
+          "min_n": {
+            "title": "Min N",
+            "type": "integer"
+          },
+          "n_frame": {
+            "title": "N Frame",
+            "type": "integer"
+          },
+          "stat": {
+            "title": "Stat",
+            "type": "string"
+          },
+          "suppression": {
+            "$ref": "#/components/schemas/SuppressionModel"
+          },
+          "vars": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Vars",
+            "type": "array"
+          },
+          "wave": {
+            "title": "Wave",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          },
+          "weight_key": {
+            "title": "Weight Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_version",
+          "vars",
+          "wave",
+          "stat",
+          "weight_key",
+          "weight",
+          "ci_level",
+          "suppression",
+          "n_frame",
+          "filters",
+          "min_n"
+        ],
+        "title": "CorrelationsMeta",
+        "type": "object"
+      },
+      "CorrelationsResponse": {
+        "description": "Every pair of 2–10 questions in one country (/v1/correlations).",
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/CorrelationsMeta"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationPairModel"
+            },
+            "title": "Pairs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "pairs"
+        ],
+        "title": "CorrelationsResponse",
+        "type": "object"
+      },
       "CountryModel": {
         "properties": {
           "code": {
@@ -575,6 +731,70 @@
         "title": "MissingnessRow",
         "type": "object"
       },
+      "PairGroupModel": {
+        "description": "One group of the compared question X (/v1/correlations/pair): one\nof its answers, or an equal-width bin of a long scale.",
+        "properties": {
+          "below_min_n": {
+            "title": "Below Min N",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "share",
+          "below_min_n"
+        ],
+        "title": "PairGroupModel",
+        "type": "object"
+      },
+      "PairResponse": {
+        "description": "Two questions side by side (/v1/correlations/pair): their weighted\ncorrelation, and the outcome Y's weighted mean in each group of X —\nthe /v1/aggregate estimator, grouped by X. Groups run in X's aligned\norder (from least to most of what its label names), so a positive\ncorrelation slopes up; respondent-level points are never served.",
+        "properties": {
+          "correlation": {
+            "$ref": "#/components/schemas/EstimateRow"
+          },
+          "grouping": {
+            "title": "Grouping",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/PairGroupModel"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "means": {
+            "$ref": "#/components/schemas/EstimateResponse"
+          },
+          "x": {
+            "title": "X",
+            "type": "string"
+          }
+        },
+        "required": [
+          "x",
+          "grouping",
+          "correlation",
+          "means",
+          "groups"
+        ],
+        "title": "PairResponse",
+        "type": "object"
+      },
       "ResponseMeta": {
         "description": "What every estimate response says about itself (ADR-0008: the same\nenvelope is emitted by the static exporter, so the front end never\ncares which tier answered).",
         "properties": {
@@ -628,6 +848,20 @@
           "direction": {
             "title": "Direction",
             "type": "string"
+          },
+          "dropped_overlap": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dropped Overlap"
           },
           "filters": {
             "additionalProperties": {
@@ -1563,7 +1797,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Unadjusted rows are weighted Pearson or\nSpearman coefficients with no interval (``ci_method = \"none\"``);\n``adjusted=true`` returns the predictor's coefficient in a\nsurvey-weighted regression under the fixed control set (``stat =\n\"beta\"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Binary items enter as indicators of code 1 (Yes / screen\npositive). Global scope only.",
+        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {
@@ -1615,16 +1849,6 @@
           },
           {
             "in": "query",
-            "name": "adjusted",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Adjusted",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
             "name": "by",
             "required": false,
             "schema": {
@@ -1670,6 +1894,18 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
+            "in": "query",
+            "name": "adjusted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
+              "title": "Adjusted",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1695,6 +1931,188 @@
           }
         },
         "summary": "What travels with an outcome: ranked associations"
+      }
+    },
+    "/v1/correlations": {
+      "get": {
+        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's.",
+        "operationId": "correlations_v1_correlations_get",
+        "parameters": [
+          {
+            "description": "2 to 10 ordered questions asked at the wave, repeatable, in table order.",
+            "in": "query",
+            "name": "vars",
+            "required": true,
+            "schema": {
+              "description": "2 to 10 ordered questions asked at the wave, repeatable, in table order.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Vars",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "title": "Filter"
+            }
+          },
+          {
+            "description": "pearson (default) or spearman.",
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "default": "pearson",
+              "description": "pearson (default) or spearman.",
+              "title": "Method",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "A correlation table: every pair among 2–10 questions"
+      }
+    },
+    "/v1/correlations/pair": {
+      "get": {
+        "description": "Associations, not causes. Both items must be ordered (a 0–10 scale,\nan ordered or yes/no answer, a count) and asked at the wave, and must\nnot be built from the same answers (a score and its own question go\ntogether by construction: 422). ``correlation`` is the weighted\nPearson or Spearman coefficient over the people who answered both —\nthe same number /v1/correlates reports for the pair, with no interval.\n``means`` is y's weighted mean in each group of x with its\ndesign-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no\ny is its share answering yes. x's groups are its answers when it has\nat most eleven, else equal-width bins between its weighted 1st and\n99th percentiles (whole-number-wide for an item counted in whole\nnumbers), the end bins taking in the tails; they run from least to\nmost of what x's label names, so a positive correlation slopes up.\n``groups`` carries each group's label, its weighted share of those\npeople, and whether fewer than ``means.meta.min_n`` of them are in it\n(flagged, never dropped).",
+        "operationId": "correlation_pair_v1_correlations_pair_get",
+        "parameters": [
+          {
+            "description": "The outcome: its weighted mean is taken per group of x.",
+            "in": "query",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "description": "The outcome: its weighted mean is taken per group of x.",
+              "title": "Y",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The question compared with: its answers (or bins) group y.",
+            "in": "query",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "description": "The question compared with: its answers (or bins) group y.",
+              "title": "X",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wave",
+            "required": true,
+            "schema": {
+              "title": "Wave",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "title": "Filter"
+            }
+          },
+          {
+            "description": "pearson (default) or spearman.",
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "default": "pearson",
+              "description": "pearson (default) or spearman.",
+              "title": "Method",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Two questions side by side: their correlation and Y's mean by X"
       }
     },
     "/v1/export.csv": {

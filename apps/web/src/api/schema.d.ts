@@ -86,19 +86,89 @@ export interface paths {
         };
         /**
          * What travels with an outcome: ranked associations
-         * @description Associations, not causes. Unadjusted rows are weighted Pearson or
-         *     Spearman coefficients with no interval (``ci_method = "none"``);
-         *     ``adjusted=true`` returns the predictor's coefficient in a
-         *     survey-weighted regression under the fixed control set (``stat =
-         *     "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
+         * @description Associations, not causes. Rows are weighted Pearson or Spearman
+         *     coefficients with no interval (``ci_method = "none"``). Omit
          *     ``against`` for the ranked sweep over every other servable ordered
          *     item at the wave, cut to ``limit`` predictors (ranked by the median
          *     absolute association across the groups with at least ``meta.min_n``
          *     complete cases; ``meta.n_excluded`` candidates fell below it and are
-         *     not ranked). Binary items enter as indicators of code 1 (Yes / screen
-         *     positive). Global scope only.
+         *     not ranked). Of two kept predictors built from the same answers only
+         *     the one built from more of them stays (a score over its questions; on
+         *     a tie, a score over its screen-positive flag); the list backfills to
+         *     ``limit`` and ``meta.dropped_overlap`` names what was left out, and
+         *     what stands in for it. Binary items enter as indicators of code 1
+         *     (Yes / screen positive). Global scope only.
+         *
+         *     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
+         *     regression under the fixed control set (``stat = "beta"``, plus a
+         *     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
+         *     server enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.
          */
         get: operations["correlates_v1_correlates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/correlations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A correlation table: every pair among 2–10 questions
+         * @description Associations, not causes. Every pair i < j of the questions named,
+         *     in the order named: the weighted Pearson or Spearman correlation over
+         *     the people who answered both (a point estimate with no interval; the
+         *     number /v1/correlates reports for the pair), its n, and ``below_min_n``
+         *     when fewer than ``meta.min_n`` people answered both. A pair built from
+         *     the same answers (a score and its own question) is marked
+         *     ``shares_answers`` and carries no correlation — it goes together by
+         *     construction. Each row's correlations are taken in one pass over the
+         *     frame. Both items of every pair are aligned to their labels, so the
+         *     signs are the ranked list's.
+         */
+        get: operations["correlations_v1_correlations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/correlations/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Two questions side by side: their correlation and Y's mean by X
+         * @description Associations, not causes. Both items must be ordered (a 0–10 scale,
+         *     an ordered or yes/no answer, a count) and asked at the wave, and must
+         *     not be built from the same answers (a score and its own question go
+         *     together by construction: 422). ``correlation`` is the weighted
+         *     Pearson or Spearman coefficient over the people who answered both —
+         *     the same number /v1/correlates reports for the pair, with no interval.
+         *     ``means`` is y's weighted mean in each group of x with its
+         *     design-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no
+         *     y is its share answering yes. x's groups are its answers when it has
+         *     at most eleven, else equal-width bins between its weighted 1st and
+         *     99th percentiles (whole-number-wide for an item counted in whole
+         *     numbers), the end bins taking in the tails; they run from least to
+         *     most of what x's label names, so a positive correlation slopes up.
+         *     ``groups`` carries each group's label, its weighted share of those
+         *     people, and whether fewer than ``means.meta.min_n`` of them are in it
+         *     (flagged, never dropped).
+         */
+        get: operations["correlation_pair_v1_correlations_pair_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -243,6 +313,60 @@ export interface components {
             value_labels: components["schemas"]["ValueLabelModel"][];
             /** Wording */
             wording: string | null;
+        };
+        /**
+         * CorrelationPairModel
+         * @description One cell of a correlation table (/v1/correlations): the questions
+         *     ``a`` and ``b``, ``a`` before ``b`` in the order they were asked for.
+         */
+        CorrelationPairModel: {
+            /** A */
+            a: string;
+            /** B */
+            b: string;
+            /** Below Min N */
+            below_min_n: boolean;
+            correlation: components["schemas"]["EstimateRow"] | null;
+            /** Shares Answers */
+            shares_answers: boolean;
+        };
+        /**
+         * CorrelationsMeta
+         * @description What a correlation table says about itself.
+         */
+        CorrelationsMeta: {
+            /** Ci Level */
+            ci_level: number;
+            /** Data Version */
+            data_version: string | null;
+            /** Filters */
+            filters: {
+                [key: string]: (string | number | boolean | null)[];
+            };
+            /** Min N */
+            min_n: number;
+            /** N Frame */
+            n_frame: number;
+            /** Stat */
+            stat: string;
+            suppression: components["schemas"]["SuppressionModel"];
+            /** Vars */
+            vars: string[];
+            /** Wave */
+            wave: string;
+            /** Weight */
+            weight: string;
+            /** Weight Key */
+            weight_key: string;
+        };
+        /**
+         * CorrelationsResponse
+         * @description Every pair of 2–10 questions in one country (/v1/correlations).
+         */
+        CorrelationsResponse: {
+            meta: components["schemas"]["CorrelationsMeta"];
+            /** Pairs */
+            pairs: components["schemas"]["CorrelationPairModel"][];
         };
         /** CountryModel */
         CountryModel: {
@@ -396,6 +520,39 @@ export interface components {
             wave: string;
         };
         /**
+         * PairGroupModel
+         * @description One group of the compared question X (/v1/correlations/pair): one
+         *     of its answers, or an equal-width bin of a long scale.
+         */
+        PairGroupModel: {
+            /** Below Min N */
+            below_min_n: boolean;
+            /** Code */
+            code: number;
+            /** Label */
+            label: string;
+            /** Share */
+            share: number;
+        };
+        /**
+         * PairResponse
+         * @description Two questions side by side (/v1/correlations/pair): their weighted
+         *     correlation, and the outcome Y's weighted mean in each group of X —
+         *     the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
+         *     order (from least to most of what its label names), so a positive
+         *     correlation slopes up; respondent-level points are never served.
+         */
+        PairResponse: {
+            correlation: components["schemas"]["EstimateRow"];
+            /** Grouping */
+            grouping: string;
+            /** Groups */
+            groups: components["schemas"]["PairGroupModel"][];
+            means: components["schemas"]["EstimateResponse"];
+            /** X */
+            x: string;
+        };
+        /**
          * ResponseMeta
          * @description What every estimate response says about itself (ADR-0008: the same
          *     envelope is emitted by the static exporter, so the front end never
@@ -414,6 +571,10 @@ export interface components {
             data_version: string | null;
             /** Direction */
             direction: string;
+            /** Dropped Overlap */
+            dropped_overlap?: {
+                [key: string]: string;
+            } | null;
             /** Filters */
             filters: {
                 [key: string]: (string | number | boolean | null)[];
@@ -718,10 +879,11 @@ export interface operations {
                 wave: string;
                 against?: string[] | null;
                 method?: string;
-                adjusted?: boolean;
                 by?: string[] | null;
                 filter?: string[] | null;
                 limit?: number;
+                /** @description The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422. */
+                adjusted?: boolean;
             };
             header?: never;
             path?: never;
@@ -736,6 +898,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EstimateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlations_v1_correlations_get: {
+        parameters: {
+            query: {
+                /** @description 2 to 10 ordered questions asked at the wave, repeatable, in table order. */
+                vars: string[];
+                wave: string;
+                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                filter?: string[] | null;
+                /** @description pearson (default) or spearman. */
+                method?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrelationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlation_pair_v1_correlations_pair_get: {
+        parameters: {
+            query: {
+                /** @description The outcome: its weighted mean is taken per group of x. */
+                y: string;
+                /** @description The question compared with: its answers (or bins) group y. */
+                x: string;
+                wave: string;
+                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                filter?: string[] | null;
+                /** @description pearson (default) or spearman. */
+                method?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairResponse"];
                 };
             };
             /** @description Validation Error */

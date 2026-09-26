@@ -248,8 +248,96 @@ class ResponseMeta(BaseModel):
     #: every group (0 when the predictors were named).
     min_n: int | None = None
     n_excluded: int | None = None
+    #: /v1/correlates ranked sweeps only: the predictors left out because
+    #: they share answers with a predictor kept in the list (a score and
+    #: its own questions, or a score and its screen-positive flag — ADR-0018),
+    #: each mapped to the one that stands in for it; empty when nothing
+    #: overlapped, null on every other response.
+    dropped_overlap: dict[str, str] | None = None
 
 
 class EstimateResponse(BaseModel):
     meta: ResponseMeta
     rows: list[EstimateRow]
+
+
+class PairGroupModel(BaseModel):
+    """One group of the compared question X (/v1/correlations/pair): one
+    of its answers, or an equal-width bin of a long scale."""
+
+    #: the answer's code as the release codes it (or, binned, the bin's index)
+    code: int
+    #: the answer's short label, or the bin's range ("2.5–3.2")
+    label: str
+    #: the group's weighted share of the people who answered both questions
+    share: float
+    #: fewer than ``means.meta.min_n`` people answered both: the chart draws
+    #: the group hollow and names it (ADR-0015's floor, applied to a group)
+    below_min_n: bool
+
+
+class PairResponse(BaseModel):
+    """Two questions side by side (/v1/correlations/pair): their weighted
+    correlation, and the outcome Y's weighted mean in each group of X —
+    the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
+    order (from least to most of what its label names), so a positive
+    correlation slopes up; respondent-level points are never served."""
+
+    #: the compared question (``means.meta.outcome`` is Y)
+    x: str
+    #: ``answers`` (one group per answer, up to 11) or ``bins`` (ten
+    #: equal-width bins between X's weighted 1st and 99th percentiles)
+    grouping: str
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``; ``predictor`` = x)
+    correlation: EstimateRow
+    #: Y's weighted mean per group of X (a yes/no Y: its share answering
+    #: yes, ``stat = "proportion"``); ``by = [x]``, one row per entry of
+    #: ``groups`` and in its order
+    means: EstimateResponse
+    groups: list[PairGroupModel]
+
+
+class CorrelationPairModel(BaseModel):
+    """One cell of a correlation table (/v1/correlations): the questions
+    ``a`` and ``b``, ``a`` before ``b`` in the order they were asked for."""
+
+    a: str
+    b: str
+    #: built from the same answers (a score and its own question):
+    #: associated by construction, so no correlation is taken
+    shares_answers: bool
+    #: fewer than ``meta.min_n`` people answered both
+    below_min_n: bool
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``, ``predictor`` = b); null
+    #: when the two share answers
+    correlation: EstimateRow | None
+
+
+class CorrelationsMeta(BaseModel):
+    """What a correlation table says about itself."""
+
+    data_version: str | None
+    #: the questions, in the order asked (the table's rows and columns)
+    vars: list[str]
+    wave: str
+    #: ``pearson_r`` or ``spearman_r``
+    stat: str
+    weight_key: str
+    weight: str
+    ci_level: float
+    suppression: SuppressionModel
+    #: respondents in the eligible design frame
+    n_frame: int
+    filters: dict[str, list[GroupValue]]
+    #: the floor below which a pair is flagged (``FA_CORRELATES_MIN_N``)
+    min_n: int
+
+
+class CorrelationsResponse(BaseModel):
+    """Every pair of 2–10 questions in one country (/v1/correlations)."""
+
+    meta: CorrelationsMeta
+    #: every pair i < j, row by row: (1, 2), (1, 3), … (2, 3), …
+    pairs: list[CorrelationPairModel]

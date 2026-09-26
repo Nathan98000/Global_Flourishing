@@ -7,6 +7,7 @@
 
 import type { ChangeRequest } from '../api/change'
 import type { CorrelatesRequest } from '../api/correlates'
+import type { PairRequest, TableRequest } from '../api/correlations'
 import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
 import type { Stat, VariableSummary, Wave } from '../api/types'
@@ -633,10 +634,21 @@ export function statesRequest(
 
 // --- Correlates (Phase 6) ----------------------------------------------------
 // What travels with an outcome: the ranked list for one country, and the
-// same items across every country. `adjusted` swaps plain correlations
-// for the adjusted models; `method=spearman` asks for rank correlations
-// (unadjusted only). The country is absent when it is the catalog's
-// first — the view resolves that from meta, so the URL never carries it.
+// same items across every country — one of them on screen at a time
+// (`view`, owner decision 25 Sept 2026). `method=spearman` asks for rank
+// correlations. The country is absent when it is the catalog's first —
+// the view resolves that from meta, so the URL never carries it. The
+// adjusted models left the page (ADR-0018): an old link's `adjusted` is
+// reported like any other invalid param, and never sent.
+
+/** Which chart the Correlates page shows: the ranked list for one
+ * country, its measures across every country, the measure beside one
+ * other question (`x`), or a table of several (`vars`). */
+export type CorrelatesViewName = 'ranked' | 'countries' | 'pair' | 'matrix'
+
+/** A correlation table holds 2 to 10 questions. */
+export const TABLE_MIN = 2
+export const TABLE_MAX = 10
 
 export interface CorrelatesSearch {
   outcome: string
@@ -644,9 +656,15 @@ export interface CorrelatesSearch {
   wave: Wave
   /** The country whose ranked list is shown; absent = the catalog's first. */
   country?: number
-  /** The adjusted models instead of plain correlations. */
-  adjusted?: boolean
-  /** Rank correlation instead of Pearson (ignored when adjusted). */
+  view: CorrelatesViewName
+  /** Compare two: the question set beside the measure; absent = the
+   * measure's top-ranked correlate in the country (the view resolves it
+   * from the ranked list, so the URL never carries a default). */
+  x?: string
+  /** Compare several: the table's questions, in order; absent = the
+   * measure and its top five correlates in the country. */
+  vars?: string[]
+  /** Rank correlation instead of Pearson. */
   method?: 'spearman'
   invalid?: string[]
   invalidRaw?: RawParams
@@ -655,7 +673,26 @@ export interface CorrelatesSearch {
 export const CORRELATES_DEFAULTS = {
   outcome: 'sfi',
   wave: 'Y1' as Wave,
+  view: 'ranked' as CorrelatesViewName,
 }
+
+/** `vars=A,B,C` (or repeated) → 2–10 distinct names, in order. Takes
+ * the raw value itself (string or array), never the raw object. */
+function parseTableVars(value: unknown): string[] | undefined {
+  const values = value === undefined ? [] : Array.isArray(value) ? value : [value]
+  const names = values.flatMap((entry) =>
+    String(entry)
+      .split(',')
+      .map((piece) => piece.trim())
+      .filter(Boolean),
+  )
+  if (names.length < TABLE_MIN || names.length > TABLE_MAX) return undefined
+  if (new Set(names).size !== names.length) return undefined
+  return names.every((name) => NAME_PATTERN.test(name)) ? names : undefined
+}
+
+/** A param the page no longer offers: present at all, it is reported. */
+const parseRetired = (): undefined => undefined
 
 export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
   const collect = new Collector()
@@ -664,9 +701,18 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
     topic: collect.take('topic', raw, parseName, undefined),
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
     country: collect.take('country', raw, parseCountryCode, undefined),
-    adjusted: collect.take('adjusted', raw, parseTrue, undefined) ? true : undefined,
+    view: collect.take(
+      'view',
+      raw,
+      parseEnum<CorrelatesViewName>('ranked', 'countries', 'pair', 'matrix'),
+      CORRELATES_DEFAULTS.view,
+    ),
+    x: collect.take('x', raw, parseName, undefined),
+    vars: collect.take('vars', raw, parseTableVars, undefined, true),
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
   }
+  // The adjusted models are no longer offered (ADR-0018).
+  collect.take('adjusted', raw, parseRetired, undefined)
   return collect.finish(search)
 }
 
@@ -677,7 +723,9 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
       topic: search.topic,
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
-      adjusted: search.adjusted ? true : undefined,
+      view: search.view === CORRELATES_DEFAULTS.view ? undefined : search.view,
+      x: search.x,
+      vars: search.vars?.length ? search.vars.join(',') : undefined,
       method: search.method,
     },
     search.invalidRaw,
@@ -691,9 +739,28 @@ export function correlatesRequest(search: CorrelatesSearch, country: number): Co
     wave: search.wave,
     by: [],
     countries: [country],
-    adjusted: search.adjusted,
-    method: search.adjusted ? undefined : search.method,
+    method: search.method,
   }
+}
+
+/** Compare two: the measure (y) beside one question (x) in one country. */
+export function pairRequest(search: CorrelatesSearch, x: string, country: number): PairRequest {
+  return {
+    y: search.outcome,
+    x,
+    wave: search.wave,
+    country,
+    method: search.method,
+  }
+}
+
+/** Compare several: the table's questions in one country. */
+export function tableRequest(
+  search: CorrelatesSearch,
+  vars: readonly string[],
+  country: number,
+): TableRequest {
+  return { vars, wave: search.wave, country, method: search.method }
 }
 
 /** The ranked list's own items, across every country. */
@@ -706,7 +773,6 @@ export function correlatesAcrossCountries(
     wave: search.wave,
     against: predictors,
     by: ['country_code'],
-    adjusted: search.adjusted,
-    method: search.adjusted ? undefined : search.method,
+    method: search.method,
   }
 }

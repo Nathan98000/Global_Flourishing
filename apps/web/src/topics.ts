@@ -25,6 +25,24 @@ const TOPIC_NAMES: Record<string, string> = {
 
 const TOPIC_ORDER = Object.keys(TOPIC_NAMES)
 
+/** Measures the picker lists under another topic than their catalog
+ * family (owner decision, 25 Sept 2026 — ADR-0018): the PHQ-2 and GAD-2
+ * scores and their screen-positive flags are mental-health measures, not
+ * parts of the flourishing index the `derived` family otherwise holds.
+ * Web-side only; the catalog's family is unchanged. */
+const TOPIC_OF_MEASURE: Record<string, string> = {
+  phq2_score: 'mental_health',
+  phq2_positive: 'mental_health',
+  gad2_score: 'mental_health',
+  gad2_positive: 'mental_health',
+}
+
+/** The topic a measure is listed under: its catalog family, unless the
+ * map above moves it. */
+export function topicFamily(variable: Pick<VariableSummary, 'name' | 'family'>): string {
+  return TOPIC_OF_MEASURE[variable.name] ?? variable.family
+}
+
 export function topicName(family: string): string {
   const named = TOPIC_NAMES[family]
   if (named) return named
@@ -62,9 +80,10 @@ export function topicsOf(variables: VariableSummary[]): Topic[] {
   const byFamily = new Map<string, VariableSummary[]>()
   for (const variable of variables) {
     if (!variable.servable) continue
-    const bucket = byFamily.get(variable.family) ?? []
+    const family = topicFamily(variable)
+    const bucket = byFamily.get(family) ?? []
     bucket.push(variable)
-    byFamily.set(variable.family, bucket)
+    byFamily.set(family, bucket)
   }
   const families = [...byFamily.keys()].sort((a, b) => {
     const ia = TOPIC_ORDER.indexOf(a)
