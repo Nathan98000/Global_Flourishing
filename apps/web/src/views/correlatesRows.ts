@@ -78,9 +78,14 @@ export function legendEnds(extent: number, stat: string): [string, string] {
 }
 
 /** The Across countries subtitle: which measures, where, when, what. */
-export function acrossSubtitle(count: number, countryName: string, wave: string): string {
+export function acrossSubtitle(
+  count: number,
+  countryName: string,
+  wave: string,
+  method?: CorrelationMethod,
+): string {
   const measures = count === 1 ? 'The 1 measure' : `The ${count} measures`
-  return `${measures} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · correlation, −1 to 1`
+  return `${measures} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
 /** The ranked sweep's floor, in words, when it left measures out. */
@@ -107,11 +112,6 @@ export function methodLabel(method: CorrelationMethod | undefined): string {
 export const METHOD_HINT =
   'Straight-line: how closely two answers follow a line. By rank: how consistently one rises with the other.'
 
-/** The value axis title for the ranked list. */
-export function axisTitle(method: CorrelationMethod | undefined): string {
-  return method === 'spearman' ? 'Rank correlation (Spearman)' : 'Weighted correlation (Pearson)'
-}
-
 /** Predictor × country lookup for the cross-country matrix. */
 export function heatCells(rows: readonly EstimateRow[]): Map<string, EstimateRow> {
   const cells = new Map<string, EstimateRow>()
@@ -128,16 +128,64 @@ export function heatKey(predictor: string, country: Country): string {
 
 /** The statistic in words, for subtitles: what the number is and its range. */
 export function statisticPhrase(method: CorrelationMethod | undefined): string {
-  return method === 'spearman' ? 'rank correlation, −1 to 1' : 'weighted correlation, −1 to 1'
+  return method === 'spearman' ? 'correlation by rank, −1 to 1' : 'correlation, −1 to 1'
 }
 
-/** Subtitle for the ranked list: where, what, when. */
+/** Subtitle for the ranked list: where, when, what. */
 export function rankedSubtitle(
   countryName: string,
   method: CorrelationMethod | undefined,
   wave: string,
 ): string {
-  return `Strongest associations in ${countryName} · ${statisticPhrase(method)} · ${WAVE_TITLES[wave] ?? wave}`
+  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
+}
+
+/** The ranked list's fixed window: a correlation always spans −1 to 1,
+ * so "far right" is the same number for every measure (three ticks on a
+ * phone). */
+export const CORRELATION_SCALE = {
+  domain: [-1, 1] as [number, number],
+  ticks: [-1, -0.5, 0, 0.5, 1],
+  narrowTicks: [-1, 0, 1],
+}
+
+/** The words under the axis's two ends. */
+export function axisEnds(short: string): [string, string] {
+  return [`← goes with lower ${short}`, `goes with higher ${short} →`]
+}
+
+/** A ranked row's tooltip: the signed value and the measure, then how
+ * many people answered both (a correlation has no interval; its n is
+ * the number that says how much it rests on — ADR-0018). */
+export function rankedTip(
+  row: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>,
+  label: string,
+): string {
+  return `${formatEstimate(row.estimate, row.stat)} · ${label}\n${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'} answered both`
+}
+
+/** What the ranked sweep left out as overlap, in one sentence built from
+ * the server's map (dropped → the one that stands in for it): "PHQ-2
+ * depression score and GAD-2 anxiety score are shown; their individual
+ * questions and screen-positive flags are left out." */
+export function overlapNote(
+  dropped: Record<string, string> | null | undefined,
+  byName: Record<string, Pick<VariableSummary, 'display_name' | 'is_derived' | 'scale_type'>>,
+): string | undefined {
+  const pairs = Object.entries(dropped ?? {})
+  if (pairs.length === 0) return undefined
+  const kept = [...new Set(pairs.map(([, winner]) => winner))]
+  const kinds = new Set<string>(
+    pairs.map(([name]) => {
+      const variable = byName[name]
+      if (!variable?.is_derived) return 'individual questions'
+      return variable.scale_type === 'binary' ? 'screen-positive flags' : 'domain scores'
+    }),
+  )
+  const order = ['individual questions', 'domain scores', 'screen-positive flags']
+  const names = listAnd(kept.map((name) => byName[name]?.display_name ?? name))
+  const [verb, their] = kept.length === 1 ? ['is', 'its'] : ['are', 'their']
+  return `${names} ${verb} shown; ${their} ${listAnd(order.filter((kind) => kinds.has(kind)))} are left out.`
 }
 
 // --- Compare two ------------------------------------------------------------

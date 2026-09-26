@@ -113,6 +113,31 @@
   height: 14px;
 }
 
+/* The ranked list's key, above the rows: a dot per hue and what it
+   means, in the legend voice. */
+.signKey {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.signKey > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyDot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
 /* The line under the correlation choice, inside the Method panel. */
 .methodHint {
   margin: 0;

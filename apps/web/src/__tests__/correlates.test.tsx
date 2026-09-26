@@ -34,7 +34,7 @@ import {
   testRow,
 } from '../test-utils/fixtures'
 import {
-  axisTitle,
+  axisEnds,
   belowFloor,
   countriesByName,
   defaultCountry,
@@ -44,9 +44,12 @@ import {
   hollowNote,
   legendEnds,
   methodLabel,
+  overlapNote,
   pairSubtitle,
   pairTip,
   pinnedFirst,
+  rankedSubtitle,
+  rankedTip,
   shareText,
   shortName,
   statisticPhrase,
@@ -285,7 +288,7 @@ describe('Correlates view', () => {
   test('a ranked list of measures with no interval anywhere, and the caveat in plain words', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?outcome=HAPPY')
-    const figure = await screen.findByRole('img', { name: /most strongly associated with it/ })
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     // Rows are measures, named from the catalog, strongest first, signed.
     const svgText = figure.querySelector('svg')?.textContent ?? ''
     expect(svgText).toContain('Loneliness')
@@ -298,6 +301,38 @@ describe('Correlates view', () => {
     expect(figure.innerHTML).toContain('var(--div-pos-mark)')
     expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
     expect(ruleLines(figure)).toBe(1)
+    // What the chart is: its title and subtitle carry the statistic; the
+    // axis is always −1 to 1, its ends said in words, no axis title.
+    expect(screen.getByText('What goes with Happiness')).toBeInTheDocument()
+    expect(
+      screen.getByText('United States · Wave 1, 2023 · correlation, −1 to 1'),
+    ).toBeInTheDocument()
+    const ticks = [...figure.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+      (node) => node.textContent,
+    )
+    expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
+    expect(svgText).toContain('← goes with lower Happiness')
+    expect(svgText).toContain('goes with higher Happiness →')
+    expect(svgText).not.toContain('Weighted correlation')
+    // The key above the rows, the hint under them.
+    expect(screen.getByText('Goes with higher Happiness')).toBeInTheDocument()
+    expect(screen.getByText('Goes with lower Happiness')).toBeInTheDocument()
+    expect(screen.getByText('Select a row to see the two questions together.')).toBeVisible()
+    // Every row is a real button (label and dot alike); focus shows the
+    // tooltip — value · measure, then who answered both.
+    const rowButtons = within(figure).getAllByRole('button')
+    expect(rowButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Loneliness, −0.52: see it beside Happiness',
+      'Service attendance, +0.31: see it beside Happiness',
+    ])
+    fireEvent.focus(rowButtons[0] as HTMLElement)
+    expect(within(figure).getByRole('tooltip')).toHaveTextContent(
+      '−0.52 · Loneliness 54 people answered both',
+    )
+    expect(rowButtons[0]).toHaveAccessibleDescription(/54 people answered both/)
+    expect(within(figure).getByRole('tooltip').textContent).not.toContain('point estimate')
+    fireEvent.blur(rowButtons[0] as HTMLElement)
+    expect(within(figure).queryByRole('tooltip')).toBeNull()
     // The footnote names no interval that does not exist, and the caveat
     // is a sentence in the deck and in the footnote — no callout box.
     const main = screen.getByRole('main')
@@ -361,12 +396,12 @@ describe('Correlates view', () => {
   test('Across countries: the ranked measures in every country, the chosen one pinned first', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?outcome=HAPPY')
-    await screen.findByRole('img', { name: /most strongly associated with it/ })
+    await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(screen.getByLabelText('Across countries'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('view=countries'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
-    expect(screen.queryByRole('img', { name: /most strongly associated with it/ })).toBeNull()
+    expect(screen.queryByRole('group', { name: /most strongly associated with it/ })).toBeNull()
     expect(screen.getByText('Happiness, across countries')).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -520,13 +555,42 @@ describe('Correlates view', () => {
     expect(await screen.findByText(/is a set of categories with no order/)).toBeInTheDocument()
   })
 
+  test('selecting a row opens Compare two with that measure beside this one', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates?outcome=HAPPY')
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
+    fireEvent.click(within(figure).getByRole('button', { name: /^Service attendance/ }))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?outcome=HAPPY&view=pair&x=ATTEND_SVCS'),
+    )
+    expect(
+      await screen.findByRole('img', { name: /Happiness by Service attendance/ }),
+    ).toBeInTheDocument()
+  })
+
+  test('the footnote says which overlapping measures the ranking left out', async () => {
+    mockFetch({
+      ...tier,
+      'filter=country_code%3A22': {
+        ...rankedPlain,
+        meta: { ...rankedPlain.meta, dropped_overlap: { HAPPY_ITEM: 'sfi', LONELY_ITEM: 'sfi' } },
+      },
+    })
+    await renderAt('/correlates?outcome=HAPPY')
+    expect(
+      await screen.findByText(
+        /Secure Flourishing Index is shown; its individual questions are left out\./,
+      ),
+    ).toBeInTheDocument()
+  })
+
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?outcome=HAPPY&adjusted=true')
     expect(
       await screen.findByText(/invalid and were reset to defaults: adjusted/),
     ).toBeInTheDocument()
-    const figure = await screen.findByRole('img', { name: /most strongly associated with it/ })
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     expect(ruleLines(figure)).toBe(1) // the zero rule; no whiskers
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates.length).toBeGreaterThan(0)
@@ -536,7 +600,7 @@ describe('Correlates view', () => {
   test('choosing the rank correlation asks for it and says so on the button', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?outcome=HAPPY')
-    await screen.findByRole('img', { name: /most strongly associated with it/ })
+    await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(screen.getByRole('button', { name: 'Method: straight-line correlation' }))
     fireEvent.click(screen.getByLabelText('By rank (Spearman)'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('method=spearman'))
@@ -603,7 +667,7 @@ describe('Correlates view', () => {
       },
     })
     const router = await renderAt('/correlates?outcome=HAPPY')
-    await screen.findByRole('img', { name: /most strongly associated with it/ })
+    await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.change(screen.getByLabelText('Country'), { target: { value: '1' } })
     await waitFor(() =>
       expect(calls.some((url) => url.includes('filter=country_code%3A1'))).toBe(true),
@@ -691,10 +755,18 @@ describe('correlates helpers', () => {
   })
 
   test('plain words for the method and the waves', () => {
-    expect(statisticPhrase(undefined)).toBe('weighted correlation, −1 to 1')
-    expect(statisticPhrase('spearman')).toBe('rank correlation, −1 to 1')
-    expect(axisTitle(undefined)).toBe('Weighted correlation (Pearson)')
-    expect(axisTitle('spearman')).toBe('Rank correlation (Spearman)')
+    expect(statisticPhrase(undefined)).toBe('correlation, −1 to 1')
+    expect(statisticPhrase('spearman')).toBe('correlation by rank, −1 to 1')
+    expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe(
+      'Japan · Wave 2, 2024 · correlation, −1 to 1',
+    )
+    expect(axisEnds('Happiness')).toEqual([
+      '← goes with lower Happiness',
+      'goes with higher Happiness →',
+    ])
+    expect(rankedTip({ estimate: 0.412, stat: 'pearson_r', n: 1234 }, 'Gratitude')).toBe(
+      '+0.41 · Gratitude\n1,234 people answered both',
+    )
     expect(methodLabel(undefined)).toBe('Method: straight-line correlation')
     expect(methodLabel('pearson')).toBe('Method: straight-line correlation')
     expect(methodLabel('spearman')).toBe('Method: by-rank correlation')
@@ -713,6 +785,52 @@ describe('correlates helpers', () => {
     )
     expect(waveNote(['Y1', 'MY', 'Y2'])).toBeUndefined()
     expect(waveNote([])).toBeUndefined()
+  })
+
+  test('the overlap footnote is built from what the server left out', () => {
+    const byName = {
+      phq2_score: { display_name: 'PHQ-2 depression score', is_derived: true, scale_type: 'count' },
+      gad2_score: { display_name: 'GAD-2 anxiety score', is_derived: true, scale_type: 'count' },
+      phq2_positive: {
+        display_name: 'PHQ-2 screen positive',
+        is_derived: true,
+        scale_type: 'binary',
+      },
+      gad2_positive: {
+        display_name: 'GAD-2 screen positive',
+        is_derived: true,
+        scale_type: 'binary',
+      },
+      DEPRESSED: {
+        display_name: 'Feeling down or depressed',
+        is_derived: false,
+        scale_type: 'ordinal',
+      },
+      sfi: { display_name: 'Secure Flourishing Index', is_derived: true, scale_type: 'scale_0_10' },
+      sfi_meaning: {
+        display_name: 'SFI: meaning & purpose',
+        is_derived: true,
+        scale_type: 'scale_0_10',
+      },
+    }
+    expect(
+      overlapNote(
+        {
+          DEPRESSED: 'phq2_score',
+          phq2_positive: 'phq2_score',
+          FEEL_ANXIOUS: 'gad2_score',
+          gad2_positive: 'gad2_score',
+        },
+        byName,
+      ),
+    ).toBe(
+      'PHQ-2 depression score and GAD-2 anxiety score are shown; their individual questions and screen-positive flags are left out.',
+    )
+    expect(overlapNote({ sfi_meaning: 'sfi', HAPPY: 'sfi' }, byName)).toBe(
+      'Secure Flourishing Index is shown; its individual questions and domain scores are left out.',
+    )
+    expect(overlapNote({}, byName)).toBeUndefined()
+    expect(overlapNote(null, byName)).toBeUndefined()
   })
 
   test('Compare two in words: subtitle, tooltip, hollow groups, shares', () => {

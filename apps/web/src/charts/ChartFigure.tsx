@@ -72,6 +72,7 @@ export function ChartFigure({
   footnote,
   unit,
   wide = false,
+  interactive = false,
   children,
 }: {
   title: string
@@ -107,6 +108,9 @@ export function ChartFigure({
    * `wide`, which scrolls in its own box below 1200px): the chart node
    * lets it out rather than clipping it. */
   wide?: boolean
+  /** The chart holds controls (the Correlates list's row buttons): it is
+   * a labelled group, not an image, so they stay in the a11y tree. */
+  interactive?: boolean
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -178,7 +182,7 @@ export function ChartFigure({
       {intro}
       <div
         ref={chartRef}
-        role="img"
+        role={interactive ? 'group' : 'img'}
         aria-label={ariaLabel}
         className={styles.chart}
         data-refreshing={isRefreshing || undefined}

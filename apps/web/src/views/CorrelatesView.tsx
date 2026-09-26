@@ -60,7 +60,8 @@ import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
   METHOD_HINT,
   acrossSubtitle,
-  axisTitle,
+  CORRELATION_SCALE,
+  axisEnds,
   belowFloor,
   countriesByName,
   defaultCountry,
@@ -72,8 +73,10 @@ import {
   methodLabel,
   pairSubtitle,
   pairTip,
+  overlapNote,
   pinnedFirst,
   rankedSubtitle,
+  rankedTip,
   shortName,
   statisticPhrase,
   tintExtent,
@@ -262,6 +265,17 @@ export function CorrelatesView() {
     ) : (
       <ErrorState apiReachable={boot.apiReachable} error={error} />
     )
+  // The ranked list's rows: each opens Compare two with this measure on
+  // y and that row's measure on x.
+  const labelOfRow = (row: EstimateRow) => nameOf(row.predictor ?? '')
+  const colorOfRow = (row: EstimateRow) => signMark(row.estimate)
+  const openPair = (row: EstimateRow) => {
+    if (row.predictor) setSearch({ view: 'pair', x: row.predictor })
+  }
+  const rowName = (row: EstimateRow, label: string) =>
+    `${label}, ${formatEstimate(row.estimate, row.stat)}: see it beside ${title}`
+  const ends = axisEnds(short)
+  const overlap = overlapNote(rankedResponse?.meta.dropped_overlap, variables.data.byName)
   const strongest = rankedRows.find((row) => row.estimate !== null)
   const rankedAria = `${title}: the ${predictors.length} measures most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
@@ -461,16 +475,38 @@ export function CorrelatesView() {
               Updated: {title}, {predictors.length} measures ranked for {countryName}.
             </p>
             <ChartFigure
-              title={`What travels with ${title}`}
+              title={`What goes with ${title}`}
               subtitle={rankedSubtitle(countryName, search.method, search.wave)}
               ariaLabel={rankedAria}
               marks="dots"
+              interactive
               intro={
-                detail && (
-                  <div className={styles.wording}>
-                    <WordingPanel detail={detail} />
-                  </div>
-                )
+                <>
+                  {detail && (
+                    <div className={styles.wording}>
+                      <WordingPanel detail={detail} />
+                    </div>
+                  )}
+                  {/* The two hues, said before the rows that wear them. */}
+                  <p className={styles.signKey}>
+                    <span>
+                      <span
+                        className={styles.keyDot}
+                        style={{ background: signMark(1) }}
+                        aria-hidden="true"
+                      />
+                      Goes with higher {short}
+                    </span>
+                    <span>
+                      <span
+                        className={styles.keyDot}
+                        style={{ background: signMark(-1) }}
+                        aria-hidden="true"
+                      />
+                      Goes with lower {short}
+                    </span>
+                  </p>
+                </>
               }
               response={rankedResponse}
               meta={served}
@@ -478,7 +514,12 @@ export function CorrelatesView() {
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
               predictorLabel={nameOf}
-              footnote={footnote(rankedResponse)}
+              footnote={
+                <>
+                  {footnote(rankedResponse)}
+                  {overlap ? `${overlap} ` : ''}
+                </>
+              }
             >
               <RankedBar
                 rows={rankedRows}
@@ -486,13 +527,19 @@ export function CorrelatesView() {
                 responseMeta={rankedResponse.meta}
                 variable={variable}
                 color={signMark(1)}
-                labelOf={(row) => nameOf(row.predictor ?? '')}
-                colorOf={(row) => signMark(row.estimate)}
+                labelOf={labelOfRow}
+                colorOf={colorOfRow}
                 zeroRule
-                labelWidth={narrow ? 200 : 230}
                 labelFontSize={narrow ? 12 : 13.5}
-                axisTitle={axisTitle(search.method)}
+                fixedScale={CORRELATION_SCALE}
+                axisEnds={ends}
+                fitLabels
+                stackOnNarrow
+                tipOf={rankedTip}
+                onSelectRow={openPair}
+                rowName={rowName}
               />
+              <p className={styles.hint}>Select a row to see the two questions together.</p>
             </ChartFigure>
           </>
         ) : predictors.length === 0 ? (
@@ -509,7 +556,7 @@ export function CorrelatesView() {
         ) : acrossResponse ? (
           <ChartFigure
             title={`${title}, across countries`}
-            subtitle={acrossSubtitle(predictors.length, countryName, search.wave)}
+            subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
             ariaLabel={`${title}: the ${predictors.length} measures ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with lower ${short}, teal cells with higher; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
