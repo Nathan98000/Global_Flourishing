@@ -1,7 +1,9 @@
-// Correlates (Phase 6): what travels with a measure. Two requests answer
-// the page — the ranked list for one country (the server sweeps every
-// other ordered item, ranks by strength and cuts the list) and the same
-// items across every country. Unadjusted rows are plain weighted
+// Correlates (Phase 6): what travels with a measure. Two views, one on
+// screen at a time (`view`, owner decision 25 Sept 2026): the ranked list
+// for one country (the server sweeps every other ordered item, ranks by
+// strength and cuts the list) and the same items across every country —
+// a view that is not on screen mounts nothing and fetches nothing beyond
+// the ranked list it is built from. Unadjusted rows are plain weighted
 // correlations, point estimates only, so no interval is ever drawn for
 // them; the adjusted toggle swaps in the fixed-control models, whose
 // coefficients carry a design-based interval and whose figure links to
@@ -39,6 +41,7 @@ import {
   correlatesRequest,
   correlatesSearchParams,
   type CorrelatesSearch,
+  type CorrelatesViewName,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
@@ -99,7 +102,7 @@ export function CorrelatesView() {
     rankedRequest !== null && predictors.length > 0
       ? correlatesAcrossCountries(search, predictors)
       : null
-  const across = useCorrelates(acrossRequest)
+  const across = useCorrelates(acrossRequest, { enabled: search.view === 'countries' })
   const acrossResponse = across.data
   const rankedRows = useMemo(
     () => (rankedResponse ? chartRows(rankedResponse.rows) : []),
@@ -146,6 +149,11 @@ export function CorrelatesView() {
       invalidRaw: undefined,
     })
   }
+
+  const viewOptions: RadioOption<CorrelatesViewName>[] = [
+    { value: 'ranked', label: countryName ? `In ${countryName}` : 'In one country' },
+    { value: 'countries', label: 'Across countries' },
+  ]
 
   const waveOptions: RadioOption<Wave>[] = WAVES.map((wave) => ({
     value: wave,
@@ -230,6 +238,15 @@ export function CorrelatesView() {
       </>
     )
   }
+  const offline = (error: unknown) =>
+    error instanceof NetworkError && !boot.apiReachable ? (
+      <p className={styles.hint} role="status">
+        This view needs the live data service, which is offline right now — the Atlas and Segments
+        still work.
+      </p>
+    ) : (
+      <ErrorState apiReachable={boot.apiReachable} error={error} />
+    )
   const strongest = rankedRows.find((row) => row.estimate !== null)
   const rankedAria = `${title}: the ${predictors.length} measures most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(adjusted, search.method)}.${
     strongest?.predictor
@@ -315,6 +332,16 @@ export function CorrelatesView() {
         )}
       </div>
 
+      <div className={styles.controls}>
+        <RadioRow
+          legend="View"
+          name="view"
+          options={viewOptions}
+          value={search.view}
+          onChange={(view) => setSearch({ view })}
+        />
+      </div>
+
       {!ordered ? (
         <EmptyState title="Choose a measure to begin">
           <p>
@@ -337,97 +364,96 @@ export function CorrelatesView() {
       ) : ranked.isPending ? (
         <LoadingBlock height={520} label="Loading the ranked list" />
       ) : ranked.isError ? (
-        ranked.error instanceof NetworkError && !boot.apiReachable ? (
-          <p className={styles.hint} role="status">
-            This view needs the live data service, which is offline right now — the Atlas and
-            Segments still work.
-          </p>
-        ) : (
-          <ErrorState apiReachable={boot.apiReachable} error={ranked.error} />
-        )
+        offline(ranked.error)
       ) : rankedResponse && variable ? (
-        <>
-          <p role="status" className="visually-hidden">
-            Updated: {title}, {predictors.length} measures ranked for {countryName}.
-          </p>
-          <ChartFigure
-            title={`What travels with ${title}`}
-            subtitle={rankedSubtitle(
-              countryName,
-              adjusted,
-              search.method,
-              search.wave,
-              adjustedPhrase(variable, rankedResponse.meta, served),
-            )}
-            ariaLabel={rankedAria}
-            marks="dots"
-            intro={
-              detail && (
-                <div className={styles.wording}>
-                  <WordingPanel detail={detail} />
-                </div>
-              )
-            }
-            response={rankedResponse}
-            meta={served}
-            csv={csvFor(rankedResponse, rankedName)}
-            exportName={rankedName}
-            isRefreshing={ranked.isPlaceholderData}
-            predictorLabel={nameOf}
-            footnote={footnote(rankedResponse)}
-          >
-            <RankedBar
-              rows={rankedRows}
+        search.view === 'ranked' ? (
+          <>
+            <p role="status" className="visually-hidden">
+              Updated: {title}, {predictors.length} measures ranked for {countryName}.
+            </p>
+            <ChartFigure
+              title={`What travels with ${title}`}
+              subtitle={rankedSubtitle(
+                countryName,
+                adjusted,
+                search.method,
+                search.wave,
+                adjustedPhrase(variable, rankedResponse.meta, served),
+              )}
+              ariaLabel={rankedAria}
+              marks="dots"
+              intro={
+                detail && (
+                  <div className={styles.wording}>
+                    <WordingPanel detail={detail} />
+                  </div>
+                )
+              }
+              response={rankedResponse}
               meta={served}
-              responseMeta={rankedResponse.meta}
-              variable={variable}
-              color={signMark(1)}
-              labelOf={(row) => nameOf(row.predictor ?? '')}
-              colorOf={(row) => signMark(row.estimate)}
-              zeroRule
-              labelWidth={narrow ? 200 : 230}
-              labelFontSize={narrow ? 12 : 13.5}
-              axisTitle={axisTitle(adjusted, search.method, variable)}
-            />
-            {adjusted && (
-              <p className={styles.hint}>
-                Each dot: the change in {title}, in {outcomeUnit(variable)}, per one standard
-                deviation of the measure, among people alike on every control.
-              </p>
-            )}
-          </ChartFigure>
-
-          {acrossRequest !== null &&
-            (across.isPending ? (
-              <LoadingBlock height={360} label="Loading the cross-country matrix" />
-            ) : across.isError ? (
-              <ErrorState apiReachable={boot.apiReachable} error={across.error} />
-            ) : acrossResponse ? (
-              <ChartFigure
-                title="Across countries"
-                subtitle={`The same measures in every country · ${statisticPhrase(adjusted, search.method)} · ${WAVE_TITLES[search.wave] ?? search.wave}`}
-                ariaLabel={`${title}: the ${predictors.length} measures ranked above, in each of ${served.countries.length} countries, as a matrix. Rust cells are negative associations, teal cells positive; the data table below carries every number.`}
-                marks="table"
-                response={acrossResponse}
+              csv={csvFor(rankedResponse, rankedName)}
+              exportName={rankedName}
+              isRefreshing={ranked.isPlaceholderData}
+              predictorLabel={nameOf}
+              footnote={footnote(rankedResponse)}
+            >
+              <RankedBar
+                rows={rankedRows}
                 meta={served}
-                csv={csvFor(acrossResponse, acrossName)}
-                exportName={acrossName}
-                isRefreshing={across.isPlaceholderData}
-                predictorLabel={nameOf}
-                footnote={footnote(acrossResponse)}
-              >
-                <CountryMatrix
-                  predictors={predictors}
-                  rows={acrossRows}
-                  cells={cells}
-                  minN={acrossResponse.meta.min_n}
-                  nameOf={nameOf}
-                  served={served}
-                  outcome={title}
-                />
-              </ChartFigure>
-            ) : null)}
-        </>
+                responseMeta={rankedResponse.meta}
+                variable={variable}
+                color={signMark(1)}
+                labelOf={(row) => nameOf(row.predictor ?? '')}
+                colorOf={(row) => signMark(row.estimate)}
+                zeroRule
+                labelWidth={narrow ? 200 : 230}
+                labelFontSize={narrow ? 12 : 13.5}
+                axisTitle={axisTitle(adjusted, search.method, variable)}
+              />
+              {adjusted && (
+                <p className={styles.hint}>
+                  Each dot: the change in {title}, in {outcomeUnit(variable)}, per one standard
+                  deviation of the measure, among people alike on every control.
+                </p>
+              )}
+            </ChartFigure>
+          </>
+        ) : predictors.length === 0 ? (
+          <EmptyState title="Nothing ranked">
+            <p>
+              No measure has enough respondents in {countryName} to rank against {title}, so there
+              is nothing to set across countries.
+            </p>
+          </EmptyState>
+        ) : across.isPending ? (
+          <LoadingBlock height={360} label="Loading the cross-country matrix" />
+        ) : across.isError ? (
+          offline(across.error)
+        ) : acrossResponse ? (
+          <ChartFigure
+            title="Across countries"
+            subtitle={`The same measures in every country · ${statisticPhrase(adjusted, search.method)} · ${WAVE_TITLES[search.wave] ?? search.wave}`}
+            ariaLabel={`${title}: the ${predictors.length} measures ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix. Rust cells are negative associations, teal cells positive; the data table below carries every number.`}
+            marks="table"
+            response={acrossResponse}
+            meta={served}
+            csv={csvFor(acrossResponse, acrossName)}
+            exportName={acrossName}
+            isRefreshing={across.isPlaceholderData}
+            predictorLabel={nameOf}
+            footnote={footnote(acrossResponse)}
+          >
+            <CountryMatrix
+              predictors={predictors}
+              rows={acrossRows}
+              cells={cells}
+              minN={acrossResponse.meta.min_n}
+              nameOf={nameOf}
+              served={served}
+              outcome={title}
+            />
+          </ChartFigure>
+        ) : null
       ) : null}
     </section>
   )

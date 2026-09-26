@@ -336,21 +336,35 @@ describe('correlates search (Phase 6)', () => {
 
   test('a full URL round-trips exactly', () => {
     const raw = parseSearchString(
-      '?outcome=HAPPY&wave=Y2&country=22&adjusted=true&method=spearman&topic=wellbeing',
+      '?outcome=HAPPY&wave=Y2&country=22&view=countries&adjusted=true&method=spearman&topic=wellbeing',
     )
     const search = parseCorrelatesSearch(raw)
     expect(search).toMatchObject({
       outcome: 'HAPPY',
       wave: 'Y2',
       country: 22,
+      view: 'countries',
       adjusted: true,
       method: 'spearman',
       topic: 'wellbeing',
     })
     expect(search.invalid).toBeUndefined()
     expect(stringifySearch(correlatesSearchParams(search))).toBe(
-      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&adjusted=true&method=spearman',
+      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&view=countries&adjusted=true&method=spearman',
     )
+  })
+
+  test('the view: the ranked list by default, never in the URL; an unknown one is reported', () => {
+    expect(parseCorrelatesSearch({}).view).toBe('ranked')
+    expect(stringifySearch(correlatesSearchParams(parseCorrelatesSearch({ view: 'ranked' })))).toBe(
+      '',
+    )
+    const countries = parseCorrelatesSearch({ view: 'countries' })
+    expect(countries.view).toBe('countries')
+    expect(stringifySearch(correlatesSearchParams(countries))).toBe('?view=countries')
+    const bad = parseCorrelatesSearch({ view: 'globe' })
+    expect(bad.view).toBe('ranked')
+    expect(bad.invalid).toEqual(['view'])
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {

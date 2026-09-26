@@ -63,7 +63,12 @@ export function fetchCorrelates(request: CorrelatesRequest): Promise<EstimateRes
   )
 }
 
-export function useCorrelates(request: CorrelatesRequest | null) {
+/** `enabled: false` keeps a view's query idle while another view is on
+ * screen (the request is still known, so the cache key is stable). */
+export function useCorrelates(
+  request: CorrelatesRequest | null,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const meta = useMeta()
   const dataVersion = meta.data?.meta.data_version ?? null
   return useQuery({
@@ -72,7 +77,7 @@ export function useCorrelates(request: CorrelatesRequest | null) {
       dataVersion,
       request === null ? 'none' : canonicalCorrelatesKey(request),
     ],
-    enabled: request !== null,
+    enabled: request !== null && enabled,
     // Refetch keeps the frame (dimmed, with the progress bar) — no block flash.
     placeholderData: keepPreviousData,
     queryFn: () => {

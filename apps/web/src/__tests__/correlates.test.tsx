@@ -318,8 +318,33 @@ describe('Correlates view', () => {
     // The one-line hint on the two correlations, and the axis title.
     expect(text).toContain('Pearson measures how closely two answers follow a straight line')
     expect(svgText).toContain('Weighted correlation (Pearson)')
-    // The cross-country matrix follows, for the ranked measures only.
+    // One chart on screen: the matrix waits for its own view, and its
+    // request is never made.
+    expect(screen.queryByRole('img', { name: /as a matrix/ })).toBeNull()
+    const correlates = calls.filter((url) => url.includes('/v1/correlates'))
+    expect(correlates).toHaveLength(1)
+    expect(correlates[0]).toContain('filter=country_code%3A22')
+    expect(correlates[0]).not.toContain('adjusted')
+    expect(screen.getByRole('group', { name: 'View' })).toBeInTheDocument()
+    expect(screen.getByLabelText('In United States')).toBeChecked()
+    // The data table names the measure and its n on every row.
+    fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
+    const data = screen.getAllByRole('table')[0] as HTMLElement
+    expect(within(data).getByRole('columnheader', { name: 'Measure' })).toBeInTheDocument()
+    expect(within(data).queryByRole('columnheader', { name: '95% CI' })).toBeNull()
+    expect(within(data).getByText('Loneliness')).toBeInTheDocument()
+    expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
+  })
+
+  test('Across countries: the ranked measures in every country, as a tinted matrix', async () => {
+    const calls = mockFetch(tier)
+    const router = await renderAt('/correlates?outcome=HAPPY')
+    await screen.findByRole('img', { name: /most strongly associated with it/ })
+    fireEvent.click(screen.getByLabelText('Across countries'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('view=countries'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
+    // The ranked chart has left the page: one chart at a time.
+    expect(screen.queryByRole('img', { name: /most strongly associated with it/ })).toBeNull()
     const table = within(matrix).getByRole('table')
     expect(
       within(table)
@@ -360,19 +385,10 @@ describe('Correlates view', () => {
     expect(
       within(matrix).getByText(/rust: a negative association, teal: positive/),
     ).toBeInTheDocument()
-    // Two requests: the ranked sweep for the country, then its measures across countries.
+    // The ranked sweep for the country, then its measures across countries.
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
-    expect(correlates[0]).toContain('filter=country_code%3A22')
-    expect(correlates[0]).not.toContain('adjusted')
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
-    // The data table names the measure and its n on every row.
-    fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
-    const data = screen.getAllByRole('table')[0] as HTMLElement
-    expect(within(data).getByRole('columnheader', { name: 'Measure' })).toBeInTheDocument()
-    expect(within(data).queryByRole('columnheader', { name: '95% CI' })).toBeNull()
-    expect(within(data).getByText('Loneliness')).toBeInTheDocument()
-    expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
   })
 
   test('the adjusted toggle brings intervals, the control set in words and the model card', async () => {

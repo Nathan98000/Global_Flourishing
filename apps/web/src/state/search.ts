@@ -633,10 +633,16 @@ export function statesRequest(
 
 // --- Correlates (Phase 6) ----------------------------------------------------
 // What travels with an outcome: the ranked list for one country, and the
-// same items across every country. `adjusted` swaps plain correlations
-// for the adjusted models; `method=spearman` asks for rank correlations
-// (unadjusted only). The country is absent when it is the catalog's
-// first — the view resolves that from meta, so the URL never carries it.
+// same items across every country — one of them on screen at a time
+// (`view`, owner decision 25 Sept 2026). `adjusted` swaps plain
+// correlations for the adjusted models; `method=spearman` asks for rank
+// correlations (unadjusted only). The country is absent when it is the
+// catalog's first — the view resolves that from meta, so the URL never
+// carries it.
+
+/** Which chart the Correlates page shows: the ranked list for one
+ * country, or its measures across every country. */
+export type CorrelatesViewName = 'ranked' | 'countries'
 
 export interface CorrelatesSearch {
   outcome: string
@@ -644,6 +650,7 @@ export interface CorrelatesSearch {
   wave: Wave
   /** The country whose ranked list is shown; absent = the catalog's first. */
   country?: number
+  view: CorrelatesViewName
   /** The adjusted models instead of plain correlations. */
   adjusted?: boolean
   /** Rank correlation instead of Pearson (ignored when adjusted). */
@@ -655,6 +662,7 @@ export interface CorrelatesSearch {
 export const CORRELATES_DEFAULTS = {
   outcome: 'sfi',
   wave: 'Y1' as Wave,
+  view: 'ranked' as CorrelatesViewName,
 }
 
 export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
@@ -664,6 +672,12 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
     topic: collect.take('topic', raw, parseName, undefined),
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
     country: collect.take('country', raw, parseCountryCode, undefined),
+    view: collect.take(
+      'view',
+      raw,
+      parseEnum<CorrelatesViewName>('ranked', 'countries'),
+      CORRELATES_DEFAULTS.view,
+    ),
     adjusted: collect.take('adjusted', raw, parseTrue, undefined) ? true : undefined,
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
   }
@@ -677,6 +691,7 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
       topic: search.topic,
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
+      view: search.view === CORRELATES_DEFAULTS.view ? undefined : search.view,
       adjusted: search.adjusted ? true : undefined,
       method: search.method,
     },
