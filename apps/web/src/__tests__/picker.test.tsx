@@ -100,6 +100,30 @@ describe('OutcomePicker subtopics', () => {
     ])
   })
 
+  test('changing the topic picks its first listed measure — first subtopic first, page filter respected (25 Sept)', () => {
+    const onSelect = vi.fn()
+    render(<OutcomePicker variables={variables} value="HAPPY" onSelect={onSelect} />)
+    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'religion' } })
+    // Religion's first subtopic is affiliation; its first measure A–Z is REL2.
+    expect(onSelect).toHaveBeenCalledWith({ outcome: 'REL2' })
+    // A page that lists fewer measures (Change's two-wave items) gets the
+    // first of what it lists.
+    const filtered = variables.filter((v) => v.name !== 'REL2')
+    const onSelectFiltered = vi.fn()
+    render(<OutcomePicker variables={filtered} value="HAPPY" onSelect={onSelectFiltered} />)
+    fireEvent.change(screen.getAllByLabelText('Topic')[1] as HTMLElement, {
+      target: { value: 'religion' },
+    })
+    expect(onSelectFiltered).toHaveBeenCalledWith({ outcome: 'REL1' })
+    // A topic without subtopics: its first measure.
+    const onSelectBack = vi.fn()
+    render(<OutcomePicker variables={variables} value="ATTEND_SVCS" onSelect={onSelectBack} />)
+    fireEvent.change(screen.getAllByLabelText('Topic')[2] as HTMLElement, {
+      target: { value: 'wellbeing' },
+    })
+    expect(onSelectBack).toHaveBeenCalledWith({ outcome: 'HAPPY' })
+  })
+
   test('a topic without subfamilies looks unchanged', () => {
     render(<OutcomePicker variables={variables} value="HAPPY" onSelect={() => undefined} />)
     expect(screen.queryByLabelText('Subtopic')).toBeNull()

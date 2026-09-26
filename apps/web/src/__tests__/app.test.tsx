@@ -171,10 +171,12 @@ test('the topic → measure picker: topics carry counts, search jumps across top
   const measure = screen.getByLabelText('Measure') as HTMLSelectElement
   expect(measure.value).toBe('sfi')
 
-  // Changing topic keeps the chart until a measure is picked.
+  // Changing topic picks that topic's first listed measure (25 Sept), so
+  // the old measure and its settings never linger: the chart follows.
   fireEvent.change(topic, { target: { value: 'wellbeing' } })
   const measureAfter = (await screen.findByLabelText('Measure')) as HTMLSelectElement
-  expect(measureAfter.value).toBe('') // "Choose a measure…"
+  expect(measureAfter.value).toBe('HAPPY')
+  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
 
   // The search field selects a measure directly and re-infers its topic.
   fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
