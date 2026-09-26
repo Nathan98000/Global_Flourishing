@@ -259,3 +259,40 @@ class ResponseMeta(BaseModel):
 class EstimateResponse(BaseModel):
     meta: ResponseMeta
     rows: list[EstimateRow]
+
+
+class PairGroupModel(BaseModel):
+    """One group of the compared question X (/v1/correlations/pair): one
+    of its answers, or an equal-width bin of a long scale."""
+
+    #: the answer's code as the release codes it (or, binned, the bin's index)
+    code: int
+    #: the answer's short label, or the bin's range ("2.5–3.2")
+    label: str
+    #: the group's weighted share of the people who answered both questions
+    share: float
+    #: fewer than ``means.meta.min_n`` people answered both: the chart draws
+    #: the group hollow and names it (ADR-0015's floor, applied to a group)
+    below_min_n: bool
+
+
+class PairResponse(BaseModel):
+    """Two questions side by side (/v1/correlations/pair): their weighted
+    correlation, and the outcome Y's weighted mean in each group of X —
+    the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
+    order (from least to most of what its label names), so a positive
+    correlation slopes up; respondent-level points are never served."""
+
+    #: the compared question (``means.meta.outcome`` is Y)
+    x: str
+    #: ``answers`` (one group per answer, up to 11) or ``bins`` (ten
+    #: equal-width bins between X's weighted 1st and 99th percentiles)
+    grouping: str
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``; ``predictor`` = x)
+    correlation: EstimateRow
+    #: Y's weighted mean per group of X (a yes/no Y: its share answering
+    #: yes, ``stat = "proportion"``); ``by = [x]``, one row per entry of
+    #: ``groups`` and in its order
+    means: EstimateResponse
+    groups: list[PairGroupModel]

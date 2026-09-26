@@ -68,6 +68,7 @@ export function ChartFigure({
   levelLabel,
   groupLabel,
   predictorLabel,
+  columnName,
   footnote,
   unit,
   wide = false,
@@ -95,6 +96,7 @@ export function ChartFigure({
   levelLabel?: (level: number) => string | undefined
   groupLabel?: (column: string, value: string | number) => string | undefined
   predictorLabel?: (name: string) => string | undefined
+  columnName?: (column: string) => string | undefined
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
@@ -192,6 +194,7 @@ export function ChartFigure({
           levelLabel={levelLabel}
           groupLabel={groupLabel}
           predictorLabel={predictorLabel}
+          columnName={columnName}
         />
       </details>
       <p className={styles.provenance}>

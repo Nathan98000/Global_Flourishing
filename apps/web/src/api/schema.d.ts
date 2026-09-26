@@ -113,6 +113,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/correlations/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Two questions side by side: their correlation and Y's mean by X
+         * @description Associations, not causes. Both items must be ordered (a 0–10 scale,
+         *     an ordered or yes/no answer, a count) and asked at the wave, and must
+         *     not be built from the same answers (a score and its own question go
+         *     together by construction: 422). ``correlation`` is the weighted
+         *     Pearson or Spearman coefficient over the people who answered both —
+         *     the same number /v1/correlates reports for the pair, with no interval.
+         *     ``means`` is y's weighted mean in each group of x with its
+         *     design-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no
+         *     y is its share answering yes. x's groups are its answers when it has
+         *     at most eleven, else equal-width bins between its weighted 1st and
+         *     99th percentiles (whole-number-wide for an item counted in whole
+         *     numbers), the end bins taking in the tails; they run from least to
+         *     most of what x's label names, so a positive correlation slopes up.
+         *     ``groups`` carries each group's label, its weighted share of those
+         *     people, and whether fewer than ``means.meta.min_n`` of them are in it
+         *     (flagged, never dropped).
+         */
+        get: operations["correlation_pair_v1_correlations_pair_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/export.csv": {
         parameters: {
             query?: never;
@@ -400,6 +435,39 @@ export interface components {
             n_valid: number;
             /** Wave */
             wave: string;
+        };
+        /**
+         * PairGroupModel
+         * @description One group of the compared question X (/v1/correlations/pair): one
+         *     of its answers, or an equal-width bin of a long scale.
+         */
+        PairGroupModel: {
+            /** Below Min N */
+            below_min_n: boolean;
+            /** Code */
+            code: number;
+            /** Label */
+            label: string;
+            /** Share */
+            share: number;
+        };
+        /**
+         * PairResponse
+         * @description Two questions side by side (/v1/correlations/pair): their weighted
+         *     correlation, and the outcome Y's weighted mean in each group of X —
+         *     the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
+         *     order (from least to most of what its label names), so a positive
+         *     correlation slopes up; respondent-level points are never served.
+         */
+        PairResponse: {
+            correlation: components["schemas"]["EstimateRow"];
+            /** Grouping */
+            grouping: string;
+            /** Groups */
+            groups: components["schemas"]["PairGroupModel"][];
+            means: components["schemas"]["EstimateResponse"];
+            /** X */
+            x: string;
         };
         /**
          * ResponseMeta
@@ -747,6 +815,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EstimateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlation_pair_v1_correlations_pair_get: {
+        parameters: {
+            query: {
+                /** @description The outcome: its weighted mean is taken per group of x. */
+                y: string;
+                /** @description The question compared with: its answers (or bins) group y. */
+                x: string;
+                wave: string;
+                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                filter?: string[] | null;
+                /** @description pearson (default) or spearman. */
+                method?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairResponse"];
                 };
             };
             /** @description Validation Error */

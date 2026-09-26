@@ -16,6 +16,7 @@ import {
   correlatesAcrossCountries,
   correlatesRequest,
   correlatesSearchParams,
+  pairRequest,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
@@ -364,6 +365,22 @@ describe('correlates search (Phase 6)', () => {
     const bad = parseCorrelatesSearch({ view: 'globe' })
     expect(bad.view).toBe('ranked')
     expect(bad.invalid).toEqual(['view'])
+  })
+
+  test('Compare two: `view=pair` and the question beside the measure (`x`)', () => {
+    const pair = parseCorrelatesSearch({ outcome: 'HAPPY', view: 'pair', x: 'LONELY' })
+    expect(pair).toMatchObject({ view: 'pair', x: 'LONELY' })
+    expect(stringifySearch(correlatesSearchParams(pair))).toBe('?outcome=HAPPY&view=pair&x=LONELY')
+    expect(pairRequest(pair, 'LONELY', 22)).toEqual({
+      y: 'HAPPY',
+      x: 'LONELY',
+      wave: 'Y1',
+      country: 22,
+      method: undefined,
+    })
+    // Absent: the view resolves the default from the ranked list.
+    expect(parseCorrelatesSearch({ view: 'pair' }).x).toBeUndefined()
+    expect(parseCorrelatesSearch({ view: 'pair', x: '9lives' }).invalid).toEqual(['x'])
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {

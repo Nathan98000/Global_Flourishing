@@ -5,7 +5,7 @@
 import type { Country, EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
-import { formatCount, formatEstimate } from '../format'
+import { ciLabel, formatCount, formatEstimate } from '../format'
 import { WAVE_CHIPS, WAVE_NAMES, WAVE_TITLES } from '../waves'
 
 /** The country a URL without one shows: the United States (by its
@@ -138,4 +138,79 @@ export function rankedSubtitle(
   wave: string,
 ): string {
   return `Strongest associations in ${countryName} · ${statisticPhrase(method)} · ${WAVE_TITLES[wave] ?? wave}`
+}
+
+// --- Compare two ------------------------------------------------------------
+
+/** The correlation in words, for a subtitle: "straight-line" or "by rank". */
+export function methodWords(method: CorrelationMethod | undefined): string {
+  return method === 'spearman' ? 'by rank' : 'straight-line'
+}
+
+/** Compare two's subtitle: where, when, what each dot is, and the
+ * correlation with its n. */
+export function pairSubtitle({
+  countryName,
+  wave,
+  y,
+  x,
+  binary,
+  binned,
+  correlation,
+  method,
+}: {
+  countryName: string
+  wave: string
+  y: string
+  x: string
+  /** A yes/no Y: each dot is the share answering yes. */
+  binary: boolean
+  /** X's groups are bins of a long scale, not its answers. */
+  binned: boolean
+  correlation: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>
+  method: CorrelationMethod | undefined
+}): string {
+  const what = binary ? `share answering yes to ${y}` : `average ${y}`
+  const per = binned ? `across the range of ${x}` : `for each answer to ${x}`
+  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${what} ${per} · correlation ${formatEstimate(correlation.estimate, correlation.stat)} (${methodWords(method)}), ${formatCount(correlation.n)} people`
+}
+
+/** A group's share of the people, as a whole percent (one decimal
+ * under 1%, so a sliver never reads 0%). */
+export function shareText(share: number): string {
+  const percent = share * 100
+  return percent > 0 && percent < 1 ? `${percent.toFixed(1)}%` : `${Math.round(percent)}%`
+}
+
+/** One group's tooltip: its share of the people, Y there with its
+ * interval, and how many people it rests on (the pair view's rule —
+ * ADR-0018 — since a group's n is what its dot's size and its flag
+ * are about). */
+export function pairTip(
+  point: { label: string; share: number; row: EstimateRow },
+  { yShort, binary, binned }: { yShort: string; binary: boolean; binned: boolean },
+): string {
+  const { row } = point
+  const who = binned
+    ? `${shareText(point.share)} at ${point.label}`
+    : `${shareText(point.share)} answered ${point.label}`
+  const interval =
+    row.ci_lo !== null && row.ci_hi !== null
+      ? ` (${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)}–${formatEstimate(row.ci_hi, row.stat)})`
+      : ''
+  const value = `${binary ? 'Answered yes' : `Average ${yShort}`}: ${formatEstimate(row.estimate, row.stat)}${interval}`
+  return [who, value, `${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'}`].join('\n')
+}
+
+/** The footnote's words for the hollow groups, when there are any. */
+export function hollowNote(
+  labels: readonly string[],
+  minN: number,
+  binned: boolean,
+): string | undefined {
+  if (labels.length === 0) return undefined
+  const named = listAnd(labels.map((label) => `“${label}”`))
+  const where = binned ? `are in ${named}` : `gave ${named}`
+  const dots = labels.length === 1 ? 'its dot is' : 'their dots are'
+  return `Fewer than ${formatCount(minN)} people ${where}: ${dots} drawn hollow.`
 }

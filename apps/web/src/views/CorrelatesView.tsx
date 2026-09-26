@@ -1,24 +1,36 @@
-// Correlates (Phase 6): what goes with a measure. Two views, one on
+// Correlates (Phase 6): what goes with a measure. Its views, one on
 // screen at a time (`view`, owner decision 25 Sept 2026): the ranked list
 // for one country (the server sweeps every other ordered item, ranks by
-// strength and cuts the list) and the same items across every country —
-// a view that is not on screen mounts nothing and fetches nothing beyond
-// the ranked list it is built from. Rows are weighted correlations, point
-// estimates only, so no interval is ever drawn for them. The adjusted
-// models are not offered here (ADR-0018). Every number is the server's;
-// this view chooses, labels and renders. Associations, not causes — said
-// in the deck and in the footnote, in plain sentences.
+// strength and cuts the list), the same items across every country, and
+// the measure beside one other question (Compare two: y's average for
+// each answer to x) — a view that is not on screen mounts nothing and
+// fetches nothing beyond the ranked list its defaults come from.
+// Correlations are point estimates, so no interval is ever drawn for
+// them. The adjusted models are not offered here (ADR-0018). Every number
+// is the server's; this view chooses, labels and renders. Associations,
+// not causes — said in the deck and in the footnote, in plain sentences.
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { predictorOrder, useCorrelates, type CorrelationMethod } from '../api/correlates'
+import { usePair } from '../api/correlations'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { Country, EstimateResponse, EstimateRow, Wave } from '../api/types'
+import type {
+  Country,
+  EstimateResponse,
+  EstimateRow,
+  PairResponse,
+  VariableDetail,
+  VariableSummary,
+  Wave,
+} from '../api/types'
 import { WAVES } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
+import { BinnedScatter, type BinnedPoint } from '../charts/BinnedScatter'
 import { ChartFigure } from '../charts/ChartFigure'
+import { measureBounds } from '../charts/domain'
 import { RankedBar } from '../charts/RankedBar'
 import { DIVERGING_RAMP, divergingTint, signMark } from '../charts/theme'
 import { HeatTable, intervalText } from '../charts/TransitionTable'
@@ -33,12 +45,13 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount, formatEstimate } from '../format'
-import { groupValueLabel } from '../labels'
+import { groupValueLabel, outcomeLevels } from '../labels'
 import { searchNavigation } from '../state/navigate'
 import {
   correlatesAcrossCountries,
   correlatesRequest,
   correlatesSearchParams,
+  pairRequest,
   type CorrelatesSearch,
   type CorrelatesViewName,
 } from '../state/search'
@@ -54,8 +67,11 @@ import {
   excludedNote,
   heatCells,
   heatKey,
+  hollowNote,
   legendEnds,
   methodLabel,
+  pairSubtitle,
+  pairTip,
   pinnedFirst,
   rankedSubtitle,
   shortName,
@@ -70,6 +86,14 @@ const route = getRouteApi('/correlates')
 /** The one sentence this view owes its reader, in both places. */
 const NOT_CAUSES =
   'Associations, not causes: two answers moving together in one survey, at one time, says nothing about which one moves the other.'
+
+/** The Compare with picker's fields, apart from the Measure's. */
+const COMPARE_LABELS = {
+  topic: 'Compare with: topic',
+  subtopic: 'Compare with: subtopic',
+  measure: 'Compare with',
+  search: 'Or search to compare',
+}
 
 const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
   { value: 'pearson', label: 'Straight-line (Pearson)' },
@@ -97,9 +121,16 @@ export function CorrelatesView() {
     void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
   }
 
+  const byName = variables.data?.byName
+  // Compare two: the question set beside the measure, else its
+  // top-ranked correlate (which needs the ranked list).
+  const needsRanked =
+    search.view === 'ranked' ||
+    search.view === 'countries' ||
+    (search.view === 'pair' && search.x === undefined)
   const rankedRequest =
     askedAtWave && country !== undefined ? correlatesRequest(search, country) : null
-  const ranked = useCorrelates(rankedRequest)
+  const ranked = useCorrelates(rankedRequest, { enabled: needsRanked })
   const rankedResponse = ranked.data
   const predictors = useMemo(
     () => (rankedResponse ? predictorOrder(rankedResponse.rows) : []),
@@ -114,6 +145,20 @@ export function CorrelatesView() {
   const rankedRows = rankedResponse?.rows ?? []
   const acrossRows = useMemo(() => acrossResponse?.rows ?? [], [acrossResponse])
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
+  const xName = search.x ?? predictors[0]
+  const xVariable = xName !== undefined ? byName?.[xName] : undefined
+  const xUsable =
+    xVariable !== undefined &&
+    xVariable.servable &&
+    xVariable.scale_type !== 'nominal' &&
+    xVariable.waves_available.includes(search.wave) &&
+    xVariable.name !== search.outcome
+  const pair = usePair(
+    askedAtWave && country !== undefined && xUsable && xName !== undefined
+      ? pairRequest(search, xName, country)
+      : null,
+    { enabled: search.view === 'pair' },
+  )
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -147,15 +192,33 @@ export function CorrelatesView() {
       wave: waves.includes(search.wave)
         ? search.wave
         : ((waves[0] as Wave | undefined) ?? search.wave),
+      // A new measure starts from its own defaults: its top correlate.
+      x: undefined,
       invalid: undefined,
       invalidRaw: undefined,
     })
+  }
+  // A wave the compared question was not asked in drops it.
+  const pickWave = (wave: Wave) => {
+    const x = search.x !== undefined ? variables.data.byName[search.x] : undefined
+    setSearch({ wave, x: x?.waves_available.includes(wave) ? search.x : undefined })
   }
 
   const viewOptions: RadioOption<CorrelatesViewName>[] = [
     { value: 'ranked', label: countryName ? `In ${countryName}` : 'In one country' },
     { value: 'countries', label: 'Across countries' },
+    { value: 'pair', label: 'Compare two' },
   ]
+
+  // What the measure can be set beside: every other ordered question
+  // asked at the wave (the server refuses one built from its answers).
+  const pairCandidates = variables.data.list.filter(
+    (candidate) =>
+      candidate.servable &&
+      candidate.scale_type !== 'nominal' &&
+      candidate.waves_available.includes(search.wave) &&
+      candidate.name !== search.outcome,
+  )
 
   // An option the measure was not asked in stays in the row, disabled,
   // and the line under the row says why.
@@ -244,7 +307,7 @@ export function CorrelatesView() {
           name="wave"
           options={waveOptions}
           value={search.wave}
-          onChange={(wave) => setSearch({ wave })}
+          onChange={pickWave}
           note={variable ? waveNote(variable.waves_available) : undefined}
         />
         <div className={styles.pairRow}>
@@ -297,6 +360,33 @@ export function CorrelatesView() {
           onChange={(view) => setSearch({ view })}
         />
       </div>
+      {search.view === 'pair' && askedAtWave && (
+        <div className={`${styles.controls} ${styles.controlsTop}`}>
+          <OutcomePicker
+            variables={pairCandidates}
+            value={xName ?? ''}
+            onSelect={({ outcome }) => setSearch({ x: outcome })}
+            labels={COMPARE_LABELS}
+            pairs
+          />
+          <div className={styles.field}>
+            <span className={styles.fieldLabel} aria-hidden="true">
+              &nbsp;
+            </span>
+            <button
+              type="button"
+              className={styles.swap}
+              disabled={!xUsable}
+              onClick={() => {
+                if (xUsable && xName !== undefined)
+                  setSearch({ outcome: xName, x: search.outcome, topic: undefined })
+              }}
+            >
+              <span aria-hidden="true">⇄ </span>Swap
+            </button>
+          </div>
+        </div>
+      )}
 
       {!ordered ? (
         <EmptyState title="Choose a measure to begin">
@@ -317,6 +407,49 @@ export function CorrelatesView() {
             one of those waves above.
           </p>
         </EmptyState>
+      ) : search.view === 'pair' ? (
+        search.x === undefined && ranked.isPending ? (
+          <LoadingBlock height={420} label="Loading the ranked list" />
+        ) : search.x === undefined && ranked.isError ? (
+          offline(ranked.error)
+        ) : xName === undefined ? (
+          <EmptyState title="Nothing to compare with">
+            <p>
+              No other question has enough respondents in {countryName} to set beside {title} — pick
+              another measure or country above.
+            </p>
+          </EmptyState>
+        ) : !xUsable ? (
+          <EmptyState title="Pick a question to compare with">
+            <p>
+              {xVariable === undefined
+                ? `The link asked to compare with “${xName}”, which isn't in this release's codebook`
+                : xVariable.scale_type === 'nominal'
+                  ? `“${xVariable.display_name}” is a set of categories with no order`
+                  : xVariable.name === search.outcome
+                    ? `That is ${title} itself`
+                    : `“${xVariable.display_name}” wasn't asked in ${WAVE_TITLES[search.wave] ?? search.wave}`}{' '}
+              — choose another question under “Compare with”.
+            </p>
+          </EmptyState>
+        ) : pair.isPending ? (
+          <LoadingBlock height={420} label="Loading the two questions" />
+        ) : pair.isError ? (
+          offline(pair.error)
+        ) : pair.data && variable && xVariable ? (
+          <PairFigure
+            pair={pair.data}
+            y={variable}
+            x={xVariable}
+            yDetail={detail}
+            countryName={countryName}
+            wave={search.wave}
+            method={search.method}
+            isRefreshing={pair.isPlaceholderData}
+            served={served}
+            csvFor={csvFor}
+          />
+        ) : null
       ) : ranked.isPending ? (
         <LoadingBlock height={520} label="Loading the ranked list" />
       ) : ranked.isError ? (
@@ -402,6 +535,149 @@ export function CorrelatesView() {
         ) : null
       ) : null}
     </section>
+  )
+}
+
+/** Compare two: the measure's average (or share answering yes) for each
+ * answer to the compared question — or each range of a long one — as a
+ * binned scatter, with its data table and downloads. */
+function PairFigure({
+  pair,
+  y,
+  x,
+  yDetail,
+  countryName,
+  wave,
+  method,
+  isRefreshing,
+  served,
+  csvFor,
+}: {
+  pair: PairResponse
+  y: VariableSummary
+  x: VariableSummary
+  yDetail: VariableDetail | undefined
+  countryName: string
+  wave: Wave
+  method: CorrelationMethod | undefined
+  isRefreshing: boolean
+  served: NonNullable<ReturnType<typeof useMeta>['data']>['meta']
+  csvFor: (
+    response: EstimateResponse,
+    name: ExportName,
+  ) => {
+    kind: 'client'
+    onDownload: () => void
+  }
+}) {
+  const binary = pair.means.meta.stat === 'proportion'
+  const binned = pair.grouping === 'bins'
+  const yShort = shortName(y)
+  const points: BinnedPoint[] = useMemo(
+    () =>
+      pair.groups.flatMap((group, index) => {
+        const row = pair.means.rows[index]
+        return row
+          ? [
+              {
+                key: String(index),
+                label: group.label,
+                row,
+                share: group.share,
+                hollow: group.below_min_n,
+              },
+            ]
+          : []
+      }),
+    [pair],
+  )
+  // Up is always more of what the measure names: a descending item's
+  // axis runs from its highest code up to its lowest (its means stay as
+  // coded), and the label above the axis says, in the item's own words,
+  // what the top is.
+  const reverse = y.polarity === 'descending' && !binary
+  // A derived score's "value labels" are its histogram bins, not words.
+  const levels = y.is_derived ? [] : outcomeLevels(yDetail)
+  const topLabel = (reverse ? levels[0] : levels[levels.length - 1])?.label.trim()
+  const yLabel = binary ? '↑ % answering yes' : topLabel ? `↑ ${topLabel}` : `↑ higher ${yShort}`
+  const bounds = measureBounds(pair.means.meta.stat, y) ?? [0, 10]
+  const tipOf = useMemo(
+    () => (point: BinnedPoint) => pairTip(point, { yShort, binary, binned }),
+    [yShort, binary, binned],
+  )
+  const minN = pair.means.meta.min_n ?? 0
+  const hollow = hollowNote(
+    points.filter((point) => point.hollow).map((point) => point.label),
+    minN,
+    binned,
+  )
+  const labelByCode = new Map(pair.groups.map((group) => [String(group.code), group.label]))
+  const name: ExportName = {
+    measure: y.display_name,
+    view: `Compared with ${x.display_name}`,
+    waves: WAVE_CHIPS[wave] ?? wave,
+    ...(countryName ? { country: countryName } : {}),
+  }
+  const first = points.find((point) => point.row.estimate !== null)
+  const last = [...points].reverse().find((point) => point.row.estimate !== null)
+  const valueOf = (point: BinnedPoint) => formatEstimate(point.row.estimate, point.row.stat)
+  const ariaLabel = `${y.display_name} by ${x.display_name} in ${countryName}: ${
+    binary ? 'the share answering yes' : `the average ${y.display_name}`
+  } for each of ${points.length} ${binned ? 'ranges' : 'answers'} of ${x.display_name}${
+    first && last
+      ? `, from ${first.label} (${valueOf(first)}) to ${last.label} (${valueOf(last)})`
+      : ''
+  }; correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.`
+  return (
+    <ChartFigure
+      title={`${y.display_name} by ${x.display_name}`}
+      subtitle={pairSubtitle({
+        countryName,
+        wave,
+        y: y.display_name,
+        x: x.display_name,
+        binary,
+        binned,
+        correlation: pair.correlation,
+        method,
+      })}
+      ariaLabel={ariaLabel}
+      marks="dots"
+      intro={
+        <p className={styles.sizeKey}>
+          <span className={styles.sizeDots} aria-hidden="true">
+            <span />
+            <span />
+          </span>
+          {binned
+            ? 'Larger dot = more people in that range'
+            : 'Larger dot = more people gave that answer'}
+        </p>
+      }
+      response={pair.means}
+      meta={served}
+      csv={csvFor(pair.means, name)}
+      exportName={name}
+      isRefreshing={isRefreshing}
+      groupLabel={(column, value) =>
+        column === x.name ? labelByCode.get(String(value)) : undefined
+      }
+      columnName={(column) => (column === x.name ? x.display_name : undefined)}
+      footnote={
+        <>
+          Each dot is an average of people&rsquo;s answers, not individual people. Associations
+          aren&rsquo;t cause and effect. {hollow ? `${hollow} ` : ''}
+        </>
+      }
+    >
+      <BinnedScatter
+        points={points}
+        yDomain={bounds[0] === bounds[1] ? [bounds[0], bounds[0] + 1] : bounds}
+        reverse={reverse}
+        yLabel={yLabel}
+        tipOf={tipOf}
+      />
+    </ChartFigure>
   )
 }
 

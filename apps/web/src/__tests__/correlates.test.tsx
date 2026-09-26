@@ -13,7 +13,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { predictorOrder } from '../api/correlates'
 import { resetNegativePathCache } from '../api/estimates'
-import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
+import type {
+  ApiHealth,
+  EstimateRow,
+  PairResponse,
+  VariableDetail,
+  VariableSummary,
+} from '../api/types'
 import { footnoteCopy } from '../charts/ChartFigure'
 import { DIVERGING_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
 import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
@@ -35,9 +41,13 @@ import {
   excludedNote,
   heatCells,
   acrossSubtitle,
+  hollowNote,
   legendEnds,
   methodLabel,
+  pairSubtitle,
+  pairTip,
   pinnedFirst,
+  shareText,
   shortName,
   statisticPhrase,
   tintExtent,
@@ -129,6 +139,39 @@ const acrossPlain = testResponse(
   },
 )
 
+/** Happiness by Service attendance in the United States: three answers
+ * in the item's aligned order (Never → Weekly), the first resting on too
+ * few people. */
+const meanRow = (code: number, estimate: number, n: number) =>
+  testRow({
+    group: { ATTEND_SVCS: code },
+    estimate,
+    se: 0.3,
+    ci_lo: estimate - 0.6,
+    ci_hi: estimate + 0.6,
+    n,
+    sum_w: n,
+  })
+
+const pairFixture: PairResponse = {
+  x: 'ATTEND_SVCS',
+  grouping: 'answers',
+  correlation: plainRow('ATTEND_SVCS', 0.157, undefined, 54),
+  means: testResponse([meanRow(3, 4.19, 12), meanRow(2, 4.05, 18), meanRow(1, 5.37, 24)], {
+    outcome: 'HAPPY',
+    stat: 'mean',
+    by: ['ATTEND_SVCS'],
+    filters: { country_code: [22] },
+    min_n: 15,
+    n_valid: 54,
+  }),
+  groups: [
+    { code: 3, label: 'Never', share: 12 / 54, below_min_n: true },
+    { code: 2, label: 'Sometimes', share: 18 / 54, below_min_n: false },
+    { code: 1, label: 'Weekly', share: 24 / 54, below_min_n: false },
+  ],
+}
+
 type Routes = Record<string, unknown | Response>
 
 function mockFetch(routes: Routes) {
@@ -160,6 +203,7 @@ const tier: Routes = {
   },
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/health': okHealth,
+  '/v1/correlations/pair': pairFixture,
   '&by=country_code': acrossPlain,
   'filter=country_code%3A22': rankedPlain,
 }
@@ -386,6 +430,96 @@ describe('Correlates view', () => {
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
   })
 
+  test('Compare two: the measure’s average for each answer to the other question, as a binned scatter', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS')
+    const figure = await screen.findByRole('img', { name: /Happiness by Service attendance/ })
+    expect(screen.getByText('Happiness by Service attendance')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'United States · Wave 1, 2023 · average Happiness for each answer to Service attendance · correlation +0.16 (straight-line), 54 people',
+      ),
+    ).toBeInTheDocument()
+    // The answers along the axis, in the server's (aligned) order; one
+    // dot per group — never a respondent — in one hue, the thin group
+    // hollow; whiskers for the intervals.
+    const svg = figure.querySelector('svg') as SVGSVGElement
+    const text = svg.textContent ?? ''
+    expect(text.indexOf('Never')).toBeLessThan(text.indexOf('Sometimes'))
+    expect(text.indexOf('Sometimes')).toBeLessThan(text.indexOf('Weekly'))
+    const dots = svg.querySelectorAll('[aria-label="dot"] circle')
+    expect(dots).toHaveLength(3)
+    // (Plot draws the largest first, so smaller dots sit on top.)
+    const fills = [...dots].map((dot) => dot.getAttribute('fill'))
+    expect(fills.filter((fill) => fill === 'var(--surface)')).toHaveLength(1)
+    expect(fills.filter((fill) => fill === 'var(--div-pos-mark)')).toHaveLength(2)
+    expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
+    expect(screen.getByText('Larger dot = more people gave that answer')).toBeInTheDocument()
+    // The footnote: averages, not people; no causes; the hollow group named.
+    const main = visibleText(screen.getByRole('main'))
+    expect(main).toContain('Each dot is an average of people’s answers, not individual people.')
+    expect(main).toContain('Associations aren’t cause and effect.')
+    expect(main).toContain('Fewer than 15 people gave “Never”: its dot is drawn hollow.')
+    expect(main).toContain('Lines are 95% confidence intervals')
+    expect(screen.getByRole('link', { name: 'How these numbers are made' })).toBeInTheDocument()
+    // The x is named: no ranked sweep is needed, and the one request is the pair's.
+    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
+    const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
+    expect(pair).toContain('y=HAPPY&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
+    // The data table names the question and its answers, with every n.
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table')[0] as HTMLElement
+    expect(
+      within(data).getByRole('columnheader', { name: 'Service attendance' }),
+    ).toBeInTheDocument()
+    expect(within(data).getByText('Never')).toBeInTheDocument()
+    expect(within(data).getByText('24')).toBeInTheDocument()
+  })
+
+  test('Compare two starts from the top-ranked correlate, and Swap exchanges the two', async () => {
+    const calls = mockFetch({
+      ...tier,
+      '/v1/correlations/pair': { ...pairFixture, x: 'LONELY' },
+    })
+    const router = await renderAt('/correlates?outcome=HAPPY&view=pair')
+    await screen.findByRole('img', { name: /Happiness by Loneliness/ })
+    // The default is the ranked list's first measure, never written to the URL.
+    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(true)
+    expect(calls.find((url) => url.includes('/v1/correlations/pair'))).toContain('x=LONELY')
+    expect(router.state.location.searchStr).not.toContain('x=')
+    expect(screen.getByLabelText('Compare with')).toHaveValue('LONELY')
+    // Swap: the compared question becomes the measure, and back.
+    fireEvent.click(screen.getByRole('button', { name: 'Swap' }))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?outcome=LONELY&view=pair&x=HAPPY'),
+    )
+    // Picking another question to compare with writes it.
+    fireEvent.change(screen.getByLabelText('Compare with: topic'), {
+      target: { value: 'religion' },
+    })
+    await waitFor(() => expect(router.state.location.searchStr).toContain('x=ATTEND_SVCS'))
+  })
+
+  test('Compare two says why when the two questions cannot be set side by side', async () => {
+    mockFetch({
+      ...tier,
+      '/v1/correlations/pair': new Response(
+        JSON.stringify({
+          detail: [
+            'Secure Flourishing Index and Happiness are built from the same answers, so they go together by construction — compare Happiness with another question',
+          ],
+        }),
+        { status: 422, headers: { 'content-type': 'application/json' } },
+      ),
+    })
+    await renderAt('/correlates?outcome=HAPPY&view=pair&x=sfi')
+    expect(await screen.findByText(/built from the same answers/)).toBeInTheDocument()
+    // A nominal item cannot be compared with at all — said before asking.
+    mockFetch(tier)
+    await renderAt('/correlates?outcome=HAPPY&view=pair&x=URBAN_RURAL')
+    expect(await screen.findByText(/is a set of categories with no order/)).toBeInTheDocument()
+  })
+
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?outcome=HAPPY&adjusted=true')
@@ -579,6 +713,58 @@ describe('correlates helpers', () => {
     )
     expect(waveNote(['Y1', 'MY', 'Y2'])).toBeUndefined()
     expect(waveNote([])).toBeUndefined()
+  })
+
+  test('Compare two in words: subtitle, tooltip, hollow groups, shares', () => {
+    const correlation = { estimate: -0.31, stat: 'spearman_r', n: 1234 }
+    expect(
+      pairSubtitle({
+        countryName: 'Japan',
+        wave: 'Y2',
+        y: 'Happiness',
+        x: 'Loneliness',
+        binary: false,
+        binned: false,
+        correlation,
+        method: 'spearman',
+      }),
+    ).toBe(
+      'Japan · Wave 2, 2024 · average Happiness for each answer to Loneliness · correlation −0.31 (by rank), 1,234 people',
+    )
+    expect(
+      pairSubtitle({
+        countryName: 'Japan',
+        wave: 'Y1',
+        y: 'Volunteered last month',
+        x: 'Secure Flourishing Index',
+        binary: true,
+        binned: true,
+        correlation,
+        method: undefined,
+      }),
+    ).toContain(
+      'share answering yes to Volunteered last month across the range of Secure Flourishing Index · correlation −0.31 (straight-line)',
+    )
+    const point = { label: 'Weekly', share: 0.444, row: meanRow(1, 5.37, 24) }
+    expect(pairTip(point, { yShort: 'Happiness', binary: false, binned: false })).toBe(
+      '44% answered Weekly\nAverage Happiness: 5.37 (95% CI 4.77–5.97)\n24 people',
+    )
+    const share = {
+      ...point,
+      row: { ...point.row, stat: 'proportion', estimate: 0.34, ci_lo: 0.3, ci_hi: 0.38 },
+    }
+    expect(
+      pairTip({ ...share, label: '2.5–3.2' }, { yShort: 'x', binary: true, binned: true }),
+    ).toBe('44% at 2.5–3.2\nAnswered yes: 34.0% (95% CI 30.0%–38.0%)\n24 people')
+    expect(shareText(0.004)).toBe('0.4%')
+    expect(shareText(0.4449)).toBe('44%')
+    expect(hollowNote([], 100, false)).toBeUndefined()
+    expect(hollowNote(['0', '1'], 100, false)).toBe(
+      'Fewer than 100 people gave “0” and “1”: their dots are drawn hollow.',
+    )
+    expect(hollowNote(['9.0 and above'], 100, true)).toBe(
+      'Fewer than 100 people are in “9.0 and above”: its dot is drawn hollow.',
+    )
   })
 
   test('point estimates say so in tooltips and footnotes; signed formatting', () => {

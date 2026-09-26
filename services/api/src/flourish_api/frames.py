@@ -28,7 +28,13 @@ from flourish_stats.io import aligned_expr
 from flourish_stats.outcomes import MEAN_SCALE_TYPES
 
 from flourish_api.data import DataStore, VariableInfo
-from flourish_api.queries import AggregateQuery, ChangeQuery, CorrelatesQuery, DomainFilter
+from flourish_api.queries import (
+    AggregateQuery,
+    ChangeQuery,
+    CorrelatesQuery,
+    DomainFilter,
+    PairQuery,
+)
 
 VALUE_COLUMN = "value"
 #: The group column a state-scope response carries. The spec says which
@@ -238,4 +244,75 @@ def assemble_correlates_frame(
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
         value=query.outcome.name,
         groups=query.by,
+    )
+
+
+#: The pair frame's columns: Y as coded (its mean is what the chart
+#: plots — means are never re-coded, ADR-0015), Y and X aligned to their
+#: labels (what the correlation and X's order are taken on).
+PAIR_Y = "_y"
+PAIR_Y_ALIGNED = "_y_aligned"
+PAIR_X = "_x"
+
+
+def _indicator(name: str) -> pl.Expr:
+    """A yes/no item as 0/1 on its event code (null stays null)."""
+    return (
+        pl.when(pl.col(name).is_null())
+        .then(None)
+        .otherwise((pl.col(name) == BINARY_EVENT_CODE).cast(pl.Int8))
+    )
+
+
+def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
+    """Two items on the country's eligible frame, for /v1/correlations/pair.
+
+    Y keeps its codes for the group means (a yes/no Y is its indicator of
+    "yes", so its mean is the share answering it), and is aligned beside
+    that for the correlation; X is aligned (a yes/no X as its indicator),
+    so its groups run from least to most of what its label names and a
+    positive correlation slopes up. Only people who answered both count:
+    every column is null for anyone else, who stays in the design. A
+    non-country filter nulls Y outside its domain first.
+    """
+    spec = resolve((query.wave,), "global")
+    extra: list[str] = [item.column for item in query.filters]
+    extra.append(spec.weight)
+    frame = store.wide_frame(
+        [query.y, query.x],
+        query.wave,
+        extra_columns=tuple(dict.fromkeys(extra)),
+        country_codes=query.countries,
+    )
+    frame = frame.filter(eligibility_expr(spec))
+    frame = apply_domain_filters(frame, query.y.name, query.filters)
+    y, x = query.y, query.x
+
+    def aligned(variable: VariableInfo) -> pl.Expr:
+        if variable.scale_type == "binary":
+            return _indicator(variable.name)
+        return aligned_expr(
+            variable.name, polarity=variable.polarity, lo=variable.min, hi=variable.max
+        )
+
+    coded = _indicator(y.name) if y.scale_type == "binary" else pl.col(y.name)
+    frame = frame.with_columns(
+        coded.cast(pl.Float64).alias(PAIR_Y),
+        aligned(y).cast(pl.Float64).alias(PAIR_Y_ALIGNED),
+        aligned(x).cast(pl.Float64).alias(PAIR_X),
+    )
+    both = pl.col(PAIR_Y).is_not_null() & pl.col(PAIR_X).is_not_null()
+    frame = frame.with_columns(
+        [
+            pl.when(both).then(pl.col(column)).otherwise(None).alias(column)
+            for column in (PAIR_Y, PAIR_Y_ALIGNED, PAIR_X)
+        ]
+    )
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=PAIR_Y,
+        groups=(),
     )

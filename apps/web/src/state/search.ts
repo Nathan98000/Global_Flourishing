@@ -7,6 +7,7 @@
 
 import type { ChangeRequest } from '../api/change'
 import type { CorrelatesRequest } from '../api/correlates'
+import type { PairRequest } from '../api/correlations'
 import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
 import type { Stat, VariableSummary, Wave } from '../api/types'
@@ -641,8 +642,9 @@ export function statesRequest(
 // reported like any other invalid param, and never sent.
 
 /** Which chart the Correlates page shows: the ranked list for one
- * country, or its measures across every country. */
-export type CorrelatesViewName = 'ranked' | 'countries'
+ * country, its measures across every country, or the measure beside one
+ * other question (`x`). */
+export type CorrelatesViewName = 'ranked' | 'countries' | 'pair'
 
 export interface CorrelatesSearch {
   outcome: string
@@ -651,6 +653,10 @@ export interface CorrelatesSearch {
   /** The country whose ranked list is shown; absent = the catalog's first. */
   country?: number
   view: CorrelatesViewName
+  /** Compare two: the question set beside the measure; absent = the
+   * measure's top-ranked correlate in the country (the view resolves it
+   * from the ranked list, so the URL never carries a default). */
+  x?: string
   /** Rank correlation instead of Pearson. */
   method?: 'spearman'
   invalid?: string[]
@@ -676,9 +682,10 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
     view: collect.take(
       'view',
       raw,
-      parseEnum<CorrelatesViewName>('ranked', 'countries'),
+      parseEnum<CorrelatesViewName>('ranked', 'countries', 'pair'),
       CORRELATES_DEFAULTS.view,
     ),
+    x: collect.take('x', raw, parseName, undefined),
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
   }
   // The adjusted models are no longer offered (ADR-0018).
@@ -694,6 +701,7 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
       view: search.view === CORRELATES_DEFAULTS.view ? undefined : search.view,
+      x: search.x,
       method: search.method,
     },
     search.invalidRaw,
@@ -707,6 +715,17 @@ export function correlatesRequest(search: CorrelatesSearch, country: number): Co
     wave: search.wave,
     by: [],
     countries: [country],
+    method: search.method,
+  }
+}
+
+/** Compare two: the measure (y) beside one question (x) in one country. */
+export function pairRequest(search: CorrelatesSearch, x: string, country: number): PairRequest {
+  return {
+    y: search.outcome,
+    x,
+    wave: search.wave,
+    country,
     method: search.method,
   }
 }

@@ -21,7 +21,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import SuppressionPolicy, adjusted_association, weighted_correlations
 from flourish_stats.correlations import CORRELATES_MIN_N, DEFAULT_CONTROLS
-from flourish_stats.outcomes import DERIVED_OUTCOMES
 
 from flourish_api.data import (
     Catalog,
@@ -37,7 +36,9 @@ from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
     ORDERED_SCALE_TYPES,
     CorrelatesQuery,
+    answers_of,
     parse_correlates_query,
+    shares_answers,
 )
 from flourish_api.schemas import EstimateResponse, EstimateRow, ResponseMeta, SuppressionModel
 from flourish_api.serialize import rows_from_table
@@ -49,27 +50,12 @@ router = APIRouter()
 RANKING_MEASURE = "beta_per_sd"
 
 
-def _answers(info: VariableInfo) -> set[str]:
-    """The questions a variable is made of (itself, plus the components of
-    a derived score)."""
-    if info.is_derived:
-        return {info.name, *DERIVED_OUTCOMES[info.name].components}
-    return {info.name}
-
-
-def shares_answers(a: VariableInfo, b: VariableInfo) -> bool:
-    """A score and one of its components (or two scores sharing a
-    question) are associated by construction, not by anything in the
-    world — the sweep leaves them out."""
-    return bool(_answers(a) & _answers(b))
-
-
 def stands_in_for(a: VariableInfo, b: VariableInfo) -> bool:
     """Whether ``a`` replaces ``b`` when the two share answers: the one
     built from more answers wins (a score over its own questions); on a
     tie, the non-binary one (a score over its screen-positive flag). A
     full tie keeps the one already in the list."""
-    size_a, size_b = len(_answers(a)), len(_answers(b))
+    size_a, size_b = len(answers_of(a)), len(answers_of(b))
     if size_a != size_b:
         return size_a > size_b
     return a.scale_type != "binary" and b.scale_type == "binary"
