@@ -4,7 +4,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError, NetworkError } from '../api/errors'
-import { CountryFilter } from '../components/controls/CountryFilter'
+import { CountryFilter, countryTriggerText } from '../components/controls/CountryFilter'
 import { RadioRow, SELECT_ABOVE } from '../components/controls/RadioRow'
 import { ErrorState } from '../components/ErrorState'
 import { EstimateTable } from '../components/EstimateTable'
@@ -189,14 +189,32 @@ describe('CountryFilter', () => {
     return onChange
   }
 
-  test('the trigger reports state: all, or the count', () => {
+  test('the trigger reports its state in a few words under a visible "Countries" label', () => {
     const { unmount } = render(
       <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-    expect(screen.getByText('Countries: all 2')).toBeInTheDocument()
+    expect(screen.getByText('Countries')).toBeInTheDocument()
+    const trigger = screen.getByText('All 2').closest('summary')
+    // "Countries" stays in the accessible name (a visually hidden prefix).
+    expect(trigger?.textContent).toBe('Countries: All 2')
     unmount()
     render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
-    expect(screen.getByText('Countries: 1')).toBeInTheDocument()
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+    expect(countryTriggerText(0, 23)).toBe('All 23')
+    expect(countryTriggerText(23, 23)).toBe('All 23')
+    expect(countryTriggerText(3, 23)).toBe('3 selected')
+    expect(countryTriggerText(3, 23, 5)).toBe('3 of 5 selected')
+    expect(countryTriggerText(0, 23, 5)).toBe('Choose up to 5')
+  })
+
+  test('a capped filter says how many of the cap are chosen', () => {
+    const { unmount } = render(
+      <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} max={5} />,
+    )
+    expect(screen.getByText('Choose up to 5')).toBeInTheDocument()
+    unmount()
+    render(<CountryFilter countries={countries} selected={[1, 22]} onChange={vi.fn()} max={5} />)
+    expect(screen.getByText('2 of 5 selected')).toBeInTheDocument()
   })
 
   test('Select all checks every country', () => {

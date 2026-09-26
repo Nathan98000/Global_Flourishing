@@ -1,3 +1,16 @@
+/* The label above the trigger, in the segmented rows' label voice, so the
+   control lines up with Wave, Sort and Order. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
 .details {
   position: relative;
   font-size: var(--text-sm);
@@ -12,6 +25,10 @@
   color: var(--ink-secondary);
   list-style: none;
   width: fit-content;
+  /* Fits the longest state ("5 of 5 selected"), so a selection change
+     never changes the width and never moves the trigger to another line. */
+  min-width: 8rem;
+  text-align: left;
 }
 
 .summary::-webkit-details-marker {
@@ -25,6 +42,7 @@
 .panel {
   position: absolute;
   z-index: 5;
+  left: 0;
   margin-top: var(--space-1);
   background: var(--surface-raised);
   border: 1px solid var(--border);
@@ -34,6 +52,15 @@
   max-height: 20rem;
   overflow-y: auto;
   min-width: 14rem;
+  /* Never wider than the page column. */
+  max-width: min(20rem, calc(100vw - 2 * var(--space-4)));
+}
+
+/* Opened near the right edge of the row: hang from the trigger's right
+   edge instead, so the panel stays inside the page column. */
+.panel[data-anchor='right'] {
+  right: 0;
+  left: auto;
 }
 
 .actions {

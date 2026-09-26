@@ -307,7 +307,7 @@ export function ChangeView() {
           onChange={(countries) => setSearch({ countries })}
         />
         <span className={styles.hint}>
-          Pick up to four countries to see how individual answers moved.
+          Pick up to four countries with the Countries control to see how individual answers moved.
         </span>
       </div>
     </>
