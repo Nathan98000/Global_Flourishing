@@ -261,41 +261,83 @@ class EstimateResponse(BaseModel):
     rows: list[EstimateRow]
 
 
-class PairGroupModel(BaseModel):
-    """One group of the compared question X (/v1/correlations/pair): one
-    of its answers, or an equal-width bin of a long scale."""
+class PairLevelModel(BaseModel):
+    """One answer of either question in a cross-tab (/v1/correlations/pair),
+    or one equal-width bin of a long scale."""
 
-    #: the answer's code as the release codes it (or, binned, the bin's index)
+    #: the answer's code as the release codes it (binned: the bin's index)
     code: int
-    #: the answer's short label, or the bin's range ("2.5–3.2")
+    #: the answer's short label ("Getting by"), its number on a 0–10 or
+    #: count scale, or the bin's range ("2.5–3.2")
     label: str
-    #: the group's weighted share of the people who answered both questions
+
+
+class PairColumnModel(PairLevelModel):
+    """One of x's answers: the weighted share of the people who answered
+    both questions who gave it, with its interval (the /v1/aggregate
+    proportion estimator)."""
+
     share: float
-    #: fewer than ``means.meta.min_n`` people answered both: the chart draws
-    #: the group hollow and names it (ADR-0015's floor, applied to a group)
-    below_min_n: bool
+    ci_lo: float | None
+    ci_hi: float | None
+    #: how many people gave it (unweighted — for the data table and CSV)
+    n: int
+    #: fewer than ``column_flag_below`` people: every share in the column
+    #: rests on few people and is shown with an asterisk
+    flagged: bool
+
+
+class PairCellModel(BaseModel):
+    """One pair of answers: of the people who gave x the column's answer,
+    the weighted share who gave y the row's (each column adds to 1)."""
+
+    #: the column's code (x) and the row's code (y), as in ``columns`` and ``rows``
+    x: int
+    y: int
+    #: null when nobody gave the column's answer
+    share: float | None
+    #: how many people gave both answers (unweighted — for the data table and CSV)
+    n: int
+    #: fewer than ``cell_flag_below`` people gave both, or the column holds
+    #: fewer than ``column_flag_below``: shown with an asterisk, never withheld
+    flagged: bool
 
 
 class PairResponse(BaseModel):
-    """Two questions side by side (/v1/correlations/pair): their weighted
-    correlation, and the outcome Y's weighted mean in each group of X —
-    the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
-    order (from least to most of what its label names), so a positive
-    correlation slopes up; respondent-level points are never served."""
+    """Two questions side by side (/v1/correlations/pair): a weighted
+    cross-tab of their answers — each column one of x's answers, each
+    cell the share of that column who gave the row's answer to y — the
+    share of people who gave each of x's answers, and the two questions'
+    weighted correlation. Both axes run in their question's aligned order
+    (least to most of what its label names, ADR-0015); respondent-level
+    answers are never served."""
 
-    #: the compared question (``means.meta.outcome`` is Y)
+    #: the question on the columns, and the one on the rows
     x: str
-    #: ``answers`` (one group per answer, up to 11) or ``bins`` (ten
-    #: equal-width bins between X's weighted 1st and 99th percentiles)
-    grouping: str
+    y: str
+    #: ``answers`` (one level per answer, up to 11) or ``bins`` (ten
+    #: equal-width bins between the weighted 1st and 99th percentiles)
+    x_grouping: str
+    y_grouping: str
     #: the weighted correlation over the people who answered both (a
     #: point estimate, ``ci_method = "none"``; ``predictor`` = x)
     correlation: EstimateRow
-    #: Y's weighted mean per group of X (a yes/no Y: its share answering
-    #: yes, ``stat = "proportion"``); ``by = [x]``, one row per entry of
-    #: ``groups`` and in its order
-    means: EstimateResponse
-    groups: list[PairGroupModel]
+    #: the ranking floor (``FA_CORRELATES_MIN_N``): a correlation resting on
+    #: fewer people is shown with an asterisk
+    min_n: int
+    #: x's answers, least to most of what its label names
+    columns: list[PairColumnModel]
+    #: y's answers, least to most (the page draws the most at the top)
+    rows: list[PairLevelModel]
+    #: every cell, column by column, each column's rows in order
+    cells: list[PairCellModel]
+    #: the same cells as estimate rows, in the same order — share, CI, n —
+    #: grouped by both questions (``by = [x, y]``; a binned axis carries
+    #: its bin's label): what the data table and the CSV list
+    shares: EstimateResponse
+    #: the flag thresholds (``FA_PAIR_CELL_FLAG_BELOW``, ``FA_PAIR_COLUMN_FLAG_BELOW``)
+    cell_flag_below: int
+    column_flag_below: int
 
 
 class CorrelationPairModel(BaseModel):

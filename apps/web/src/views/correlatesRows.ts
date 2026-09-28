@@ -2,10 +2,19 @@
 // Nothing here computes a statistic — the rows arrive ranked and
 // estimated; this file only names, keys and scales them for display.
 
-import type { Country, EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
+import type {
+  Country,
+  EstimateRow,
+  Meta,
+  ResponseMeta,
+  VariableDetail,
+  VariableSummary,
+} from '../api/types'
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
-import { ciLabel, formatCount, formatEstimate } from '../format'
+import { shareLabel } from '../charts/CrossTab'
+import { formatCount, formatEstimate } from '../format'
+import { endpointsClause, shortName } from '../labels'
 import { WAVE_CHIPS, WAVE_NAMES, WAVE_TITLES } from '../waves'
 
 /** The country a URL without one shows: the United States (by its
@@ -28,7 +37,7 @@ export function pinnedFirst(countries: readonly Country[], chosen: number | unde
   return pinned ? [pinned, ...byName.filter((country) => country !== pinned)] : byName
 }
 
-export { shortName } from '../labels'
+export { shortName }
 
 /** "A", "A and B", "A, B and C". */
 function listAnd(items: readonly string[]): string {
@@ -104,6 +113,19 @@ export function excludedNote(meta: Pick<ResponseMeta, 'min_n' | 'n_excluded'>): 
 export function belowFloor(row: Pick<EstimateRow, 'n'>, minN: number | null | undefined): boolean {
   return minN !== null && minN !== undefined && row.n < minN
 }
+
+/** Whether few people are behind a correlation: it has a value, and
+ * rests on fewer people than the ranking floor. (No value: no asterisk
+ * — the cell says there is no estimate instead.) */
+export function fewPeople(
+  row: Pick<EstimateRow, 'estimate' | 'n'>,
+  minN: number | null | undefined,
+): boolean {
+  return row.estimate !== null && belowFloor(row, minN)
+}
+
+/** A cell with no value at all, in its tooltip. */
+export const NO_ESTIMATE = 'No estimate: too few people answered both.'
 
 /** The sentence a tooltip adds for an estimate few people are behind. */
 export const FEW_PEOPLE = 'Few people gave these answers, so this estimate is less reliable.'
@@ -205,73 +227,67 @@ export function overlapNote(
 
 // --- Compare two ------------------------------------------------------------
 
-/** The correlation in words, for a subtitle: "straight-line" or "by rank". */
-export function methodWords(method: CorrelationMethod | undefined): string {
-  return method === 'spearman' ? 'by rank' : 'straight-line'
-}
-
-/** Compare two's subtitle: where, when, what each dot is, and the
- * correlation with its n. */
-export function pairSubtitle({
-  countryName,
-  wave,
-  y,
-  x,
-  binary,
-  binned,
-  correlation,
-  method,
-}: {
-  countryName: string
-  wave: string
-  y: string
-  x: string
-  /** A yes/no Y: each dot is the share answering yes. */
-  binary: boolean
-  /** X's groups are bins of a long scale, not its answers. */
-  binned: boolean
-  correlation: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>
-  method: CorrelationMethod | undefined
-}): string {
-  const what = binary ? `share answering yes to ${y}` : `average ${y}`
-  const per = binned ? `across the range of ${x}` : `for each answer to ${x}`
-  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${what} ${per} · correlation ${formatEstimate(correlation.estimate, correlation.stat)} (${methodWords(method)}), ${formatCount(correlation.n)} people`
-}
-
-/** A group's share of the people, as a whole percent (one decimal
- * under 1%, so a sliver never reads 0%). */
-export function shareText(share: number): string {
-  const percent = share * 100
-  return percent > 0 && percent < 1 ? `${percent.toFixed(1)}%` : `${Math.round(percent)}%`
-}
-
-/** One group's tooltip: its share of the people, and Y there with its
- * interval — never the n (ADR-0019). */
-export function pairTip(
-  point: { label: string; share: number; row: EstimateRow },
-  { yShort, binary, binned }: { yShort: string; binary: boolean; binned: boolean },
+/** An axis title: the question's short name and, when the axis shows
+ * numbers (a 0–10 or count item's answers), its ends in the item's own
+ * words — "Life evaluation today · 0 = Worst possible, 10 = Best
+ * possible". An axis of worded answers, or a score's bins, needs none. */
+export function pairAxisTitle(
+  variable: Pick<VariableSummary, 'display_name' | 'scale_type' | 'is_derived'>,
+  detail: VariableDetail | undefined,
 ): string {
-  const { row } = point
-  const who = binned
-    ? `${shareText(point.share)} at ${point.label}`
-    : `${shareText(point.share)} answered ${point.label}`
-  const interval =
-    row.ci_lo !== null && row.ci_hi !== null
-      ? ` (${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)}–${formatEstimate(row.ci_hi, row.stat)})`
-      : ''
-  const value = `${binary ? 'Answered yes' : `Average ${yShort}`}: ${formatEstimate(row.estimate, row.stat)}${interval}`
-  return [who, value].join('\n')
+  const short = shortName(variable)
+  const numbered =
+    !variable.is_derived &&
+    (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
+  const ends = numbered ? endpointsClause(detail).trim() : ''
+  return ends ? `${short} · ${ends.slice(1, -1)}` : short
 }
 
-/** The footnote's words for the hollow groups, when there are any. */
-export function hollowNote(
-  labels: readonly string[],
-  minN: number,
-  binned: boolean,
-): string | undefined {
-  if (labels.length === 0) return undefined
-  const named = listAnd(labels.map((label) => `“${label}”`))
-  const where = binned ? `are in ${named}` : `gave ${named}`
-  const dots = labels.length === 1 ? 'its dot is' : 'their dots are'
-  return `Fewer than ${formatCount(minN)} people ${where}: ${dots} drawn hollow.`
+/** A cell's tooltip: the column's people, the share of them who gave the
+ * row's answer, its interval (ADR-0016) — never the n — and, when few
+ * people are behind it, a sentence saying so. */
+export function pairCellTip({
+  aLevel,
+  aShort,
+  bLevel,
+  bShort,
+  share,
+  interval,
+  flagged,
+}: {
+  aLevel: string
+  aShort: string
+  bLevel: string
+  bShort: string
+  share: number | null
+  interval: string | undefined
+  flagged: boolean
+}): string {
+  if (share === null) return `Nobody here answered ${aLevel} to ${aShort}.`
+  const lines = [
+    `Of people who answered ${aLevel} to ${aShort}, ${shareLabel(share)} answered ${bLevel} to ${bShort}.`,
+  ]
+  if (interval) lines.push(interval)
+  if (flagged) lines.push(FEW_PEOPLE)
+  return lines.join('\n')
+}
+
+/** A bar's tooltip: the share who gave that answer, and its interval. */
+export function pairBarTip({
+  level,
+  short,
+  share,
+  interval,
+  flagged,
+}: {
+  level: string
+  short: string
+  share: number
+  interval: string | undefined
+  flagged: boolean
+}): string {
+  const lines = [`${shareLabel(share)} answered ${level} to ${short}.`]
+  if (interval) lines.push(interval)
+  if (flagged) lines.push(FEW_PEOPLE)
+  return lines.join('\n')
 }

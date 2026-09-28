@@ -248,10 +248,9 @@ def assemble_correlates_frame(
     )
 
 
-#: The pair frame's columns: Y as coded (its mean is what the chart
-#: plots — means are never re-coded, ADR-0015), Y and X aligned to their
-#: labels (what the correlation and X's order are taken on).
-PAIR_Y = "_y"
+#: The pair frame's columns: Y and X aligned to their labels (ADR-0015) —
+#: what the correlation is taken on and both axes of the cross-tab are
+#: levelled by, so each runs from least to most of what its label names.
 PAIR_Y_ALIGNED = "_y_aligned"
 PAIR_X = "_x"
 
@@ -268,13 +267,11 @@ def _indicator(name: str) -> pl.Expr:
 def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
     """Two items on the country's eligible frame, for /v1/correlations/pair.
 
-    Y keeps its codes for the group means (a yes/no Y is its indicator of
-    "yes", so its mean is the share answering it), and is aligned beside
-    that for the correlation; X is aligned (a yes/no X as its indicator),
-    so its groups run from least to most of what its label names and a
-    positive correlation slopes up. Only people who answered both count:
-    every column is null for anyone else, who stays in the design. A
-    non-country filter nulls Y outside its domain first.
+    Both are aligned (a yes/no item as its indicator of "yes"), so each
+    axis of the cross-tab runs from least to most of what its label names
+    and the correlation carries the ranked list's sign. Only people who
+    answered both count: both columns are null for anyone else, who stays
+    in the design. A non-country filter nulls Y outside its domain first.
     """
     spec = resolve((query.wave,), "global")
     extra: list[str] = [item.column for item in query.filters]
@@ -296,17 +293,15 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
             variable.name, polarity=variable.polarity, lo=variable.min, hi=variable.max
         )
 
-    coded = _indicator(y.name) if y.scale_type == "binary" else pl.col(y.name)
     frame = frame.with_columns(
-        coded.cast(pl.Float64).alias(PAIR_Y),
         aligned(y).cast(pl.Float64).alias(PAIR_Y_ALIGNED),
         aligned(x).cast(pl.Float64).alias(PAIR_X),
     )
-    both = pl.col(PAIR_Y).is_not_null() & pl.col(PAIR_X).is_not_null()
+    both = pl.col(PAIR_Y_ALIGNED).is_not_null() & pl.col(PAIR_X).is_not_null()
     frame = frame.with_columns(
         [
             pl.when(both).then(pl.col(column)).otherwise(None).alias(column)
-            for column in (PAIR_Y, PAIR_Y_ALIGNED, PAIR_X)
+            for column in (PAIR_Y_ALIGNED, PAIR_X)
         ]
     )
     validate_frame(frame, spec)
@@ -314,7 +309,7 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
         frame=frame,
         spec=spec,
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
-        value=PAIR_Y,
+        value=PAIR_Y_ALIGNED,
         groups=(),
     )
 

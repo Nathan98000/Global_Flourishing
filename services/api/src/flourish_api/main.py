@@ -17,7 +17,7 @@ from flourish_stats import SuppressionPolicy
 
 from flourish_api import __version__
 from flourish_api.config import Settings
-from flourish_api.data import DataStore
+from flourish_api.data import DataStore, PairFlags
 from flourish_api.ops import init_sentry, install_middleware
 from flourish_api.routes import v1
 from flourish_api.schemas import HealthResponse
@@ -52,6 +52,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         flag_below=settings.suppression_flag_below,
     )
     app.state.correlates_min_n = settings.correlates_min_n
+    app.state.pair_flags = PairFlags(
+        cell=settings.pair_cell_flag_below, column=settings.pair_column_flag_below
+    )
     app.state.adjusted_enabled = settings.adjusted_enabled
 
     init_sentry(settings)

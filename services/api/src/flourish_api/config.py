@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     # predictors are always served — the matrix mutes such cells instead.
     correlates_min_n: int = CORRELATES_MIN_N
 
+    # Compare two's cross-tab (ADR-0019): a cell is flagged — shown with an
+    # asterisk, never withheld — when fewer than this many people gave
+    # that pair of answers, or when its column holds fewer than the second.
+    pair_cell_flag_below: int = 30
+    pair_column_flag_below: int = 100
+
     # The adjusted associations (ADR-0014) are the API's most expensive
     # request and nothing on the site asks for them since ADR-0018, so
     # `/v1/correlates?adjusted=true` is a 422 unless FA_ADJUSTED_ENABLED

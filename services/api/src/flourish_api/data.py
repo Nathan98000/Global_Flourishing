@@ -238,6 +238,22 @@ def correlates_min_n(request: Request) -> int:
     return int(request.app.state.correlates_min_n)
 
 
+@dataclass(frozen=True)
+class PairFlags:
+    """When a cross-tab estimate is flagged (ADR-0019): a cell with fewer
+    than ``cell`` people, or in a column of fewer than ``column``."""
+
+    cell: int
+    column: int
+
+
+def pair_flags(request: Request) -> PairFlags:
+    """FastAPI dependency: the cross-tab's flag thresholds
+    (FA_PAIR_CELL_FLAG_BELOW, FA_PAIR_COLUMN_FLAG_BELOW)."""
+    flags: PairFlags = request.app.state.pair_flags
+    return flags
+
+
 #: The 422 a request for the adjusted models gets while they are off.
 ADJUSTED_OFF = "Adjusted associations are not offered on this server."
 

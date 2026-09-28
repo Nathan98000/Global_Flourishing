@@ -731,20 +731,87 @@
         "title": "MissingnessRow",
         "type": "object"
       },
-      "PairGroupModel": {
-        "description": "One group of the compared question X (/v1/correlations/pair): one\nof its answers, or an equal-width bin of a long scale.",
+      "PairCellModel": {
+        "description": "One pair of answers: of the people who gave x the column's answer,\nthe weighted share who gave y the row's (each column adds to 1).",
         "properties": {
-          "below_min_n": {
-            "title": "Below Min N",
+          "flagged": {
+            "title": "Flagged",
             "type": "boolean"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "x": {
+            "title": "X",
+            "type": "integer"
+          },
+          "y": {
+            "title": "Y",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "share",
+          "n",
+          "flagged"
+        ],
+        "title": "PairCellModel",
+        "type": "object"
+      },
+      "PairColumnModel": {
+        "description": "One of x's answers: the weighted share of the people who answered\nboth questions who gave it, with its interval (the /v1/aggregate\nproportion estimator).",
+        "properties": {
+          "ci_hi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Hi"
+          },
+          "ci_lo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Lo"
           },
           "code": {
             "title": "Code",
             "type": "integer"
           },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
           },
           "share": {
             "title": "Share",
@@ -755,42 +822,105 @@
           "code",
           "label",
           "share",
-          "below_min_n"
+          "ci_lo",
+          "ci_hi",
+          "n",
+          "flagged"
         ],
-        "title": "PairGroupModel",
+        "title": "PairColumnModel",
+        "type": "object"
+      },
+      "PairLevelModel": {
+        "description": "One answer of either question in a cross-tab (/v1/correlations/pair),\nor one equal-width bin of a long scale.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "PairLevelModel",
         "type": "object"
       },
       "PairResponse": {
-        "description": "Two questions side by side (/v1/correlations/pair): their weighted\ncorrelation, and the outcome Y's weighted mean in each group of X —\nthe /v1/aggregate estimator, grouped by X. Groups run in X's aligned\norder (from least to most of what its label names), so a positive\ncorrelation slopes up; respondent-level points are never served.",
+        "description": "Two questions side by side (/v1/correlations/pair): a weighted\ncross-tab of their answers — each column one of x's answers, each\ncell the share of that column who gave the row's answer to y — the\nshare of people who gave each of x's answers, and the two questions'\nweighted correlation. Both axes run in their question's aligned order\n(least to most of what its label names, ADR-0015); respondent-level\nanswers are never served.",
         "properties": {
+          "cell_flag_below": {
+            "title": "Cell Flag Below",
+            "type": "integer"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/PairCellModel"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "column_flag_below": {
+            "title": "Column Flag Below",
+            "type": "integer"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/PairColumnModel"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
           "correlation": {
             "$ref": "#/components/schemas/EstimateRow"
           },
-          "grouping": {
-            "title": "Grouping",
-            "type": "string"
+          "min_n": {
+            "title": "Min N",
+            "type": "integer"
           },
-          "groups": {
+          "rows": {
             "items": {
-              "$ref": "#/components/schemas/PairGroupModel"
+              "$ref": "#/components/schemas/PairLevelModel"
             },
-            "title": "Groups",
+            "title": "Rows",
             "type": "array"
           },
-          "means": {
+          "shares": {
             "$ref": "#/components/schemas/EstimateResponse"
           },
           "x": {
             "title": "X",
             "type": "string"
+          },
+          "x_grouping": {
+            "title": "X Grouping",
+            "type": "string"
+          },
+          "y": {
+            "title": "Y",
+            "type": "string"
+          },
+          "y_grouping": {
+            "title": "Y Grouping",
+            "type": "string"
           }
         },
         "required": [
           "x",
-          "grouping",
+          "y",
+          "x_grouping",
+          "y_grouping",
           "correlation",
-          "means",
-          "groups"
+          "min_n",
+          "columns",
+          "rows",
+          "cells",
+          "shares",
+          "cell_flag_below",
+          "column_flag_below"
         ],
         "title": "PairResponse",
         "type": "object"
@@ -2022,27 +2152,27 @@
     },
     "/v1/correlations/pair": {
       "get": {
-        "description": "Associations, not causes. Both items must be ordered (a 0–10 scale,\nan ordered or yes/no answer, a count) and asked at the wave, and must\nnot be built from the same answers (a score and its own question go\ntogether by construction: 422). ``correlation`` is the weighted\nPearson or Spearman coefficient over the people who answered both —\nthe same number /v1/correlates reports for the pair, with no interval.\n``means`` is y's weighted mean in each group of x with its\ndesign-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no\ny is its share answering yes. x's groups are its answers when it has\nat most eleven, else equal-width bins between its weighted 1st and\n99th percentiles (whole-number-wide for an item counted in whole\nnumbers), the end bins taking in the tails; they run from least to\nmost of what x's label names, so a positive correlation slopes up.\n``groups`` carries each group's label, its weighted share of those\npeople, and whether fewer than ``means.meta.min_n`` of them are in it\n(flagged, never dropped).",
+        "description": "Both items must be ordered (a 0–10 scale, an ordered or yes/no\nanswer, a count), asked at the wave and not built from the same\nanswers (a score and its own question go together by construction:\n422). ``columns`` are x's answers (its levels: up to eleven answers,\nelse ten equal-width bins between its weighted 1st and 99th\npercentiles, the end bins taking in the tails), each with the weighted\nshare of the people who answered both who gave it; ``rows`` are y's,\nlevelled the same way; both run from least to most of what the item's\nlabel names. ``cells`` gives, column by column, the weighted share of\nthe column's people who gave each row's answer — every column adds to\n1 — and ``shares`` the same cells as estimate rows with their\ndesign-based CIs (the /v1/aggregate proportion estimator grouped by\nx). A cell is ``flagged`` when fewer than ``cell_flag_below`` people\ngave that pair of answers or its column holds fewer than\n``column_flag_below`` (flagged, never withheld). ``correlation`` is the\nweighted Pearson or Spearman coefficient over the people who answered\nboth — the number /v1/correlates reports for the pair, with no\ninterval.",
         "operationId": "correlation_pair_v1_correlations_pair_get",
         "parameters": [
           {
-            "description": "The outcome: its weighted mean is taken per group of x.",
+            "description": "The question on the rows.",
             "in": "query",
             "name": "y",
             "required": true,
             "schema": {
-              "description": "The outcome: its weighted mean is taken per group of x.",
+              "description": "The question on the rows.",
               "title": "Y",
               "type": "string"
             }
           },
           {
-            "description": "The question compared with: its answers (or bins) group y.",
+            "description": "The question on the columns.",
             "in": "query",
             "name": "x",
             "required": true,
             "schema": {
-              "description": "The question compared with: its answers (or bins) group y.",
+              "description": "The question on the columns.",
               "title": "X",
               "type": "string"
             }
@@ -2112,7 +2242,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Two questions side by side: their correlation and Y's mean by X"
+        "summary": "Two questions side by side: a weighted cross-tab and their correlation"
       }
     },
     "/v1/export.csv": {

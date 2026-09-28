@@ -22,6 +22,8 @@ from flourish_stats.correlations import DEFAULT_CONTROLS
 HAPPY_Y1_PREDICTORS = {
     "LONELY",
     "ATTEND_SVCS",
+    "WB_TODAY",
+    "INCOME_FEELINGS",
     "CHILD_MEM",
     "BALANCE",
     "sfi_health",

@@ -150,23 +150,25 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Two questions side by side: their correlation and Y's mean by X
-         * @description Associations, not causes. Both items must be ordered (a 0–10 scale,
-         *     an ordered or yes/no answer, a count) and asked at the wave, and must
-         *     not be built from the same answers (a score and its own question go
-         *     together by construction: 422). ``correlation`` is the weighted
-         *     Pearson or Spearman coefficient over the people who answered both —
-         *     the same number /v1/correlates reports for the pair, with no interval.
-         *     ``means`` is y's weighted mean in each group of x with its
-         *     design-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no
-         *     y is its share answering yes. x's groups are its answers when it has
-         *     at most eleven, else equal-width bins between its weighted 1st and
-         *     99th percentiles (whole-number-wide for an item counted in whole
-         *     numbers), the end bins taking in the tails; they run from least to
-         *     most of what x's label names, so a positive correlation slopes up.
-         *     ``groups`` carries each group's label, its weighted share of those
-         *     people, and whether fewer than ``means.meta.min_n`` of them are in it
-         *     (flagged, never dropped).
+         * Two questions side by side: a weighted cross-tab and their correlation
+         * @description Both items must be ordered (a 0–10 scale, an ordered or yes/no
+         *     answer, a count), asked at the wave and not built from the same
+         *     answers (a score and its own question go together by construction:
+         *     422). ``columns`` are x's answers (its levels: up to eleven answers,
+         *     else ten equal-width bins between its weighted 1st and 99th
+         *     percentiles, the end bins taking in the tails), each with the weighted
+         *     share of the people who answered both who gave it; ``rows`` are y's,
+         *     levelled the same way; both run from least to most of what the item's
+         *     label names. ``cells`` gives, column by column, the weighted share of
+         *     the column's people who gave each row's answer — every column adds to
+         *     1 — and ``shares`` the same cells as estimate rows with their
+         *     design-based CIs (the /v1/aggregate proportion estimator grouped by
+         *     x). A cell is ``flagged`` when fewer than ``cell_flag_below`` people
+         *     gave that pair of answers or its column holds fewer than
+         *     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
+         *     weighted Pearson or Spearman coefficient over the people who answered
+         *     both — the number /v1/correlates reports for the pair, with no
+         *     interval.
          */
         get: operations["correlation_pair_v1_correlations_pair_get"];
         put?: never;
@@ -520,37 +522,88 @@ export interface components {
             wave: string;
         };
         /**
-         * PairGroupModel
-         * @description One group of the compared question X (/v1/correlations/pair): one
-         *     of its answers, or an equal-width bin of a long scale.
+         * PairCellModel
+         * @description One pair of answers: of the people who gave x the column's answer,
+         *     the weighted share who gave y the row's (each column adds to 1).
          */
-        PairGroupModel: {
-            /** Below Min N */
-            below_min_n: boolean;
+        PairCellModel: {
+            /** Flagged */
+            flagged: boolean;
+            /** N */
+            n: number;
+            /** Share */
+            share: number | null;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
+         * PairColumnModel
+         * @description One of x's answers: the weighted share of the people who answered
+         *     both questions who gave it, with its interval (the /v1/aggregate
+         *     proportion estimator).
+         */
+        PairColumnModel: {
+            /** Ci Hi */
+            ci_hi: number | null;
+            /** Ci Lo */
+            ci_lo: number | null;
             /** Code */
             code: number;
+            /** Flagged */
+            flagged: boolean;
             /** Label */
             label: string;
+            /** N */
+            n: number;
             /** Share */
             share: number;
         };
         /**
+         * PairLevelModel
+         * @description One answer of either question in a cross-tab (/v1/correlations/pair),
+         *     or one equal-width bin of a long scale.
+         */
+        PairLevelModel: {
+            /** Code */
+            code: number;
+            /** Label */
+            label: string;
+        };
+        /**
          * PairResponse
-         * @description Two questions side by side (/v1/correlations/pair): their weighted
-         *     correlation, and the outcome Y's weighted mean in each group of X —
-         *     the /v1/aggregate estimator, grouped by X. Groups run in X's aligned
-         *     order (from least to most of what its label names), so a positive
-         *     correlation slopes up; respondent-level points are never served.
+         * @description Two questions side by side (/v1/correlations/pair): a weighted
+         *     cross-tab of their answers — each column one of x's answers, each
+         *     cell the share of that column who gave the row's answer to y — the
+         *     share of people who gave each of x's answers, and the two questions'
+         *     weighted correlation. Both axes run in their question's aligned order
+         *     (least to most of what its label names, ADR-0015); respondent-level
+         *     answers are never served.
          */
         PairResponse: {
+            /** Cell Flag Below */
+            cell_flag_below: number;
+            /** Cells */
+            cells: components["schemas"]["PairCellModel"][];
+            /** Column Flag Below */
+            column_flag_below: number;
+            /** Columns */
+            columns: components["schemas"]["PairColumnModel"][];
             correlation: components["schemas"]["EstimateRow"];
-            /** Grouping */
-            grouping: string;
-            /** Groups */
-            groups: components["schemas"]["PairGroupModel"][];
-            means: components["schemas"]["EstimateResponse"];
+            /** Min N */
+            min_n: number;
+            /** Rows */
+            rows: components["schemas"]["PairLevelModel"][];
+            shares: components["schemas"]["EstimateResponse"];
             /** X */
             x: string;
+            /** X Grouping */
+            x_grouping: string;
+            /** Y */
+            y: string;
+            /** Y Grouping */
+            y_grouping: string;
         };
         /**
          * ResponseMeta
@@ -951,9 +1004,9 @@ export interface operations {
     correlation_pair_v1_correlations_pair_get: {
         parameters: {
             query: {
-                /** @description The outcome: its weighted mean is taken per group of x. */
+                /** @description The question on the rows. */
                 y: string;
-                /** @description The question compared with: its answers (or bins) group y. */
+                /** @description The question on the columns. */
                 x: string;
                 wave: string;
                 /** @description Exactly one country_code:N, plus optional demographic domains. */

@@ -1,11 +1,11 @@
 // GET /v1/correlations/pair — two questions side by side — and GET
 // /v1/correlations — a table of 2–10 (ADR-0018). API-only, like
 // /v1/correlates: the static tier precomputes no pairs.
-// One request answers the Compare two view: the weighted correlation of
-// the measure (y) and the question it is compared with (x) in one
-// country, and y's weighted mean in each group of x — x's answers, or
-// bins of a long scale — in x's aligned order, each with its share of
-// the people who answered both and whether it rests on too few of them.
+// One request answers the Compare two view: a weighted cross-tab of the
+// question on the columns (x) and the one on the rows (y) in one country
+// — each cell the share of its column who gave the row's answer, each
+// column's share of the people, flagged where few people are behind a
+// number (ADR-0019) — and the two questions' weighted correlation.
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL } from '../config'

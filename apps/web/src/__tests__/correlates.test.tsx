@@ -22,8 +22,10 @@ import type {
   VariableSummary,
 } from '../api/types'
 import { footnoteCopy } from '../charts/ChartFigure'
-import { DIVERGING_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
+import { shareLabel, shareTint } from '../charts/CrossTab'
+import { DIVERGING_RAMP, SEQUENTIAL_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
 import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
+import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
 import {
@@ -38,19 +40,19 @@ import {
   axisEnds,
   belowFloor,
   countriesByName,
+  fewPeople,
   defaultCountry,
   excludedNote,
   heatCells,
   acrossSubtitle,
-  hollowNote,
   legendEnds,
   overlapNote,
-  pairSubtitle,
-  pairTip,
+  pairAxisTitle,
+  pairBarTip,
+  pairCellTip,
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
-  shareText,
   starred,
   shortName,
   statisticPhrase,
@@ -168,38 +170,105 @@ const acrossPlain = testResponse(
   },
 )
 
-/** Happiness by Service attendance in the United States: three answers
- * in the item's aligned order (Never → Weekly), the first resting on too
- * few people. */
-const meanRow = (code: number, estimate: number, n: number) =>
-  testRow({
-    group: { ATTEND_SVCS: code },
-    estimate,
-    se: 0.3,
-    ci_lo: estimate - 0.6,
-    ci_hi: estimate + 0.6,
-    n,
-    sum_w: n,
-  })
+/** Service attendance (columns: Never → Weekly, its aligned order) by
+ * Feelings about household income (rows: very difficult → living
+ * comfortably) in the United States, as the cross-tab the pair endpoint
+ * serves; cells with fewer than 5 people are flagged. */
+const FEELINGS = [
+  { code: 4, label: 'Finding it very difficult on present income' },
+  { code: 3, label: 'Finding it difficult on present income' },
+  { code: 2, label: 'Getting by on present income' },
+  { code: 1, label: 'Living comfortably on present income' },
+]
+const ATTEND = [
+  { code: 3, label: 'Never', share: 0.3, n: 18 },
+  { code: 2, label: 'Sometimes', share: 0.3, n: 18 },
+  { code: 1, label: 'Weekly', share: 0.4, n: 24 },
+]
+/** Each column's shares and counts, rows in FEELINGS order. */
+const GRID: [number, number][][] = [
+  [
+    [0.5, 9],
+    [0.3, 5],
+    [0.15, 3],
+    [0.05, 1],
+  ],
+  [
+    [0.3, 5],
+    [0.3, 5],
+    [0.3, 6],
+    [0.1, 2],
+  ],
+  [
+    [0.1, 2],
+    [0.2, 5],
+    [0.3, 7],
+    [0.4, 10],
+  ],
+]
 
 const pairFixture: PairResponse = {
   x: 'ATTEND_SVCS',
-  grouping: 'answers',
-  correlation: plainRow('ATTEND_SVCS', 0.157, undefined, 54),
-  means: testResponse([meanRow(3, 4.19, 12), meanRow(2, 4.05, 18), meanRow(1, 5.37, 24)], {
-    outcome: 'HAPPY',
-    stat: 'mean',
-    by: ['ATTEND_SVCS'],
-    filters: { country_code: [22] },
-    min_n: 15,
-    n_valid: 54,
-  }),
-  groups: [
-    { code: 3, label: 'Never', share: 12 / 54, below_min_n: true },
-    { code: 2, label: 'Sometimes', share: 18 / 54, below_min_n: false },
-    { code: 1, label: 'Weekly', share: 24 / 54, below_min_n: false },
-  ],
+  y: 'INCOME_FEELINGS',
+  x_grouping: 'answers',
+  y_grouping: 'answers',
+  correlation: plainRow('ATTEND_SVCS', 0.31, undefined, 60),
+  min_n: 20,
+  columns: ATTEND.map((column) => ({
+    ...column,
+    ci_lo: column.share - 0.1,
+    ci_hi: column.share + 0.1,
+    flagged: false,
+  })),
+  rows: FEELINGS,
+  cells: ATTEND.flatMap((column, i) =>
+    FEELINGS.map((row, j) => {
+      const [share, n] = GRID[i]?.[j] ?? [0, 0]
+      return { x: column.code, y: row.code, share, n, flagged: n < 5 }
+    }),
+  ),
+  shares: testResponse(
+    ATTEND.flatMap((column, i) =>
+      FEELINGS.map((row, j) => {
+        const [share, n] = GRID[i]?.[j] ?? [0, 0]
+        return testRow({
+          group: { ATTEND_SVCS: column.code, INCOME_FEELINGS: row.code },
+          stat: 'proportion',
+          estimate: share,
+          se: 0.02,
+          ci_lo: Math.max(0, share - 0.04),
+          ci_hi: share + 0.04,
+          n,
+          sum_w: column.n,
+        })
+      }),
+    ),
+    {
+      outcome: 'INCOME_FEELINGS',
+      scale_type: 'ordinal',
+      stat: 'proportion',
+      by: ['ATTEND_SVCS', 'INCOME_FEELINGS'],
+      filters: { country_code: [22] },
+      n_valid: 60,
+    },
+  ),
+  cell_flag_below: 5,
+  column_flag_below: 10,
 }
+
+/** The pair's correlation in each country (Compare two, in every country). */
+const pairAcross = testResponse(
+  [plainRow('INCOME_FEELINGS', 0.12, 1, 8), plainRow('INCOME_FEELINGS', 0.31, 22, 60)],
+  {
+    outcome: 'ATTEND_SVCS',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: ['country_code'],
+    adjusted: false,
+    min_n: 20,
+    n_excluded: 0,
+  },
+)
 
 /** A three-question table: one pair estimated, one built from the same
  * answers (never estimated), one resting on too few people. */
@@ -277,6 +346,7 @@ const tier: Routes = {
   '/health': okHealth,
   '/v1/correlations/pair': pairFixture,
   '/v1/correlations?': tableFixture,
+  'against=INCOME_FEELINGS&by=country_code': pairAcross,
   '&by=country_code': acrossPlain,
   'filter=country_code%3A22': rankedPlain,
 }
@@ -359,7 +429,7 @@ describe('Correlates view', () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates')
     await screen.findByRole('img', {
-      name: /Feelings about household income by Life evaluation today/,
+      name: /Life evaluation today and Feelings about household income in United States/,
     })
     const main = screen.getByRole('main')
     // The lede, the switcher right under it, the view's purpose in a line.
@@ -512,33 +582,120 @@ describe('Correlates view', () => {
     expect(await screen.findByRole('img', { name: /as a matrix/ })).toBeInTheDocument()
     await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS')
     expect(
-      await screen.findByRole('img', { name: /Happiness by Service attendance/ }),
+      await screen.findByRole('img', { name: /Service attendance and Happiness in United States/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'First question: Service attendance' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Second question: Happiness' })).toBeVisible()
   })
 
-  test('Compare two: the second question’s average for each answer to the first', async () => {
+  test('Compare two: a column-percent heat grid under bars of who gave each answer', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?a=ATTEND_SVCS&b=HAPPY')
-    const figure = await screen.findByRole('img', { name: /Happiness by Service attendance/ })
-    // The answers along the axis, in the server's (aligned) order.
-    const svg = figure.querySelector('svg') as SVGSVGElement
-    const text = svg.textContent ?? ''
-    expect(text.indexOf('Never')).toBeLessThan(text.indexOf('Sometimes'))
-    expect(text.indexOf('Sometimes')).toBeLessThan(text.indexOf('Weekly'))
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    const figure = await screen.findByRole('img', {
+      name: /Service attendance and Feelings about household income in United States: for each of 3 answers/,
+    })
+    // The rows' people on the columns' answers: the second on the rows.
+    const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
+    expect(pair).toContain('y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
+    expect(
+      screen.getByText('Service attendance and Feelings about household income'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('United States · Wave 1, 2023')).toBeInTheDocument()
+    // The header row: the correlation strip, and where.
+    expect(screen.getByText('Correlation')).toBeInTheDocument()
+    expect(screen.getByText('+0.31')).toBeInTheDocument()
+    expect(screen.getByLabelText('In United States')).toBeChecked()
+    expect(screen.getByLabelText('In every country')).not.toBeChecked()
+    // The legend: fixed bins, and the asterisk.
+    expect(screen.getByText('Share of each column')).toBeInTheDocument()
+    expect(
+      screen.getByText('* few people behind this estimate — less reliable'),
+    ).toBeInTheDocument()
+    // One SVG: the bars, the grid and every label (so the PNG carries them).
+    const svgs = figure.querySelectorAll('svg')
+    expect(svgs).toHaveLength(1)
+    const svg = svgs[0] as SVGSVGElement
+    // A wrapped label is one <text> of <tspan> lines: read it as words.
+    const texts = [...svg.querySelectorAll('text')].map((node) => {
+      const lines = [...node.querySelectorAll('tspan')].map((line) => line.textContent ?? '')
+      return lines.length > 0 ? lines.join(' ') : (node.textContent ?? '')
+    })
+    // Columns left to right in aligned order; rows with the most at the top.
+    const at = (label: string) => texts.findIndex((text) => text.includes(label))
+    expect(at('Never')).toBeLessThan(at('Sometimes'))
+    expect(at('Sometimes')).toBeLessThan(at('Weekly'))
+    expect(at('Living comfortably')).toBeLessThan(at('Finding it very difficult'))
+    expect(texts).toContain('Share of respondents who gave each answer to Service attendance')
+    expect(texts).toContain('Feelings about household income')
+    expect(texts).toContain('Service attendance')
+    // Each bar's share, and each cell's share of its column — few people:
+    // an asterisk. Every column adds to 100%.
+    for (const label of ['30%', '40%', '50%', '15%*', '5%*', '10%*']) {
+      expect(texts).toContain(label)
+    }
+    // Tints from the sequential ramp only, a flagged cell outlined in dashes.
+    expect(svg.innerHTML).toContain('var(--seq-')
+    expect(svg.innerHTML).toContain('stroke-dasharray="3,2"')
+    expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
+    // The footnote says how to read it; no causes.
     const main = visibleText(screen.getByRole('main'))
-    expect(main).toContain('Each dot is an average of people’s answers, not individual people.')
+    expect(main).toContain(
+      'Each column is the people who gave that answer to Service attendance; the shading shows how they answered Feelings about household income, adding to 100% down the column.',
+    )
+    expect(main).toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
     expect(screen.getByRole('link', { name: 'How these numbers are made' })).toBeInTheDocument()
-    const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
-    expect(pair).toContain('y=HAPPY&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
+    // The data table names both questions' answers, with every n.
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table')[0] as HTMLElement
+    expect(
+      within(data).getByRole('columnheader', { name: 'Service attendance' }),
+    ).toBeInTheDocument()
+    expect(
+      within(data).getByRole('columnheader', { name: 'Feelings about household income' }),
+    ).toBeInTheDocument()
+    expect(within(data).getAllByText('Never').length).toBe(4)
+    expect(within(data).getAllByText('Living comfortably on present income').length).toBe(3)
+  })
+
+  test('Compare two in every country: the pair’s correlation in each, the chosen one picked out', async () => {
+    const calls = mockFetch(tier)
+    const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    await screen.findByRole('img', {
+      name: /Service attendance and Feelings about household income in/,
+    })
+    fireEvent.click(screen.getByLabelText('In every country'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
+    const figure = await screen.findByRole('img', {
+      name: /their correlation in each of 2 countries/,
+    })
+    // Only this chart: the grid has left.
+    expect(screen.queryByText('Share of each column')).toBeNull()
+    expect(
+      screen.getByText('Every country · Wave 1, 2023 · correlation, −1 to 1'),
+    ).toBeInTheDocument()
+    const request = calls.find((url) => url.includes('by=country_code')) as string
+    expect(request).toContain('outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&by=country_code')
+    // Strongest first; Testland rests on few people.
+    const svgText = figure.querySelector('svg')?.textContent ?? ''
+    expect(svgText.indexOf('United States')).toBeLessThan(svgText.indexOf('Testland'))
+    expect(svgText).toContain('+0.12*')
+    const ticks = [...figure.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+      (node) => node.textContent,
+    )
+    expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
+    expect(figure.innerHTML).toContain('var(--control-selected)')
+    // The strip still reads the chosen country's correlation.
+    const strip = screen.getByText('Correlation').parentElement as HTMLElement
+    expect(within(strip).getByText('+0.31')).toBeInTheDocument()
   })
 
   test('Compare two: pick either question, and Swap exchanges the two', async () => {
     mockFetch(tier)
     const router = await renderAt('/correlates')
-    await screen.findByRole('img', { name: /by Life evaluation today/ })
+    await screen.findByRole('img', {
+      name: /Life evaluation today and Feelings about household income/,
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Swap' }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?a=INCOME_FEELINGS'))
     expect(
@@ -578,14 +735,14 @@ describe('Correlates view', () => {
     fireEvent.click(within(figure).getByRole('button', { name: /^Service attendance/ }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?a=HAPPY&b=ATTEND_SVCS'))
     expect(
-      await screen.findByRole('img', { name: /Service attendance by Happiness/ }),
+      await screen.findByRole('img', { name: /Happiness and Service attendance in/ }),
     ).toBeInTheDocument()
   })
 
   test('state carries across views: Find related’s question seeds Compare two, and back', async () => {
     mockFetch(tier)
     const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
-    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
     fireEvent.click(screen.getByLabelText('Find related'))
     await waitFor(() =>
       expect(router.state.location.searchStr).toBe('?view=related&b=LONELY&outcome=HAPPY'),
@@ -731,7 +888,7 @@ describe('Correlates view', () => {
   test('one shared row: Wave · Country · Correlation type, and the wave’s reason under it all', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
-    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
     const wave = screen.getByRole('group', { name: 'Wave' })
     const type = screen.getByRole('group', { name: 'Correlation type' })
     expect(within(type).getByLabelText('Straight-line')).toBeChecked()
@@ -816,7 +973,7 @@ describe('Correlates view', () => {
     )
     // Compare two: the pair's waves.
     await renderAt('/correlates?a=HAPPY&b=LONELY')
-    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
     expect(screen.getAllByLabelText('2024').at(-1)).toHaveAccessibleDescription(
       "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
     )
@@ -913,6 +1070,10 @@ describe('correlates helpers', () => {
     expect(belowFloor({ n: 7 }, 100)).toBe(true)
     expect(belowFloor({ n: 100 }, 100)).toBe(false)
     expect(belowFloor({ n: 7 }, null)).toBe(false)
+    // An asterisk only on a value: a cell with no estimate says so instead.
+    expect(fewPeople({ estimate: 0.1, n: 7 }, 100)).toBe(true)
+    expect(fewPeople({ estimate: null, n: 7 }, 100)).toBe(false)
+    expect(fewPeople({ estimate: 0.1, n: 700 }, 100)).toBe(false)
     // Columns past the visible edge of the matrix, for the "N more" hint.
     expect(columnsPastEdge([100, 200, 300, 400], 250)).toBe(2)
     expect(columnsPastEdge([100, 200], 250)).toBe(0)
@@ -1006,56 +1167,103 @@ describe('correlates helpers', () => {
     expect(overlapNote(null, byName)).toBeUndefined()
   })
 
-  test('Compare two in words: subtitle, tooltip, hollow groups, shares', () => {
-    const correlation = { estimate: -0.31, stat: 'spearman_r', n: 1234 }
-    expect(
-      pairSubtitle({
-        countryName: 'Japan',
-        wave: 'Y2',
-        y: 'Happiness',
-        x: 'Loneliness',
-        binary: false,
-        binned: false,
-        correlation,
-        method: 'spearman',
-      }),
-    ).toBe(
-      'Japan · Wave 2, 2024 · average Happiness for each answer to Loneliness · correlation −0.31 (by rank), 1,234 people',
-    )
-    expect(
-      pairSubtitle({
-        countryName: 'Japan',
-        wave: 'Y1',
-        y: 'Volunteered last month',
-        x: 'Secure Flourishing Index',
-        binary: true,
-        binned: true,
-        correlation,
-        method: undefined,
-      }),
-    ).toContain(
-      'share answering yes to Volunteered last month across the range of Secure Flourishing Index · correlation −0.31 (straight-line)',
-    )
-    const point = { label: 'Weekly', share: 0.444, row: meanRow(1, 5.37, 24) }
-    expect(pairTip(point, { yShort: 'Happiness', binary: false, binned: false })).toBe(
-      '44% answered Weekly\nAverage Happiness: 5.37 (95% CI 4.77–5.97)',
-    )
-    const share = {
-      ...point,
-      row: { ...point.row, stat: 'proportion', estimate: 0.34, ci_lo: 0.3, ci_hi: 0.38 },
+  test('Compare two in words: axis titles, tooltips without n, fixed tint bins', () => {
+    const todayDetail: VariableDetail = {
+      ...happyDetail,
+      value_labels: [
+        { code: 0, label: 'Worst possible', wave: null, country_code: null, is_nonresponse: false },
+        { code: 5, label: '', wave: null, country_code: null, is_nonresponse: false },
+        { code: 10, label: 'Best possible', wave: null, country_code: null, is_nonresponse: false },
+        { code: 99, label: '(Refused)', wave: null, country_code: null, is_nonresponse: true },
+      ],
     }
+    // A numbered axis names its ends; an axis of words needs none.
+    expect(pairAxisTitle(todayVariable, todayDetail)).toBe(
+      'Life evaluation today · 0 = Worst possible, 10 = Best possible',
+    )
+    const feelingsDetail: VariableDetail = {
+      ...happyDetail,
+      ...incomeVariable,
+      value_labels: FEELINGS.map((row) => ({
+        code: row.code,
+        label: row.label,
+        wave: null,
+        country_code: null,
+        is_nonresponse: false,
+      })),
+    }
+    expect(pairAxisTitle(incomeVariable, feelingsDetail)).toBe('Feelings about household income')
+    expect(pairAxisTitle(sfiVariable, todayDetail)).toBe('Secure Flourishing Index')
+    const tip = {
+      aLevel: '3',
+      aShort: 'Life evaluation today',
+      bLevel: 'Getting by on present income',
+      bShort: 'Feelings about household income',
+      share: 0.184,
+      interval: '95% CI [15.0%, 21.8%]',
+      flagged: false,
+    }
+    expect(pairCellTip(tip)).toBe(
+      'Of people who answered 3 to Life evaluation today, 18% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
+    )
+    expect(pairCellTip({ ...tip, share: 0.004, flagged: true })).toBe(
+      'Of people who answered 3 to Life evaluation today, <1% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]\nFew people gave these answers, so this estimate is less reliable.',
+    )
+    expect(pairCellTip({ ...tip, share: null })).toBe(
+      'Nobody here answered 3 to Life evaluation today.',
+    )
     expect(
-      pairTip({ ...share, label: '2.5–3.2' }, { yShort: 'x', binary: true, binned: true }),
-    ).toBe('44% at 2.5–3.2\nAnswered yes: 34.0% (95% CI 30.0%–38.0%)')
-    expect(shareText(0.004)).toBe('0.4%')
-    expect(shareText(0.4449)).toBe('44%')
-    expect(hollowNote([], 100, false)).toBeUndefined()
-    expect(hollowNote(['0', '1'], 100, false)).toBe(
-      'Fewer than 100 people gave “0” and “1”: their dots are drawn hollow.',
+      pairBarTip({
+        level: '8',
+        short: 'Life evaluation today',
+        share: 0.21,
+        interval: undefined,
+        flagged: false,
+      }),
+    ).toBe('21% answered 8 to Life evaluation today.')
+    // Shares: whole percents, "<1%" for a sliver, never "0%" above zero.
+    expect(shareLabel(0.57)).toBe('57%')
+    expect(shareLabel(0.004)).toBe('<1%')
+    expect(shareLabel(0)).toBe('0%')
+    // Fixed bins at 0/5/10/20/30/45/60%, onto the seven ramp tokens.
+    expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 1].map(shareTint)).toEqual([
+      SEQUENTIAL_RAMP[0],
+      SEQUENTIAL_RAMP[0],
+      SEQUENTIAL_RAMP[1],
+      SEQUENTIAL_RAMP[2],
+      SEQUENTIAL_RAMP[3],
+      SEQUENTIAL_RAMP[4],
+      SEQUENTIAL_RAMP[5],
+      SEQUENTIAL_RAMP[6],
+      SEQUENTIAL_RAMP[6],
+    ])
+    expect(shareTint(null)).toBe('transparent')
+  })
+
+  test('the pair CSV: every cell with both answers in words, its column’s share and n', () => {
+    const lines = pairToCsv(pairFixture).trim().split('\n')
+    expect(lines).toContain('# x: ATTEND_SVCS')
+    expect(lines).toContain('# y: INCOME_FEELINGS')
+    expect(lines).toContain('# correlation: 0.31 (pearson_r, n=60)')
+    expect(lines).toContain('# cell_flag_below: 5')
+    expect(lines).toContain('# column_flag_below: 10')
+    const header = lines.find((line) => !line.startsWith('#')) as string
+    expect(header.split(',').slice(0, 6)).toEqual([
+      'x',
+      'x_label',
+      'x_share',
+      'x_n',
+      'y',
+      'y_label',
+    ])
+    expect(header.endsWith(',cell_flagged')).toBe(true)
+    const rows = lines.slice(lines.indexOf(header) + 1)
+    expect(rows).toHaveLength(12)
+    expect(rows[0]).toMatch(
+      /^3,Never,0\.3,18,4,Finding it very difficult on present income,proportion,0\.5,/,
     )
-    expect(hollowNote(['9.0 and above'], 100, true)).toBe(
-      'Fewer than 100 people are in “9.0 and above”: its dot is drawn hollow.',
-    )
+    expect(rows[3]?.endsWith(',True')).toBe(true)
+    expect(rows[0]?.endsWith(',False')).toBe(true)
   })
 
   test('point estimates say so in tooltips and footnotes; signed formatting', () => {

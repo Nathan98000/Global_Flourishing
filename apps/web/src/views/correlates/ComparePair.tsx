@@ -1,33 +1,63 @@
 // Compare two (ADR-0019): how answers to one question line up with
 // answers to another, in one country. The view owns its two pickers, set
 // in a sentence ("How do answers to [A ▾] relate to [B ▾]?") with a Swap;
-// A is the columns, B the rows. Every number is the server's.
+// A is the columns, B the rows. Its chart is a column-percent heat grid
+// (each column adds to 100%) under bars of who gave each of A's answers;
+// a header row holds the pair's correlation strip and the scope toggle —
+// In {country} · In every country, where the grid gives way to the
+// pair's correlation in each country. One chart at a time. Every number
+// is the server's.
 
-import { useMemo } from 'react'
-import type { CorrelationMethod } from '../../api/correlates'
+import { useMemo, type ReactNode } from 'react'
+import { useCorrelates } from '../../api/correlates'
 import { usePair } from '../../api/correlations'
 import type {
   EstimateResponse,
+  EstimateRow,
   Meta,
   PairResponse,
-  VariableDetail,
   VariableSummary,
   Wave,
 } from '../../api/types'
 import { useVariable } from '../../api/variables'
-import { BinnedScatter, type BinnedPoint } from '../../charts/BinnedScatter'
 import { ChartFigure } from '../../charts/ChartFigure'
-import { measureBounds } from '../../charts/domain'
+import { CorrelationStrip } from '../../charts/CorrelationStrip'
+import {
+  CrossTab,
+  SHARE_BINS,
+  type CrossTabCell,
+  type CrossTabColumn,
+  type CrossTabRow,
+} from '../../charts/CrossTab'
+import { RankedBar } from '../../charts/RankedBar'
+import { SEQUENTIAL_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
-import { downloadTextFile, responseToCsv } from '../../export/csv'
+import { RadioRow } from '../../components/controls/RadioRow'
+import { downloadTextFile, pairToCsv, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
-import { formatEstimate } from '../../format'
-import { outcomeLevels, shortName } from '../../labels'
-import { firstQuestion, pairRequest, secondQuestion } from '../../state/search'
+import { ciText, formatEstimate } from '../../format'
+import { groupValueLabel, shortName } from '../../labels'
+import {
+  correlatesAcrossCountries,
+  firstQuestion,
+  pairRequest,
+  secondQuestion,
+  type CorrelatesScope,
+} from '../../state/search'
+import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
-import { hollowNote, pairSubtitle, pairTip } from '../correlatesRows'
+import {
+  CORRELATION_SCALE,
+  FEW_PEOPLE_KEY,
+  fewPeople,
+  pairAxisTitle,
+  pairBarTip,
+  pairCellTip,
+  rankedTip,
+  statisticPhrase,
+} from '../correlatesRows'
 import {
   Failure,
   orderedAt,
@@ -63,9 +93,17 @@ export function ComparePair({
     aName !== bName &&
     !sameAnswers &&
     !waiting
+  const everywhere = search.scope === 'all'
+  // One chart at a time: the grid in one country, or the pair's
+  // correlation in every country.
   const pair = usePair(
     ready && country !== undefined ? pairRequest(search, { a: aName, b: bName }, country) : null,
+    { enabled: !everywhere },
   )
+  const across = useCorrelates(ready ? correlatesAcrossCountries(search, aName, [bName]) : null, {
+    enabled: everywhere,
+  })
+  const aDetail = useVariable(ready ? aName : null).data?.detail
   const bDetail = useVariable(ready ? bName : null).data?.detail
 
   // Why the pair can't be shown, when it can't: the first problem found.
@@ -87,6 +125,22 @@ export function ComparePair({
       return `${a.display_name} and ${b.display_name} are built from the same answers, so they go together by construction`
     return undefined
   })()
+
+  const scopeToggle = (
+    <RadioRow<CorrelatesScope>
+      legend="Where"
+      legendHidden
+      name="pair-scope"
+      options={[
+        { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
+        { value: 'all', label: 'In every country' },
+      ]}
+      value={search.scope}
+      onChange={(scope) => setSearch({ scope })}
+    />
+  )
+  const acrossResponse = across.data
+  const chosenRow = acrossResponse?.rows.find((row) => row.group['country_code'] === country)
 
   return (
     <>
@@ -121,165 +175,345 @@ export function ComparePair({
         </button>
       </p>
       {controls}
-      {problem ? (
+      {problem || !a || !b ? (
         <EmptyState title="Pick two questions to compare">
-          <p>{problem} — choose another question above.</p>
+          <p>{problem ?? 'Choose two questions'} — choose another question above.</p>
         </EmptyState>
+      ) : everywhere ? (
+        waiting || across.isPending ? (
+          <LoadingBlock height={520} label="Loading the pair in every country" />
+        ) : across.isError ? (
+          <Failure error={across.error} apiReachable={apiReachable} />
+        ) : acrossResponse ? (
+          <EveryCountry
+            a={a}
+            b={b}
+            response={acrossResponse}
+            chosen={country}
+            countryName={countryName}
+            wave={search.wave}
+            method={search.method}
+            isRefreshing={across.isPlaceholderData}
+            served={served}
+            header={
+              <HeaderRow
+                strip={
+                  chosenRow ? (
+                    <CorrelationStrip
+                      row={chosenRow}
+                      flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
+                    />
+                  ) : null
+                }
+                toggle={scopeToggle}
+              />
+            }
+          />
+        ) : null
       ) : waiting || pair.isPending ? (
         <LoadingBlock height={420} label="Loading the two questions" />
       ) : pair.isError ? (
         <Failure error={pair.error} apiReachable={apiReachable} />
-      ) : pair.data && a && b ? (
+      ) : pair.data ? (
         <PairFigure
           pair={pair.data}
-          y={b}
-          x={a}
-          yDetail={bDetail}
+          a={a}
+          b={b}
+          aTitle={pairAxisTitle(a, aDetail)}
+          bTitle={pairAxisTitle(b, bDetail)}
           countryName={countryName}
           wave={search.wave}
-          method={search.method}
           isRefreshing={pair.isPlaceholderData}
           served={served}
+          header={
+            <HeaderRow
+              strip={
+                <CorrelationStrip
+                  row={pair.data.correlation}
+                  flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
+                />
+              }
+              toggle={scopeToggle}
+            />
+          }
         />
       ) : null}
     </>
   )
 }
 
-/** The second question's average (or share answering yes) for each
- * answer to the first — or each range of a long one — as a binned
- * scatter, with its data table and downloads. */
+/** The pair's header: the correlation on the left, where on the right. */
+function HeaderRow({ strip, toggle }: { strip: ReactNode; toggle: ReactNode }) {
+  return (
+    <div className={own.headerRow}>
+      {strip}
+      {toggle}
+    </div>
+  )
+}
+
+/** The key to the grid: its fixed bins in the ramp's own tokens, and the
+ * asterisk. */
+function ShareLegend() {
+  return (
+    <p className={`${styles.legend} ${own.shareLegend}`}>
+      <span className={own.shareKey}>
+        <span>Share of each column</span>
+        <span className={own.bins} aria-hidden="true">
+          {SEQUENTIAL_RAMP.map((token, index) => (
+            <span key={token} className={own.bin}>
+              <span className={own.swatch} style={{ background: token }} />
+              <span>
+                {SHARE_BINS[index]}
+                {index === SHARE_BINS.length - 1 ? '%+' : ''}
+              </span>
+            </span>
+          ))}
+        </span>
+        <span className="visually-hidden">
+          : deeper shades are larger shares, in steps at {SHARE_BINS.join(', ')} percent and above.
+        </span>
+      </span>
+      <span>{FEW_PEOPLE_KEY}</span>
+    </p>
+  )
+}
+
+/** The heat grid for one country, with its bars, legend and table. */
 function PairFigure({
   pair,
-  y,
-  x,
-  yDetail,
+  a,
+  b,
+  aTitle,
+  bTitle,
+  countryName,
+  wave,
+  isRefreshing,
+  served,
+  header,
+}: {
+  pair: PairResponse
+  a: VariableSummary
+  b: VariableSummary
+  aTitle: string
+  bTitle: string
+  countryName: string
+  wave: Wave
+  isRefreshing: boolean
+  served: Meta
+  header: ReactNode
+}) {
+  const aShort = shortName(a)
+  const bShort = shortName(b)
+  const columnLabel = useMemo(
+    () => new Map(pair.columns.map((column) => [column.code, column.label])),
+    [pair],
+  )
+  const rowLabel = useMemo(() => new Map(pair.rows.map((row) => [row.code, row.label])), [pair])
+  const columns: CrossTabColumn[] = useMemo(
+    () =>
+      pair.columns.map((column) => ({
+        key: String(column.code),
+        label: column.label,
+        share: column.share,
+        flagged: column.flagged,
+        tip: pairBarTip({
+          level: column.label,
+          short: aShort,
+          share: column.share,
+          interval:
+            column.ci_lo !== null && column.ci_hi !== null
+              ? ciText({
+                  ci_lo: column.ci_lo,
+                  ci_hi: column.ci_hi,
+                  ci_level: pair.shares.meta.ci_level,
+                  stat: 'proportion',
+                })
+              : undefined,
+          flagged: column.flagged,
+        }),
+      })),
+    [pair, aShort],
+  )
+  // The most of what B names at the top.
+  const rows: CrossTabRow[] = useMemo(
+    () => [...pair.rows].reverse().map((row) => ({ key: String(row.code), label: row.label })),
+    [pair],
+  )
+  const cells: CrossTabCell[] = useMemo(
+    () =>
+      pair.cells.map((cell, index) => {
+        const record = pair.shares.rows[index]
+        return {
+          column: String(cell.x),
+          row: String(cell.y),
+          share: cell.share,
+          flagged: cell.flagged,
+          tip: pairCellTip({
+            aLevel: columnLabel.get(cell.x) ?? String(cell.x),
+            aShort,
+            bLevel: rowLabel.get(cell.y) ?? String(cell.y),
+            bShort,
+            share: cell.share,
+            interval:
+              record && record.ci_lo !== null && record.ci_hi !== null ? ciText(record) : undefined,
+            flagged: cell.flagged,
+          }),
+        }
+      }),
+    [pair, aShort, bShort, columnLabel, rowLabel],
+  )
+  const name: ExportName = {
+    measure: `${a.display_name} and ${b.display_name}`,
+    view: 'Compare two',
+    waves: WAVE_CHIPS[wave] ?? wave,
+    ...(countryName ? { country: countryName } : {}),
+  }
+  const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
+  const ariaLabel = `${a.display_name} and ${b.display_name} in ${countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}.${
+    flaggedCount > 0 ? ` ${flaggedCount} of the cells rest on few people and are starred.` : ''
+  } The data table below carries every number.`
+  // The data table names both questions' answers (a binned axis already
+  // carries its bin's label).
+  const label = (column: string, value: string | number) => {
+    const code = typeof value === 'number' ? value : Number.NaN
+    if (column === pair.x) return columnLabel.get(code) ?? String(value)
+    if (column === pair.y) return rowLabel.get(code) ?? String(value)
+    return undefined
+  }
+  return (
+    <ChartFigure
+      title={`${a.display_name} and ${b.display_name}`}
+      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave}`}
+      ariaLabel={ariaLabel}
+      marks="table"
+      intro={
+        <>
+          {header}
+          <ShareLegend />
+        </>
+      }
+      response={pair.shares}
+      meta={served}
+      csv={{
+        kind: 'client',
+        onDownload: () => downloadTextFile(exportFilename(name, 'csv'), pairToCsv(pair)),
+      }}
+      exportName={name}
+      isRefreshing={isRefreshing}
+      groupLabel={label}
+      columnName={(column) =>
+        column === pair.x ? a.display_name : column === pair.y ? b.display_name : undefined
+      }
+      footnote={
+        <>
+          Each column is the people who gave that answer to {aShort}; the shading shows how they
+          answered {bShort}, adding to 100% down the column.{' '}
+        </>
+      }
+    >
+      <CrossTab
+        columns={columns}
+        rows={rows}
+        cells={cells}
+        xTitle={aTitle}
+        yTitle={bTitle}
+        barCaption={`Share of respondents who gave each answer to ${aShort}`}
+      />
+    </ChartFigure>
+  )
+}
+
+/** The pair's correlation in every country: one dot per country on a
+ * fixed −1 to 1 axis, strongest first, the chosen country picked out. */
+function EveryCountry({
+  a,
+  b,
+  response,
+  chosen,
   countryName,
   wave,
   method,
   isRefreshing,
   served,
+  header,
 }: {
-  pair: PairResponse
-  y: VariableSummary
-  x: VariableSummary
-  yDetail: VariableDetail | undefined
+  a: VariableSummary
+  b: VariableSummary
+  response: EstimateResponse
+  chosen: number | undefined
   countryName: string
   wave: Wave
-  method: CorrelationMethod | undefined
+  method: 'spearman' | undefined
   isRefreshing: boolean
   served: Meta
+  header: ReactNode
 }) {
-  const binary = pair.means.meta.stat === 'proportion'
-  const binned = pair.grouping === 'bins'
-  const yShort = shortName(y)
-  const points: BinnedPoint[] = useMemo(
-    () =>
-      pair.groups.flatMap((group, index) => {
-        const row = pair.means.rows[index]
-        return row
-          ? [
-              {
-                key: String(index),
-                label: group.label,
-                row,
-                share: group.share,
-                hollow: group.below_min_n,
-              },
-            ]
-          : []
-      }),
-    [pair],
-  )
-  // Up is always more of what the measure names: a descending item's
-  // axis runs from its highest code up to its lowest (its means stay as
-  // coded), and the label above the axis says, in the item's own words,
-  // what the top is.
-  const reverse = y.polarity === 'descending' && !binary
-  // A derived score's "value labels" are its histogram bins, not words.
-  const levels = y.is_derived ? [] : outcomeLevels(yDetail)
-  const topLabel = (reverse ? levels[0] : levels[levels.length - 1])?.label.trim()
-  const yLabel = binary ? '↑ % answering yes' : topLabel ? `↑ ${topLabel}` : `↑ higher ${yShort}`
-  const bounds = measureBounds(pair.means.meta.stat, y) ?? [0, 10]
-  const tipOf = useMemo(
-    () => (point: BinnedPoint) => pairTip(point, { yShort, binary, binned }),
-    [yShort, binary, binned],
-  )
-  const minN = pair.means.meta.min_n ?? 0
-  const hollow = hollowNote(
-    points.filter((point) => point.hollow).map((point) => point.label),
-    minN,
-    binned,
-  )
-  const labelByCode = new Map(pair.groups.map((group) => [String(group.code), group.label]))
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const minN = response.meta.min_n
+  const labelOf = (row: EstimateRow) =>
+    groupValueLabel('country_code', row.group['country_code'] ?? null, served)
+  const sorted = useMemo(() => {
+    const nameOf = (row: EstimateRow) =>
+      groupValueLabel('country_code', row.group['country_code'] ?? null, served)
+    return {
+      ...response,
+      rows: [...response.rows].sort(
+        (left, right) =>
+          (right.estimate ?? -Infinity) - (left.estimate ?? -Infinity) ||
+          nameOf(left).localeCompare(nameOf(right)),
+      ),
+    }
+  }, [response, served])
   const name: ExportName = {
-    measure: y.display_name,
-    view: `Compared with ${x.display_name}`,
+    measure: `${a.display_name} and ${b.display_name}`,
+    view: 'Compare two in every country',
     waves: WAVE_CHIPS[wave] ?? wave,
-    ...(countryName ? { country: countryName } : {}),
   }
-  const first = points.find((point) => point.row.estimate !== null)
-  const last = [...points].reverse().find((point) => point.row.estimate !== null)
-  const valueOf = (point: BinnedPoint) => formatEstimate(point.row.estimate, point.row.stat)
-  const ariaLabel = `${y.display_name} by ${x.display_name} in ${countryName}: ${
-    binary ? 'the share answering yes' : `the average ${y.display_name}`
-  } for each of ${points.length} ${binned ? 'ranges' : 'answers'} of ${x.display_name}${
-    first && last
-      ? `, from ${first.label} (${valueOf(first)}) to ${last.label} (${valueOf(last)})`
+  const aShort = shortName(a)
+  const bShort = shortName(b)
+  const top = sorted.rows[0]
+  const bottom = sorted.rows[sorted.rows.length - 1]
+  const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1; ${countryName} is picked out.${
+    top && bottom
+      ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''
-  }; correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.`
-  const response: EstimateResponse = pair.means
+  } The data table below carries every number.`
   return (
     <ChartFigure
-      title={`${y.display_name} by ${x.display_name}`}
-      subtitle={pairSubtitle({
-        countryName,
-        wave,
-        y: y.display_name,
-        x: x.display_name,
-        binary,
-        binned,
-        correlation: pair.correlation,
-        method,
-      })}
+      title={`${a.display_name} and ${b.display_name}`}
+      subtitle={`Every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
       marks="dots"
-      intro={
-        <p className={styles.sizeKey}>
-          <span className={styles.sizeDots} aria-hidden="true">
-            <span />
-            <span />
-          </span>
-          {binned
-            ? 'Larger dot = more people in that range'
-            : 'Larger dot = more people gave that answer'}
-        </p>
-      }
-      response={response}
+      intro={header}
+      response={sorted}
       meta={served}
       csv={{
         kind: 'client',
-        onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
+        onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(sorted)),
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      groupLabel={(column, value) =>
-        column === x.name ? labelByCode.get(String(value)) : undefined
-      }
-      columnName={(column) => (column === x.name ? x.display_name : undefined)}
-      footnote={
-        <>
-          Each dot is an average of people&rsquo;s answers, not individual people.{' '}
-          {hollow ? `${hollow} ` : ''}
-        </>
-      }
+      predictorLabel={(predictor) => (predictor === b.name ? b.display_name : undefined)}
     >
-      <BinnedScatter
-        points={points}
-        yDomain={bounds[0] === bounds[1] ? [bounds[0], bounds[0] + 1] : bounds}
-        reverse={reverse}
-        yLabel={yLabel}
-        tipOf={tipOf}
+      <RankedBar
+        rows={sorted.rows}
+        meta={served}
+        responseMeta={response.meta}
+        variable={a}
+        color={signMark(1)}
+        colorOf={(row) => signMark(row.estimate)}
+        highlightOf={(row) => row.group['country_code'] === chosen}
+        zeroRule
+        labelFontSize={narrow ? 12 : 13.5}
+        fixedScale={CORRELATION_SCALE}
+        axisEnds={[
+          `← higher ${aShort} goes with lower ${bShort}`,
+          `higher ${aShort} goes with higher ${bShort} →`,
+        ]}
+        stackOnNarrow
+        tipOf={(row, label) => rankedTip(row, label, fewPeople(row, minN))}
+        flagOf={(row) => fewPeople(row, minN)}
       />
     </ChartFigure>
   )

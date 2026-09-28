@@ -144,6 +144,9 @@ const TRACK_TICK = {
   },
 }
 
+/** The picked row's band: the selected control's tint. */
+const HIGHLIGHT = 'var(--control-selected)'
+
 let tipCount = 0
 
 export function RankedBar({
@@ -167,6 +170,7 @@ export function RankedBar({
   stackOnNarrow = false,
   tipOf,
   flagOf,
+  highlightOf,
   onSelectRow,
   rowName,
 }: {
@@ -209,6 +213,9 @@ export function RankedBar({
   tipOf?: (row: EstimateRow, label: string) => string
   /** A row few people are behind: its value wears an asterisk. */
   flagOf?: (row: EstimateRow) => boolean
+  /** The row to pick out (the chosen country): a band behind it, label
+   * and all, and its dot in ink. */
+  highlightOf?: (row: EstimateRow) => boolean
   /** Rows are choices: each row, label or dot, is a button. */
   onSelectRow?: (row: EstimateRow) => void
   /** A row button's accessible name. */
@@ -217,7 +224,8 @@ export function RankedBar({
   const container = usePlot(
     (available) => {
       const entries = rankEntries(rows, meta, labelColumn, labelOf)
-      const fillOf = (entry: Entry) => (colorOf ? colorOf(entry.row) : color)
+      const picked = (entry: Entry) => highlightOf?.(entry.row) === true
+      const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
       const tip = (entry: Entry) =>
         tipOf ? tipOf(entry.row, entry.label) : tipText(entry.row, entry.label)
       const referenceMarks = reference
@@ -281,6 +289,14 @@ export function RankedBar({
           },
           y: { domain, axis: null, paddingInner: 0, paddingOuter: 0 },
           marks: [
+            Plot.barX(entries.filter(picked), {
+              y: 'label',
+              x1: lo,
+              x2: hi,
+              fill: HIGHLIGHT,
+              insetLeft: -4,
+              insetRight: -4,
+            }),
             // The track: a hairline across the full width, zero ticked.
             Plot.ruleY(entries, { y: 'label', x1: lo, x2: hi, dy: 11, stroke: GRID }),
             Plot.dot(entries, {
@@ -406,6 +422,14 @@ export function RankedBar({
           },
           y: { domain },
           marks: [
+            Plot.barX(entries.filter(picked), {
+              y: 'label',
+              x1: lo,
+              x2: hi,
+              fill: HIGHLIGHT,
+              insetLeft: -(marginLeft - 2),
+              insetRight: -(marginRight - 2),
+            }),
             // Country labels at 13.5 in ink (§6); the value axis stays 11px.
             yAxis,
             Plot.ruleY(
@@ -521,6 +545,7 @@ export function RankedBar({
       stackOnNarrow,
       tipOf,
       flagOf,
+      highlightOf,
       onSelectRow,
       rowName,
     ],

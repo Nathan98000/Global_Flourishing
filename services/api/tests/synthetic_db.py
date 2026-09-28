@@ -64,6 +64,30 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
         False,
     ),
     ("CHILD_MEM", "Childhood memory", "childhood", "ordinal", "none", 1, 4, ["Y1"], False),
+    # The Correlates page's default pair (ADR-0019): a 0–10 item and a
+    # four-answer descending one that goes with it.
+    (
+        "WB_TODAY",
+        "Life evaluation today",
+        "wellbeing",
+        "scale_0_10",
+        "higher_better",
+        0,
+        10,
+        ["Y1", "Y2"],
+        False,
+    ),
+    (
+        "INCOME_FEELINGS",
+        "Feelings about household income",
+        "demographics",
+        "ordinal",
+        "lower_better",
+        1,
+        4,
+        ["Y1", "Y2"],
+        False,
+    ),
     ("INCOME", "Household income", "demographics", "nominal", "none", 101, 999, ["Y1"], True),
     ("WAVE", "Wave flag", "design", "design", "none", 0, 0, ["Y1", "MY", "Y2"], False),
     # The uppercase sources of the respondent recode columns, as in the
@@ -87,9 +111,18 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
 )
 
 #: Items whose LOWEST code is the most of the named thing (the catalog's
-#: ``polarity``, ADR-0015): ATTEND_SVCS runs 1 = Weekly … 3 = Never.
+#: ``polarity``, ADR-0015): ATTEND_SVCS runs 1 = Weekly … 3 = Never, and
+#: INCOME_FEELINGS 1 = Living comfortably … 4 = Finding it very difficult.
 #: Everything else is ascending.
-DESCENDING: frozenset[str] = frozenset({"ATTEND_SVCS"})
+DESCENDING: frozenset[str] = frozenset({"ATTEND_SVCS", "INCOME_FEELINGS"})
+
+#: INCOME_FEELINGS' answers (the release's wording).
+INCOME_FEELINGS_LABELS: tuple[str, ...] = (
+    "Living comfortably on present income",
+    "Getting by on present income",
+    "Finding it difficult on present income",
+    "Finding it very difficult on present income",
+)
 
 #: Value labels for the demographic sources (mirrors the real release's
 #: codes; labels shortened).
@@ -198,8 +231,16 @@ def _responses(respondents: pl.DataFrame) -> pl.DataFrame:
             }
         )
 
+    def income_feelings(i: int, today: int) -> int:
+        """Mostly from life evaluation (1 = living comfortably at the
+        top of the ladder), one in five at random-looking answers."""
+        return 1 + (i // 5) % 4 if i % 5 == 0 else 1 + (10 - today) * 4 // 11
+
     for person in respondents.iter_rows(named=True):
         i = int(person["id"])
+        today = (i * 5 + 2) % 11
+        add(person, "Y1", "WB_TODAY", today, None)
+        add(person, "Y1", "INCOME_FEELINGS", income_feelings(i, today), None)
         if i % 10 == 0:
             add(person, "Y1", "HAPPY", None, "skipped")
         else:
@@ -215,11 +256,16 @@ def _responses(respondents: pl.DataFrame) -> pl.DataFrame:
             else:
                 add(person, "Y2", "HAPPY", (i * 3 + 1) % 11, None)
             add(person, "Y2", "ATTEND_SVCS", 1 + (i + 1) % 3, None)
+            later = (i * 5 + 3) % 11
+            add(person, "Y2", "WB_TODAY", later, None)
+            add(person, "Y2", "INCOME_FEELINGS", income_feelings(i + 1, later), None)
             add(person, "Y2", "BALANCE", (i * 2 + 3) % 11, None)
         if person["has_midyear"]:
             add(person, "MY", "MONEY", (i * 5) % 11, None)
             add(person, "MY", "BALANCE", (i * 2 + 1) % 11, None)
-    return pl.DataFrame(rows).sort("variable", "wave", "id")
+    # Every row decides the columns' types (the first "skipped" comes
+    # well after the first hundred rows).
+    return pl.DataFrame(rows, infer_schema_length=None).sort("variable", "wave", "id")
 
 
 def _derived(respondents: pl.DataFrame) -> pl.DataFrame:
@@ -309,6 +355,17 @@ def _value_labels() -> pl.DataFrame:
             "label": "(Refused)",
             "is_nonresponse": True,
         }
+    )
+    rows.extend(
+        {
+            "variable": "INCOME_FEELINGS",
+            "wave": None,
+            "country_code": None,
+            "code": code,
+            "label": label,
+            "is_nonresponse": False,
+        }
+        for code, label in enumerate(INCOME_FEELINGS_LABELS, start=1)
     )
     rows.append(
         {

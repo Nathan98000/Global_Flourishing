@@ -1,14 +1,17 @@
-"""GET /v1/correlations/pair and /v1/correlations — questions side by side (ADR-0018).
+"""GET /v1/correlations/pair and /v1/correlations — questions side by side (ADR-0018, ADR-0019).
 
-The Correlates page's "Compare two" view: the weighted correlation of
-two ordered items in one country, and the outcome Y's weighted mean in
-each group of the other item X — the /v1/aggregate estimator, grouped by
-X, with the same design, weight and SE. X's groups are its answers (up
-to eleven) or, for a long scale, equal-width bins between its weighted
-1st and 99th percentiles; they run in X's aligned order, so a positive
-correlation slopes up. Only group means are served — never a
-respondent's answers — and a group resting on fewer than the ranking
-floor's people is flagged, not dropped.
+The Correlates page's "Compare two" view: two ordered items in one
+country as a weighted cross-tab. Each column is one of x's answers; each
+cell is the weighted share of that column's people who gave the row's
+answer to y, so every column adds to 1; beside them, the weighted share
+of the people who answered both who gave each of x's answers, and the two
+items' weighted correlation. An item's levels are its answers (up to
+eleven) or, for a longer scale, equal-width bins between its weighted 1st
+and 99th percentiles, on either axis; both run in the item's aligned
+order (least to most of what its label names, ADR-0015). The shares are
+the /v1/aggregate proportion estimator grouped by x — same design, weight
+and SE — and only shares are served, never a respondent's answers. A cell
+resting on few people is flagged, never dropped (ADR-0019).
 
 The "Compare several" view's table: every pair among 2–10 ordered items
 in one country, each row's correlations taken in one pass over the frame
@@ -29,7 +32,7 @@ from flourish_stats import (
     SuppressionPolicy,
     weighted_correlation,
     weighted_correlations,
-    weighted_mean,
+    weighted_proportion,
     weighted_quantile,
 )
 from flourish_stats.outcomes import DERIVED_OUTCOMES
@@ -37,15 +40,16 @@ from flourish_stats.outcomes import DERIVED_OUTCOMES
 from flourish_api.data import (
     Catalog,
     DataStore,
+    PairFlags,
     VariableInfo,
     correlates_min_n,
+    pair_flags,
     require_data,
     suppression_policy,
 )
 from flourish_api.frames import (
     BINARY_EVENT_CODE,
     PAIR_X,
-    PAIR_Y,
     PAIR_Y_ALIGNED,
     assemble_matrix_frame,
     assemble_pair_frame,
@@ -63,7 +67,9 @@ from flourish_api.schemas import (
     CorrelationsResponse,
     EstimateResponse,
     EstimateRow,
-    PairGroupModel,
+    PairCellModel,
+    PairColumnModel,
+    PairLevelModel,
     PairResponse,
     ResponseMeta,
     SuppressionModel,
@@ -72,19 +78,22 @@ from flourish_api.serialize import rows_from_table
 
 router = APIRouter()
 
-#: X is grouped by its answers when it has at most this many.
+#: An item is grouped by its answers when it has at most this many.
 MAX_ANSWER_GROUPS = 11
 #: A longer scale is cut into this many equal-width bins.
 BINS = 10
 #: The percentiles the bins run between; the end bins take in the tails.
 BIN_RANGE = (0.01, 0.99)
-GROUP_COLUMN = "_group"
+#: The cross-tab's group columns: x's level (the columns), y's (the rows).
+COLUMN = "_column"
+ROW = "_row"
 
 
 @dataclass(frozen=True)
 class Group:
-    """One group of X: the value of the group column, the answer's code
-    (or the bin's index), its label, and what the means rows carry."""
+    """One level of an item: the value of its group column, the answer's
+    code (or the bin's index), its label, and what the shares rows carry
+    for it (the code; a bin's label)."""
 
     key: int
     code: int
@@ -98,7 +107,7 @@ def is_continuous(info: VariableInfo) -> bool:
 
 
 def answer_levels(info: VariableInfo) -> list[int] | None:
-    """X's aligned levels, lowest first, when it is grouped by its
+    """An item's aligned levels, lowest first, when it is grouped by its
     answers; None when it is binned. A yes/no item is its indicator
     (0 = no, 1 = yes)."""
     if info.scale_type == "binary":
@@ -148,7 +157,7 @@ def answer_labels(catalog: Catalog, info: VariableInfo, wave: str, country: int)
 
 
 def level_label(info: VariableInfo, code: int, labels: dict[int, str]) -> str:
-    """How an answer is named on the axis: a number on a 0–10 or count
+    """How an answer is named on an axis: a number on a 0–10 or count
     scale, the answer's own words otherwise (No / Yes for a derived
     screen)."""
     if info.scale_type in ("scale_0_10", "count"):
@@ -162,25 +171,28 @@ def _number(value: float) -> str:
     return f"{value:.1f}"
 
 
-def bin_groups(frame: pl.DataFrame, design: Design, integer: bool) -> tuple[pl.Expr, list[Group]]:
-    """Equal-width bins of X between its weighted 1st and 99th percentiles
-    (R ``svyquantile``'s rule), the end bins taking in the tails. An item
-    in whole numbers gets whole-number-wide bins — at most ten, so none is
-    empty by construction; a derived score gets exactly ten. Each bin is
-    labelled by its range; an end bin that took in a tail says so."""
-    complete = frame.filter(pl.col(PAIR_X).is_not_null())
+def bin_groups(
+    frame: pl.DataFrame, column: str, design: Design, integer: bool
+) -> tuple[pl.Expr, list[Group]]:
+    """Equal-width bins of ``column`` between its weighted 1st and 99th
+    percentiles (R ``svyquantile``'s rule), the end bins taking in the
+    tails. An item in whole numbers gets whole-number-wide bins — at most
+    ten, so none is empty by construction; a derived score gets exactly
+    ten. Each bin is labelled by its range; an end bin that took in a
+    tail says so."""
+    complete = frame.filter(pl.col(column).is_not_null())
     if complete.is_empty():
         return pl.lit(None, dtype=pl.Int64), []
-    quantiles = weighted_quantile(complete, PAIR_X, design, p=BIN_RANGE).to_pylist()
+    quantiles = weighted_quantile(complete, column, design, p=BIN_RANGE).to_pylist()
     lo, hi = (float(row["estimate"]) for row in quantiles)
-    observed_lo = float(complete[PAIR_X].min())  # type: ignore[arg-type]
-    observed_hi = float(complete[PAIR_X].max())  # type: ignore[arg-type]
-    x = pl.col(PAIR_X)
+    observed_lo = float(complete[column].min())  # type: ignore[arg-type]
+    observed_hi = float(complete[column].max())  # type: ignore[arg-type]
+    value = pl.col(column)
     if integer:
         start, stop = round(lo), round(hi)
         width = max(1, math.ceil((stop - start + 1) / BINS))
         count = math.ceil((stop - start + 1) / width)
-        index = ((x - start) / width).floor().clip(0, count - 1)
+        index = ((value - start) / width).floor().clip(0, count - 1)
         groups: list[Group] = []
         for k in range(count):
             first, last = start + k * width, start + (k + 1) * width - 1
@@ -190,14 +202,14 @@ def bin_groups(frame: pl.DataFrame, design: Design, integer: bool) -> tuple[pl.E
             elif k == 0 and observed_lo < start:
                 label = f"{last} or less"
             groups.append(Group(key=k, code=k, label=label, value=label))
-        return pl.when(x.is_null()).then(None).otherwise(index).cast(pl.Int64), groups
+        return pl.when(value.is_null()).then(None).otherwise(index).cast(pl.Int64), groups
     if hi <= lo:
         label = _number(lo)
-        return pl.when(x.is_null()).then(None).otherwise(pl.lit(0)).cast(pl.Int64), [
+        return pl.when(value.is_null()).then(None).otherwise(pl.lit(0)).cast(pl.Int64), [
             Group(key=0, code=0, label=label, value=label)
         ]
     width = (hi - lo) / BINS
-    index = ((x - lo) / width).floor().clip(0, BINS - 1)
+    index = ((value - lo) / width).floor().clip(0, BINS - 1)
     edges = [lo + k * width for k in range(BINS + 1)]
     groups = []
     for k in range(BINS):
@@ -207,18 +219,23 @@ def bin_groups(frame: pl.DataFrame, design: Design, integer: bool) -> tuple[pl.E
         elif k == BINS - 1 and observed_hi > hi:
             label = f"{_number(edges[k])} and above"
         groups.append(Group(key=k, code=k, label=label, value=label))
-    return pl.when(x.is_null()).then(None).otherwise(index).cast(pl.Int64), groups
+    return pl.when(value.is_null()).then(None).otherwise(index).cast(pl.Int64), groups
 
 
-def x_groups(
-    store: DataStore, query: PairQuery, frame: pl.DataFrame, design: Design
+def axis_groups(
+    store: DataStore,
+    query: PairQuery,
+    info: VariableInfo,
+    frame: pl.DataFrame,
+    column: str,
+    design: Design,
 ) -> tuple[pl.Expr, list[Group], str]:
-    """X's groups, lowest aligned value first: its answers, or bins."""
+    """One item's levels, least to most of what its label names: its
+    answers, or bins of its aligned values in ``column``."""
     assert store.catalog is not None
-    info = query.x
     levels = answer_levels(info)
     if levels is None:
-        expression, groups = bin_groups(frame, design, integer=not is_continuous(info))
+        expression, groups = bin_groups(frame, column, design, integer=not is_continuous(info))
         return expression, groups, "bins"
     labels = answer_labels(store.catalog, info, query.wave, query.countries[0])
     answers: list[Group] = []
@@ -227,14 +244,15 @@ def x_groups(
         answers.append(
             Group(key=level, code=code, label=level_label(info, code, labels), value=code)
         )
-    expression = pl.col(PAIR_X).round(0).cast(pl.Int64)
+    expression = pl.col(column).round(0).cast(pl.Int64)
     return expression, answers, "answers"
 
 
 def empty_row(
     group: dict[str, int | str], stat: str, design: Design, policy: SuppressionPolicy
 ) -> EstimateRow:
-    """A group nobody in the frame gave: shown, with n = 0 (ADR-0011)."""
+    """A cell of a column nobody in the frame is in: shown, with n = 0
+    and no share (ADR-0011)."""
     return EstimateRow(
         group={**group},
         stat=stat,
@@ -257,12 +275,19 @@ def empty_row(
 
 
 def run_pair(
-    store: DataStore, query: PairQuery, policy: SuppressionPolicy, min_n: int
+    store: DataStore,
+    query: PairQuery,
+    policy: SuppressionPolicy,
+    flags: PairFlags,
+    min_n: int,
 ) -> PairResponse:
     assembled = assemble_pair_frame(store, query)
     frame, design = assembled.frame, assembled.design
-    expression, groups, grouping = x_groups(store, query, frame, design)
-    frame = frame.with_columns(expression.alias(GROUP_COLUMN))
+    x_expression, columns, x_grouping = axis_groups(store, query, query.x, frame, PAIR_X, design)
+    y_expression, rows, y_grouping = axis_groups(
+        store, query, query.y, frame, PAIR_Y_ALIGNED, design
+    )
+    frame = frame.with_columns(x_expression.alias(COLUMN), y_expression.alias(ROW))
 
     correlation = rows_from_table(
         weighted_correlation(
@@ -276,32 +301,75 @@ def run_pair(
         [],
     )[0].model_copy(update={"predictor": query.x.name})
 
-    # A yes/no Y's mean is the share answering yes: say so in the stat.
-    stat = "proportion" if query.y.scale_type == "binary" else "mean"
-    estimated = {
-        row.group[GROUP_COLUMN]: row
+    # Who gave each of x's answers (among those who answered both) ...
+    column_rows = {
+        row.level: row
         for row in rows_from_table(
-            weighted_mean(frame, PAIR_Y, design, by=[GROUP_COLUMN], policy=policy),
-            [GROUP_COLUMN],
+            weighted_proportion(
+                frame, COLUMN, design, levels=[group.key for group in columns], policy=policy
+            ),
+            [],
         )
-        if row.group[GROUP_COLUMN] is not None
     }
-    rows: list[EstimateRow] = []
-    for group in groups:
-        key = {query.x.name: group.value}
-        found = estimated.get(group.key)
-        rows.append(
-            found.model_copy(update={"group": key, "stat": stat})
-            if found is not None
-            else empty_row(key, stat, design, policy)
+    # ... and, within each such column, each of y's.
+    cell_rows = {
+        (row.group[COLUMN], row.level): row
+        for row in rows_from_table(
+            weighted_proportion(
+                frame,
+                ROW,
+                design,
+                by=[COLUMN],
+                levels=[group.key for group in rows],
+                policy=policy,
+            ),
+            [COLUMN],
         )
-    total = sum(row.sum_w for row in rows)
+        if row.group[COLUMN] is not None
+    }
+
+    column_models: list[PairColumnModel] = []
+    cells: list[PairCellModel] = []
+    shares: list[EstimateRow] = []
+    for column in columns:
+        found = column_rows.get(column.key)
+        column_n = found.n if found is not None else 0
+        column_models.append(
+            PairColumnModel(
+                code=column.code,
+                label=column.label,
+                share=(found.estimate or 0.0) if found is not None else 0.0,
+                ci_lo=found.ci_lo if found is not None else None,
+                ci_hi=found.ci_hi if found is not None else None,
+                n=column_n,
+                flagged=column_n < flags.column,
+            )
+        )
+        for row in rows:
+            key = {query.x.name: column.value, query.y.name: row.value}
+            cell = cell_rows.get((column.key, row.key))
+            estimate = (
+                cell.model_copy(update={"group": key, "level": None})
+                if cell is not None
+                else empty_row(key, "proportion", design, policy)
+            )
+            shares.append(estimate)
+            cells.append(
+                PairCellModel(
+                    x=column.code,
+                    y=row.code,
+                    share=estimate.estimate,
+                    n=estimate.n,
+                    flagged=estimate.n < flags.cell or column_n < flags.column,
+                )
+            )
+
     meta = ResponseMeta(
         data_version=store.data_version,
         outcome=query.y.name,
         scale_type=query.y.scale_type,
         direction=query.y.direction,
-        stat=stat,
+        stat="proportion",
         waves=[query.wave],
         scope="global",
         oriented=False,
@@ -311,43 +379,41 @@ def run_pair(
         ci_level=0.95,
         suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
         n_frame=frame.height,
-        n_valid=frame[PAIR_Y].drop_nulls().len(),
-        by=[query.x.name],
+        # Everyone who answered both questions.
+        n_valid=frame[ROW].drop_nulls().len(),
+        by=[query.x.name, query.y.name],
         filters={
             "country_code": list(query.countries),
             **{item.column: list(item.values) for item in query.filters},
         },
-        min_n=min_n,
     )
     return PairResponse(
         x=query.x.name,
-        grouping=grouping,
+        y=query.y.name,
+        x_grouping=x_grouping,
+        y_grouping=y_grouping,
         correlation=correlation,
-        means=EstimateResponse(meta=meta, rows=rows),
-        groups=[
-            PairGroupModel(
-                code=group.code,
-                label=group.label,
-                share=row.sum_w / total if total > 0 else 0.0,
-                below_min_n=row.n < min_n,
-            )
-            for group, row in zip(groups, rows, strict=True)
-        ],
+        min_n=min_n,
+        columns=column_models,
+        rows=[PairLevelModel(code=row.code, label=row.label) for row in rows],
+        cells=cells,
+        shares=EstimateResponse(meta=meta, rows=shares),
+        cell_flag_below=flags.cell,
+        column_flag_below=flags.column,
     )
 
 
 @router.get(
     "/correlations/pair",
-    summary="Two questions side by side: their correlation and Y's mean by X",
+    summary="Two questions side by side: a weighted cross-tab and their correlation",
 )
 def correlation_pair(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
+    flags: Annotated[PairFlags, Depends(pair_flags)],
     min_n: Annotated[int, Depends(correlates_min_n)],
-    y: Annotated[str, Query(description="The outcome: its weighted mean is taken per group of x.")],
-    x: Annotated[
-        str, Query(description="The question compared with: its answers (or bins) group y.")
-    ],
+    y: Annotated[str, Query(description="The question on the rows.")],
+    x: Annotated[str, Query(description="The question on the columns.")],
     wave: str,
     filter: Annotated[
         list[str] | None,
@@ -355,27 +421,29 @@ def correlation_pair(
     ] = None,
     method: Annotated[str, Query(description="pearson (default) or spearman.")] = "pearson",
 ) -> PairResponse:
-    """Associations, not causes. Both items must be ordered (a 0–10 scale,
-    an ordered or yes/no answer, a count) and asked at the wave, and must
-    not be built from the same answers (a score and its own question go
-    together by construction: 422). ``correlation`` is the weighted
-    Pearson or Spearman coefficient over the people who answered both —
-    the same number /v1/correlates reports for the pair, with no interval.
-    ``means`` is y's weighted mean in each group of x with its
-    design-based CI (the /v1/aggregate estimator, ``by = [x]``); a yes/no
-    y is its share answering yes. x's groups are its answers when it has
-    at most eleven, else equal-width bins between its weighted 1st and
-    99th percentiles (whole-number-wide for an item counted in whole
-    numbers), the end bins taking in the tails; they run from least to
-    most of what x's label names, so a positive correlation slopes up.
-    ``groups`` carries each group's label, its weighted share of those
-    people, and whether fewer than ``means.meta.min_n`` of them are in it
-    (flagged, never dropped)."""
+    """Both items must be ordered (a 0–10 scale, an ordered or yes/no
+    answer, a count), asked at the wave and not built from the same
+    answers (a score and its own question go together by construction:
+    422). ``columns`` are x's answers (its levels: up to eleven answers,
+    else ten equal-width bins between its weighted 1st and 99th
+    percentiles, the end bins taking in the tails), each with the weighted
+    share of the people who answered both who gave it; ``rows`` are y's,
+    levelled the same way; both run from least to most of what the item's
+    label names. ``cells`` gives, column by column, the weighted share of
+    the column's people who gave each row's answer — every column adds to
+    1 — and ``shares`` the same cells as estimate rows with their
+    design-based CIs (the /v1/aggregate proportion estimator grouped by
+    x). A cell is ``flagged`` when fewer than ``cell_flag_below`` people
+    gave that pair of answers or its column holds fewer than
+    ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
+    weighted Pearson or Spearman coefficient over the people who answered
+    both — the number /v1/correlates reports for the pair, with no
+    interval."""
     assert store.catalog is not None
     query = parse_pair_query(
         store.catalog, y=y, x=x, wave=wave, method=method, filters=filter or []
     )
-    return run_pair(store, query, policy, min_n)
+    return run_pair(store, query, policy, flags, min_n)
 
 
 def run_matrix(
