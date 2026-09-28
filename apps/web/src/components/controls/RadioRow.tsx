@@ -33,6 +33,7 @@ export function RadioRow<T extends string>({
   wide = false,
   selectOnNarrow = false,
   note,
+  legendHidden = false,
 }: {
   legend: string
   name: string
@@ -46,6 +47,9 @@ export function RadioRow<T extends string>({
   /** One line under the row saying why the disabled options are
    * unavailable; each of them is described by it. */
   note?: string
+  /** The group still has its name, but the row stands without a visible
+   * label (a view switcher directly under a lede). */
+  legendHidden?: boolean
 }) {
   const narrow = useMediaQuery(SELECT_VIEWPORT)
   const noteId = useId()
@@ -55,11 +59,12 @@ export function RadioRow<T extends string>({
       {note}
     </span>
   ) : null
+  const legendClass = legendHidden ? 'visually-hidden' : styles.legend
   const asSelect = options.length > SELECT_ABOVE || (narrow && selectOnNarrow)
   if (asSelect) {
     const select = (
       <label className={styles.fieldset}>
-        <span className={styles.legend}>{legend}</span>
+        <span className={legendClass}>{legend}</span>
         <select
           value={value}
           onChange={(event) => onChange(event.target.value as T)}
@@ -85,7 +90,7 @@ export function RadioRow<T extends string>({
   }
   return (
     <fieldset className={styles.fieldset} data-wide={wide || undefined}>
-      <legend className={styles.legend}>{legend}</legend>
+      <legend className={legendClass}>{legend}</legend>
       <span
         className={styles.row}
         style={{ '--options': options.length } as CSSProperties}

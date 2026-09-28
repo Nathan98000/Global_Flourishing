@@ -36,20 +36,29 @@ function listAnd(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
-/** Why the Wave options a measure was not asked in are unavailable, in
- * one line under the control; undefined when every wave is open (or
- * none is — the page says so in its own empty state). */
-export function waveNote(asked: readonly string[]): string | undefined {
-  const missing = WAVES.filter((wave) => !asked.includes(wave))
-  const present = WAVES.filter((wave) => asked.includes(wave))
+/** Why the Wave options are unavailable, in one line under the row:
+ * `open` are the waves the view's question — its pair, its table — can be
+ * shown at; undefined when every wave is open (or none is — the page
+ * says so in its own empty state). */
+export function waveNote(
+  open: readonly string[],
+  who: 'question' | 'pair' | 'table' = 'question',
+): string | undefined {
+  const missing = WAVES.filter((wave) => !open.includes(wave))
+  const present = WAVES.filter((wave) => open.includes(wave))
   if (missing.length === 0 || present.length === 0) return undefined
   const chips = listAnd(missing.map((wave) => WAVE_CHIPS[wave] ?? wave))
-  if (missing.length === 1) {
-    const [wave] = missing as [string]
-    return `${chips} isn't available: this question wasn't asked in ${WAVE_NAMES[wave] ?? wave}.`
-  }
-  const only = listAnd(present.map((wave) => WAVE_NAMES[wave] ?? wave))
-  return `${chips} aren't available: this question was asked only in ${only}.`
+  const verb = missing.length === 1 ? "isn't" : "aren't"
+  const names = (waves: readonly string[]) => listAnd(waves.map((wave) => WAVE_NAMES[wave] ?? wave))
+  if (who === 'table')
+    return `${chips} ${verb} available: fewer than two of these questions were asked in ${names(missing)}.`
+  if (missing.length === 1)
+    return who === 'pair'
+      ? `${chips} isn't available: the two questions weren't both asked in ${names(missing)}.`
+      : `${chips} isn't available: this question wasn't asked in ${names(missing)}.`
+  return who === 'pair'
+    ? `${chips} aren't available: the two questions were both asked only in ${names(present)}.`
+    : `${chips} aren't available: this question was asked only in ${names(present)}.`
 }
 
 /** The largest absolute estimate in view — the symmetric window the

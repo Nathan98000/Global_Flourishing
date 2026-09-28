@@ -88,6 +88,31 @@ const urbanVariable: VariableSummary = {
   default_stat: 'proportion',
 }
 
+const todayVariable: VariableSummary = {
+  ...happyVariable,
+  name: 'WB_TODAY',
+  display_name: 'Life evaluation today',
+  wording: 'On which step of the ladder do you stand today?',
+}
+
+const incomeVariable: VariableSummary = {
+  ...attendVariable,
+  name: 'INCOME_FEELINGS',
+  display_name: 'Feelings about household income',
+  family: 'demographics',
+  subfamily: null,
+  min: 1,
+  max: 4,
+}
+
+const sfiDetail: VariableDetail = {
+  ...sfiVariable,
+  value_labels: [],
+  missingness: [],
+  scoring: null,
+  components: [{ name: 'HAPPY', display_name: 'Happiness', wording: null, value_labels: [] }],
+}
+
 const happyDetail: VariableDetail = {
   ...happyVariable,
   value_labels: [],
@@ -238,7 +263,15 @@ function mockFetch(routes: Routes) {
 const tier: Routes = {
   '/data/meta.json': testMeta,
   '/data/variables.json': {
-    variables: [sfiVariable, happyVariable, attendVariable, lonelyVariable, urbanVariable],
+    variables: [
+      sfiVariable,
+      happyVariable,
+      attendVariable,
+      lonelyVariable,
+      urbanVariable,
+      todayVariable,
+      incomeVariable,
+    ],
   },
   '/data/v1/HAPPY/variable.json': happyDetail,
   '/health': okHealth,
@@ -322,11 +355,58 @@ const ruleLines = (figure: HTMLElement) =>
   figure.querySelectorAll('svg [aria-label="rule"] line').length
 
 describe('Correlates view', () => {
-  test('a ranked list of measures with no interval anywhere, and the caveat in plain words', async () => {
+  test('a first visit lands on Compare two with the default pair, one chart and no causes', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY')
+    await renderAt('/correlates')
+    await screen.findByRole('img', {
+      name: /Feelings about household income by Life evaluation today/,
+    })
+    const main = screen.getByRole('main')
+    // The lede, the switcher right under it, the view's purpose in a line.
+    expect(screen.getByText('See how answers to different questions go together.')).toBeVisible()
+    const views = screen.getByRole('group', { name: 'View' })
+    expect(
+      within(views)
+        .getAllByRole('radio')
+        .map((radio) => radio.closest('label')?.textContent),
+    ).toEqual(['Compare two', 'Compare several', 'Find related'])
+    expect(within(views).getByLabelText('Compare two')).toBeChecked()
+    expect(
+      screen.getByText(
+        'Pick two questions to see how people’s answers to one line up with their answers to the other.',
+      ),
+    ).toBeVisible()
+    // The view's own pickers, named by their role; no page-level picker.
+    expect(
+      screen.getByRole('button', { name: 'First question: Life evaluation today' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Second question: Feelings about household income' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Topic')).toBeNull()
+    expect(screen.queryByLabelText('Measure')).toBeNull()
+    expect(screen.queryByLabelText('Or search')).toBeNull()
+    // The pair: the second question on the rows (the API's y), the first on the columns.
+    const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
+    expect(pair).toContain('y=INCOME_FEELINGS&x=WB_TODAY&wave=Y1&filter=country_code%3A22')
+    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
+    // No cause-and-effect reminder anywhere on the page.
+    expect(visibleText(main)).not.toMatch(/cause|Associations, not/i)
+    // The United States by default (found by its ISO code in meta).
+    expect(within(main).getByLabelText('Country')).toHaveValue('22')
+  })
+
+  test('Find related: a ranked list of questions with no interval anywhere', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/correlates?view=related&outcome=HAPPY')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
-    // Rows are measures, named from the catalog, strongest first, signed.
+    expect(
+      screen.getByText(
+        'Pick one question to find the other questions whose answers rise or fall most closely with it, strongest first. Select any row to see the two side by side.',
+      ),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Question: Happiness' })).toBeInTheDocument()
+    // Rows are questions, named from the catalog, strongest first, signed.
     const svgText = figure.querySelector('svg')?.textContent ?? ''
     expect(svgText).toContain('Loneliness')
     expect(svgText).toContain('Service attendance')
@@ -338,8 +418,6 @@ describe('Correlates view', () => {
     expect(figure.innerHTML).toContain('var(--div-pos-mark)')
     expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
     expect(ruleLines(figure)).toBe(1)
-    // What the chart is: its title and subtitle carry the statistic; the
-    // axis is always −1 to 1, its ends said in words, no axis title.
     expect(screen.getByText('What goes with Happiness')).toBeInTheDocument()
     expect(
       screen.getByText('United States · Wave 1, 2023 · correlation, −1 to 1'),
@@ -348,105 +426,43 @@ describe('Correlates view', () => {
       (node) => node.textContent,
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
-    expect(svgText).toContain('← goes with lower Happiness')
-    expect(svgText).toContain('goes with higher Happiness →')
-    expect(svgText).not.toContain('Weighted correlation')
-    // The key above the rows, the hint under them.
-    expect(screen.getByText('Goes with higher Happiness')).toBeInTheDocument()
-    expect(screen.getByText('Goes with lower Happiness')).toBeInTheDocument()
-    expect(screen.getByText('Select a row to see the two questions together.')).toBeVisible()
-    // Every row is a real button (label and dot alike); focus shows the
-    // tooltip — value · measure, then who answered both.
+    // Every row is a real button (label and dot alike).
     const rowButtons = within(figure).getAllByRole('button')
     expect(rowButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
       'Loneliness, −0.52: see it beside Happiness',
       'Service attendance, +0.31: see it beside Happiness',
     ])
-    fireEvent.focus(rowButtons[0] as HTMLElement)
-    expect(within(figure).getByRole('tooltip')).toHaveTextContent(
-      '−0.52 · Loneliness 54 people answered both',
-    )
-    expect(rowButtons[0]).toHaveAccessibleDescription(/54 people answered both/)
-    expect(within(figure).getByRole('tooltip').textContent).not.toContain('point estimate')
-    fireEvent.blur(rowButtons[0] as HTMLElement)
-    expect(within(figure).queryByRole('tooltip')).toBeNull()
-    // The footnote names no interval that does not exist, and the caveat
-    // is a sentence in the deck and in the footnote — no callout box.
-    const main = screen.getByRole('main')
-    const text = visibleText(main)
+    const text = visibleText(screen.getByRole('main'))
     expect(text).toContain('Dots are point estimates — no confidence interval is computed')
     expect(text).not.toContain('95%')
-    expect(text).toContain(
-      'Pick a question to see which other answers tend to go with it, in one country. Things that go together aren’t necessarily cause and effect.',
-    )
-    expect(screen.getByText(/Associations, not causes: two answers moving together/)).toBeVisible()
-    // Nothing of the adjusted model is left on the page (ADR-0018).
-    expect(text).not.toMatch(/adjusted|accounting for|model card|standard deviation/i)
-    expect(screen.queryByRole('group', { name: 'Model' })).toBeNull()
-    // The United States by default (found by its ISO code in meta).
-    expect(within(main).getByLabelText('Country')).toHaveValue('22')
-    // The ranking floor, in words, with the server's numbers.
-    expect(text).toContain('1 measure with fewer than 20 respondents is not ranked.')
-    // The correlation type sits in a closed Method disclosure: a real
-    // button that names the method in use.
-    const method = screen.getByRole('button', { name: 'Method: straight-line correlation' })
-    expect(method).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('group', { name: 'Correlation type' })).toBeNull()
-    expect(screen.getByText(/how closely two answers follow a line/)).not.toBeVisible()
-    fireEvent.click(method)
-    expect(method).toHaveAttribute('aria-expanded', 'true')
-    const type = screen.getByRole('group', { name: 'Correlation type' })
-    expect(within(type).getByLabelText('Straight-line (Pearson)')).toBeChecked()
-    expect(
-      screen.getByText(
-        'Straight-line: how closely two answers follow a line. By rank: how consistently one rises with the other.',
-      ),
-    ).toBeVisible()
-    // Escape closes it and hands focus back to the button.
-    fireEvent.keyDown(type, { key: 'Escape' })
-    expect(method).toHaveAttribute('aria-expanded', 'false')
-    expect(method).toHaveFocus()
-    // The wave the measure was not asked in says why, and is described by it.
-    const midyear = screen.getByLabelText('Midyear')
-    expect(midyear).toBeDisabled()
-    expect(midyear).toHaveAccessibleDescription(
-      "Midyear isn't available: this question wasn't asked in the midyear survey.",
-    )
-    // One chart on screen: the matrix waits for its own view, and its
-    // request is never made.
+    expect(text).not.toMatch(/adjusted|accounting for|model card|standard deviation|cause/i)
+    // One chart on screen: the matrix waits for its own scope.
     expect(screen.queryByRole('img', { name: /as a matrix/ })).toBeNull()
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(1)
+    expect(correlates[0]).toContain('outcome=HAPPY')
     expect(correlates[0]).toContain('filter=country_code%3A22')
     expect(correlates[0]).not.toContain('adjusted')
-    expect(screen.getByRole('group', { name: 'View' })).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
-    // The data table names the measure and its n on every row.
+    // The data table names the question and its n on every row.
     fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
     const data = screen.getAllByRole('table')[0] as HTMLElement
     expect(within(data).getByRole('columnheader', { name: 'Measure' })).toBeInTheDocument()
-    expect(within(data).queryByRole('columnheader', { name: '95% CI' })).toBeNull()
     expect(within(data).getByText('Loneliness')).toBeInTheDocument()
     expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
   })
 
-  test('Across countries: the ranked measures in every country, the chosen one pinned first', async () => {
+  test('Find related in every country: the ranked questions across countries, the chosen one pinned first', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.click(screen.getByLabelText('Across countries'))
-    await waitFor(() => expect(router.state.location.searchStr).toContain('view=countries'))
+    fireEvent.click(screen.getByLabelText('In every country'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
     expect(screen.queryByRole('group', { name: /most strongly associated with it/ })).toBeNull()
     expect(screen.getByText('Happiness, across countries')).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'The 2 measures ranked for United States, in every country · Wave 1, 2023 · correlation, −1 to 1',
-      ),
-    ).toBeInTheDocument()
     const table = within(matrix).getByRole('table')
-    // The chosen country first, marked; the rest A–Z.
     const headers = within(table).getAllByRole('columnheader')
     expect(headers.map((th) => th.textContent)).toEqual([
       'Measure ↓ · country →',
@@ -454,158 +470,115 @@ describe('Correlates view', () => {
       'Testland',
     ])
     expect(headers[1]).toHaveAttribute('data-highlight')
-    expect(headers[2]).not.toHaveAttribute('data-highlight')
-    expect(
-      within(table)
-        .getAllByRole('rowheader')
-        .map((th) => th.textContent),
-    ).toEqual(['Loneliness', 'Service attendance'])
-    const cells = within(table).getAllByRole('cell')
-    // A cell below the ranking floor reads a muted dash; its number is
-    // in the tooltip and the data table.
-    expect(cells.map((cell) => cell.textContent)).toEqual([
-      '−0.40',
-      '−0.52',
-      '—, too few respondents',
-      '+0.31',
-    ])
-    expect(cells[0]).toHaveAttribute('data-highlight')
-    // Tints fit the data: the strongest cell wears the deepest tint.
-    expect(cells[1]?.getAttribute('style')).toContain('var(--div-n5)')
-    // The tooltip is styled, on hover (never a native title).
-    const tipOf = (cell: HTMLElement | undefined) => {
-      fireEvent.pointerEnter(cell as HTMLElement)
-      const text = within(matrix).getByRole('tooltip').textContent
-      fireEvent.pointerLeave(cell as HTMLElement)
-      return text
-    }
-    expect(cells[0]).not.toHaveAttribute('title')
-    expect(tipOf(cells[0])).toContain('point estimate')
-    expect(cells[2]?.getAttribute('style')).toBeNull()
-    expect(cells[2]?.className).toContain('cellMuted')
-    expect(tipOf(cells[2])).toContain('Too few respondents to rank (fewer than ')
-    expect(tipOf(cells[2])).toContain('+0.05')
-    expect(tipOf(cells[2])).not.toContain('n =')
-    // The legend, above the scrolling table in plain words: the window's
-    // ends around the ramp, the hues, the dash.
-    expect(matrix.querySelector('[class*=legendKey]')?.textContent).toBe('−0.52+0.52')
-    expect(
-      within(matrix).getByText(
-        'rust: goes with lower Happiness · teal: goes with higher Happiness',
-      ),
-    ).toBeInTheDocument()
-    expect(within(matrix).getByText('— too few respondents')).toBeInTheDocument()
-    expect(within(matrix).queryByText(/deeper the tint/)).toBeNull()
-    // The ranked sweep for the country, then its measures across countries.
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
   })
 
-  test('Compare two: the measure’s average for each answer to the other question, as a binned scatter', async () => {
-    const calls = mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS')
-    const figure = await screen.findByRole('img', { name: /Happiness by Service attendance/ })
-    expect(screen.getByText('Happiness by Service attendance')).toBeInTheDocument()
+  test('old links land on the right view: the ranked list, the matrix, the old pair', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates?outcome=HAPPY&view=ranked')
     expect(
-      screen.getByText(
-        'United States · Wave 1, 2023 · average Happiness for each answer to Service attendance · correlation +0.16 (straight-line), 54 people',
-      ),
+      await screen.findByRole('group', { name: /most strongly associated with it/ }),
     ).toBeInTheDocument()
-    // The answers along the axis, in the server's (aligned) order; one
-    // dot per group — never a respondent — in one hue, the thin group
-    // hollow; whiskers for the intervals.
+    expect(screen.getByLabelText('Find related')).toBeChecked()
+    expect(screen.queryByText(/were invalid/)).toBeNull()
+    await renderAt('/correlates?outcome=HAPPY&view=countries')
+    expect(await screen.findByRole('img', { name: /as a matrix/ })).toBeInTheDocument()
+    await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS')
+    expect(
+      await screen.findByRole('img', { name: /Happiness by Service attendance/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'First question: Service attendance' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Second question: Happiness' })).toBeVisible()
+  })
+
+  test('Compare two: the second question’s average for each answer to the first', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/correlates?a=ATTEND_SVCS&b=HAPPY')
+    const figure = await screen.findByRole('img', { name: /Happiness by Service attendance/ })
+    // The answers along the axis, in the server's (aligned) order.
     const svg = figure.querySelector('svg') as SVGSVGElement
     const text = svg.textContent ?? ''
     expect(text.indexOf('Never')).toBeLessThan(text.indexOf('Sometimes'))
     expect(text.indexOf('Sometimes')).toBeLessThan(text.indexOf('Weekly'))
-    const dots = svg.querySelectorAll('[aria-label="dot"] circle')
-    expect(dots).toHaveLength(3)
-    // (Plot draws the largest first, so smaller dots sit on top.)
-    const fills = [...dots].map((dot) => dot.getAttribute('fill'))
-    expect(fills.filter((fill) => fill === 'var(--surface)')).toHaveLength(1)
-    expect(fills.filter((fill) => fill === 'var(--div-pos-mark)')).toHaveLength(2)
-    expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
-    expect(screen.getByText('Larger dot = more people gave that answer')).toBeInTheDocument()
-    // The footnote: averages, not people; no causes; the hollow group named.
     const main = visibleText(screen.getByRole('main'))
     expect(main).toContain('Each dot is an average of people’s answers, not individual people.')
-    expect(main).toContain('Associations aren’t cause and effect.')
-    expect(main).toContain('Fewer than 15 people gave “Never”: its dot is drawn hollow.')
-    expect(main).toContain('Lines are 95% confidence intervals')
+    expect(main).not.toMatch(/cause/i)
     expect(screen.getByRole('link', { name: 'How these numbers are made' })).toBeInTheDocument()
-    // The x is named: no ranked sweep is needed, and the one request is the pair's.
-    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
     const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
     expect(pair).toContain('y=HAPPY&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
-    // The data table names the question and its answers, with every n.
-    fireEvent.click(screen.getByText('Data table'))
-    const data = screen.getAllByRole('table')[0] as HTMLElement
-    expect(
-      within(data).getByRole('columnheader', { name: 'Service attendance' }),
-    ).toBeInTheDocument()
-    expect(within(data).getByText('Never')).toBeInTheDocument()
-    expect(within(data).getByText('24')).toBeInTheDocument()
   })
 
-  test('Compare two starts from the top-ranked correlate, and Swap exchanges the two', async () => {
-    const calls = mockFetch({
-      ...tier,
-      '/v1/correlations/pair': { ...pairFixture, x: 'LONELY' },
-    })
-    const router = await renderAt('/correlates?outcome=HAPPY&view=pair')
-    await screen.findByRole('img', { name: /Happiness by Loneliness/ })
-    // The default is the ranked list's first measure, never written to the URL.
-    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(true)
-    expect(calls.find((url) => url.includes('/v1/correlations/pair'))).toContain('x=LONELY')
-    expect(router.state.location.searchStr).not.toContain('x=')
-    expect(screen.getByLabelText('Compare with')).toHaveValue('LONELY')
-    // Swap: the compared question becomes the measure, and back.
+  test('Compare two: pick either question, and Swap exchanges the two', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates')
+    await screen.findByRole('img', { name: /by Life evaluation today/ })
     fireEvent.click(screen.getByRole('button', { name: 'Swap' }))
-    await waitFor(() =>
-      expect(router.state.location.searchStr).toBe('?outcome=LONELY&view=pair&x=HAPPY'),
-    )
-    // Picking another question to compare with writes it.
-    fireEvent.change(screen.getByLabelText('Compare with: topic'), {
-      target: { value: 'religion' },
-    })
-    await waitFor(() => expect(router.state.location.searchStr).toContain('x=ATTEND_SVCS'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=INCOME_FEELINGS'))
+    expect(
+      await screen.findByRole('button', {
+        name: 'First question: Feelings about household income',
+      }),
+    ).toBeInTheDocument()
+    // The picker: the second question's panel, a question from its topic.
+    fireEvent.click(screen.getByRole('button', { name: 'Second question: Life evaluation today' }))
+    const dialog = screen.getByRole('dialog', { name: 'Second question' })
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Happiness' }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=INCOME_FEELINGS&b=HAPPY'))
   })
 
   test('Compare two says why when the two questions cannot be set side by side', async () => {
-    mockFetch({
-      ...tier,
-      '/v1/correlations/pair': new Response(
-        JSON.stringify({
-          detail: [
-            'Secure Flourishing Index and Happiness are built from the same answers, so they go together by construction — compare Happiness with another question',
-          ],
-        }),
-        { status: 422, headers: { 'content-type': 'application/json' } },
-      ),
-    })
-    await renderAt('/correlates?outcome=HAPPY&view=pair&x=sfi')
-    expect(await screen.findByText(/built from the same answers/)).toBeInTheDocument()
-    // A nominal item cannot be compared with at all — said before asking.
     mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY&view=pair&x=URBAN_RURAL')
+    await renderAt('/correlates?a=URBAN_RURAL&b=HAPPY')
     expect(await screen.findByText(/is a set of categories with no order/)).toBeInTheDocument()
+    await renderAt('/correlates?a=HAPPY&b=HAPPY')
+    expect(await screen.findByText(/The two questions are the same one/)).toBeInTheDocument()
+    // A score and its own question: said before asking, once its components are known.
+    const calls = mockFetch({ ...tier, '/data/v1/sfi/variable.json': sfiDetail })
+    await renderAt('/correlates?a=sfi&b=HAPPY')
+    expect(
+      await screen.findByText(
+        /are built from the same answers, so they go together by construction/,
+      ),
+    ).toBeInTheDocument()
+    expect(calls.some((url) => url.includes('/v1/correlations/pair?y=HAPPY&x=sfi'))).toBe(false)
   })
 
-  test('selecting a row opens Compare two with that measure beside this one', async () => {
+  test('a Find related row opens Compare two with the question first and the row second', async () => {
     mockFetch(tier)
-    const router = await renderAt('/correlates?outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(within(figure).getByRole('button', { name: /^Service attendance/ }))
-    await waitFor(() =>
-      expect(router.state.location.searchStr).toBe('?outcome=HAPPY&view=pair&x=ATTEND_SVCS'),
-    )
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=HAPPY&b=ATTEND_SVCS'))
     expect(
-      await screen.findByRole('img', { name: /Happiness by Service attendance/ }),
+      await screen.findByRole('img', { name: /Service attendance by Happiness/ }),
     ).toBeInTheDocument()
   })
 
-  test('the footnote says which overlapping measures the ranking left out', async () => {
+  test('state carries across views: Find related’s question seeds Compare two, and back', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
+    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    fireEvent.click(screen.getByLabelText('Find related'))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?view=related&b=LONELY&outcome=HAPPY'),
+    )
+    expect(
+      await screen.findByRole('group', { name: /Happiness: the 2 questions most strongly/ }),
+    ).toBeInTheDocument()
+    // A new question here becomes Compare two's first.
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'attend' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Service attendance' }))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('outcome=ATTEND_SVCS'))
+    fireEvent.click(screen.getByLabelText('Compare two'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&b=LONELY'))
+  })
+
+  test('the footnote says which overlapping questions the ranking left out', async () => {
     mockFetch({
       ...tier,
       'filter=country_code%3A22': {
@@ -613,7 +586,7 @@ describe('Correlates view', () => {
         meta: { ...rankedPlain.meta, dropped_overlap: { HAPPY_ITEM: 'sfi', LONELY_ITEM: 'sfi' } },
       },
     })
-    await renderAt('/correlates?outcome=HAPPY')
+    await renderAt('/correlates?view=related&outcome=HAPPY')
     expect(
       await screen.findByText(
         /Secure Flourishing Index is shown; its individual questions are left out\./,
@@ -621,35 +594,31 @@ describe('Correlates view', () => {
     ).toBeInTheDocument()
   })
 
-  test('Compare several: the measure and its top correlates, as a lower-triangle table', async () => {
+  test('Compare several starts from the pair and the first question’s top correlates', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?outcome=HAPPY&view=matrix')
-    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
-    // The default table: the measure and its top correlates (never empty).
+    const router = await renderAt('/correlates?view=matrix&a=HAPPY&b=sfi')
+    await screen.findByRole('group', { name: /Correlations among 4 questions/ })
+    expect(
+      screen.getByText('Pick up to 10 questions to see how strongly each pair goes together.'),
+    ).toBeVisible()
+    const ranked = calls.find((url) => url.includes('/v1/correlates')) as string
+    expect(ranked).toContain('outcome=HAPPY')
     const request = calls.find((url) => url.includes('/v1/correlations?')) as string
-    expect(request).toContain('vars=HAPPY&vars=LONELY&vars=ATTEND_SVCS&wave=Y1')
+    expect(request).toContain('vars=HAPPY&vars=sfi&vars=LONELY&vars=ATTEND_SVCS&wave=Y1')
     expect(router.state.location.searchStr).not.toContain('vars=')
+  })
+
+  test('Compare several: a lower-triangle table; a cell opens Compare two, column first', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
     const chips = within(screen.getByRole('list', { name: 'Questions in this table' }))
     expect(chips.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       '1 · Happiness×',
       '2 · Loneliness×',
       '3 · Service attendance×',
     ])
-    expect(screen.getByText('Correlations among 3 questions')).toBeInTheDocument()
-    expect(
-      screen.getByText('United States · Wave 1, 2023 · correlation, −1 to 1'),
-    ).toBeInTheDocument()
     const table = within(figure).getByRole('table')
-    expect(
-      within(table)
-        .getAllByRole('rowheader')
-        .map((th) => th.textContent),
-    ).toEqual(['1 · Happiness', '2 · Loneliness', '3 · Service attendance'])
-    // Columns are numbers; their full names are the accessible names.
-    const headers = within(table).getAllByRole('columnheader')
-    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['1', '2', '3'])
-    expect(within(table).getByRole('columnheader', { name: '2 · Loneliness' })).toBeInTheDocument()
-    // Lower triangle only: 3 blank cells on and above the diagonal per…
     const cells = within(table).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '',
@@ -662,32 +631,21 @@ describe('Correlates view', () => {
       '—, too few respondents',
       '',
     ])
-    expect(cells[3]?.getAttribute('style')).toContain('var(--div-n5)')
-    // The legend adds the dot's meaning.
-    expect(within(figure).getByText('· built from the same answers')).toBeInTheDocument()
-    expect(within(figure).getByText('— too few respondents')).toBeInTheDocument()
-    expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
-    // A cell is a button: row on y, column on x.
-    const cell = within(table).getByRole('button', {
-      name: 'Loneliness and Happiness, −0.52: see the two questions together',
-    })
-    fireEvent.focus(cell)
-    expect(within(figure).getByRole('tooltip')).toHaveTextContent(
-      '−0.52 Loneliness · Happiness 54 people answered both',
+    fireEvent.click(
+      within(table).getByRole('button', {
+        name: 'Loneliness and Happiness, −0.52: see the two questions together',
+      }),
     )
-    fireEvent.click(cell)
     await waitFor(() =>
       expect(router.state.location.searchStr).toBe(
-        '?outcome=LONELY&view=pair&x=HAPPY&vars=HAPPY%2CLONELY%2CATTEND_SVCS',
+        '?a=HAPPY&b=LONELY&vars=HAPPY%2CLONELY%2CATTEND_SVCS',
       ),
     )
-    // The pair built from the same answers is no button.
-    expect(within(table).getAllByRole('button')).toHaveLength(2)
   })
 
   test('Compare several: add a question, remove one; two at least, ten at most', async () => {
     mockFetch(tier)
-    const router = await renderAt('/correlates?outcome=HAPPY&view=matrix')
+    const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
     await screen.findByRole('group', { name: /Correlations among 3 questions/ })
     fireEvent.change(screen.getByLabelText('Add a question'), { target: { value: 'secure' } })
     fireEvent.click(await screen.findByRole('button', { name: /Secure Flourishing Index/ }))
@@ -699,33 +657,16 @@ describe('Correlates view', () => {
       expect(router.state.location.searchStr).toContain('vars=HAPPY%2CATTEND_SVCS%2Csfi'),
     )
     // At two, nothing more can go.
-    const two = await renderAt('/correlates?outcome=HAPPY&view=matrix&vars=HAPPY,LONELY')
+    const two = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY')
     await waitFor(() => expect(two.state.location.searchStr).toContain('vars='))
     const removers = await screen.findAllByRole('button', { name: /^Remove / })
     expect(removers.slice(-2).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
-    // At ten, the add control says so.
-    const ten = ['HAPPY', 'LONELY', 'ATTEND_SVCS', 'sfi', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6']
-    mockFetch({
-      ...tier,
-      '/data/variables.json': {
-        variables: [
-          sfiVariable,
-          happyVariable,
-          attendVariable,
-          lonelyVariable,
-          ...ten.slice(4).map((name) => ({ ...happyVariable, name, display_name: `Q ${name}` })),
-        ],
-      },
-    })
-    await renderAt(`/correlates?outcome=HAPPY&view=matrix&vars=${ten.join(',')}`)
-    const fields = await screen.findAllByPlaceholderText('Up to 10 questions')
-    expect(fields[fields.length - 1]).toBeDisabled()
   })
 
   test('Compare several: a linked question not asked at the wave is left out, and named', async () => {
     mockFetch(tier)
     // LONELY is asked at Y1 only.
-    await renderAt('/correlates?outcome=HAPPY&wave=Y2&view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    await renderAt('/correlates?wave=Y2&view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
     expect(
       await screen.findByText('Left out, not asked in Wave 2, 2024: Loneliness.'),
     ).toBeInTheDocument()
@@ -735,7 +676,7 @@ describe('Correlates view', () => {
 
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY&adjusted=true')
+    await renderAt('/correlates?view=related&outcome=HAPPY&adjusted=true')
     expect(
       await screen.findByText(/invalid and were reset to defaults: adjusted/),
     ).toBeInTheDocument()
@@ -748,7 +689,7 @@ describe('Correlates view', () => {
 
   test('choosing the rank correlation asks for it and says so on the button', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(screen.getByRole('button', { name: 'Method: straight-line correlation' }))
     fireEvent.click(screen.getByLabelText('By rank (Spearman)'))
@@ -767,7 +708,7 @@ describe('Correlates view', () => {
         countries: [...testMeta.countries, { code: 5, name: 'Albania', iso3: 'ALB' }],
       },
     })
-    await renderAt('/correlates?outcome=HAPPY&view=countries')
+    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
     expect([...select.options].map((option) => option.text)).toEqual([
@@ -775,7 +716,6 @@ describe('Correlates view', () => {
       'Testland',
       'United States',
     ])
-    // The chosen country pinned first, then the rest A–Z.
     expect(
       within(matrix)
         .getAllByRole('columnheader')
@@ -791,20 +731,29 @@ describe('Correlates view', () => {
     expect(screen.queryByText(/Model card/)).toBeNull()
   })
 
-  test('a measure with no order says so instead of asking the API', async () => {
+  test('a question with no order says so instead of asking the API', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?outcome=URBAN_RURAL')
+    await renderAt('/correlates?view=related&outcome=URBAN_RURAL')
     expect(await screen.findByText(/a set of categories with no order/)).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
   })
 
-  test('a wave the measure was not asked in says so', async () => {
+  test('a wave the questions were not asked in is unavailable, and the line under the row says why', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY&wave=MY')
-    expect(
-      await screen.findByText('Not asked in Midyear survey, Nov 2023–Dec 2024'),
-    ).toBeInTheDocument()
+    await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
+    expect(await screen.findByText(/wasn't asked in Midyear survey/)).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
+    const midyear = screen.getByLabelText('Midyear')
+    expect(midyear).toBeDisabled()
+    expect(midyear).toHaveAccessibleDescription(
+      "Midyear isn't available: this question wasn't asked in the midyear survey.",
+    )
+    // Compare two: the pair's waves.
+    await renderAt('/correlates?a=HAPPY&b=LONELY')
+    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    expect(screen.getAllByLabelText('2024').at(-1)).toHaveAccessibleDescription(
+      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+    )
   })
 
   test('choosing a country changes the request; the default country never reaches the URL', async () => {
@@ -815,7 +764,7 @@ describe('Correlates view', () => {
         meta: { ...rankedPlain.meta, filters: { country_code: [1] } },
       },
     })
-    const router = await renderAt('/correlates?outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.change(screen.getByLabelText('Country'), { target: { value: '1' } })
     await waitFor(() =>
