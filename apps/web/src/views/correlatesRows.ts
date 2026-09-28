@@ -2,18 +2,11 @@
 // Nothing here computes a statistic — the rows arrive ranked and
 // estimated; this file only names, keys and scales them for display.
 
-import type {
-  Country,
-  EstimateRow,
-  Meta,
-  ResponseMeta,
-  VariableDetail,
-  VariableSummary,
-} from '../api/types'
+import type { Country, EstimateRow, Meta, VariableDetail, VariableSummary } from '../api/types'
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
 import { shareLabel } from '../charts/CrossTab'
-import { formatCount, formatEstimate } from '../format'
+import { formatEstimate } from '../format'
 import { endpointsClause, shortName } from '../labels'
 import { WAVE_CHIPS, WAVE_NAMES, WAVE_TITLES } from '../waves'
 
@@ -87,25 +80,16 @@ export function legendEnds(extent: number, stat: string): [string, string] {
   return [formatEstimate(-extent, stat), formatEstimate(extent, stat)]
 }
 
-/** The Across countries subtitle: which measures, where, when, what. */
+/** Find related's subtitle in every country: which questions, where,
+ * when, what. */
 export function acrossSubtitle(
   count: number,
   countryName: string,
   wave: string,
   method?: CorrelationMethod,
 ): string {
-  const measures = count === 1 ? 'The 1 measure' : `The ${count} measures`
-  return `${measures} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
-}
-
-/** The ranked sweep's floor, in words, when it left measures out. */
-export function excludedNote(meta: Pick<ResponseMeta, 'min_n' | 'n_excluded'>): string | undefined {
-  const excluded = meta.n_excluded ?? 0
-  if (excluded === 0 || meta.min_n === null || meta.min_n === undefined) return undefined
-  const floor = formatCount(meta.min_n)
-  return excluded === 1
-    ? `1 measure with fewer than ${floor} respondents is not ranked.`
-    : `${formatCount(excluded)} measures with fewer than ${floor} respondents are not ranked.`
+  const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
+  return `${questions} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
 /** Whether a correlation rests on fewer people than the ranking floor
@@ -184,9 +168,9 @@ export const CORRELATION_SCALE = {
   narrowTicks: [-1, 0, 1],
 }
 
-/** The words under the axis's two ends. */
+/** The words under the axis's two ends (Find related). */
 export function axisEnds(short: string): [string, string] {
-  return [`← goes with lower ${short}`, `goes with higher ${short} →`]
+  return [`← goes with a lower ${short}`, `goes with a higher ${short} →`]
 }
 
 /** A ranked row's tooltip: the signed value and the question — never

@@ -42,7 +42,6 @@ import {
   countriesByName,
   fewPeople,
   defaultCountry,
-  excludedNote,
   heatCells,
   acrossSubtitle,
   legendEnds,
@@ -497,6 +496,11 @@ describe('Correlates view', () => {
       (node) => node.textContent,
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
+    // The key and the axis ends say "a higher/lower" question.
+    expect(screen.getByText('Goes with a higher Happiness')).toBeInTheDocument()
+    expect(screen.getByText('Goes with a lower Happiness')).toBeInTheDocument()
+    expect(svgText).toContain('← goes with a lower Happiness')
+    expect(svgText).toContain('goes with a higher Happiness →')
     // Every row is a real button (label and dot alike); its tooltip is
     // the value and the question — never the n.
     const rowButtons = within(figure).getAllByRole('button')
@@ -509,6 +513,8 @@ describe('Correlates view', () => {
     fireEvent.blur(rowButtons[0] as HTMLElement)
     const text = visibleText(screen.getByRole('main'))
     expect(text).toContain('Dots are point estimates — no confidence interval is computed')
+    // The footnote carries the overlap sentence only: not how many went unranked.
+    expect(text).not.toMatch(/not ranked|respondents are/)
     expect(text).not.toContain('95%')
     expect(text).not.toMatch(/adjusted|accounting for|model card|standard deviation|cause/i)
     // One chart on screen: the matrix waits for its own scope.
@@ -536,11 +542,11 @@ describe('Correlates view', () => {
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
     expect(screen.queryByRole('group', { name: /most strongly associated with it/ })).toBeNull()
-    expect(screen.getByText('Happiness, across countries')).toBeInTheDocument()
+    expect(screen.getByText('What goes with Happiness, in every country')).toBeInTheDocument()
     const table = within(matrix).getByRole('table')
     const headers = within(table).getAllByRole('columnheader')
     expect(headers.map((th) => th.textContent)).toEqual([
-      'Measure ↓ · country →',
+      'Question ↓ · country →',
       'United States',
       'Testland',
     ])
@@ -569,6 +575,26 @@ describe('Correlates view', () => {
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
+  })
+
+  test('a cell with no estimate is a plain dash that says so — never an asterisk', async () => {
+    const empty = { ...plainRow('ATTEND_SVCS', 0.05, 22, 0), estimate: null }
+    mockFetch({
+      ...tier,
+      '&by=country_code': {
+        ...acrossPlain,
+        rows: [...acrossPlain.rows.slice(0, 3), empty],
+      },
+    })
+    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
+    const matrix = await screen.findByRole('img', { name: /as a matrix/ })
+    const cell = within(matrix).getAllByRole('cell')[2] as HTMLElement
+    expect(cell).toHaveTextContent('—, no estimate')
+    expect(cell).not.toHaveAttribute('data-flagged')
+    fireEvent.pointerEnter(cell)
+    expect(within(matrix).getByRole('tooltip')).toHaveTextContent(
+      'No estimate: too few people answered both.',
+    )
   })
 
   test('old links land on the right view: the ranked list, the matrix, the old pair', async () => {
@@ -1123,9 +1149,9 @@ describe('correlates helpers', () => {
     expect(tintExtent([])).toBe(1)
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
-      'The 20 measures ranked for Japan, in every country · Wave 2, 2024 · correlation, −1 to 1',
+      'The 20 questions ranked for Japan, in every country · Wave 2, 2024 · correlation, −1 to 1',
     )
-    expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 measure ranked for Japan')
+    expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 question ranked for Japan')
     const countries = [
       { code: 22, name: 'United States', iso3: 'USA' },
       { code: 30, name: 'China', iso3: 'CHN' },
@@ -1147,15 +1173,7 @@ describe('correlates helpers', () => {
     expect(shortName({ ...happyVariable, short_label: ' ' })).toBe('Happiness')
   })
 
-  test('the ranking floor: the footnote counts, cells below it are known', () => {
-    expect(excludedNote({ min_n: 100, n_excluded: 3 })).toBe(
-      '3 measures with fewer than 100 respondents are not ranked.',
-    )
-    expect(excludedNote({ min_n: 100, n_excluded: 1 })).toBe(
-      '1 measure with fewer than 100 respondents is not ranked.',
-    )
-    expect(excludedNote({ min_n: 100, n_excluded: 0 })).toBeUndefined()
-    expect(excludedNote({ min_n: null, n_excluded: null })).toBeUndefined()
+  test('the ranking floor: cells below it are known', () => {
     expect(belowFloor({ n: 7 }, 100)).toBe(true)
     expect(belowFloor({ n: 100 }, 100)).toBe(false)
     expect(belowFloor({ n: 7 }, null)).toBe(false)
@@ -1175,8 +1193,8 @@ describe('correlates helpers', () => {
       'Japan · Wave 2, 2024 · correlation, −1 to 1',
     )
     expect(axisEnds('Happiness')).toEqual([
-      '← goes with lower Happiness',
-      'goes with higher Happiness →',
+      '← goes with a lower Happiness',
+      'goes with a higher Happiness →',
     ])
     // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
     // correlation few people are behind says so in a sentence.

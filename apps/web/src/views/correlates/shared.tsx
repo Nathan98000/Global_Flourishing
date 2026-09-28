@@ -136,7 +136,7 @@ export function DivergingLegend({
 }: {
   extent: number
   stat: string
-  /** The measure the hues are read against ("goes with higher …"). */
+  /** The question the hues are read against ("goes with a higher …"). */
   short?: string
   /** The hues in words when there is no one measure; null: none. */
   hues?: string | null
@@ -150,7 +150,7 @@ export function DivergingLegend({
   const [lo, hi] = ends ?? legendEnds(extent, stat)
   const words =
     hues === undefined
-      ? `rust: goes with lower ${short ?? ''} · teal: goes with higher ${short ?? ''}`
+      ? `rust: goes with a lower ${short ?? ''} · teal: goes with a higher ${short ?? ''}`
       : hues
   return (
     <span className={`${styles.legend} ${styles.legendRow}`}>

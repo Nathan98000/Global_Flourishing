@@ -34,10 +34,11 @@ import {
   CORRELATION_SCALE,
   FEW_PEOPLE,
   FEW_PEOPLE_HIDDEN,
+  NO_ESTIMATE,
   acrossSubtitle,
   axisEnds,
   belowFloor,
-  excludedNote,
+  fewPeople,
   heatCells,
   heatKey,
   overlapNote,
@@ -115,7 +116,6 @@ export function FindRelated({
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
   } The data table below carries every number.`
-  const excluded = rankedResponse ? excludedNote(rankedResponse.meta) : undefined
 
   const problem =
     variable === undefined || !variable.servable
@@ -197,7 +197,7 @@ export function FindRelated({
                         style={{ background: signMark(1) }}
                         aria-hidden="true"
                       />
-                      Goes with higher {short}
+                      Goes with a higher {short}
                     </span>
                     <span>
                       <span
@@ -205,7 +205,7 @@ export function FindRelated({
                         style={{ background: signMark(-1) }}
                         aria-hidden="true"
                       />
-                      Goes with lower {short}
+                      Goes with a lower {short}
                     </span>
                   </p>
                 </>
@@ -216,12 +216,7 @@ export function FindRelated({
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
               predictorLabel={nameOf}
-              footnote={
-                <>
-                  {excluded ? `${excluded} ` : ''}
-                  {overlap ? `${overlap} ` : ''}
-                </>
-              }
+              footnote={overlap ? `${overlap} ` : undefined}
             >
               <RankedBar
                 rows={rankedRows}
@@ -238,9 +233,9 @@ export function FindRelated({
                 fitLabels
                 stackOnNarrow
                 tipOf={(row, label) =>
-                  rankedTip(row, label, belowFloor(row, rankedResponse.meta.min_n))
+                  rankedTip(row, label, fewPeople(row, rankedResponse.meta.min_n))
                 }
-                flagOf={(row) => belowFloor(row, rankedResponse.meta.min_n)}
+                flagOf={(row) => fewPeople(row, rankedResponse.meta.min_n)}
                 onSelectRow={openPair}
                 rowName={rowName}
               />
@@ -260,9 +255,9 @@ export function FindRelated({
           <Failure error={across.error} apiReachable={apiReachable} />
         ) : acrossResponse ? (
           <ChartFigure
-            title={`${title}, across countries`}
+            title={`What goes with ${title}, in every country`}
             subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
-            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with lower ${short}, teal cells with higher; the data table below carries every number.`}
+            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
             meta={served}
@@ -270,6 +265,7 @@ export function FindRelated({
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
             predictorLabel={nameOf}
+            footnote={overlap ? `${overlap} ` : undefined}
             wide
           >
             <CountryMatrix
@@ -318,7 +314,7 @@ function CountryMatrix({
   return (
     <HeatTable
       caption={<DivergingLegend extent={extent} stat={stat} short={short} />}
-      corner="Measure ↓ · country →"
+      corner="Question ↓ · country →"
       rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
       columns={countries.map((country) => ({
         key: String(country.code),
@@ -330,6 +326,15 @@ function CountryMatrix({
         const country = countries.find((entry) => String(entry.code) === column.key)
         const cell = country ? cells.get(heatKey(row.key, country)) : undefined
         if (!cell) return undefined
+        if (cell.estimate === null) {
+          return {
+            text: '—',
+            title: `${row.label} · ${column.label}\n${NO_ESTIMATE}`,
+            tint: 'transparent',
+            muted: true,
+            hidden: ', no estimate',
+          }
+        }
         const flagged = belowFloor(cell, minN)
         const value = formatEstimate(cell.estimate, cell.stat)
         const tip = `${value}  ${row.label} · ${column.label}\n${intervalText(cell)}`
