@@ -16,13 +16,13 @@ within-person change with its interval and a marked zero, the histogram
 of individual change, and where people moved between answers),
 **What Matters** (the midyear survey: what people said mattered most by
 country and by age),
-**Correlates** (what goes with a measure, one view at a time: the
-strongest correlations in one country on a fixed −1 to 1 axis, the same
-measures across every country as a tinted matrix, two questions side by
-side — the measure's average for each answer to the other — and a
-correlation table of your own; weighted correlations shown as point
-estimates, a construct counted once; associations, not causes, said on
-the page — the engine's adjusted models are off the site, ADR-0018), **US States** (a state choropleth on the
+**Correlates** (how answers to different questions go together, by
+task: two questions side by side as a column-percent heat grid, a
+correlation table of your own, and what goes with one question — in one
+country on a fixed −1 to 1 axis, or in every country; weighted estimates,
+a construct counted once, an asterisk where few people are behind a
+number — ADR-0019; the engine's adjusted models are off the site,
+ADR-0018), **US States** (a state choropleth on the
 state-calibrated weights beside the national figure), Segments (small
 multiples by country × demographic), a searchable Codebook with exact
 question wording, and a Methods page rendered from

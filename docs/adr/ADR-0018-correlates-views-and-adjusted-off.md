@@ -1,6 +1,8 @@
 # ADR-0018: Correlates in four views; overlap left out of the ranking; two pair endpoints; the adjusted models off the page and off by default
 
-**Status:** Accepted · **Date:** 2026-09-25 · **Phase:** 7
+**Status:** Accepted; §1 (the views), §4's chart and response, §5's
+table display and §6's tooltips-with-n and muted dashes superseded by
+ADR-0019 · **Date:** 2026-09-25 · **Phase:** 7
 
 Related: ADR-0010 (rendering stack, fitted windows), ADR-0011 (every cell
 shown), ADR-0014 (adjusted associations, model cards), ADR-0015 (signs

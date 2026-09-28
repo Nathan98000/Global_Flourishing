@@ -253,9 +253,8 @@ in that country (`FA_CORRELATES_MIN_N`; the constant lives with the
 other correlates rules in the engine). This is a deliberate exception to
 the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
-matrix shows each as a muted dash, with its number and the reason in its
-tooltip and the data table — and the footnote says how many measures were
-left out.
+matrix shows each with its value and an asterisk (see "Few people behind
+an estimate" below).
 
 **One construct, once.** A score and the questions it is built from are
 associated by construction, so a ranked list never holds two measures
@@ -267,28 +266,45 @@ so it always holds as many measures as it shows, and the footnote names
 what stood in for what. Only measures that made the list compete: a score
 ranked below the cut never displaces its own question.
 
-**Two questions side by side** (Compare two). For the measure (y) and one
-other question (x) in one country, the view shows their weighted
-correlation and, for each answer to x, the weighted average of y among
-the people who gave it — the same estimator, weight and design-based
-interval as every average in the app — with each dot sized by the share
-of people who gave that answer. A question with more than eleven answers
-(a count such as age, or a score that is an average of answers) is cut
-into equal-width ranges between its weighted 1st and 99th percentiles —
-ten ranges for a score, whole-number ranges for a count — the two end
-ranges taking in the few people beyond them, and their labels say so. The
-answers run from least to most of what x's label names, so a positive
-correlation slopes up; for a measure whose lowest code is the most of
-what it names, the vertical axis runs downward in codes so that up is
-still "more". An answer given by fewer than 100 people (`FA_CORRELATES_MIN_N`)
-is drawn hollow and named. Each dot is an average of many people's
-answers; no individual's answers are ever shown.
+**Two questions side by side** (Compare two). For two questions in one
+country, the view shows a weighted cross-tab of their answers: each
+column is one answer to the first question, and each cell is the
+weighted share of that column's people who gave the row's answer to the
+second — so every column adds to 100%, and a trend reads as a diagonal
+band even where few people answered. These are the same proportions,
+weights and design-based intervals as every share in the app (a
+proportion of the second question within each answer to the first).
+Bars above the grid show the weighted share of the people who answered
+both who gave each answer to the first question, and the header gives the
+two questions' weighted correlation. A question with more than eleven
+answers (a count such as age, or a score that is an average of answers)
+is cut, on either axis, into equal-width ranges between its weighted 1st
+and 99th percentiles — ten ranges for a score, whole-number ranges for a
+count — the two end ranges taking in the few people beyond them, and
+their labels say so. Both axes run from least to most of what the
+question's label names, the most of the second question at the top. The
+tints use fixed steps (0, 5, 10, 20, 30, 45 and 60% or more), so a shade
+means the same share in every pair. Only shares of people are shown; no
+individual's answers ever are. "In every country" shows the pair's
+correlation in each country instead.
 
 **A table of several** (Compare several) sets 2 to 10 questions against
 each other in one country: every pair's weighted correlation, as the
-ranked list would compute it, on the people who answered both. A pair
-built from the same answers is marked and not computed; a pair resting on
-fewer than 100 people reads a dash.
+ranked list would compute it, on the people who answered both, tinted on
+a fixed −1 to 1. A pair built from the same answers is marked and not
+computed. "Similar together" orders the questions so those that go
+together sit side by side: average-linkage hierarchical clustering on
+the distance 1 − |r| (a pair built from the same answers counts as
+distance 0, a pair with no estimate as 1), ties broken toward the order
+the questions were added.
+
+**Few people behind an estimate.** Every estimate is shown; one that
+rests on few people wears an asterisk and a dashed outline, and its
+tooltip says it is less reliable. In Compare two a cell is flagged when
+fewer than 30 people gave that pair of answers or its column holds fewer
+than 100 (`FA_PAIR_CELL_FLAG_BELOW`, `FA_PAIR_COLUMN_FLAG_BELOW`); a
+correlation — a matrix cell, a ranked row — when fewer than 100 people
+answered both (`FA_CORRELATES_MIN_N`).
 
 ## Adjusted and unadjusted associations
 
@@ -353,9 +369,7 @@ weekly report higher meaning" is a statement about who reports what, in
 one survey, at one time — attendance, meaning, and a hundred unmeasured
 things travel together. Adjusted associations control for a fixed set of
 demographics, which narrows, but does not close, that gap (see the
-section above). The app says "associated with", and means exactly that —
-in the deck of the Correlates view and in the footnote of every figure
-on it.
+section above). The app says "associated with", and means exactly that.
 
 ## How the API applies all of this
 
