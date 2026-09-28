@@ -20,7 +20,7 @@ import { QuestionPicker } from '../../components/controls/QuestionPicker'
 import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
-import { formatCount, formatEstimate } from '../../format'
+import { formatEstimate } from '../../format'
 import { shortName } from '../../labels'
 import {
   correlatesAcrossCountries,
@@ -32,6 +32,8 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
   CORRELATION_SCALE,
+  FEW_PEOPLE,
+  FEW_PEOPLE_HIDDEN,
   acrossSubtitle,
   axisEnds,
   belowFloor,
@@ -42,6 +44,7 @@ import {
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
+  starred,
   statisticPhrase,
   tintExtent,
 } from '../correlatesRows'
@@ -234,7 +237,10 @@ export function FindRelated({
                 axisEnds={axisEnds(short)}
                 fitLabels
                 stackOnNarrow
-                tipOf={rankedTip}
+                tipOf={(row, label) =>
+                  rankedTip(row, label, belowFloor(row, rankedResponse.meta.min_n))
+                }
+                flagOf={(row) => belowFloor(row, rankedResponse.meta.min_n)}
                 onSelectRow={openPair}
                 rowName={rowName}
               />
@@ -296,7 +302,7 @@ function CountryMatrix({
   predictors: readonly string[]
   rows: readonly EstimateRow[]
   cells: Map<string, EstimateRow>
-  /** The server's ranking floor: cells below it read a muted "—". */
+  /** The server's ranking floor: a cell below it wears an asterisk. */
   minN: number | null | undefined
   nameOf: (name: string) => string
   /** The columns: the chosen country, then the rest A–Z. */
@@ -304,8 +310,8 @@ function CountryMatrix({
   chosen: number | undefined
   short: string
 }) {
-  // The tint window fits the cells that count; a cell below the floor
-  // reads a muted dash, its number in the tooltip and the data table.
+  // The tint window fits the cells at or above the floor; a cell below
+  // it is shown all the same, tinted, with its asterisk.
   const ranked = rows.filter((row) => !belowFloor(row, minN))
   const extent = tintExtent(ranked)
   const stat = rows[0]?.stat ?? 'pearson_r'
@@ -324,15 +330,15 @@ function CountryMatrix({
         const country = countries.find((entry) => String(entry.code) === column.key)
         const cell = country ? cells.get(heatKey(row.key, country)) : undefined
         if (!cell) return undefined
-        const muted = belowFloor(cell, minN)
+        const flagged = belowFloor(cell, minN)
+        const value = formatEstimate(cell.estimate, cell.stat)
+        const tip = `${value}  ${row.label} · ${column.label}\n${intervalText(cell)}`
         return {
-          text: muted ? '—' : formatEstimate(cell.estimate, cell.stat),
-          title: muted
-            ? `Too few respondents to rank (fewer than ${formatCount(minN ?? 0)})\n${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`
-            : `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
+          text: starred(value, flagged),
+          title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
           tint: divergingTint(cell.estimate, extent),
-          hidden: muted ? ', too few respondents' : undefined,
-          muted,
+          hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
+          flagged,
         }
       }}
     />

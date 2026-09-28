@@ -174,7 +174,8 @@
   min-width: 4.5rem;
 }
 
-/* Too few cases to rank: no tint, muted ink; the tooltip says why. */
+/* No number to tint (a pair built from the same answers): no tint,
+   muted ink; the tooltip says why. */
 .cellMuted {
   color: var(--ink-muted);
   min-width: 4.5rem;
@@ -245,6 +246,13 @@
     padding-inline: 4px;
     text-align: center;
   }
+}
+
+/* Few people behind the number (ADR-0019): its asterisk, and a subtle
+   dashed inner outline, over the same tint as its neighbours. */
+.table td[data-flagged] {
+  outline: 1px dashed var(--ink-secondary);
+  outline-offset: -4px;
 }
 
 /* A correlation table's diagonal and upper triangle: nothing there. */

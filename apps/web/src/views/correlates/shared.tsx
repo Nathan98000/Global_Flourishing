@@ -12,7 +12,7 @@ import { ErrorState } from '../../components/ErrorState'
 import { shortName } from '../../labels'
 import type { CorrelatesSearch } from '../../state/search'
 import { WAVE_CHIPS } from '../../waves'
-import { legendEnds } from '../correlatesRows'
+import { FEW_PEOPLE_KEY, legendEnds } from '../correlatesRows'
 import styles from '../AtlasView.module.css'
 
 /** What the page shell hands each view. */
@@ -123,7 +123,7 @@ export function Failure({ error, apiReachable }: { error: unknown; apiReachable:
 /** The key to a diverging matrix, in its caption's place (outside the
  * scroll box, regular weight): the eleven ramp tokens between the
  * window's two ends — the tokens themselves, so it reads true in either
- * theme — what the two hues mean, and the dash. */
+ * theme — what the two hues mean, and the asterisk. */
 export function DivergingLegend({
   extent,
   stat,
@@ -137,7 +137,7 @@ export function DivergingLegend({
   short?: string
   /** The hues in words when there is no one measure (Compare several). */
   hues?: string
-  /** One more entry after the dash's (Compare several's "·"). */
+  /** One more entry after the asterisk's (Compare several's "·"). */
   extra?: string
 }) {
   const [lo, hi] = legendEnds(extent, stat)
@@ -155,7 +155,7 @@ export function DivergingLegend({
       <span>
         {hues ?? `rust: goes with lower ${short ?? ''} · teal: goes with higher ${short ?? ''}`}
       </span>
-      <span>— too few respondents</span>
+      <span>{FEW_PEOPLE_KEY}</span>
       {extra && <span>{extra}</span>}
     </span>
   )

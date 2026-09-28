@@ -166,6 +166,7 @@ export function RankedBar({
   fitLabels = false,
   stackOnNarrow = false,
   tipOf,
+  flagOf,
   onSelectRow,
   rowName,
 }: {
@@ -206,6 +207,8 @@ export function RankedBar({
   stackOnNarrow?: boolean
   /** The tooltip, in words (default: value · CI). */
   tipOf?: (row: EstimateRow, label: string) => string
+  /** A row few people are behind: its value wears an asterisk. */
+  flagOf?: (row: EstimateRow) => boolean
   /** Rows are choices: each row, label or dot, is a button. */
   onSelectRow?: (row: EstimateRow) => void
   /** A row button's accessible name. */
@@ -243,7 +246,10 @@ export function RankedBar({
       const narrow = width < 480
       const marginRight = narrow ? 56 : 72
       const valueFontSize = narrow ? 12 : 14
-      const valueOf = (entry: Entry) => formatEstimate(entry.row.estimate, entry.row.stat)
+      const valueOf = (entry: Entry) => {
+        const text = formatEstimate(entry.row.estimate, entry.row.stat)
+        return flagOf?.(entry.row) ? `${text}*` : text
+      }
       // Nothing is measured before layout (or under jsdom): estimate.
       const measure = textMeasurer(labelFontSize, available !== null)
       const interactive = onSelectRow !== undefined
@@ -514,6 +520,7 @@ export function RankedBar({
       fitLabels,
       stackOnNarrow,
       tipOf,
+      flagOf,
       onSelectRow,
       rowName,
     ],

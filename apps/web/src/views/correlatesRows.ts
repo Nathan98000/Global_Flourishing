@@ -99,9 +99,24 @@ export function excludedNote(meta: Pick<ResponseMeta, 'min_n' | 'n_excluded'>): 
     : `${formatCount(excluded)} measures with fewer than ${floor} respondents are not ranked.`
 }
 
-/** Whether a matrix cell rests on too few cases to be ranked. */
+/** Whether a correlation rests on fewer people than the ranking floor
+ * (the server's `min_n`): shown, with an asterisk (ADR-0019). */
 export function belowFloor(row: Pick<EstimateRow, 'n'>, minN: number | null | undefined): boolean {
   return minN !== null && minN !== undefined && row.n < minN
+}
+
+/** The sentence a tooltip adds for an estimate few people are behind. */
+export const FEW_PEOPLE = 'Few people gave these answers, so this estimate is less reliable.'
+
+/** The asterisk's legend entry. */
+export const FEW_PEOPLE_KEY = '* few people behind this estimate — less reliable'
+
+/** What a screen reader hears after a flagged value, in place of "*". */
+export const FEW_PEOPLE_HIDDEN = ', few people behind this estimate'
+
+/** A value, with its asterisk when few people are behind it. */
+export function starred(text: string, flagged: boolean): string {
+  return flagged ? `${text}*` : text
 }
 
 /** "What's the difference?" beside the correlation type, in plain words. */
@@ -152,14 +167,16 @@ export function axisEnds(short: string): [string, string] {
   return [`← goes with lower ${short}`, `goes with higher ${short} →`]
 }
 
-/** A ranked row's tooltip: the signed value and the measure, then how
- * many people answered both (a correlation has no interval; its n is
- * the number that says how much it rests on — ADR-0018). */
+/** A ranked row's tooltip: the signed value and the question — never
+ * the n (ADR-0016, restored by ADR-0019) — and, when few people are
+ * behind it, a sentence saying so. */
 export function rankedTip(
-  row: Pick<EstimateRow, 'estimate' | 'stat' | 'n'>,
+  row: Pick<EstimateRow, 'estimate' | 'stat'>,
   label: string,
+  flagged = false,
 ): string {
-  return `${formatEstimate(row.estimate, row.stat)} · ${label}\n${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'} answered both`
+  const tip = `${formatEstimate(row.estimate, row.stat)} · ${label}`
+  return flagged ? `${tip}\n${FEW_PEOPLE}` : tip
 }
 
 /** What the ranked sweep left out as overlap, in one sentence built from
@@ -228,10 +245,8 @@ export function shareText(share: number): string {
   return percent > 0 && percent < 1 ? `${percent.toFixed(1)}%` : `${Math.round(percent)}%`
 }
 
-/** One group's tooltip: its share of the people, Y there with its
- * interval, and how many people it rests on (the pair view's rule —
- * ADR-0018 — since a group's n is what its dot's size and its flag
- * are about). */
+/** One group's tooltip: its share of the people, and Y there with its
+ * interval — never the n (ADR-0019). */
 export function pairTip(
   point: { label: string; share: number; row: EstimateRow },
   { yShort, binary, binned }: { yShort: string; binary: boolean; binned: boolean },
@@ -245,7 +260,7 @@ export function pairTip(
       ? ` (${ciLabel(row.ci_level)} ${formatEstimate(row.ci_lo, row.stat)}–${formatEstimate(row.ci_hi, row.stat)})`
       : ''
   const value = `${binary ? 'Answered yes' : `Average ${yShort}`}: ${formatEstimate(row.estimate, row.stat)}${interval}`
-  return [who, value, `${formatCount(row.n)} ${row.n === 1 ? 'person' : 'people'}`].join('\n')
+  return [who, value].join('\n')
 }
 
 /** The footnote's words for the hollow groups, when there are any. */

@@ -17,7 +17,7 @@ import { LoadingBlock } from '../../components/Loading'
 import { QuestionSearch } from '../../components/controls/QuestionSearch'
 import { correlationTableToCsv, downloadTextFile } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
-import { formatCount, formatEstimate } from '../../format'
+import { formatEstimate } from '../../format'
 import {
   TABLE_MAX,
   TABLE_MIN,
@@ -27,7 +27,13 @@ import {
   tableRequest,
 } from '../../state/search'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
-import { statisticPhrase, tintExtent } from '../correlatesRows'
+import {
+  FEW_PEOPLE,
+  FEW_PEOPLE_HIDDEN,
+  starred,
+  statisticPhrase,
+  tintExtent,
+} from '../correlatesRows'
 import { DivergingLegend, Failure, orderedAt, type ViewProps } from './shared'
 import styles from '../AtlasView.module.css'
 
@@ -155,8 +161,8 @@ export function CompareSeveral({
 /** Every pair among the table's questions as a lower-triangle matrix —
  * rows "1 · name", columns numbered (their full names in the tooltip and
  * the accessible name) — tinted on the diverging ramp; a pair built from
- * the same answers reads a muted "·", one resting on too few people a
- * muted "—"; selecting a cell opens Compare two with that pair (the
+ * the same answers reads a muted "·", one resting on few people its
+ * value with an asterisk; selecting a cell opens Compare two with that pair (the
  * column first, the row second). */
 function TableFigure({
   table,
@@ -292,18 +298,15 @@ function TableFigure({
           }
           const correlation = pair.correlation
           const value = formatEstimate(correlation.estimate, correlation.stat)
-          const people = `${formatCount(correlation.n)} people answered both`
-          const muted = pair.below_min_n
+          const flagged = pair.below_min_n
           return {
-            text: muted ? '—' : value,
-            title: muted
-              ? `Too few respondents (fewer than ${formatCount(minN)})\n${value}  ${y} · ${x}\n${people}`
-              : `${value}  ${y} · ${x}\n${people}`,
+            text: starred(value, flagged),
+            title: flagged ? `${value}  ${y} · ${x}\n${FEW_PEOPLE}` : `${value}  ${y} · ${x}`,
             tint: divergingTint(correlation.estimate, extent),
-            muted,
-            hidden: muted ? ', too few respondents' : undefined,
+            flagged,
+            hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
             onSelect: () => onOpenPair(row.key, column.key),
-            name: `${y} and ${x}, ${muted ? 'too few respondents' : value}: see the two questions together`,
+            name: `${y} and ${x}, ${value}${flagged ? FEW_PEOPLE_HIDDEN : ''}: see the two questions together`,
           }
         }}
       />

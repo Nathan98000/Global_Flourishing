@@ -51,6 +51,7 @@ import {
   rankedSubtitle,
   rankedTip,
   shareText,
+  starred,
   shortName,
   statisticPhrase,
   tintExtent,
@@ -425,12 +426,16 @@ describe('Correlates view', () => {
       (node) => node.textContent,
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
-    // Every row is a real button (label and dot alike).
+    // Every row is a real button (label and dot alike); its tooltip is
+    // the value and the question — never the n.
     const rowButtons = within(figure).getAllByRole('button')
     expect(rowButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
       'Loneliness, −0.52: see it beside Happiness',
       'Service attendance, +0.31: see it beside Happiness',
     ])
+    fireEvent.focus(rowButtons[0] as HTMLElement)
+    expect(within(figure).getByRole('tooltip')).toHaveTextContent(/^−0\.52 · Loneliness$/)
+    fireEvent.blur(rowButtons[0] as HTMLElement)
     const text = visibleText(screen.getByRole('main'))
     expect(text).toContain('Dots are point estimates — no confidence interval is computed')
     expect(text).not.toContain('95%')
@@ -469,6 +474,27 @@ describe('Correlates view', () => {
       'Testland',
     ])
     expect(headers[1]).toHaveAttribute('data-highlight')
+    // Every cell shows its value; the one few people are behind wears an
+    // asterisk and a dashed outline, and its tooltip says so — no n.
+    const cells = within(table).getAllByRole('cell')
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      '−0.40',
+      '−0.52',
+      '+0.05*, few people behind this estimate',
+      '+0.31',
+    ])
+    expect(cells[2]).toHaveAttribute('data-flagged')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--div-')
+    fireEvent.pointerEnter(cells[2] as HTMLElement)
+    const tip = within(matrix).getByRole('tooltip').textContent ?? ''
+    expect(tip).toContain('+0.05')
+    expect(tip).toContain('Few people gave these answers, so this estimate is less reliable.')
+    expect(tip).not.toMatch(/n =|people answered|Too few/)
+    fireEvent.pointerLeave(cells[2] as HTMLElement)
+    expect(
+      within(matrix).getByText('* few people behind this estimate — less reliable'),
+    ).toBeInTheDocument()
+    expect(within(matrix).queryByText(/— too few/)).toBeNull()
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
     expect(correlates[1]).toContain('against=LONELY&against=ATTEND_SVCS&by=country_code')
@@ -627,9 +653,25 @@ describe('Correlates view', () => {
       '',
       '',
       '·, built from the same answers',
-      '—, too few respondents',
+      '+0.20*, few people behind this estimate',
       '',
     ])
+    // Few people behind a pair: its value and an asterisk, tinted, outlined —
+    // never a blank; the tooltip says so, and never gives the n.
+    const few = within(table).getByRole('button', {
+      name: 'Service attendance and Loneliness, +0.20, few people behind this estimate: see the two questions together',
+    })
+    expect(few.closest('td')).toHaveAttribute('data-flagged')
+    expect(few.closest('td')?.getAttribute('style')).toContain('var(--div-p')
+    fireEvent.focus(few)
+    expect(within(figure).getByRole('tooltip')).toHaveTextContent(
+      'Few people gave these answers, so this estimate is less reliable.',
+    )
+    expect(within(figure).getByRole('tooltip').textContent).not.toMatch(/people answered|n =/)
+    fireEvent.blur(few)
+    expect(
+      within(figure).getByText('* few people behind this estimate — less reliable'),
+    ).toBeInTheDocument()
     fireEvent.click(
       within(table).getByRole('button', {
         name: 'Loneliness and Happiness, −0.52: see the two questions together',
@@ -886,9 +928,14 @@ describe('correlates helpers', () => {
       '← goes with lower Happiness',
       'goes with higher Happiness →',
     ])
-    expect(rankedTip({ estimate: 0.412, stat: 'pearson_r', n: 1234 }, 'Gratitude')).toBe(
-      '+0.41 · Gratitude\n1,234 people answered both',
+    // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
+    // correlation few people are behind says so in a sentence.
+    expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude')).toBe('+0.41 · Gratitude')
+    expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude', true)).toBe(
+      '+0.41 · Gratitude\nFew people gave these answers, so this estimate is less reliable.',
     )
+    expect(starred('+0.41', true)).toBe('+0.41*')
+    expect(starred('+0.41', false)).toBe('+0.41')
     // Why a wave is unavailable, from the waves the measure was asked in.
     expect(waveNote(['Y1', 'Y2'])).toBe(
       "Midyear isn't available: this question wasn't asked in the midyear survey.",
@@ -991,7 +1038,7 @@ describe('correlates helpers', () => {
     )
     const point = { label: 'Weekly', share: 0.444, row: meanRow(1, 5.37, 24) }
     expect(pairTip(point, { yShort: 'Happiness', binary: false, binned: false })).toBe(
-      '44% answered Weekly\nAverage Happiness: 5.37 (95% CI 4.77–5.97)\n24 people',
+      '44% answered Weekly\nAverage Happiness: 5.37 (95% CI 4.77–5.97)',
     )
     const share = {
       ...point,
@@ -999,7 +1046,7 @@ describe('correlates helpers', () => {
     }
     expect(
       pairTip({ ...share, label: '2.5–3.2' }, { yShort: 'x', binary: true, binned: true }),
-    ).toBe('44% at 2.5–3.2\nAnswered yes: 34.0% (95% CI 30.0%–38.0%)\n24 people')
+    ).toBe('44% at 2.5–3.2\nAnswered yes: 34.0% (95% CI 30.0%–38.0%)')
     expect(shareText(0.004)).toBe('0.4%')
     expect(shareText(0.4449)).toBe('44%')
     expect(hollowNote([], 100, false)).toBeUndefined()

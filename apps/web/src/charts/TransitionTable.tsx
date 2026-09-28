@@ -84,8 +84,12 @@ export interface HeatCell {
   tint: string
   /** Read by assistive tech after the number (a floor note, typically). */
   hidden?: string
-  /** Too few cases to rank: untinted, in muted ink (the tooltip says why). */
+  /** No number to tint (a pair built from the same answers): untinted,
+   * in muted ink (the tooltip says why). */
   muted?: boolean
+  /** Few people behind the number: tinted like the rest, with a subtle
+   * dashed inner outline (the caller adds the asterisk and its words). */
+  flagged?: boolean
   /** No value at all (a correlation table's diagonal and upper
    * triangle): an empty cell, no tooltip. */
   blank?: boolean
@@ -378,6 +382,7 @@ export function HeatTable({
                         key={column.key}
                         className={cell.muted ? styles.cellMuted : styles.cell}
                         data-highlight={marked}
+                        data-flagged={cell.flagged || undefined}
                         data-select={cell.onSelect ? true : undefined}
                         style={
                           cell.muted
