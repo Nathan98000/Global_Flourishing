@@ -104,14 +104,11 @@ export function belowFloor(row: Pick<EstimateRow, 'n'>, minN: number | null | un
   return minN !== null && minN !== undefined && row.n < minN
 }
 
-/** The Method disclosure: its button names the correlation in use. */
-export function methodLabel(method: CorrelationMethod | undefined): string {
-  return method === 'spearman' ? 'Method: by-rank correlation' : 'Method: straight-line correlation'
-}
-
-/** The line under the correlation choice, in plain words. */
-export const METHOD_HINT =
-  'Straight-line: how closely two answers follow a line. By rank: how consistently one rises with the other.'
+/** "What's the difference?" beside the correlation type, in plain words. */
+export const METHOD_DIFFERENCE = [
+  'Straight-line (Pearson): how closely two answers follow a straight line.',
+  'By rank (Spearman): how consistently one rises with the other.',
+] as const
 
 /** Predictor × country lookup for the cross-country matrix. */
 export function heatCells(rows: readonly EstimateRow[]): Map<string, EstimateRow> {

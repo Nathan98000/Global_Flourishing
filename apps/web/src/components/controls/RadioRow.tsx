@@ -33,6 +33,7 @@ export function RadioRow<T extends string>({
   wide = false,
   selectOnNarrow = false,
   note,
+  noteId: outsideNote,
   legendHidden = false,
 }: {
   legend: string
@@ -47,13 +48,17 @@ export function RadioRow<T extends string>({
   /** One line under the row saying why the disabled options are
    * unavailable; each of them is described by it. */
   note?: string
+  /** The id of that line when it is shown elsewhere (under a whole row
+   * of controls, not under this group): the disabled options point to it. */
+  noteId?: string
   /** The group still has its name, but the row stands without a visible
    * label (a view switcher directly under a lede). */
   legendHidden?: boolean
 }) {
   const narrow = useMediaQuery(SELECT_VIEWPORT)
   const noteId = useId()
-  const describedBy = (option: RadioOption<T>) => (note && option.disabled ? noteId : undefined)
+  const describedBy = (option: RadioOption<T>) =>
+    option.disabled ? (note ? noteId : outsideNote) : undefined
   const noteLine = note ? (
     <span id={noteId} className={styles.note}>
       {note}

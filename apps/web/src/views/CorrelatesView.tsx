@@ -9,7 +9,7 @@
 // page chooses, labels and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import type { CorrelationMethod } from '../api/correlates'
 import { useBootStatus, useMeta } from '../api/meta'
 import type { Wave } from '../api/types'
@@ -33,13 +33,7 @@ import {
   type CorrelatesViewName,
 } from '../state/search'
 import { WAVE_CHIPS } from '../waves'
-import {
-  METHOD_HINT,
-  countriesByName,
-  defaultCountry,
-  methodLabel,
-  waveNote,
-} from './correlatesRows'
+import { METHOD_DIFFERENCE, countriesByName, defaultCountry, waveNote } from './correlatesRows'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
@@ -64,8 +58,8 @@ const PURPOSE: Record<CorrelatesViewName, string> = {
 }
 
 const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
-  { value: 'pearson', label: 'Straight-line (Pearson)' },
-  { value: 'spearman', label: 'By rank (Spearman)' },
+  { value: 'pearson', label: 'Straight-line' },
+  { value: 'spearman', label: 'By rank' },
 ]
 
 /** The questions the view on screen is about: whether a wave can be
@@ -90,6 +84,7 @@ export function CorrelatesView() {
   const served = meta.data?.meta
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
+  const noteId = useId()
 
   const setSearch = (patch: Partial<CorrelatesSearch>) => {
     void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
@@ -129,17 +124,19 @@ export function CorrelatesView() {
   }))
   const note = known ? waveNote(WAVES.filter(open), inView.who) : undefined
 
+  // One row — Wave · Country · Correlation type, each under its label —
+  // and, under the whole row, why a wave is unavailable.
   const controls = (
-    <div className={`${styles.controls} ${styles.controlsTop}`}>
-      <RadioRow
-        legend="Wave"
-        name="wave"
-        options={waveOptions}
-        value={search.wave}
-        onChange={(wave) => setSearch({ wave })}
-        note={note}
-      />
-      <div className={styles.pairRow}>
+    <div className={own.controlRow}>
+      <div className={own.controlCells}>
+        <RadioRow
+          legend="Wave"
+          name="wave"
+          options={waveOptions}
+          value={search.wave}
+          onChange={(wave) => setSearch({ wave })}
+          noteId={note ? noteId : undefined}
+        />
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Country</span>
           <select
@@ -160,25 +157,30 @@ export function CorrelatesView() {
             ))}
           </select>
         </label>
-        <div className={styles.field}>
-          {/* An empty label line keeps the button level with the selects. */}
-          <span className={styles.fieldLabel} aria-hidden="true">
-            &nbsp;
-          </span>
-          <Disclosure label={methodLabel(search.method)}>
-            <RadioRow<CorrelationMethod>
-              legend="Correlation type"
-              name="method"
-              options={METHOD_OPTIONS}
-              value={search.method ?? 'pearson'}
-              onChange={(value) =>
-                setSearch({ method: value === 'spearman' ? 'spearman' : undefined })
-              }
-            />
-            <p className={styles.methodHint}>{METHOD_HINT}</p>
+        <div className={own.typeCell}>
+          <RadioRow<CorrelationMethod>
+            legend="Correlation type"
+            name="method"
+            options={METHOD_OPTIONS}
+            value={search.method ?? 'pearson'}
+            onChange={(value) =>
+              setSearch({ method: value === 'spearman' ? 'spearman' : undefined })
+            }
+          />
+          <Disclosure variant="info" label="What’s the difference?">
+            {METHOD_DIFFERENCE.map((line) => (
+              <p key={line} className={styles.methodHint}>
+                {line}
+              </p>
+            ))}
           </Disclosure>
         </div>
       </div>
+      {note && (
+        <p id={noteId} className={own.rowNote}>
+          {note}
+        </p>
+      )}
     </div>
   )
 

@@ -46,13 +46,6 @@
   align-items: flex-start;
 }
 
-/* Country and the Method button: side by side on every width. */
-.pairRow {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-}
-
 /* Compare two's Swap: an outlined control button, level with the
    pickers beside it (an empty label line sits above it). */
 .swap {
@@ -190,7 +183,7 @@
   }
 }
 
-/* The line under the correlation choice, inside the Method panel. */
+/* "What's the difference?" beside the correlation type: its note. */
 .methodHint {
   margin: 0;
   color: var(--ink-secondary);
@@ -333,18 +326,5 @@
     grid-template-columns: 1fr;
     gap: var(--space-3);
     align-items: end;
-  }
-
-  /* Correlates on a phone: Country and Method share a row, halves. */
-  .pairRow {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-
-  /* A 44px touch target, level with the Method button beside it. */
-  .pairRow select {
-    width: 100%;
-    min-height: 44px;
   }
 }

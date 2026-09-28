@@ -38,3 +38,52 @@
     font-size: var(--text-deck);
   }
 }
+
+/* The shared row (ADR-0019): Wave · Country · Correlation type, each
+   under its label, top-aligned on the labels; why a wave is unavailable
+   runs under the whole row, so no column widens for it. */
+.controlRow {
+  margin-bottom: var(--space-5);
+}
+
+.controlCells {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-5);
+}
+
+/* The correlation type, then "What's the difference?" level with it. */
+.typeCell {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.rowNote {
+  max-width: 40rem;
+  margin: var(--space-2) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 40rem) {
+  .controlCells {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controlCells select {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .typeCell {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .typeCell > fieldset {
+    flex: 1 1 100%;
+  }
+}

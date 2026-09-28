@@ -5,11 +5,22 @@
 // outside it (focus left alone), and anchors to the button's right edge
 // when a left-anchored panel would overflow the page column — the
 // country filter's rules, for settings that most readers never change.
+// The `info` variant is a small text button with an "i" — a note a reader
+// opens to learn what a control's options mean (Correlates' "What's the
+// difference?").
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import styles from './Disclosure.module.css'
 
-export function Disclosure({ label, children }: { label: string; children: ReactNode }) {
+export function Disclosure({
+  label,
+  variant = 'button',
+  children,
+}: {
+  label: string
+  variant?: 'button' | 'info'
+  children: ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const [anchorRight, setAnchorRight] = useState(false)
   const panelId = useId()
@@ -54,11 +65,16 @@ export function Disclosure({ label, children }: { label: string; children: React
       <button
         ref={button}
         type="button"
-        className={styles.button}
+        className={variant === 'info' ? styles.info : styles.button}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
       >
+        {variant === 'info' && (
+          <span className={styles.infoIcon} aria-hidden="true">
+            i
+          </span>
+        )}
         {label}
       </button>
       <div

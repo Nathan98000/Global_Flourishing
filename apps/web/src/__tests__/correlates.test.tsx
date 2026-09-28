@@ -44,7 +44,6 @@ import {
   acrossSubtitle,
   hollowNote,
   legendEnds,
-  methodLabel,
   overlapNote,
   pairSubtitle,
   pairTip,
@@ -687,17 +686,42 @@ describe('Correlates view', () => {
     expect(correlates.every((url) => !url.includes('adjusted'))).toBe(true)
   })
 
-  test('choosing the rank correlation asks for it and says so on the button', async () => {
+  test('one shared row: Wave · Country · Correlation type, and the wave’s reason under it all', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
-    await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.click(screen.getByRole('button', { name: 'Method: straight-line correlation' }))
-    fireEvent.click(screen.getByLabelText('By rank (Spearman)'))
-    await waitFor(() => expect(router.state.location.searchStr).toContain('method=spearman'))
+    const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
+    await screen.findByRole('img', { name: /Loneliness by Happiness/ })
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    const type = screen.getByRole('group', { name: 'Correlation type' })
+    expect(within(type).getByLabelText('Straight-line')).toBeChecked()
+    expect(screen.queryByRole('button', { name: /^Method/ })).toBeNull()
+    // The reason a wave is unavailable is one line under the whole row,
+    // not inside the Wave column; the disabled options point to it.
+    const note = screen.getByText(
+      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+    )
+    expect(wave).not.toContainElement(note)
+    expect(note.previousElementSibling).toContainElement(type)
+    expect(within(wave).getByLabelText('2024')).toHaveAccessibleDescription(note.textContent ?? '')
+    expect(within(wave).getByLabelText('2023')).not.toHaveAccessibleDescription()
+    // "What's the difference?" opens a note in plain words; Escape closes it.
+    const info = screen.getByRole('button', { name: 'What’s the difference?' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(info)
     expect(
-      await screen.findByRole('button', { name: 'Method: by-rank correlation' }),
-    ).toBeInTheDocument()
+      screen.getByText('Straight-line (Pearson): how closely two answers follow a straight line.'),
+    ).toBeVisible()
+    expect(
+      screen.getByText('By rank (Spearman): how consistently one rises with the other.'),
+    ).toBeVisible()
+    fireEvent.keyDown(info, { key: 'Escape' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    expect(info).toHaveFocus()
+    // By rank: asked for and kept in the URL.
+    fireEvent.click(within(type).getByLabelText('By rank'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('method=spearman'))
     await waitFor(() => expect(calls.some((url) => url.includes('method=spearman'))).toBe(true))
+    fireEvent.click(within(type).getByLabelText('Straight-line'))
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('method='))
   })
 
   test('countries run A–Z by name in the select and across the matrix', async () => {
@@ -865,9 +889,6 @@ describe('correlates helpers', () => {
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r', n: 1234 }, 'Gratitude')).toBe(
       '+0.41 · Gratitude\n1,234 people answered both',
     )
-    expect(methodLabel(undefined)).toBe('Method: straight-line correlation')
-    expect(methodLabel('pearson')).toBe('Method: straight-line correlation')
-    expect(methodLabel('spearman')).toBe('Method: by-rank correlation')
     // Why a wave is unavailable, from the waves the measure was asked in.
     expect(waveNote(['Y1', 'Y2'])).toBe(
       "Midyear isn't available: this question wasn't asked in the midyear survey.",
@@ -883,6 +904,13 @@ describe('correlates helpers', () => {
     )
     expect(waveNote(['Y1', 'MY', 'Y2'])).toBeUndefined()
     expect(waveNote([])).toBeUndefined()
+    // For a pair, and for a table (a wave opens with two questions asked).
+    expect(waveNote(['Y1', 'Y2'], 'pair')).toBe(
+      "Midyear isn't available: the two questions weren't both asked in the midyear survey.",
+    )
+    expect(waveNote(['Y1'], 'table')).toBe(
+      "Midyear and 2024 aren't available: fewer than two of these questions were asked in the midyear survey and Wave 2.",
+    )
   })
 
   test('the overlap footnote is built from what the server left out', () => {
