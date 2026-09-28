@@ -28,15 +28,7 @@ export function pinnedFirst(countries: readonly Country[], chosen: number | unde
   return pinned ? [pinned, ...byName.filter((country) => country !== pinned)] : byName
 }
 
-/** What the page calls a measure in its keys and axis ends ("goes with
- * higher …"): the catalog's short label when it serves one, else the
- * display name — the catalog serves no variable-level short label today
- * (only answers have one), so this is the display name. */
-export function shortName(
-  variable: Pick<VariableSummary, 'display_name'> & { short_label?: string | null },
-): string {
-  return variable.short_label?.trim() || variable.display_name
-}
+export { shortName } from '../labels'
 
 /** "A", "A and B", "A, B and C". */
 function listAnd(items: readonly string[]): string {

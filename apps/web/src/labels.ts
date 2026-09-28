@@ -35,6 +35,16 @@ export function endpointsClause(detail: VariableDetail | undefined): string {
   return ` (${low.value} = ${low.label}, ${high.value} = ${high.label})`
 }
 
+/** What a page calls a question in its keys, axis titles and pickers
+ * ("goes with higher …"): the catalog's short label when it serves one,
+ * else the display name — the catalog serves no variable-level short
+ * label today (only answers have one), so this is the display name. */
+export function shortName(
+  variable: Pick<VariableSummary, 'display_name'> & { short_label?: string | null },
+): string {
+  return variable.short_label?.trim() || variable.display_name
+}
+
 /** The states a server state code stands for: itself, or a pooled
  * group's members (from meta; the code's own underscores otherwise). */
 export function stateMembersOf(code: string, meta: Pick<Meta, 'state_labels'>): string[] {

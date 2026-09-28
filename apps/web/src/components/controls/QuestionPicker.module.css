@@ -1,0 +1,425 @@
+/* The question picker (ADR-0019). Closed: a quiet inline button in a
+   sentence ("How do answers to [Life evaluation today ▾] relate to …"),
+   the page ink on the control tint. Open: a raised panel under it — a
+   popover about 660px wide, kept inside the page column — or, under
+   600px, a sheet over the whole screen. */
+.anchor {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+
+.trigger,
+.addTrigger {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--control-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger {
+  padding: 0 var(--space-2);
+  font-weight: 600;
+}
+
+.triggerText {
+  min-width: 0;
+}
+
+.chevron {
+  color: var(--ink-secondary);
+  font-size: 0.75em;
+}
+
+/* Compare several's "+ Add questions": the chip at the end of the set. */
+.addTrigger {
+  padding: var(--space-1) var(--space-3);
+  border-style: dashed;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+
+.trigger:hover,
+.addTrigger:hover {
+  border-color: var(--ink-secondary);
+}
+
+.trigger:focus-visible,
+.addTrigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: var(--panel-shift, 0);
+  width: min(41.25rem, calc(100vw - 2rem));
+  height: min(30rem, 72vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.title {
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+.close {
+  border: 0;
+  background: none;
+  padding: 0 var(--space-1);
+  color: var(--ink-secondary);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search {
+  margin: var(--space-2) var(--space-3);
+  font-size: var(--text-base);
+}
+
+.recent {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+  min-width: 0;
+}
+
+.recentLabel {
+  flex: none;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+.recentList {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.recentChip {
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--control-bg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recentChip[aria-disabled='true'] {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.recentList:focus-visible .recentChip[data-active] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.browse {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  border-top: 1px solid var(--grid);
+}
+
+.browse[data-searching] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.topics {
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow-y: auto;
+  border-right: 1px solid var(--grid);
+}
+
+.topic {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.topic[data-depth='1'] {
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+}
+
+.topic:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.topic[aria-selected='true'] {
+  background: var(--control-selected);
+  font-weight: 600;
+}
+
+.topics:focus-visible .topic[aria-selected='true'] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.count {
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.list {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+
+.list:focus-visible {
+  outline: none;
+}
+
+.section + .section {
+  margin-top: var(--space-2);
+}
+
+.sectionTitle {
+  margin: var(--space-1) var(--space-2) 2px;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.option:hover,
+.option[data-active] {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.list:focus-visible .option[data-active] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.option[aria-selected='true'] .optionName {
+  font-weight: 650;
+}
+
+.option[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.option[aria-disabled='true'] .optionName,
+.option[aria-disabled='true'] .optionWording {
+  color: var(--ink-muted);
+}
+
+.optionText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.optionName {
+  color: var(--ink);
+}
+
+/* The wording: one line, cut with an ellipsis. */
+.optionWording {
+  overflow: hidden;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Why a question can't be chosen: in readable secondary ink. */
+.reason {
+  flex: none;
+  max-width: 11rem;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.mark {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  border-radius: 1px;
+}
+
+/* A drawn checkbox (multi-select): the option is the control. */
+.check {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1.5px solid var(--ink-secondary);
+  border-radius: 2px;
+}
+
+.check[data-checked] {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.5l2.5 2.5L11 4.5' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+
+.option[aria-disabled='true'] .check[data-checked] {
+  opacity: 0.55;
+}
+
+.none {
+  margin: var(--space-3);
+  color: var(--ink-secondary);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--grid);
+  color: var(--ink-secondary);
+}
+
+.footerActions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.cancel,
+.add {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cancel {
+  background: none;
+  color: var(--ink);
+}
+
+.add {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-raised);
+  font-weight: 600;
+}
+
+.add:disabled {
+  border-color: var(--border);
+  background: var(--control-bg);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Under 600px: a sheet over the whole screen, the topics a row that
+   scrolls sideways above the questions. */
+@media (max-width: 37.5rem) {
+  .panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .head {
+    padding-top: var(--space-3);
+  }
+
+  .title {
+    font-size: var(--text-sm);
+  }
+
+  .close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .browse {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .topics {
+    display: flex;
+    gap: var(--space-1);
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--grid);
+  }
+
+  .topic {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .topic[data-depth='1'] {
+    padding-left: var(--space-2);
+  }
+
+  .option {
+    min-height: 44px;
+  }
+
+  .cancel,
+  .add {
+    min-height: 44px;
+  }
+}
