@@ -1,10 +1,15 @@
 // Compare several (ADR-0019): how strongly each pair among 2–10 questions
-// goes together, as a lower-triangle table. The table starts from Compare
-// two's pair and the first question's top four correlates (after the
-// ranking's overlap dedupe), so it is never empty; a cell opens Compare
-// two with the pair.
+// goes together, as a lower-triangle table. The questions sit in a set
+// builder (chips to drag or move with the keyboard, a multi-select "+ Add
+// questions"); the table starts from Compare two's pair and the first
+// question's top four correlates (after the ranking's overlap dedupe), so
+// it is never empty. Its order is as added, or similar together — the
+// server's clustering; the page only reorders. Rows are questions 2…n and
+// columns 1…n−1, named by their short names (the columns angled); the
+// tint runs on a fixed −1 to 1, so a shade means the same number in every
+// table. A cell opens Compare two with the pair.
 
-import { useId, useMemo } from 'react'
+import { useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
@@ -14,31 +19,48 @@ import { divergingTint } from '../../charts/theme'
 import { HeatTable } from '../../charts/TransitionTable'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
-import { QuestionSearch } from '../../components/controls/QuestionSearch'
+import { RadioRow } from '../../components/controls/RadioRow'
 import { correlationTableToCsv, downloadTextFile } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
+import { shortName } from '../../labels'
 import {
-  TABLE_MAX,
   TABLE_MIN,
   correlatesRequest,
   firstQuestion,
   secondQuestion,
   tableRequest,
+  type CorrelatesOrder,
 } from '../../state/search'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
   FEW_PEOPLE,
   FEW_PEOPLE_HIDDEN,
+  NO_ESTIMATE,
   starred,
   statisticPhrase,
-  tintExtent,
 } from '../correlatesRows'
-import { DivergingLegend, Failure, orderedAt, type ViewProps } from './shared'
+import { QuestionSet } from './QuestionSet'
+import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
 import styles from '../AtlasView.module.css'
+import own from './Correlates.module.css'
 
 /** How many of the first question's correlates the default table adds. */
 const DEFAULT_RELATED = 4
+/** The table's columns: wide enough for "+0.68*". */
+const TABLE_COLUMN = 60
+
+/** The questions in the order the table shows them: as added, or the
+ * server's similar-together order when it is for these questions. */
+export function displayOrder(
+  vars: readonly string[],
+  order: CorrelatesOrder,
+  similar: readonly string[] | undefined,
+): string[] {
+  if (order !== 'similar' || !similar) return [...vars]
+  const same = similar.length === vars.length && similar.every((name) => vars.includes(name))
+  return same ? [...similar] : [...vars]
+}
 
 export function CompareSeveral({
   search,
@@ -50,7 +72,6 @@ export function CompareSeveral({
   apiReachable,
   controls,
 }: ViewProps) {
-  const chipsLabel = useId()
   const a = firstQuestion(search)
   const b = secondQuestion(search)
   // The default table needs the first question's ranked list.
@@ -75,55 +96,45 @@ export function CompareSeveral({
       ? tableRequest(search, usableVars, country)
       : null,
   )
-  const nameOf = (name: string) => variables.byName[name]?.display_name ?? name
-  const candidates = variables.list.filter(
-    (candidate) => orderedAt(candidate, search.wave) && !usableVars.includes(candidate.name),
-  )
+  const nameOf = (name: string) => {
+    const variable = variables.byName[name]
+    return variable ? shortName(variable) : name
+  }
+  const shown = displayOrder(usableVars, search.order, table.data?.similar_order)
 
   return (
     <>
       {tableVars.length > 0 && (
-        <div className={`${styles.controls} ${styles.controlsTop}`}>
-          <div className={styles.field}>
-            <span className={styles.fieldLabel} id={chipsLabel}>
-              Questions in this table
-            </span>
-            <ol className={styles.chips} aria-labelledby={chipsLabel}>
-              {usableVars.map((name, index) => (
-                <li key={name} className={styles.chip}>
-                  <span>
-                    {index + 1} · {nameOf(name)}
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.chipRemove}
-                    aria-label={`Remove ${nameOf(name)}`}
-                    disabled={usableVars.length <= TABLE_MIN}
-                    onClick={() =>
-                      setSearch({ vars: usableVars.filter((entry) => entry !== name) })
-                    }
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {leftOut.length > 0 && (
+        <QuestionSet
+          names={usableVars}
+          nameOf={nameOf}
+          variables={variables.list}
+          wave={search.wave}
+          unavailable={(variable) => questionReason(variable, search.wave)}
+          onChange={(vars) => setSearch({ vars })}
+          note={
+            leftOut.length > 0 ? (
               <span className={styles.reason}>
                 Left out, not asked in {WAVE_TITLES[search.wave] ?? search.wave}:{' '}
                 {leftOut.map(nameOf).join(', ')}.
               </span>
-            )}
-          </div>
-          <QuestionSearch
-            label="Add a question"
-            candidates={candidates}
-            onAdd={(name) => setSearch({ vars: [...usableVars, name] })}
-            full={usableVars.length >= TABLE_MAX ? `Up to ${TABLE_MAX} questions` : undefined}
-          />
-        </div>
+            ) : undefined
+          }
+        />
       )}
       {controls}
+      <div className={own.scopeRow}>
+        <RadioRow<CorrelatesOrder>
+          legend="Order"
+          name="order"
+          options={[
+            { value: 'added', label: 'As added' },
+            { value: 'similar', label: 'Similar together' },
+          ]}
+          value={search.order}
+          onChange={(order) => setSearch({ order })}
+        />
+      </div>
       {seeded && ranked.isPending ? (
         <LoadingBlock height={420} label="Loading the table" />
       ) : seeded && ranked.isError ? (
@@ -132,7 +143,7 @@ export function CompareSeveral({
         <EmptyState title="Pick two questions or more">
           <p>
             A table needs at least two questions asked in {WAVE_TITLES[search.wave] ?? search.wave}{' '}
-            — add them under “Add a question”.
+            — add them with “Add questions”.
           </p>
         </EmptyState>
       ) : table.isPending ? (
@@ -142,7 +153,7 @@ export function CompareSeveral({
       ) : table.data ? (
         <TableFigure
           table={table.data}
-          vars={usableVars}
+          order={shown}
           nameOf={nameOf}
           countryName={countryName}
           wave={search.wave}
@@ -158,15 +169,15 @@ export function CompareSeveral({
   )
 }
 
-/** Every pair among the table's questions as a lower-triangle matrix —
- * rows "1 · name", columns numbered (their full names in the tooltip and
- * the accessible name) — tinted on the diverging ramp; a pair built from
- * the same answers reads a muted "·", one resting on few people its
- * value with an asterisk; selecting a cell opens Compare two with that pair (the
- * column first, the row second). */
+/** Every pair among the table's questions as a lower triangle — rows the
+ * questions from the second on, columns up to the last but one, both by
+ * their short names — tinted on the diverging ramp over a fixed −1 to 1;
+ * a pair built from the same answers reads a muted "·", one few people
+ * are behind its value with an asterisk; selecting a cell opens Compare
+ * two with that pair (the column first, the row second). */
 function TableFigure({
   table,
-  vars,
+  order,
   nameOf,
   countryName,
   wave,
@@ -176,7 +187,8 @@ function TableFigure({
   onOpenPair,
 }: {
   table: CorrelationsResponse
-  vars: readonly string[]
+  /** The questions in the order shown. */
+  order: readonly string[]
   nameOf: (name: string) => string
   countryName: string
   wave: Wave
@@ -186,13 +198,13 @@ function TableFigure({
   onOpenPair: (row: string, column: string) => void
 }) {
   const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
+  const pairOf = (one: string, other: string) =>
+    pairs.get(`${one}|${other}`) ?? pairs.get(`${other}|${one}`)
   const counted = table.pairs.flatMap((pair) =>
     pair.correlation && !pair.below_min_n ? [pair.correlation] : [],
   )
-  const extent = tintExtent(counted)
-  const minN = table.meta.min_n
   const name: ExportName = {
-    measure: `Correlations among ${vars.length} questions`,
+    measure: `Correlations among ${order.length} questions`,
     view: 'Compare several',
     waves: WAVE_CHIPS[wave] ?? wave,
     ...(countryName ? { country: countryName } : {}),
@@ -218,7 +230,7 @@ function TableFigure({
       n_valid: 0,
       by: ['question', 'with'],
       filters: table.meta.filters,
-      min_n: minN,
+      min_n: table.meta.min_n,
     },
     rows: table.pairs.flatMap((pair) =>
       pair.correlation
@@ -227,20 +239,20 @@ function TableFigure({
     ),
   }
   const strongest = [...counted].sort(
-    (a, b) => Math.abs(b.estimate ?? 0) - Math.abs(a.estimate ?? 0),
+    (left, right) => Math.abs(right.estimate ?? 0) - Math.abs(left.estimate ?? 0),
   )[0]
   const strongestPair = strongest
     ? table.pairs.find((pair) => pair.correlation === strongest)
     : undefined
   return (
     <ChartFigure
-      title={`Correlations among ${vars.length} questions`}
+      title={`Correlations among ${order.length} questions`}
       subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
-      ariaLabel={`Correlations among ${vars.length} questions in ${countryName}, as a table: ${vars
-        .map((entry, index) => `${index + 1}, ${nameOf(entry)}`)
+      ariaLabel={`Correlations among ${order.length} questions in ${countryName}, as a table: ${order
+        .map(nameOf)
         .join('; ')}.${
         strongestPair && strongest
-          ? ` Strongest: ${nameOf(strongestPair.a)} and ${nameOf(strongestPair.b)}, ${formatEstimate(strongest.estimate, strongest.stat)}.`
+          ? ` Strongest: ${nameOf(strongestPair.a)} with ${nameOf(strongestPair.b)}, ${formatEstimate(strongest.estimate, strongest.stat)}.`
           : ''
       } Select a cell to see the two questions together; the data table below carries every number.`}
       marks="table"
@@ -264,49 +276,55 @@ function TableFigure({
       <HeatTable
         caption={
           <DivergingLegend
-            extent={extent}
+            extent={1}
             stat={table.meta.stat}
-            hues="rust: as one goes up, the other goes down · teal: they go up together"
+            ends={['−1', '+1']}
+            hues={null}
+            flagKey="* few people behind this estimate"
             extra="· built from the same answers"
           />
         }
         corner="Question ↓ · with →"
-        rows={vars.map((entry, index) => ({
-          key: entry,
-          label: `${index + 1} · ${nameOf(entry)}`,
-        }))}
-        columns={vars.map((entry, index) => ({
-          key: entry,
-          label: String(index + 1),
-          title: `${index + 1} · ${nameOf(entry)}`,
-        }))}
+        rows={order.slice(1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
+        columns={order.slice(0, -1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
+        columnWidth={TABLE_COLUMN}
+        angled
         cellAt={(row, column) => {
-          const i = vars.indexOf(row.key)
-          const j = vars.indexOf(column.key)
-          if (j >= i) return { text: '', title: '', tint: 'transparent', blank: true }
-          const pair = pairs.get(`${column.key}|${row.key}`)
+          if (order.indexOf(column.key) >= order.indexOf(row.key))
+            return { text: '', title: '', tint: 'transparent', blank: true }
+          const pair = pairOf(row.key, column.key)
           if (!pair) return undefined
-          const [y, x] = [nameOf(row.key), nameOf(column.key)]
+          const [rowName, columnName] = [nameOf(row.key), nameOf(column.key)]
           if (pair.shares_answers || !pair.correlation) {
             return {
               text: '·',
-              title: `${y} · ${x}\nBuilt from the same answers: not correlated`,
+              title: `${rowName} with ${columnName}\nBuilt from the same answers: not correlated`,
               tint: 'transparent',
               muted: true,
               hidden: ', built from the same answers',
             }
           }
           const correlation = pair.correlation
+          if (correlation.estimate === null) {
+            return {
+              text: '—',
+              title: `${rowName} with ${columnName}\n${NO_ESTIMATE}`,
+              tint: 'transparent',
+              muted: true,
+              hidden: ', no estimate',
+            }
+          }
           const value = formatEstimate(correlation.estimate, correlation.stat)
           const flagged = pair.below_min_n
+          const tip = `${value} · ${rowName} with ${columnName}`
           return {
             text: starred(value, flagged),
-            title: flagged ? `${value}  ${y} · ${x}\n${FEW_PEOPLE}` : `${value}  ${y} · ${x}`,
-            tint: divergingTint(correlation.estimate, extent),
+            title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
+            tint: divergingTint(correlation.estimate, 1),
             flagged,
             hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
             onSelect: () => onOpenPair(row.key, column.key),
-            name: `${y} and ${x}, ${value}${flagged ? FEW_PEOPLE_HIDDEN : ''}: see the two questions together`,
+            name: `${rowName} with ${columnName}, ${value}${flagged ? FEW_PEOPLE_HIDDEN : ''}: see the two questions together`,
           }
         }}
       />

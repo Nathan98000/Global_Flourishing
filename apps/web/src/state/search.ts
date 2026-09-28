@@ -654,6 +654,10 @@ export type CorrelatesViewName = 'pair' | 'matrix' | 'related'
 /** Find related: the chosen country, or every country. */
 export type CorrelatesScope = 'country' | 'all'
 
+/** Compare several's order: as the questions were added, or with the
+ * ones that go together side by side (the server's `similar_order`). */
+export type CorrelatesOrder = 'added' | 'similar'
+
 /** A correlation table holds 2 to 10 questions. */
 export const TABLE_MIN = 2
 export const TABLE_MAX = 10
@@ -673,6 +677,8 @@ export interface CorrelatesSearch {
   /** Compare several: the table's questions, in order; absent = the pair
    * and the first question's top four correlates. */
   vars?: string[]
+  /** Compare several: as added, or similar together. */
+  order: CorrelatesOrder
   wave: Wave
   /** The country every view is taken in; absent = the default one. */
   country?: number
@@ -685,6 +691,7 @@ export interface CorrelatesSearch {
 export const CORRELATES_DEFAULTS = {
   view: 'pair' as CorrelatesViewName,
   scope: 'country' as CorrelatesScope,
+  order: 'added' as CorrelatesOrder,
   wave: 'Y1' as Wave,
 }
 
@@ -783,6 +790,12 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
     outcome,
     scope,
     vars: collect.take('vars', raw, parseTableVars, undefined, true),
+    order: collect.take(
+      'order',
+      raw,
+      parseEnum<CorrelatesOrder>('added', 'similar'),
+      CORRELATES_DEFAULTS.order,
+    ),
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
     country: collect.take('country', raw, parseCountryCode, undefined),
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
@@ -810,6 +823,7 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
       outcome,
       scope: search.scope === CORRELATES_DEFAULTS.scope ? undefined : search.scope,
       vars: search.vars?.length ? search.vars.join(',') : undefined,
+      order: search.order === CORRELATES_DEFAULTS.order ? undefined : search.order,
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
       method: search.method,

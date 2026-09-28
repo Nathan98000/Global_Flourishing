@@ -255,6 +255,37 @@
   outline-offset: -4px;
 }
 
+/* Angled headers (Compare several): each short name rises at 38° from
+   its column's bottom centre, the header row as tall as the longest
+   needs (--angled-rise, measured by the component); the box's right
+   padding makes room for the last ones. */
+.table[data-angled] thead th:not(.corner) {
+  position: relative;
+  height: var(--angled-rise, 7rem);
+  padding: 0;
+  vertical-align: bottom;
+}
+
+.table[data-angled] thead th:not(.corner) .head {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: rotate(-38deg);
+  transform-origin: 0 100%;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* On a phone an angled table's row labels wrap, so more of its columns
+   fit beside them before the box scrolls. */
+@media (max-width: 40rem) {
+  .table[data-angled] th[scope='row'] {
+    min-width: 7.5rem;
+    max-width: 9rem;
+    white-space: normal;
+  }
+}
+
 /* A correlation table's diagonal and upper triangle: nothing there. */
 .blank {
   border-top-color: transparent;

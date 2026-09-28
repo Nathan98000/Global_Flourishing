@@ -446,6 +446,47 @@ def correlation_pair(
     return run_pair(store, query, policy, flags, min_n)
 
 
+def similar_order(names: list[str], pairs: list[CorrelationPairModel]) -> list[str]:
+    """The table's questions with the ones that go together side by side
+    (ADR-0019): average-linkage (UPGMA) hierarchical clustering on the
+    distance 1 − |r|. Two questions built from the same answers are at
+    distance 0 (they go together by construction); a pair with no
+    estimate at 1. Deterministic: of equally close clusters, the ones
+    holding the earliest-asked questions merge first, and a merge keeps
+    the cluster with the earlier question on the left — so with no
+    structure at all, the order is the order asked."""
+    index = {name: i for i, name in enumerate(names)}
+    distance: dict[tuple[int, int], float] = {}
+    for pair in pairs:
+        i, j = sorted((index[pair.a], index[pair.b]))
+        if pair.shares_answers:
+            distance[(i, j)] = 0.0
+        elif pair.correlation is None or pair.correlation.estimate is None:
+            distance[(i, j)] = 1.0
+        else:
+            distance[(i, j)] = 1.0 - abs(pair.correlation.estimate)
+
+    def between(left: list[int], right: list[int]) -> float:
+        total = sum(distance[(min(i, j), max(i, j))] for i in left for j in right)
+        return total / (len(left) * len(right))
+
+    clusters: list[list[int]] = [[i] for i in range(len(names))]
+    while len(clusters) > 1:
+        best: tuple[float, int, int] | None = None
+        for p in range(len(clusters)):
+            for q in range(p + 1, len(clusters)):
+                key = (round(between(clusters[p], clusters[q]), 12), p, q)
+                if best is None or key < best:
+                    best = key
+        assert best is not None
+        _, p, q = best
+        merged = clusters[p] + clusters[q]
+        clusters = [c for k, c in enumerate(clusters) if k not in (p, q)] + [merged]
+        # Clusters stay in the order of their earliest question.
+        clusters.sort(key=min)
+    return [names[i] for i in clusters[0]] if clusters else []
+
+
 def run_matrix(
     store: DataStore, query: MatrixQuery, policy: SuppressionPolicy, min_n: int
 ) -> CorrelationsResponse:
@@ -499,7 +540,8 @@ def run_matrix(
         },
         min_n=min_n,
     )
-    return CorrelationsResponse(meta=meta, pairs=pairs)
+    names = [v.name for v in variables]
+    return CorrelationsResponse(meta=meta, pairs=pairs, similar_order=similar_order(names, pairs))
 
 
 @router.get("/correlations", summary="A correlation table: every pair among 2–10 questions")
@@ -530,7 +572,10 @@ def correlations(
     ``shares_answers`` and carries no correlation — it goes together by
     construction. Each row's correlations are taken in one pass over the
     frame. Both items of every pair are aligned to their labels, so the
-    signs are the ranked list's."""
+    signs are the ranked list's. ``similar_order`` lists the questions
+    with those that go together side by side: average-linkage clustering
+    on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
+    ties broken toward the order asked."""
     assert store.catalog is not None
     query = parse_matrix_query(
         store.catalog, names=names, wave=wave, method=method, filters=filter or []

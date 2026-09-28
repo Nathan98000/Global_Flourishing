@@ -50,8 +50,13 @@
 }
 
 .trigger:hover,
-.addTrigger:hover {
+.addTrigger:hover:not(:disabled) {
   border-color: var(--ink-secondary);
+}
+
+.addTrigger:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
 }
 
 .trigger:focus-visible,

@@ -11,7 +11,8 @@ from flourish_api.config import Settings
 from flourish_api.frames import PAIR_X
 from flourish_api.main import create_app
 from flourish_api.ops import CACHE_CONTROL
-from flourish_api.routes.correlations import bin_groups
+from flourish_api.routes.correlations import bin_groups, similar_order
+from flourish_api.schemas import CorrelationPairModel, EstimateRow
 from flourish_stats import Design
 
 
@@ -403,6 +404,66 @@ def test_pairs_built_from_the_same_answers_are_marked_not_estimated(client: Test
     assert cells[("phq2_score", "LONELY")]["correlation"]["estimate"] is not None
 
 
+def _pair(a: str, b: str, r: float | None, shares: bool = False) -> CorrelationPairModel:
+    correlation = None
+    if not shares:
+        correlation = EstimateRow(
+            group={},
+            predictor=b,
+            stat="pearson_r",
+            estimate=r,
+            se=None,
+            ci_lo=None,
+            ci_hi=None,
+            ci_level=0.95,
+            ci_method="none",
+            n=100,
+            sum_w=100.0,
+            n_psu=None,
+            n_strata=None,
+            df=None,
+            se_method="none",
+            weight="w",
+            suppressed=False,
+            flagged=False,
+        )
+    return CorrelationPairModel(
+        a=a, b=b, shares_answers=shares, below_min_n=False, correlation=correlation
+    )
+
+
+def test_similar_order_puts_what_goes_together_side_by_side() -> None:
+    """Average linkage on 1 − |r|: A with C and B with D, whatever the
+    sign; with nothing to tell them apart, the order asked."""
+    names = ["A", "B", "C", "D"]
+    strong = {("A", "C"): 0.9, ("B", "D"): -0.8}
+    pairs = [
+        _pair(a, b, strong.get((a, b), 0.1)) for i, a in enumerate(names) for b in names[i + 1 :]
+    ]
+    assert similar_order(names, pairs) == ["A", "C", "B", "D"]
+    flat = [_pair(a, b, 0.3) for i, a in enumerate(names) for b in names[i + 1 :]]
+    assert similar_order(names, flat) == names
+    # A pair built from the same answers goes together by construction;
+    # a pair with no estimate stands apart.
+    shared = [
+        _pair(a, b, None if (a, b) == ("A", "B") else 0.2, shares=(a, b) == ("B", "D"))
+        for i, a in enumerate(names)
+        for b in names[i + 1 :]
+    ]
+    order = similar_order(names, shared)
+    assert abs(order.index("B") - order.index("D")) == 1
+    assert similar_order(["A"], []) == ["A"]
+
+
+def test_table_serves_its_similar_order(client: TestClient) -> None:
+    names = ["HAPPY", "LONELY", "sfi_health", "BALANCE", "sfi_meaning"]
+    body = get_table(client, vars=names, wave="Y1", filter="country_code:1")
+    assert sorted(body["similar_order"]) == sorted(names)
+    # The two identical synthetic domain scores (r = 1) sit side by side.
+    order = body["similar_order"]
+    assert abs(order.index("sfi_health") - order.index("sfi_meaning")) == 1
+
+
 def test_table_validation(client: TestClient) -> None:
     def detail(**params) -> list[str]:
         resp = client.get("/v1/correlations", params=params)
@@ -428,7 +489,7 @@ def test_table_serves_pairs_never_people(client: TestClient) -> None:
         "/v1/correlations",
         params={"vars": ["HAPPY", "LONELY"], "wave": "Y1", "filter": "country_code:1"},
     )
-    assert set(resp.json()) == {"meta", "pairs"}
+    assert set(resp.json()) == {"meta", "pairs", "similar_order"}
     assert resp.headers["cache-control"] == CACHE_CONTROL and resp.headers["etag"]
 
 

@@ -121,26 +121,37 @@ export function Failure({ error, apiReachable }: { error: unknown; apiReachable:
 }
 
 /** The key to a diverging matrix, in its caption's place (outside the
- * scroll box, regular weight): the eleven ramp tokens between the
- * window's two ends — the tokens themselves, so it reads true in either
- * theme — what the two hues mean, and the asterisk. */
+ * scroll box, regular weight), on one line where it fits: the eleven ramp
+ * tokens between the window's two ends — the tokens themselves, so it
+ * reads true in either theme — what the two hues mean (unless the ends
+ * say it), the asterisk, and one more entry if given. */
 export function DivergingLegend({
   extent,
   stat,
   short,
   hues,
+  ends,
+  flagKey = FEW_PEOPLE_KEY,
   extra,
 }: {
   extent: number
   stat: string
   /** The measure the hues are read against ("goes with higher …"). */
   short?: string
-  /** The hues in words when there is no one measure (Compare several). */
-  hues?: string
+  /** The hues in words when there is no one measure; null: none. */
+  hues?: string | null
+  /** The two ends' words, in place of the window's numbers. */
+  ends?: [string, string]
+  /** The asterisk's entry. */
+  flagKey?: string
   /** One more entry after the asterisk's (Compare several's "·"). */
   extra?: string
 }) {
-  const [lo, hi] = legendEnds(extent, stat)
+  const [lo, hi] = ends ?? legendEnds(extent, stat)
+  const words =
+    hues === undefined
+      ? `rust: goes with lower ${short ?? ''} · teal: goes with higher ${short ?? ''}`
+      : hues
   return (
     <span className={`${styles.legend} ${styles.legendRow}`}>
       <span className={styles.legendKey}>
@@ -152,10 +163,8 @@ export function DivergingLegend({
         </span>
         <span>{hi}</span>
       </span>
-      <span>
-        {hues ?? `rust: goes with lower ${short ?? ''} · teal: goes with higher ${short ?? ''}`}
-      </span>
-      <span>{FEW_PEOPLE_KEY}</span>
+      {words && <span>{words}</span>}
+      <span>{flagKey}</span>
       {extra && <span>{extra}</span>}
     </span>
   )

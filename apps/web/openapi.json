@@ -234,11 +234,19 @@
             },
             "title": "Pairs",
             "type": "array"
+          },
+          "similar_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Similar Order",
+            "type": "array"
           }
         },
         "required": [
           "meta",
-          "pairs"
+          "pairs",
+          "similar_order"
         ],
         "title": "CorrelationsResponse",
         "type": "object"
@@ -2065,7 +2073,7 @@
     },
     "/v1/correlations": {
       "get": {
-        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's.",
+        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's. ``similar_order`` lists the questions\nwith those that go together side by side: average-linkage clustering\non 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),\nties broken toward the order asked.",
         "operationId": "correlations_v1_correlations_get",
         "parameters": [
           {

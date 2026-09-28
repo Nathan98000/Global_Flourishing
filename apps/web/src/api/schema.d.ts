@@ -131,7 +131,10 @@ export interface paths {
          *     ``shares_answers`` and carries no correlation — it goes together by
          *     construction. Each row's correlations are taken in one pass over the
          *     frame. Both items of every pair are aligned to their labels, so the
-         *     signs are the ranked list's.
+         *     signs are the ranked list's. ``similar_order`` lists the questions
+         *     with those that go together side by side: average-linkage clustering
+         *     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
+         *     ties broken toward the order asked.
          */
         get: operations["correlations_v1_correlations_get"];
         put?: never;
@@ -369,6 +372,8 @@ export interface components {
             meta: components["schemas"]["CorrelationsMeta"];
             /** Pairs */
             pairs: components["schemas"]["CorrelationPairModel"][];
+            /** Similar Order */
+            similar_order: string[];
         };
         /** CountryModel */
         CountryModel: {

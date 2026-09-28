@@ -172,6 +172,8 @@ interface MultipleProps extends Common {
   selected: readonly string[]
   /** How many the table may hold in all. */
   max: number
+  /** The table is full: the button can't open. */
+  disabled?: boolean
   onAdd: (names: string[]) => void
 }
 
@@ -212,6 +214,7 @@ export function QuestionPicker(props: QuestionPickerProps) {
         className={props.multiple ? styles.addTrigger : styles.trigger}
         aria-haspopup="dialog"
         aria-expanded={open}
+        disabled={props.multiple ? props.disabled : undefined}
         aria-label={props.multiple ? props.trigger : `${label}: ${name}`}
         onClick={() => setOpen((was) => !was)}
       >

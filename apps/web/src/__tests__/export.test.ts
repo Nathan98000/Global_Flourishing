@@ -134,6 +134,7 @@ describe('correlation table CSV (Compare several)', () => {
         { a: 'HAPPY', b: 'LONELY', shares_answers: false, below_min_n: true, correlation },
         { a: 'HAPPY', b: 'sfi', shares_answers: true, below_min_n: false, correlation: null },
       ],
+      similar_order: ['HAPPY', 'sfi', 'LONELY'],
     })
     const lines = csv.trim().split('\n')
     expect(lines).toContain('# vars: HAPPY,LONELY,sfi')

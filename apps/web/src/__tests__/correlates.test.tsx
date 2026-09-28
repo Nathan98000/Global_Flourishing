@@ -303,6 +303,7 @@ const tableFixture: CorrelationsResponse = {
       correlation: plainRow('ATTEND_SVCS', 0.2, undefined, 7),
     },
   ],
+  similar_order: ['LONELY', 'HAPPY', 'ATTEND_SVCS'],
 }
 
 type Routes = Record<string, unknown | Response>
@@ -790,50 +791,56 @@ describe('Correlates view', () => {
     expect(router.state.location.searchStr).not.toContain('vars=')
   })
 
-  test('Compare several: a lower-triangle table; a cell opens Compare two, column first', async () => {
+  test('Compare several: a lower triangle by short names, no empty row or column, on a fixed scale', async () => {
     mockFetch(tier)
     const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
     const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
-    const chips = within(screen.getByRole('list', { name: 'Questions in this table' }))
-    expect(chips.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
-      '1 · Happiness×',
-      '2 · Loneliness×',
-      '3 · Service attendance×',
-    ])
+    // The set builder: n of 10, a chip per question, "+ Add questions" last.
+    const chips = screen.getByRole('list', { name: 'Questions in the table · 3 of 10' })
+    expect(
+      within(chips)
+        .getAllByRole('button', { name: /^Remove / })
+        .map((button) => button.getAttribute('aria-label')),
+    ).toEqual(['Remove Happiness', 'Remove Loneliness', 'Remove Service attendance'])
+    expect(within(chips).getByRole('button', { name: 'Add questions' })).toBeEnabled()
+    expect(screen.queryByText(/Start from/)).toBeNull()
     const table = within(figure).getByRole('table')
+    // Rows are the questions from the second on; columns up to the last
+    // but one — by short name, with no numbers anywhere; headers angled.
+    expect(
+      within(table)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Loneliness', 'Service attendance'])
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Happiness', 'Loneliness'])
+    expect(table).toHaveAttribute('data-angled')
     const cells = within(table).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([
-      '',
-      '',
-      '',
       '−0.52',
-      '',
       '',
       '·, built from the same answers',
       '+0.20*, few people behind this estimate',
-      '',
     ])
-    // Few people behind a pair: its value and an asterisk, tinted, outlined —
-    // never a blank; the tooltip says so, and never gives the n.
-    const few = within(table).getByRole('button', {
-      name: 'Service attendance and Loneliness, +0.20, few people behind this estimate: see the two questions together',
+    // The tint is on a fixed −1 to 1: −0.52 is the middle rust step, not the deepest.
+    expect(cells[0]?.getAttribute('style')).toContain('var(--div-n3)')
+    // One line of legend: the ramp's ends, the asterisk, the dot — no numbers of questions.
+    const legend = figure.querySelector('[class*=legendRow]') as HTMLElement
+    expect(legend.textContent).toBe(
+      '−1+1* few people behind this estimate· built from the same answers',
+    )
+    // The tooltip: the value, the row with the column; flagged, the sentence.
+    const lonely = within(table).getByRole('button', {
+      name: 'Loneliness with Happiness, −0.52: see the two questions together',
     })
-    expect(few.closest('td')).toHaveAttribute('data-flagged')
-    expect(few.closest('td')?.getAttribute('style')).toContain('var(--div-p')
-    fireEvent.focus(few)
+    fireEvent.focus(lonely)
     expect(within(figure).getByRole('tooltip')).toHaveTextContent(
-      'Few people gave these answers, so this estimate is less reliable.',
+      /^−0\.52 · Loneliness with Happiness$/,
     )
-    expect(within(figure).getByRole('tooltip').textContent).not.toMatch(/people answered|n =/)
-    fireEvent.blur(few)
-    expect(
-      within(figure).getByText('* few people behind this estimate — less reliable'),
-    ).toBeInTheDocument()
-    fireEvent.click(
-      within(table).getByRole('button', {
-        name: 'Loneliness and Happiness, −0.52: see the two questions together',
-      }),
-    )
+    fireEvent.blur(lonely)
+    expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
+    // A cell opens Compare two: the column first, the row second.
+    fireEvent.click(lonely)
     await waitFor(() =>
       expect(router.state.location.searchStr).toBe(
         '?a=HAPPY&b=LONELY&vars=HAPPY%2CLONELY%2CATTEND_SVCS',
@@ -841,12 +848,51 @@ describe('Correlates view', () => {
     )
   })
 
-  test('Compare several: add a question, remove one; two at least, ten at most', async () => {
+  test('Compare several: similar together is the server’s order; the page only reorders', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
+    expect(screen.getByLabelText('As added')).toBeChecked()
+    fireEvent.click(screen.getByLabelText('Similar together'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('order=similar'))
+    const table = within(figure).getByRole('table')
+    await waitFor(() =>
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .slice(1)
+          .map((th) => th.textContent),
+      ).toEqual(['Loneliness', 'Happiness']),
+    )
+    expect(
+      within(table)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Happiness', 'Service attendance'])
+    // The chips keep the order added.
+    expect(
+      within(screen.getByRole('list', { name: /Questions in the table/ }))
+        .getAllByRole('button', { name: /^Remove / })
+        .map((button) => button.getAttribute('aria-label')),
+    ).toEqual(['Remove Happiness', 'Remove Loneliness', 'Remove Service attendance'])
+  })
+
+  test('Compare several: add with the multi-select picker, remove, reorder by keyboard and by drag', async () => {
     mockFetch(tier)
     const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
     await screen.findByRole('group', { name: /Correlations among 3 questions/ })
-    fireEvent.change(screen.getByLabelText('Add a question'), { target: { value: 'secure' } })
-    fireEvent.click(await screen.findByRole('button', { name: /Secure Flourishing Index/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add questions' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add questions' })
+    // Questions already in the table: ticked, disabled, said so.
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+    expect(within(dialog).getByRole('option', { name: 'Happiness, In the table' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'secure' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Secure Flourishing Index' }))
+    expect(within(dialog).getByText('1 selected · room for 6 more')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add 1 to the table' }))
     await waitFor(() =>
       expect(router.state.location.searchStr).toContain('vars=HAPPY%2CLONELY%2CATTEND_SVCS%2Csfi'),
     )
@@ -854,11 +900,53 @@ describe('Correlates view', () => {
     await waitFor(() =>
       expect(router.state.location.searchStr).toContain('vars=HAPPY%2CATTEND_SVCS%2Csfi'),
     )
-    // At two, nothing more can go.
-    const two = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY')
-    await waitFor(() => expect(two.state.location.searchStr).toContain('vars='))
-    const removers = await screen.findAllByRole('button', { name: /^Remove / })
-    expect(removers.slice(-2).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
+    // Alt+↑ moves a question earlier, and says where it went.
+    const handle = screen.getByRole('button', { name: 'Move Service attendance' })
+    handle.focus()
+    fireEvent.keyDown(handle, { key: 'ArrowUp', altKey: true })
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toContain('vars=ATTEND_SVCS%2CHAPPY%2Csfi'),
+    )
+    expect(screen.getByText('Service attendance moved to position 1 of 3.')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Move Service attendance' })).toHaveFocus(),
+    )
+    // An arrow without Alt moves nothing.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Move Happiness' }), { key: 'ArrowUp' })
+    expect(router.state.location.searchStr).toContain('vars=ATTEND_SVCS%2CHAPPY%2Csfi')
+    // Drag the last chip onto the first.
+    const items = within(screen.getByRole('list', { name: /Questions in the table/ })).getAllByRole(
+      'listitem',
+    )
+    const transfer = { setData: vi.fn(), effectAllowed: '' }
+    fireEvent.dragStart(items[2] as HTMLElement, { dataTransfer: transfer })
+    fireEvent.dragOver(items[0] as HTMLElement, { dataTransfer: transfer })
+    fireEvent.drop(items[0] as HTMLElement, { dataTransfer: transfer })
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toContain('vars=sfi%2CATTEND_SVCS%2CHAPPY'),
+    )
+    // At two, nothing more can go; at ten, nothing more can come.
+    await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY')
+    const pairOnly = await screen.findByRole('list', { name: 'Questions in the table · 2 of 10' })
+    const removers = within(pairOnly).getAllByRole('button', { name: /^Remove / })
+    expect(removers.every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
+    const ten = ['HAPPY', 'LONELY', 'ATTEND_SVCS', 'sfi', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6']
+    mockFetch({
+      ...tier,
+      '/data/variables.json': {
+        variables: [
+          sfiVariable,
+          happyVariable,
+          attendVariable,
+          lonelyVariable,
+          ...ten.slice(4).map((name) => ({ ...happyVariable, name, display_name: `Q ${name}` })),
+        ],
+      },
+    })
+    await renderAt(`/correlates?view=matrix&vars=${ten.join(',')}`)
+    await screen.findByRole('list', { name: 'Questions in the table · 10 of 10' })
+    const adds = screen.getAllByRole('button', { name: 'Add questions' })
+    expect(adds[adds.length - 1]).toBeDisabled()
   })
 
   test('Compare several: a linked question not asked at the wave is left out, and named', async () => {
@@ -868,8 +956,9 @@ describe('Correlates view', () => {
     expect(
       await screen.findByText('Left out, not asked in Wave 2, 2024: Loneliness.'),
     ).toBeInTheDocument()
-    const chips = within(screen.getByRole('list', { name: 'Questions in this table' }))
-    expect(chips.getAllByRole('listitem')).toHaveLength(2)
+    expect(
+      screen.getByRole('list', { name: 'Questions in the table · 2 of 10' }),
+    ).toBeInTheDocument()
   })
 
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {

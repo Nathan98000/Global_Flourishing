@@ -22,6 +22,7 @@ import {
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
+import { textMeasurer } from './RankedBar'
 import { TIP_OPTIONS } from './theme'
 import styles from './TransitionTable.module.css'
 
@@ -138,6 +139,32 @@ interface TipAnchor {
 /** The room between a cell and its tooltip. */
 const TIP_GAP = 6
 
+/** Angled column headers (Compare several) rise at this angle. */
+const HEADER_ANGLE = (38 * Math.PI) / 180
+/** An angled header's line height, and the font size it is measured at. */
+const HEADER_LINE = 16
+const HEADER_SIZE = 13
+
+/** Angled headers' room, from their labels' widths: how tall the header
+ * row must be for the longest to rise in, and how far past the table's
+ * right edge the last ones reach — pure, so it is testable. */
+export function angledRoom(
+  widths: readonly number[],
+  column: number,
+): { rise: number; reach: number } {
+  const rise = Math.max(
+    0,
+    ...widths.map((width) => width * Math.sin(HEADER_ANGLE) + HEADER_LINE * Math.cos(HEADER_ANGLE)),
+  )
+  const reach = Math.max(
+    0,
+    ...widths.map(
+      (width, index) => width * Math.cos(HEADER_ANGLE) - (widths.length - 1 - index + 0.5) * column,
+    ),
+  )
+  return { rise: Math.ceil(rise) + 10, reach: Math.ceil(reach) + 8 }
+}
+
 /** How many columns lie past the visible edge of a scroll container:
  * those whose right edge sits beyond the container's, given each
  * column's right edge and the container's — pure, so it is testable
@@ -171,6 +198,7 @@ export function HeatTable({
   sort,
   highlight,
   wide = false,
+  angled = false,
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
@@ -187,6 +215,10 @@ export function HeatTable({
   highlight?: string
   /** From 1200px: out of the text column, up to 1216px, upright headers. */
   wide?: boolean
+  /** Column headers angled up at 38° (long names over narrow columns);
+   * with `columnWidth`, the header row and the box's right edge make
+   * room for them. */
+  angled?: boolean
 }) {
   const captionId = useId()
   const matrix = useRef<HTMLDivElement | null>(null)
@@ -195,6 +227,16 @@ export function HeatTable({
   const [hiddenColumns, setHiddenColumns] = useState(0)
   const [tip, setTip] = useState<TipAnchor | null>(null)
   const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
+  const [room, setRoom] = useState<{ rise: number; reach: number } | null>(null)
+  // Angled headers: measured in the header's size once the table is laid
+  // out (estimated before, and under jsdom).
+  const labels = columns.map((column) => column.label).join('\n')
+  useLayoutEffect(() => {
+    if (!angled) return
+    const laidOut = (scroller.current?.getBoundingClientRect().width ?? 0) > 0
+    const measure = textMeasurer(HEADER_SIZE, laidOut)
+    setRoom(angledRoom(labels.split('\n').map(measure), columnWidth ?? 64))
+  }, [angled, labels, columnWidth])
   const anchor = (element: Element, key: string, text: string, pinned: boolean) => {
     const box = matrix.current?.getBoundingClientRect()
     if (!box) return null
@@ -295,15 +337,20 @@ export function HeatTable({
           className={styles.scroll}
           ref={scroller}
           data-overflow={hiddenColumns > 0 || undefined}
+          style={
+            angled && room ? ({ paddingRight: `${room.reach}px` } as CSSProperties) : undefined
+          }
         >
           <table
             className={styles.table}
             aria-labelledby={captionId}
             data-fixed={columnWidth !== undefined || undefined}
+            data-angled={angled || undefined}
             style={
-              columnWidth !== undefined
-                ? ({ '--heat-column': `${columnWidth}px` } as CSSProperties)
-                : undefined
+              {
+                ...(columnWidth !== undefined ? { '--heat-column': `${columnWidth}px` } : {}),
+                ...(angled && room ? { '--angled-rise': `${room.rise}px` } : {}),
+              } as CSSProperties
             }
           >
             <thead>

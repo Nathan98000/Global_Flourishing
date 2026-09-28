@@ -464,6 +464,14 @@ describe('correlates search (ADR-0019)', () => {
       expect(parsed.invalid).toEqual(['vars'])
     }
     expect(parseCorrelatesSearch({ view: 'matrix' }).vars).toBeUndefined()
+    // The order: as added by default (never in the URL), or similar together.
+    const similar = parseCorrelatesSearch({ view: 'matrix', order: 'similar' })
+    expect(similar.order).toBe('similar')
+    expect(stringifySearch(correlatesSearchParams(similar))).toBe('?view=matrix&order=similar')
+    expect(stringifySearch(correlatesSearchParams({ ...similar, order: 'added' }))).toBe(
+      '?view=matrix',
+    )
+    expect(parseCorrelatesSearch({ order: 'random' }).invalid).toEqual(['order'])
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {

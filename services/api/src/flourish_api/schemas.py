@@ -383,3 +383,6 @@ class CorrelationsResponse(BaseModel):
     meta: CorrelationsMeta
     #: every pair i < j, row by row: (1, 2), (1, 3), … (2, 3), …
     pairs: list[CorrelationPairModel]
+    #: the questions with those that go together side by side (ADR-0019):
+    #: average-linkage clustering on 1 − |r|, ties toward the order asked
+    similar_order: list[str]
