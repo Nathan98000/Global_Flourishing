@@ -67,6 +67,18 @@ def client(api_app) -> TestClient:
 
 
 @pytest.fixture(scope="session")
+def adjusted_client(synthetic_data_dir: Path) -> TestClient:
+    """The synthetic API with the adjusted models switched on
+    (FA_ADJUSTED_ENABLED) — off by default since ADR-0018, kept tested."""
+    settings = Settings(
+        data_path=synthetic_data_dir / "flourish.duckdb",
+        correlates_min_n=SYNTHETIC_MIN_N,
+        adjusted_enabled=True,
+    )
+    return TestClient(create_app(settings))
+
+
+@pytest.fixture(scope="session")
 def store(api_app):
     """The app's DataStore, for tests that reach under the HTTP layer."""
     return api_app.state.store

@@ -105,8 +105,13 @@ jobs:
 
   deploy-web:
     name: Web → Cloudflare Pages
-    needs: preflight
-    if: needs.preflight.outputs.has-cloudflare == 'true'
+    # After the API, so new pages never go live against an older API. A
+    # skipped API deploy (no GCP secrets) doesn't hold the web back; a
+    # failed one does.
+    needs: [preflight, deploy-api]
+    if: >-
+      !cancelled() && needs.preflight.outputs.has-cloudflare == 'true' &&
+      needs.deploy-api.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read

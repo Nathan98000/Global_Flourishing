@@ -98,3 +98,32 @@
     width: 100%;
   }
 }
+
+/* The Correlates layout on a phone: Topic and Measure side by side, a
+   subtopic and the search each on a full row under them — the search
+   stays in view at every width. */
+@media (max-width: 40rem) {
+  .picker[data-pairs] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .picker[data-pairs] [data-field='topic'] {
+    order: 1;
+  }
+
+  .picker[data-pairs] [data-field='measure'] {
+    order: 2;
+  }
+
+  .picker[data-pairs] [data-field='subtopic'] {
+    order: 3;
+    grid-column: 1 / -1;
+  }
+
+  .picker[data-pairs] [data-field='search'] {
+    order: 4;
+    grid-column: 1 / -1;
+  }
+}

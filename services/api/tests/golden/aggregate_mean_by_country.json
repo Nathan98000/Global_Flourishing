@@ -8,6 +8,7 @@
     "controls": null,
     "data_version": "synthetic.0.0.1",
     "direction": "higher_better",
+    "dropped_overlap": null,
     "filters": {},
     "min_n": null,
     "model": null,

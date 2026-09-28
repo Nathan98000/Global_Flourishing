@@ -4,7 +4,12 @@
 // API is unreachable — and pinned to a real server response by the
 // parity test against _fixtures/export-sample.csv.
 
-import type { EstimateResponse, EstimateRow } from '../api/types'
+import type {
+  CorrelationsResponse,
+  EstimateResponse,
+  EstimateRow,
+  PairResponse,
+} from '../api/types'
 
 const SUBROW_KEYS = ['predictor', 'level', 'p', 'leg', 'from_level', 'to_level', 'measure'] as const
 
@@ -101,6 +106,105 @@ export function responseToCsv(response: EstimateResponse): string {
         .join(','),
     )
   }
+  return `${lines.join('\n')}\n`
+}
+
+/** A correlation table (/v1/correlations) as CSV: its own meta as `#`
+ * lines, then one line per pair — both questions, whether they share
+ * answers or rest on too few people, and the correlation's record (empty
+ * where none was taken). Same value rendering as responseToCsv. */
+export function correlationTableToCsv(table: CorrelationsResponse): string {
+  const meta = table.meta
+  const lines = [
+    `# data_version: ${pythonStr(meta.data_version)}`,
+    `# vars: ${meta.vars.join(',')}`,
+    `# wave: ${meta.wave}`,
+    `# stat: ${meta.stat}`,
+    `# weight_key: ${meta.weight_key}`,
+    `# weight: ${meta.weight}`,
+    `# ci_level: ${pythonStr(meta.ci_level)}`,
+    `# n_frame: ${meta.n_frame}`,
+    `# min_n: ${meta.min_n}`,
+    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
+      ? '# suppression: none (all cells shown)'
+      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    ...Object.entries(meta.filters).map(
+      ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
+    ),
+  ]
+  lines.push(['a', 'b', 'shares_answers', 'below_min_n', ...RECORD_FIELDS].map(quoted).join(','))
+  for (const pair of table.pairs) {
+    const row = pair.correlation
+    lines.push(
+      [
+        pair.a,
+        pair.b,
+        pythonStr(pair.shares_answers),
+        pythonStr(pair.below_min_n),
+        ...RECORD_FIELDS.map((field) => (row ? cell(row[field as keyof EstimateRow]) : '')),
+      ]
+        .map(quoted)
+        .join(','),
+    )
+  }
+  return `${lines.join('\n')}\n`
+}
+
+/** Compare two's cross-tab (/v1/correlations/pair) as CSV: its meta as
+ * `#` lines — the two questions, the correlation with its n, the flag
+ * thresholds — then one line per cell: the column's answer, its share of
+ * respondents and n, the row's answer, and the cell's record (its share
+ * of the column, with CI and n), flagged or not. Same value rendering as
+ * responseToCsv. */
+export function pairToCsv(pair: PairResponse): string {
+  const meta = pair.shares.meta
+  const correlation = pair.correlation
+  const lines = [
+    `# data_version: ${pythonStr(meta.data_version)}`,
+    `# x: ${pair.x}`,
+    `# y: ${pair.y}`,
+    `# waves: ${meta.waves.join(',')}`,
+    `# weight_key: ${meta.weight_key}`,
+    `# weight: ${meta.weight}`,
+    `# se_method: ${meta.se_method}`,
+    `# ci_level: ${pythonStr(meta.ci_level)}`,
+    `# n_frame: ${meta.n_frame}`,
+    `# n_valid: ${meta.n_valid}`,
+    `# correlation: ${cell(correlation.estimate)} (${correlation.stat}, n=${correlation.n})`,
+    `# cell_flag_below: ${pair.cell_flag_below}`,
+    `# column_flag_below: ${pair.column_flag_below}`,
+    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
+      ? '# suppression: none (all cells shown)'
+      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    ...Object.entries(meta.filters).map(
+      ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
+    ),
+  ]
+  lines.push(
+    ['x', 'x_label', 'x_share', 'x_n', 'y', 'y_label', ...RECORD_FIELDS, 'cell_flagged']
+      .map(quoted)
+      .join(','),
+  )
+  const columns = new Map(pair.columns.map((column) => [column.code, column]))
+  const rows = new Map(pair.rows.map((row) => [row.code, row]))
+  pair.cells.forEach((entry, index) => {
+    const record = pair.shares.rows[index]
+    const column = columns.get(entry.x)
+    lines.push(
+      [
+        String(entry.x),
+        column?.label ?? '',
+        cell(column?.share),
+        cell(column?.n),
+        String(entry.y),
+        rows.get(entry.y)?.label ?? '',
+        ...RECORD_FIELDS.map((field) => (record ? cell(record[field as keyof EstimateRow]) : '')),
+        pythonStr(entry.flagged),
+      ]
+        .map(quoted)
+        .join(','),
+    )
+  })
   return `${lines.join('\n')}\n`
 }
 

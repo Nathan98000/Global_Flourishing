@@ -248,8 +248,141 @@ class ResponseMeta(BaseModel):
     #: every group (0 when the predictors were named).
     min_n: int | None = None
     n_excluded: int | None = None
+    #: /v1/correlates ranked sweeps only: the predictors left out because
+    #: they share answers with a predictor kept in the list (a score and
+    #: its own questions, or a score and its screen-positive flag — ADR-0018),
+    #: each mapped to the one that stands in for it; empty when nothing
+    #: overlapped, null on every other response.
+    dropped_overlap: dict[str, str] | None = None
 
 
 class EstimateResponse(BaseModel):
     meta: ResponseMeta
     rows: list[EstimateRow]
+
+
+class PairLevelModel(BaseModel):
+    """One answer of either question in a cross-tab (/v1/correlations/pair),
+    or one equal-width bin of a long scale."""
+
+    #: the answer's code as the release codes it (binned: the bin's index)
+    code: int
+    #: the answer's short label ("Getting by"), its number on a 0–10 or
+    #: count scale, or the bin's range ("2.5–3.2")
+    label: str
+
+
+class PairColumnModel(PairLevelModel):
+    """One of x's answers: the weighted share of the people who answered
+    both questions who gave it, with its interval (the /v1/aggregate
+    proportion estimator)."""
+
+    share: float
+    ci_lo: float | None
+    ci_hi: float | None
+    #: how many people gave it (unweighted — for the data table and CSV)
+    n: int
+    #: fewer than ``column_flag_below`` people: every share in the column
+    #: rests on few people and is shown with an asterisk
+    flagged: bool
+
+
+class PairCellModel(BaseModel):
+    """One pair of answers: of the people who gave x the column's answer,
+    the weighted share who gave y the row's (each column adds to 1)."""
+
+    #: the column's code (x) and the row's code (y), as in ``columns`` and ``rows``
+    x: int
+    y: int
+    #: null when nobody gave the column's answer
+    share: float | None
+    #: how many people gave both answers (unweighted — for the data table and CSV)
+    n: int
+    #: fewer than ``cell_flag_below`` people gave both, or the column holds
+    #: fewer than ``column_flag_below``: shown with an asterisk, never withheld
+    flagged: bool
+
+
+class PairResponse(BaseModel):
+    """Two questions side by side (/v1/correlations/pair): a weighted
+    cross-tab of their answers — each column one of x's answers, each
+    cell the share of that column who gave the row's answer to y — the
+    share of people who gave each of x's answers, and the two questions'
+    weighted correlation. Both axes run in their question's aligned order
+    (least to most of what its label names, ADR-0015); respondent-level
+    answers are never served."""
+
+    #: the question on the columns, and the one on the rows
+    x: str
+    y: str
+    #: ``answers`` (one level per answer, up to 11) or ``bins`` (ten
+    #: equal-width bins between the weighted 1st and 99th percentiles)
+    x_grouping: str
+    y_grouping: str
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``; ``predictor`` = x)
+    correlation: EstimateRow
+    #: the ranking floor (``FA_CORRELATES_MIN_N``): a correlation resting on
+    #: fewer people is shown with an asterisk
+    min_n: int
+    #: x's answers, least to most of what its label names
+    columns: list[PairColumnModel]
+    #: y's answers, least to most (the page draws the most at the top)
+    rows: list[PairLevelModel]
+    #: every cell, column by column, each column's rows in order
+    cells: list[PairCellModel]
+    #: the same cells as estimate rows, in the same order — share, CI, n —
+    #: grouped by both questions (``by = [x, y]``; a binned axis carries
+    #: its bin's label): what the data table and the CSV list
+    shares: EstimateResponse
+    #: the flag thresholds (``FA_PAIR_CELL_FLAG_BELOW``, ``FA_PAIR_COLUMN_FLAG_BELOW``)
+    cell_flag_below: int
+    column_flag_below: int
+
+
+class CorrelationPairModel(BaseModel):
+    """One cell of a correlation table (/v1/correlations): the questions
+    ``a`` and ``b``, ``a`` before ``b`` in the order they were asked for."""
+
+    a: str
+    b: str
+    #: built from the same answers (a score and its own question):
+    #: associated by construction, so no correlation is taken
+    shares_answers: bool
+    #: fewer than ``meta.min_n`` people answered both
+    below_min_n: bool
+    #: the weighted correlation over the people who answered both (a
+    #: point estimate, ``ci_method = "none"``, ``predictor`` = b); null
+    #: when the two share answers
+    correlation: EstimateRow | None
+
+
+class CorrelationsMeta(BaseModel):
+    """What a correlation table says about itself."""
+
+    data_version: str | None
+    #: the questions, in the order asked (the table's rows and columns)
+    vars: list[str]
+    wave: str
+    #: ``pearson_r`` or ``spearman_r``
+    stat: str
+    weight_key: str
+    weight: str
+    ci_level: float
+    suppression: SuppressionModel
+    #: respondents in the eligible design frame
+    n_frame: int
+    filters: dict[str, list[GroupValue]]
+    #: the floor below which a pair is flagged (``FA_CORRELATES_MIN_N``)
+    min_n: int
+
+
+class CorrelationsResponse(BaseModel):
+    """Every pair of 2–10 questions in one country (/v1/correlations)."""
+
+    meta: CorrelationsMeta
+    #: every pair i < j, row by row: (1, 2), (1, 3), … (2, 3), …
+    pairs: list[CorrelationPairModel]
+    #: the questions with those that go together side by side (ADR-0019):
+    #: average-linkage clustering on 1 − |r|, ties toward the order asked
+    similar_order: list[str]

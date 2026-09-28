@@ -68,8 +68,11 @@ export function ChartFigure({
   levelLabel,
   groupLabel,
   predictorLabel,
+  columnName,
   footnote,
   unit,
+  wide = false,
+  interactive = false,
   children,
 }: {
   title: string
@@ -94,12 +97,20 @@ export function ChartFigure({
   levelLabel?: (level: number) => string | undefined
   groupLabel?: (column: string, value: string | number) => string | undefined
   predictorLabel?: (name: string) => string | undefined
+  columnName?: (column: string) => string | undefined
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
   /** Whose sample the weights stand for (a state view's chart is
    * weighted by state whatever mark it draws). */
   unit?: 'country' | 'state'
+  /** The chart may be wider than the text column (a HeatTable with
+   * `wide`, which scrolls in its own box below 1200px): the chart node
+   * lets it out rather than clipping it. */
+  wide?: boolean
+  /** The chart holds controls (the Correlates list's row buttons): it is
+   * a labelled group, not an image, so they stay in the a11y tree. */
+  interactive?: boolean
   children: React.ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -171,10 +182,11 @@ export function ChartFigure({
       {intro}
       <div
         ref={chartRef}
-        role="img"
+        role={interactive ? 'group' : 'img'}
         aria-label={ariaLabel}
         className={styles.chart}
         data-refreshing={isRefreshing || undefined}
+        data-wide={wide || undefined}
       >
         {children}
       </div>
@@ -186,6 +198,7 @@ export function ChartFigure({
           levelLabel={levelLabel}
           groupLabel={groupLabel}
           predictorLabel={predictorLabel}
+          columnName={columnName}
         />
       </details>
       <p className={styles.provenance}>

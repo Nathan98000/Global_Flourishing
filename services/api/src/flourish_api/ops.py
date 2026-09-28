@@ -1,8 +1,8 @@
 """Operational middleware: ETag/Cache-Control, in-process LRU, rate limit, logs.
 
 The data is immutable per deployment, so every /v1 GET response is a pure
-function of (data_version, canonical query). That gives two cheap wins
-(ADR-0008): the **ETag is computed from the request alone** — a matching
+function of (build, data_version, canonical query). That gives two cheap
+wins (ADR-0008): the **ETag is computed from the request alone** — a matching
 ``If-None-Match`` returns 304 before any work happens — and a small
 **in-process LRU** keyed the same way serves repeat queries without
 touching DuckDB. Rate limiting is a per-IP token bucket, per instance
@@ -37,9 +37,12 @@ logger = logging.getLogger("flourish_api.access")
 CACHE_CONTROL = "public, no-cache"
 
 
-def canonical_key(request: Request, data_version: str | None) -> str:
+def canonical_key(request: Request, data_version: str | None, build: str = "dev") -> str:
+    """The cache key and ETag source. ``build`` is the deployed commit, so a
+    release that changes a response's shape without a new data build never
+    lets a browser revalidate a body from the release before (ADR-0019)."""
     query = "&".join(sorted(f"{k}={v}" for k, v in request.query_params.multi_items()))
-    return f"{data_version or 'absent'}:{request.url.path}?{query}"
+    return f"{build}:{data_version or 'absent'}:{request.url.path}?{query}"
 
 
 def etag_for(key: str) -> str:
@@ -83,9 +86,10 @@ class ResponseCache:
 class CacheMiddleware(BaseHTTPMiddleware):
     """ETag + Cache-Control + LRU for GET /v1/*."""
 
-    def __init__(self, app: ASGIApp, cache: ResponseCache) -> None:
+    def __init__(self, app: ASGIApp, cache: ResponseCache, build: str = "dev") -> None:
         super().__init__(app)
         self.cache = cache
+        self.build = build
 
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -93,7 +97,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         if request.method != "GET" or not request.url.path.startswith("/v1"):
             return await call_next(request)
         store = request.app.state.store
-        key = canonical_key(request, store.data_version)
+        key = canonical_key(request, store.data_version, self.build)
         etag = etag_for(key)
         if etag in request.headers.get("if-none-match", ""):
             return Response(status_code=304, headers={"ETag": etag, "Cache-Control": CACHE_CONTROL})
@@ -240,7 +244,10 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
     """Order (outermost first): access log → rate limit → cache/ETag →
     JSON errors (innermost, so the others see a real response)."""
     app.add_middleware(JsonErrorMiddleware)
-    app.add_middleware(CacheMiddleware, cache=ResponseCache(settings.cache_size))
+    # The deployed commit (FA_GIT_SHA) keys every ETag; without one (local
+    # dev), each process start does, so a restart never replays old shapes.
+    build = settings.git_sha or f"dev-{int(time.time())}"
+    app.add_middleware(CacheMiddleware, cache=ResponseCache(settings.cache_size), build=build)
     if settings.env == "prod" and settings.rate_limit_per_minute > 0:
         app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
     app.add_middleware(AccessLogMiddleware, settings=settings)

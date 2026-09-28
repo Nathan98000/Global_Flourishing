@@ -19,6 +19,14 @@ export const WAVE_CHIPS: Record<string, string> = {
   Y2: '2024',
 }
 
+/** The surveys by name, for a sentence ("this question wasn't asked in
+ * the midyear survey"). */
+export const WAVE_NAMES: Record<string, string> = {
+  Y1: 'Wave 1',
+  MY: 'the midyear survey',
+  Y2: 'Wave 2',
+}
+
 /** The moment in time, for "2023 → Midyear" style pair labels — the
  * same short names the controls use. */
 export const WAVE_MOMENTS: Record<Wave, string> = {

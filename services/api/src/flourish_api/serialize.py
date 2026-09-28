@@ -21,7 +21,7 @@ import pyarrow as pa
 from flourish_api.schemas import EstimateResponse, EstimateRow
 
 _SUBROW_KEYS = ("predictor", "level", "p", "leg", "from_level", "to_level", "measure")
-_CORRELATES_META = ("adjusted", "controls", "model", "min_n", "n_excluded")
+_CORRELATES_META = ("adjusted", "controls", "model", "min_n", "n_excluded", "dropped_overlap")
 
 
 def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[EstimateRow]:
@@ -56,6 +56,9 @@ def response_to_csv(response: EstimateResponse) -> str:
         if isinstance(value, list):
             items: list[object] = list(value)  # pyright: ignore[reportUnknownArgumentType]
             rendered = ",".join(str(item) for item in items)
+        elif isinstance(value, dict):
+            pairs: dict[object, object] = dict(value)  # pyright: ignore[reportUnknownArgumentType]
+            rendered = ",".join(f"{key}:{item}" for key, item in pairs.items())
         else:
             rendered = str(value)
         buffer.write(f"# {key}: {rendered}\n")

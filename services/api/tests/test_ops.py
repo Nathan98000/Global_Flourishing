@@ -42,6 +42,17 @@ class TestCaching:
         c = client.get("/v1/aggregate", params={**PARAMS, "wave": "Y2"})
         assert c.headers["etag"] != a.headers["etag"]
 
+    def test_etag_changes_with_the_build(self, synthetic_data_dir: Path) -> None:
+        # A release that changes a response's shape without a new data build
+        # must not let a browser revalidate a body from the release before.
+        def etag(sha: str) -> str:
+            settings = Settings(data_path=synthetic_data_dir / "flourish.duckdb", git_sha=sha)
+            response = TestClient(create_app(settings)).get("/v1/aggregate", params=PARAMS)
+            return response.headers["etag"]
+
+        assert etag("aaa111") == etag("aaa111")
+        assert etag("aaa111") != etag("bbb222")
+
     def test_errors_are_not_cached(self, client: TestClient) -> None:
         resp = client.get("/v1/aggregate", params={"outcome": "NOPE", "wave": "Y1"})
         assert resp.status_code == 422

@@ -7,6 +7,7 @@
 
 import type { ChangeRequest } from '../api/change'
 import type { CorrelatesRequest } from '../api/correlates'
+import type { PairRequest, TableRequest } from '../api/correlations'
 import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
 import type { Stat, VariableSummary, Wave } from '../api/types'
@@ -631,82 +632,258 @@ export function statesRequest(
   }
 }
 
-// --- Correlates (Phase 6) ----------------------------------------------------
-// What travels with an outcome: the ranked list for one country, and the
-// same items across every country. `adjusted` swaps plain correlations
-// for the adjusted models; `method=spearman` asks for rank correlations
-// (unadjusted only). The country is absent when it is the catalog's
-// first — the view resolves that from meta, so the URL never carries it.
+// --- Correlates (Phase 6; organized by task, ADR-0019) ----------------------
+// Three views, one on screen at a time (`view`): Compare two (`a` on the
+// columns beside `b` on the rows — the default view), Compare several (a
+// table of `vars`) and Find related (what goes with `outcome`, in one
+// country or, `scope=all`, in every country). Each view's first question
+// seeds the next: Compare two's `a` and Find related's `outcome` are one
+// question under two names, so a parse folds the other view's name into
+// the one on screen. `method=spearman` asks for rank correlations. The
+// country is absent when it is the default — the view resolves that from
+// meta. Old links still land: `view=ranked` is Find related,
+// `view=countries` Find related in every country, and an old
+// `view=pair` link's `x` and `outcome` become `a` and `b`. The adjusted
+// models left the page (ADR-0018): an old link's `adjusted` is reported
+// like any other invalid param, and never sent.
+
+/** Which chart the Correlates page shows: two questions side by side, a
+ * table of several, or what goes with one. */
+export type CorrelatesViewName = 'pair' | 'matrix' | 'related'
+
+/** Find related: the chosen country, or every country. */
+export type CorrelatesScope = 'country' | 'all'
+
+/** Compare several's order: as the questions were added, or with the
+ * ones that go together side by side (the server's `similar_order`). */
+export type CorrelatesOrder = 'added' | 'similar'
+
+/** A correlation table holds 2 to 10 questions. */
+export const TABLE_MIN = 2
+export const TABLE_MAX = 10
 
 export interface CorrelatesSearch {
-  outcome: string
-  topic?: string
+  view: CorrelatesViewName
+  /** Compare two's first question (the columns); absent = Find related's
+   * question, else the default pair's first. */
+  a?: string
+  /** Compare two's second question (the rows); absent = the default
+   * pair's second (its first, when that is `a`). */
+  b?: string
+  /** Find related's question; absent = Compare two's first. */
+  outcome?: string
+  /** Find related: in the chosen country, or in every country. */
+  scope: CorrelatesScope
+  /** Compare several: the table's questions, in order; absent = the pair
+   * and the first question's top four correlates. */
+  vars?: string[]
+  /** Compare several: as added, or similar together. */
+  order: CorrelatesOrder
   wave: Wave
-  /** The country whose ranked list is shown; absent = the catalog's first. */
+  /** The country every view is taken in; absent = the default one. */
   country?: number
-  /** The adjusted models instead of plain correlations. */
-  adjusted?: boolean
-  /** Rank correlation instead of Pearson (ignored when adjusted). */
+  /** Rank correlation instead of Pearson. */
   method?: 'spearman'
   invalid?: string[]
   invalidRaw?: RawParams
 }
 
 export const CORRELATES_DEFAULTS = {
-  outcome: 'sfi',
+  view: 'pair' as CorrelatesViewName,
+  scope: 'country' as CorrelatesScope,
+  order: 'added' as CorrelatesOrder,
   wave: 'Y1' as Wave,
 }
 
+/** The pair a first visit shows (owner decision, 28 Sept 2026). */
+export const DEFAULT_PAIR = { a: 'WB_TODAY', b: 'INCOME_FEELINGS' } as const
+
+type Questions = Partial<Pick<CorrelatesSearch, 'a' | 'b' | 'outcome'>>
+
+/** Compare two's first question: its own, else Find related's, else the
+ * default pair's. */
+export function firstQuestion(search: Questions): string {
+  return search.a ?? search.outcome ?? DEFAULT_PAIR.a
+}
+
+/** The second question a first question gets by default: the default
+ * pair's second — its first, when the first is that. */
+function defaultSecond(first: string): string {
+  return first === DEFAULT_PAIR.b ? DEFAULT_PAIR.a : DEFAULT_PAIR.b
+}
+
+/** Compare two's second question: its own, else the default. */
+export function secondQuestion(search: Questions): string {
+  return search.b ?? defaultSecond(firstQuestion(search))
+}
+
+/** Find related's question: its own, else Compare two's first. */
+export function relatedQuestion(search: Questions): string {
+  return search.outcome ?? search.a ?? DEFAULT_PAIR.a
+}
+
+/** The patch that puts a view on screen, carrying its first question
+ * across under the name that view uses. */
+export function viewPatch(search: Questions, view: CorrelatesViewName): Partial<CorrelatesSearch> {
+  if (view === 'pair') return { view, a: search.a ?? search.outcome, outcome: undefined }
+  if (view === 'related') return { view, outcome: search.outcome ?? search.a, a: undefined }
+  return { view }
+}
+
+/** `vars=A,B,C` (or repeated) → 2–10 distinct names, in order. Takes
+ * the raw value itself (string or array), never the raw object. */
+function parseTableVars(value: unknown): string[] | undefined {
+  const values = value === undefined ? [] : Array.isArray(value) ? value : [value]
+  const names = values.flatMap((entry) =>
+    String(entry)
+      .split(',')
+      .map((piece) => piece.trim())
+      .filter(Boolean),
+  )
+  if (names.length < TABLE_MIN || names.length > TABLE_MAX) return undefined
+  if (new Set(names).size !== names.length) return undefined
+  return names.every((name) => NAME_PATTERN.test(name)) ? names : undefined
+}
+
+/** The view, old names included: the ranked list and the matrix across
+ * countries are both Find related now. */
+const parseCorrelatesView = (value: unknown): CorrelatesViewName | undefined =>
+  value === 'ranked' || value === 'countries'
+    ? 'related'
+    : parseEnum<CorrelatesViewName>('pair', 'matrix', 'related')(value)
+
+/** A param the page no longer offers: present at all, it is reported. */
+const parseRetired = (): undefined => undefined
+
 export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
   const collect = new Collector()
+  const named = first(raw, 'view')
+  const view = collect.take('view', raw, parseCorrelatesView, CORRELATES_DEFAULTS.view)
+  const scope = collect.take(
+    'scope',
+    raw,
+    parseEnum<CorrelatesScope>('country', 'all'),
+    named === 'countries' ? 'all' : CORRELATES_DEFAULTS.scope,
+  )
+  let a = collect.take('a', raw, parseName, undefined)
+  let b = collect.take('b', raw, parseName, undefined)
+  let outcome = collect.take('outcome', raw, parseName, undefined)
+  // One first question, named for the view on screen (see above).
+  if (view === 'pair') {
+    if (named === 'pair') {
+      // An old Compare two link: the compared question was on x, the
+      // measure on y — now the columns and the rows.
+      a = a ?? collect.take('x', raw, parseName, undefined)
+      b = b ?? outcome
+    } else {
+      a = a ?? outcome
+    }
+    outcome = undefined
+  } else if (view === 'related') {
+    outcome = outcome ?? a
+    a = undefined
+  }
   const search: CorrelatesSearch = {
-    outcome: collect.take('outcome', raw, parseName, CORRELATES_DEFAULTS.outcome),
-    topic: collect.take('topic', raw, parseName, undefined),
+    view,
+    a,
+    b,
+    outcome,
+    scope,
+    vars: collect.take('vars', raw, parseTableVars, undefined, true),
+    order: collect.take(
+      'order',
+      raw,
+      parseEnum<CorrelatesOrder>('added', 'similar'),
+      CORRELATES_DEFAULTS.order,
+    ),
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
     country: collect.take('country', raw, parseCountryCode, undefined),
-    adjusted: collect.take('adjusted', raw, parseTrue, undefined) ? true : undefined,
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
   }
+  // The adjusted models are no longer offered (ADR-0018).
+  collect.take('adjusted', raw, parseRetired, undefined)
   return collect.finish(search)
 }
 
 export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Record<string, unknown> {
+  // A question equal to its default stays out, when leaving it out
+  // resolves to the same question.
+  const a = search.a === DEFAULT_PAIR.a && search.outcome === undefined ? undefined : search.a
+  const b =
+    search.b !== undefined && search.b === defaultSecond(firstQuestion(search))
+      ? undefined
+      : search.b
+  const outcome =
+    search.outcome === DEFAULT_PAIR.a && search.a === undefined ? undefined : search.outcome
   return withInvalidRaw(
     {
-      outcome: search.outcome === CORRELATES_DEFAULTS.outcome ? undefined : search.outcome,
-      topic: search.topic,
+      view: search.view === CORRELATES_DEFAULTS.view ? undefined : search.view,
+      a,
+      b,
+      outcome,
+      scope: search.scope === CORRELATES_DEFAULTS.scope ? undefined : search.scope,
+      vars: search.vars?.length ? search.vars.join(',') : undefined,
+      order: search.order === CORRELATES_DEFAULTS.order ? undefined : search.order,
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
-      adjusted: search.adjusted ? true : undefined,
       method: search.method,
     },
     search.invalidRaw,
   )
 }
 
-/** The ranked list for one country: the server sweeps, ranks and cuts. */
-export function correlatesRequest(search: CorrelatesSearch, country: number): CorrelatesRequest {
+/** A ranked list for one question in one country: the server sweeps,
+ * ranks and cuts. */
+export function correlatesRequest(
+  search: Pick<CorrelatesSearch, 'wave' | 'method'>,
+  outcome: string,
+  country: number,
+): CorrelatesRequest {
   return {
-    outcome: search.outcome,
+    outcome,
     wave: search.wave,
     by: [],
     countries: [country],
-    adjusted: search.adjusted,
-    method: search.adjusted ? undefined : search.method,
+    method: search.method,
   }
 }
 
-/** The ranked list's own items, across every country. */
+/** Compare two: the second question (rows, the API's `y`) beside the
+ * first (columns, its `x`) in one country. */
+export function pairRequest(
+  search: Pick<CorrelatesSearch, 'wave' | 'method'>,
+  pair: { a: string; b: string },
+  country: number,
+): PairRequest {
+  return {
+    y: pair.b,
+    x: pair.a,
+    wave: search.wave,
+    country,
+    method: search.method,
+  }
+}
+
+/** Compare several: the table's questions in one country. */
+export function tableRequest(
+  search: Pick<CorrelatesSearch, 'wave' | 'method'>,
+  vars: readonly string[],
+  country: number,
+): TableRequest {
+  return { vars, wave: search.wave, country, method: search.method }
+}
+
+/** A question's ranked list, across every country. */
 export function correlatesAcrossCountries(
-  search: CorrelatesSearch,
+  search: Pick<CorrelatesSearch, 'wave' | 'method'>,
+  outcome: string,
   predictors: readonly string[],
 ): CorrelatesRequest {
   return {
-    outcome: search.outcome,
+    outcome,
     wave: search.wave,
     against: predictors,
     by: ['country_code'],
-    adjusted: search.adjusted,
-    method: search.adjusted ? undefined : search.method,
+    method: search.method,
   }
 }

@@ -16,12 +16,13 @@ within-person change with its interval and a marked zero, the histogram
 of individual change, and where people moved between answers),
 **What Matters** (the midyear survey: what people said mattered most by
 country and by age),
-**Correlates** (what travels with a measure: the strongest associations
-in one country, ranked, and the same measures across every country as a
-tinted matrix — plain weighted correlations shown as point estimates, or
-adjusted associations from survey-weighted models under a fixed control
-set with design-based intervals and a model card per family; associations,
-not causes, said on the page), **US States** (a state choropleth on the
+**Correlates** (how answers to different questions go together, by
+task: two questions side by side as a column-percent heat grid, a
+correlation table of your own, and what goes with one question — in one
+country on a fixed −1 to 1 axis, or in every country; weighted estimates,
+a construct counted once, an asterisk where few people are behind a
+number — ADR-0019; the engine's adjusted models are off the site,
+ADR-0018), **US States** (a state choropleth on the
 state-calibrated weights beside the national figure), Segments (small
 multiples by country × demographic), a searchable Codebook with exact
 question wording, and a Methods page rendered from
@@ -81,7 +82,7 @@ flowchart TB
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TS + Vite: Atlas, Change, What Matters, Correlates, US States, Segments, Codebook, Methods, model cards; Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
+| `apps/web/` | React 18 + TS + Vite: Atlas, Change, What Matters, Correlates, US States, Segments, Codebook, Methods; Observable Plot charts, static-first fetch layer, typed URL state, Playwright + Lighthouse CI |
 | `services/api/` | FastAPI service (Phase 0: `/health`; Phase 3: `/v1/*`) |
 | `stats/` | Statistics engine: survey-weighted estimators with design-based CIs, verified against R `survey` (`stats/verify/`) |
 | `pipeline/` | Data pipeline (Phase 1: ingest → clean → reshape → derive → validate → aggregate) |

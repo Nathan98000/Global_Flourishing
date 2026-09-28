@@ -28,7 +28,14 @@ from flourish_stats.io import aligned_expr
 from flourish_stats.outcomes import MEAN_SCALE_TYPES
 
 from flourish_api.data import DataStore, VariableInfo
-from flourish_api.queries import AggregateQuery, ChangeQuery, CorrelatesQuery, DomainFilter
+from flourish_api.queries import (
+    AggregateQuery,
+    ChangeQuery,
+    CorrelatesQuery,
+    DomainFilter,
+    MatrixQuery,
+    PairQuery,
+)
 
 VALUE_COLUMN = "value"
 #: The group column a state-scope response carries. The spec says which
@@ -238,4 +245,103 @@ def assemble_correlates_frame(
         design=Design(weight=spec.weight, strata="strata", psu="psu"),
         value=query.outcome.name,
         groups=query.by,
+    )
+
+
+#: The pair frame's columns: Y and X aligned to their labels (ADR-0015) —
+#: what the correlation is taken on and both axes of the cross-tab are
+#: levelled by, so each runs from least to most of what its label names.
+PAIR_Y_ALIGNED = "_y_aligned"
+PAIR_X = "_x"
+
+
+def _indicator(name: str) -> pl.Expr:
+    """A yes/no item as 0/1 on its event code (null stays null)."""
+    return (
+        pl.when(pl.col(name).is_null())
+        .then(None)
+        .otherwise((pl.col(name) == BINARY_EVENT_CODE).cast(pl.Int8))
+    )
+
+
+def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
+    """Two items on the country's eligible frame, for /v1/correlations/pair.
+
+    Both are aligned (a yes/no item as its indicator of "yes"), so each
+    axis of the cross-tab runs from least to most of what its label names
+    and the correlation carries the ranked list's sign. Only people who
+    answered both count: both columns are null for anyone else, who stays
+    in the design. A non-country filter nulls Y outside its domain first.
+    """
+    spec = resolve((query.wave,), "global")
+    extra: list[str] = [item.column for item in query.filters]
+    extra.append(spec.weight)
+    frame = store.wide_frame(
+        [query.y, query.x],
+        query.wave,
+        extra_columns=tuple(dict.fromkeys(extra)),
+        country_codes=query.countries,
+    )
+    frame = frame.filter(eligibility_expr(spec))
+    frame = apply_domain_filters(frame, query.y.name, query.filters)
+    y, x = query.y, query.x
+
+    def aligned(variable: VariableInfo) -> pl.Expr:
+        if variable.scale_type == "binary":
+            return _indicator(variable.name)
+        return aligned_expr(
+            variable.name, polarity=variable.polarity, lo=variable.min, hi=variable.max
+        )
+
+    frame = frame.with_columns(
+        aligned(y).cast(pl.Float64).alias(PAIR_Y_ALIGNED),
+        aligned(x).cast(pl.Float64).alias(PAIR_X),
+    )
+    both = pl.col(PAIR_Y_ALIGNED).is_not_null() & pl.col(PAIR_X).is_not_null()
+    frame = frame.with_columns(
+        [
+            pl.when(both).then(pl.col(column)).otherwise(None).alias(column)
+            for column in (PAIR_Y_ALIGNED, PAIR_X)
+        ]
+    )
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=PAIR_Y_ALIGNED,
+        groups=(),
+    )
+
+
+def assemble_matrix_frame(store: DataStore, query: MatrixQuery) -> AssembledFrame:
+    """Every question of a correlation table on the country's eligible
+    frame, each aligned to its label (a yes/no item as its indicator of
+    "yes"), so every pair's correlation carries the sign the ranked list
+    would give it. A non-country filter nulls every question outside its
+    domain: each pair's complete cases lie in the domain, while the rows
+    stay in the design."""
+    spec = resolve((query.wave,), "global")
+    extra: list[str] = [item.column for item in query.filters]
+    extra.append(spec.weight)
+    frame = store.wide_frame(
+        list(query.variables),
+        query.wave,
+        extra_columns=tuple(dict.fromkeys(extra)),
+        country_codes=query.countries,
+    )
+    frame = frame.filter(eligibility_expr(spec))
+    for variable in query.variables:
+        frame = apply_domain_filters(frame, variable.name, query.filters)
+        if variable.scale_type == "binary":
+            frame = frame.with_columns(_indicator(variable.name).alias(variable.name))
+        else:
+            frame = align(frame, variable.name, variable)
+    validate_frame(frame, spec)
+    return AssembledFrame(
+        frame=frame,
+        spec=spec,
+        design=Design(weight=spec.weight, strata="strata", psu="psu"),
+        value=query.variables[0].name,
+        groups=(),
     )

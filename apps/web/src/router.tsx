@@ -116,7 +116,10 @@ const whatMattersRoute = createRoute({
   component: lazyRouteComponent(() => import('./views/WhatMattersView'), 'WhatMattersView'),
 })
 
-// Phase 6: the Correlates view and the model cards it links to, both lazy.
+// Phase 6: the Correlates view, lazy. Its model cards were retired with
+// the adjusted models (ADR-0018): an old /model-cards link falls through
+// to the not-found page; restoring the route (and FA_ADJUSTED_ENABLED on
+// the API) brings them back.
 const correlatesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/correlates',
@@ -124,13 +127,6 @@ const correlatesRoute = createRoute({
   validateSearch: (raw: Record<string, unknown> & SearchSchemaInput) => parseCorrelatesSearch(raw),
   search: { middlewares: [omitDefaults(correlatesSearchParams)] },
   component: lazyRouteComponent(() => import('./views/CorrelatesView'), 'CorrelatesView'),
-})
-
-const modelCardsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/model-cards',
-  ...titled('Model cards'),
-  component: lazyRouteComponent(() => import('./views/ModelCardsView'), 'ModelCardsView'),
 })
 
 const statesRoute = createRoute({
@@ -192,7 +188,6 @@ const routeTree = rootRoute.addChildren([
   compareRedirectRoute,
   whatMattersRoute,
   correlatesRoute,
-  modelCardsRoute,
   statesRoute,
   breakdownsRoute,
   breakdownsRedirectRoute,

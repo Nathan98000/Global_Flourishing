@@ -17,6 +17,7 @@ that suite).
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
@@ -43,8 +44,10 @@ DATA_VERSION = "synthetic.0.0.1"
 #: histogram), an ordinal pair (adds the transition matrix), the
 #: three-point panel, two state cross-sections (plain and adjusted) with
 #: the US overall on the state weight beside them, and
-#: the Correlates view's four shapes for two outcomes — the ranked list
-#: for Testland and the cross-country sweep, plain and adjusted.
+#: the Correlates view's two shapes for the questions journey 10's old
+#: links visit — the ranked list for Testland and the cross-country sweep
+#: (the page never asks for the adjusted models, ADR-0018). The rest of
+#: that journey's responses are planned below.
 API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     (
         "change-HAPPY-Y1-Y2.json",
@@ -75,20 +78,103 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     ),
     *(
         (
-            f"correlates-{outcome}-Y1-{shape}{'-adjusted' if adjusted else ''}.json",
+            f"correlates-{outcome}-Y1-{shape}.json",
             "/v1/correlates",
             {
                 "outcome": outcome,
                 "wave": "Y1",
                 **({"filter": "country_code:1"} if shape == "ranked" else {"by": "country_code"}),
-                **({"adjusted": "true"} if adjusted else {}),
             },
         )
-        for outcome in ("sfi", "HAPPY")
+        for outcome in ("sfi", "HAPPY", "LONELY", "gad2_score")
         for shape in ("ranked", "across")
-        for adjusted in (False, True)
     ),
 )
+
+#: Journey 10's path (ADR-0019), in the synthetic data: it lands on
+#: Compare two's default pair, picks HAPPY as the first question, swaps
+#: the two, looks in every country, opens Compare several (the pair and
+#: the first question's top four), adds two questions, removes the first
+#: of them, orders the table "similar together" and opens its first cell;
+#: then Find related for that cell's first question, whose top row opens
+#: Compare two again. The plan is written beside the fixtures
+#: (journey-10.json) so the spec needn't repeat the server's choices.
+DEFAULT_PAIR = ("WB_TODAY", "INCOME_FEELINGS")
+JOURNEY_PICKED = "HAPPY"
+#: Added in Compare several: the first two of these not already there.
+JOURNEY_ADD_FROM = ("BALANCE", "CHILD_MEM", "LONELY", "ATTEND_SVCS", "WB_TODAY")
+BASE = {"wave": "Y1", "filter": "country_code:1"}
+
+
+def correlation_fixtures(
+    client: TestClient,
+) -> tuple[list[tuple[str, str, dict[str, object]]], dict[str, object]]:
+    """(file, path, params) for every request journey 10 makes beyond the
+    shared API fixtures — each named from the request itself, so the
+    journey finds it by it — and the plan the journey follows."""
+    fixtures: list[tuple[str, str, dict[str, object]]] = []
+
+    def pair(y: str, x: str) -> None:
+        fixtures.append(
+            (f"correlations-pair-{y}-{x}.json", "/v1/correlations/pair", {"y": y, "x": x, **BASE})
+        )
+
+    def ranked(outcome: str) -> list[str]:
+        params = {"outcome": outcome, **BASE}
+        fixtures.append((f"correlates-{outcome}-Y1-ranked.json", "/v1/correlates", params))
+        response = client.get("/v1/correlates", params=params)
+        response.raise_for_status()
+        return [row["predictor"] for row in response.json()["rows"]]
+
+    def table(names: list[str]) -> dict[str, object]:
+        params = {"vars": names, **BASE}
+        fixtures.append((f"correlations-table-{'-'.join(names)}.json", "/v1/correlations", params))
+        response = client.get("/v1/correlations", params=params)
+        response.raise_for_status()
+        return response.json()
+
+    def display(name: str) -> str:
+        response = client.get(f"/v1/variables/{name}")
+        response.raise_for_status()
+        return str(response.json()["display_name"])
+
+    a, b = DEFAULT_PAIR
+    pair(b, a)
+    # Pick the first question; swap the two; the swapped pair everywhere.
+    pair(b, JOURNEY_PICKED)
+    first, second = b, JOURNEY_PICKED
+    pair(second, first)
+    fixtures.append(
+        (
+            f"correlates-{first}-Y1-across-{second}.json",
+            "/v1/correlates",
+            {"outcome": first, "wave": "Y1", "against": second, "by": "country_code"},
+        )
+    )
+    # Compare several: the pair and the first question's top four.
+    top = [name for name in ranked(first) if name != second][:4]
+    default = [first, second, *top]
+    added = [name for name in JOURNEY_ADD_FROM if name not in default][:2]
+    grown = [*default, *added]
+    kept = [name for name in grown if name != added[0]]
+    table(default)
+    table(grown)
+    order = [str(name) for name in table(kept)["similar_order"]]  # type: ignore[union-attr]
+    # Its first cell: the second question shown on the row, the first on the column.
+    pair(order[1], order[0])
+    # Find related for that first question; its top row opens a pair.
+    related = ranked(order[0])[0]
+    pair(related, order[0])
+    plan: dict[str, object] = {
+        "picked": {"name": JOURNEY_PICKED, "display_name": display(JOURNEY_PICKED)},
+        "default": default,
+        "added": [{"name": name, "display_name": display(name)} for name in added],
+        "kept": kept,
+        "order": order,
+        "cell": [{"name": name, "display_name": display(name)} for name in order[:2]],
+        "related": {"name": related, "display_name": display(related)},
+    }
+    return fixtures, plan
 
 
 def main() -> int:
@@ -111,10 +197,12 @@ def main() -> int:
         fixtures = target / "_fixtures"
         fixtures.mkdir()
         (fixtures / "export-sample.csv").write_text(sample.text)
-        for name, path, params in API_FIXTURES:
+        journey, plan = correlation_fixtures(client)
+        for name, path, params in (*API_FIXTURES, *journey):
             response = client.get(path, params=params)
             response.raise_for_status()
             (fixtures / name).write_text(response.text)
+        (fixtures / "journey-10.json").write_text(json.dumps(plan, indent=2) + "\n")
 
     print(
         f"web-fixtures: {index['file_count']} static files + catalog tier "

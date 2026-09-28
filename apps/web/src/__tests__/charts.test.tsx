@@ -2,13 +2,14 @@
 // labels come from meta, suppression renders in place, colors are token
 // vars (never hex) so both themes recolor the same SVG.
 
-import { render, screen } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
-import { RankedBar, rankEntries } from '../charts/RankedBar'
+import { LABEL_CAP, RankedBar, rankEntries, wrapLabel } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { chartWidth, usePlot } from '../charts/usePlot'
 import {
   attendVariable,
   happyVariable,
@@ -185,6 +186,159 @@ describe('RankedBar', () => {
     const svg = container.querySelector('svg')
     expect(svg?.querySelectorAll('circle')).toHaveLength(1)
     expect(svg?.textContent).toContain('7.00')
+  })
+})
+
+describe('RankedBar, the Correlates list (ADR-0018)', () => {
+  const correlation = (predictor: string, estimate: number, n = 300) =>
+    testRow({
+      group: {},
+      predictor,
+      stat: 'pearson_r',
+      estimate,
+      se: null,
+      ci_lo: null,
+      ci_hi: null,
+      ci_method: 'none',
+      se_method: 'none',
+      n,
+    })
+  const names: Record<string, string> = {
+    A: 'Life evaluation today',
+    B: 'Christian teachings important (country religion) and a good deal more besides',
+    C: 'Gratitude',
+  }
+  const list = [correlation('A', 0.76), correlation('B', -0.42), correlation('C', 0.12, 80)]
+  const props = {
+    rows: list,
+    meta: testMeta,
+    responseMeta: testResponseMeta({ stat: 'pearson_r' }),
+    variable: happyVariable,
+    color: 'var(--div-pos-mark)',
+    labelOf: (row: (typeof list)[number]) => names[row.predictor ?? ''] ?? '',
+    zeroRule: true,
+    fixedScale: {
+      domain: [-1, 1] as [number, number],
+      ticks: [-1, -0.5, 0, 0.5, 1],
+      narrowTicks: [-1, 0, 1],
+    },
+    axisEnds: ['← goes with lower Happiness', 'goes with higher Happiness →'] as [string, string],
+    fitLabels: true,
+  }
+
+  test('a fixed −1 to 1 window, its ends in words, labels fitted and wrapped, never cut', () => {
+    const { container } = render(<RankedBar {...props} />)
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const ticks = [...svg.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+      (node) => node.textContent,
+    )
+    // Never fitted: a +0.12 list and a +0.76 list share one window.
+    expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
+    // (Each end holds to half the plot, wrapping rather than meeting.)
+    const words = [...svg.querySelectorAll('text')].map(
+      (node) =>
+        [...node.querySelectorAll('tspan')].map((line) => line.textContent).join(' ') ||
+        node.textContent,
+    )
+    expect(words).toContain('← goes with lower Happiness')
+    expect(words).toContain('goes with higher Happiness →')
+    // The long label wraps to two lines; every word is still there.
+    const labels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
+    const long = labels.find((node) => node.textContent?.startsWith('Christian'))
+    expect(long?.querySelectorAll('tspan').length).toBe(2)
+    expect(long?.textContent?.replace(/\s+/g, '')).toBe(names['B']?.replace(/\s+/g, ''))
+    // The gutter fits the widest line, capped.
+    const gutter = Number(
+      svg
+        .querySelector('[aria-label="x-axis tick"] path')
+        ?.getAttribute('transform')
+        ?.match(/translate\(([\d.]+)/)?.[1] ?? 0,
+    )
+    expect(gutter).toBeLessThanOrEqual(LABEL_CAP + 1)
+  })
+
+  test('word wrapping keeps whole words and holds the rest on the last line', () => {
+    const measure = (text: string) => text.length * 10
+    expect(wrapLabel('Importance: religious or spiritual life', 250, measure)).toEqual([
+      'Importance: religious or',
+      'spiritual life',
+    ])
+    expect(wrapLabel('Gratitude', 200, measure)).toEqual(['Gratitude'])
+    expect(wrapLabel('a b c d e f g h', 30, measure, 2)).toEqual(['a b', 'c d e f g h'])
+  })
+
+  test('rows are buttons: select opens, focus shows the tooltip, the pointer tip steps aside', () => {
+    const selected: string[] = []
+    const { container } = render(
+      <div role="group" aria-label="chart">
+        <RankedBar
+          {...props}
+          tipOf={(row, label) => `${row.estimate} · ${label}`}
+          onSelectRow={(row) => selected.push(row.predictor ?? '')}
+          rowName={(_row, label) => `${label}: compare`}
+        />
+      </div>,
+    )
+    const chart = screen.getByRole('group', { name: 'chart' })
+    const buttons = within(chart).getAllByRole('button')
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Life evaluation today: compare',
+      `${names['B']}: compare`,
+      'Gratitude: compare',
+    ])
+    fireEvent.click(buttons[1] as HTMLElement)
+    expect(selected).toEqual(['B'])
+    fireEvent.focus(buttons[0] as HTMLElement)
+    expect(within(chart).getByRole('tooltip')).toHaveTextContent('0.76 · Life evaluation today')
+    fireEvent.blur(buttons[0] as HTMLElement)
+    expect(within(chart).queryByRole('tooltip')).toBeNull()
+    // The buttons carry the tip; Plot's pointer tip is not drawn twice.
+    expect(container.querySelector('[aria-label="tip"]')).toBeNull()
+  })
+
+  test('on a phone each label sits on its own line over a full-width dot track, three ticks', () => {
+    // A 358px column: stub the observer and the host's width (jsdom has no layout).
+    const notify: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notify.push(callback)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width: 358 }) as DOMRect)
+    // Laid out, the chart measures text on a canvas jsdom does not have.
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    try {
+      const { container } = render(<RankedBar {...props} stackOnNarrow labelFontSize={12} />)
+      const svg = container.querySelector('svg') as SVGSVGElement
+      expect(svg.getAttribute('width')).toBe('358')
+      const ticks = [...svg.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+        (node) => node.textContent,
+      )
+      expect(ticks).toEqual(['−1', '0', '1'])
+      // No y axis: the labels are text lines of their own, left-aligned,
+      // and each value sits at the right end.
+      expect(svg.querySelector('[aria-label="y-axis tick label"]')).toBeNull()
+      expect(svg.textContent).toContain('Life evaluation today')
+      expect(svg.textContent).toContain('+0.76')
+      const starts = [...svg.querySelectorAll('[aria-label="text"] text')].filter((node) =>
+        node.textContent?.startsWith('Life evaluation'),
+      )
+      expect(
+        starts[0]?.getAttribute('text-anchor') ??
+          starts[0]?.parentElement?.getAttribute('text-anchor'),
+      ).toBe('start')
+    } finally {
+      canvas.mockRestore()
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 })
 
@@ -447,4 +601,58 @@ describe('column labels and the top axis', () => {
 
 test('screen has no leaked chart between tests', () => {
   expect(screen.queryByText('United States')).toBeNull()
+})
+
+describe('usePlot', () => {
+  /** A chart whose build records the width it was given and draws an
+   * SVG that wide — the contract every Plot chart follows. */
+  function Probe({ builds }: { builds: (number | null)[] }) {
+    const container = usePlot((available) => {
+      builds.push(available)
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('width', String(chartWidth(660, available)))
+      return svg
+    }, [])
+    return <div ref={container} data-testid="host" />
+  }
+
+  test("a chart rebuilds at its column's new width, growing as well as shrinking (review M5)", () => {
+    // jsdom has no layout and no ResizeObserver: the host's width is
+    // faked, and the observer hands its callback to the test.
+    let width = 707
+    const notify: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notify.push(callback)
+        }
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width }) as DOMRect)
+    try {
+      const builds: (number | null)[] = []
+      render(<Probe builds={builds} />)
+      const drawn = () => screen.getByTestId('host').querySelector('svg')?.getAttribute('width')
+      expect(drawn()).toBe('707') // 768px window, 30.7px padding a side
+      const resize = (next: number) => {
+        width = next
+        act(() => notify.forEach((callback) => callback()))
+      }
+      resize(896) // → 1100px: the column grows
+      expect(drawn()).toBe('896')
+      resize(644) // → 700px
+      expect(drawn()).toBe('644')
+      resize(896) // and back up
+      expect(drawn()).toBe('896')
+      expect(builds.slice(-4)).toEqual([707, 896, 644, 896])
+    } finally {
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
 })

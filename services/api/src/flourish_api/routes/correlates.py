@@ -3,11 +3,13 @@
 Two estimators behind one envelope: the unadjusted weighted correlation
 (point estimate only, ``ci_method = "none"`` — no interval is claimed) and
 the adjusted association (the predictor's coefficient under the fixed
-control set, with the design-based sandwich SE). Either runs against the
-named predictors (``against``, repeatable — a view asks for its ranked
-list's items across countries this way) or, when none is named, against
-every other servable ordered item at the wave in a single pass over one
-frame, ranked and cut to ``limit``.
+control set, with the design-based sandwich SE — off unless the server
+enables it, ADR-0018). Either runs against the named predictors
+(``against``, repeatable — a view asks for its ranked list's items across
+countries this way) or, when none is named, against every other servable
+ordered item at the wave in a single pass over one frame, ranked, cut to
+``limit`` and kept free of overlap: of two kept predictors built from the
+same answers, only the one built from more of them stays.
 """
 
 from __future__ import annotations
@@ -19,12 +21,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import SuppressionPolicy, adjusted_association, weighted_correlations
 from flourish_stats.correlations import CORRELATES_MIN_N, DEFAULT_CONTROLS
-from flourish_stats.outcomes import DERIVED_OUTCOMES
 
 from flourish_api.data import (
     Catalog,
     DataStore,
     VariableInfo,
+    adjusted_gate,
     correlates_min_n,
     require_data,
     suppression_policy,
@@ -34,7 +36,9 @@ from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
     ORDERED_SCALE_TYPES,
     CorrelatesQuery,
+    answers_of,
     parse_correlates_query,
+    shares_answers,
 )
 from flourish_api.schemas import EstimateResponse, EstimateRow, ResponseMeta, SuppressionModel
 from flourish_api.serialize import rows_from_table
@@ -46,19 +50,58 @@ router = APIRouter()
 RANKING_MEASURE = "beta_per_sd"
 
 
-def _answers(info: VariableInfo) -> set[str]:
-    """The questions a variable is made of (itself, plus the components of
-    a derived score)."""
-    if info.is_derived:
-        return {info.name, *DERIVED_OUTCOMES[info.name].components}
-    return {info.name}
+def stands_in_for(a: VariableInfo, b: VariableInfo) -> bool:
+    """Whether ``a`` replaces ``b`` when the two share answers: the one
+    built from more answers wins (a score over its own questions); on a
+    tie, the non-binary one (a score over its screen-positive flag). A
+    full tie keeps the one already in the list."""
+    size_a, size_b = len(answers_of(a)), len(answers_of(b))
+    if size_a != size_b:
+        return size_a > size_b
+    return a.scale_type != "binary" and b.scale_type == "binary"
 
 
-def shares_answers(a: VariableInfo, b: VariableInfo) -> bool:
-    """A score and one of its components (or two scores sharing a
-    question) are associated by construction, not by anything in the
-    world — the sweep leaves them out."""
-    return bool(_answers(a) & _answers(b))
+Ranked = list[tuple[str, list[EstimateRow]]]
+
+
+def drop_overlaps(
+    ranked: Ranked, infos: dict[str, VariableInfo], limit: int
+) -> tuple[Ranked, dict[str, str]]:
+    """The first ``limit`` predictors of ``ranked`` with no two built from
+    the same answers (ADR-0018), and what was left out for it.
+
+    Walks the ranking in order, keeping predictors until ``limit`` are
+    kept. A predictor that shares answers with kept ones replaces them
+    when it stands in for every one of them (they leave the list and the
+    walk backfills from further down), and is itself left out otherwise.
+    Only kept predictors compete: a score ranked below the cut never
+    displaces its question. The map sends each dropped name to the kept
+    predictor that stands in for it.
+    """
+    kept: Ranked = []
+    dropped: dict[str, str] = {}
+    for name, rows in ranked:
+        if len(kept) >= limit:
+            break
+        info = infos[name]
+        rivals = [item for item in kept if shares_answers(infos[item[0]], info)]
+        if not rivals:
+            kept.append((name, rows))
+            continue
+        losing = [item for item in rivals if not stands_in_for(info, infos[item[0]])]
+        if losing:
+            dropped[name] = losing[0][0]
+            continue
+        replaced = {item[0] for item in rivals}
+        kept = [item for item in kept if item[0] not in replaced]
+        kept.append((name, rows))
+        for loser in replaced:
+            dropped[loser] = name
+        # Whatever the replaced ones stood in for, this one now does.
+        for loser, winner in dropped.items():
+            if winner in replaced:
+                dropped[loser] = name
+    return kept, dropped
 
 
 def candidate_predictors(catalog: Catalog, query: CorrelatesQuery) -> list[VariableInfo]:
@@ -167,13 +210,15 @@ def run_correlates(
     assembled = assemble_correlates_frame(store, query, predictors)
     estimated = list(estimate_rows(assembled, query, predictors, policy).items())
     n_excluded = 0
+    dropped: dict[str, str] = {}
     if not query.against:
         # A candidate with too few complete cases in every group is not
         # ranked at all; the rest rank on their qualifying groups.
         ranked = [item for item in estimated if rankable(item[1], query.adjusted, min_n)]
         n_excluded = len(estimated) - len(ranked)
         ranked.sort(key=lambda item: (-rank_key(item[1], query.adjusted, min_n), item[0]))
-        estimated = ranked[: query.limit]
+        infos = {p.name: p for p in predictors}
+        estimated, dropped = drop_overlaps(ranked, infos, query.limit)
     rows = [row for _, predictor_rows in estimated for row in predictor_rows]
     stat = "beta" if query.adjusted else f"{query.method}_r"
     meta = ResponseMeta(
@@ -204,12 +249,15 @@ def run_correlates(
         ),
         min_n=min_n,
         n_excluded=n_excluded,
+        dropped_overlap=dropped,
     )
     return EstimateResponse(meta=meta, rows=rows)
 
 
 @router.get("/correlates", summary="What travels with an outcome: ranked associations")
 def correlates(
+    # First, so a refused adjusted request costs nothing (ADR-0018).
+    adjusted: Annotated[bool, Depends(adjusted_gate)],
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     min_n: Annotated[int, Depends(correlates_min_n)],
@@ -217,22 +265,27 @@ def correlates(
     wave: str,
     against: Annotated[list[str] | None, Query()] = None,
     method: str = "pearson",
-    adjusted: bool = False,
     by: Annotated[list[str] | None, Query()] = None,
     filter: Annotated[list[str] | None, Query()] = None,
     limit: int = CORRELATES_DEFAULT_LIMIT,
 ) -> EstimateResponse:
-    """Associations, not causes. Unadjusted rows are weighted Pearson or
-    Spearman coefficients with no interval (``ci_method = "none"``);
-    ``adjusted=true`` returns the predictor's coefficient in a
-    survey-weighted regression under the fixed control set (``stat =
-    "beta"``, plus a ``beta_per_sd`` row) with a design-based CI. Omit
+    """Associations, not causes. Rows are weighted Pearson or Spearman
+    coefficients with no interval (``ci_method = "none"``). Omit
     ``against`` for the ranked sweep over every other servable ordered
     item at the wave, cut to ``limit`` predictors (ranked by the median
     absolute association across the groups with at least ``meta.min_n``
     complete cases; ``meta.n_excluded`` candidates fell below it and are
-    not ranked). Binary items enter as indicators of code 1 (Yes / screen
-    positive). Global scope only."""
+    not ranked). Of two kept predictors built from the same answers only
+    the one built from more of them stays (a score over its questions; on
+    a tie, a score over its screen-positive flag); the list backfills to
+    ``limit`` and ``meta.dropped_overlap`` names what was left out, and
+    what stands in for it. Binary items enter as indicators of code 1
+    (Yes / screen positive). Global scope only.
+
+    ``adjusted=true`` — the predictor's coefficient in a survey-weighted
+    regression under the fixed control set (``stat = "beta"``, plus a
+    ``beta_per_sd`` row) with a design-based CI — is disabled unless the
+    server enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422."""
     assert store.catalog is not None
     query = parse_correlates_query(
         store.catalog,

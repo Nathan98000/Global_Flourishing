@@ -6,6 +6,7 @@ import {
   ATLAS_DEFAULTS,
   CHANGE_DEFAULTS,
   CORRELATES_DEFAULTS,
+  DEFAULT_PAIR,
   atlasRequest,
   atlasSearchParams,
   breakdownsRequest,
@@ -16,6 +17,12 @@ import {
   correlatesAcrossCountries,
   correlatesRequest,
   correlatesSearchParams,
+  firstQuestion,
+  pairRequest,
+  relatedQuestion,
+  secondQuestion,
+  viewPatch,
+  tableRequest,
   parseAtlasSearch,
   parseBreakdownsSearch,
   parseChangeSearch,
@@ -327,81 +334,200 @@ describe('states search (Phase 5)', () => {
   })
 })
 
-describe('correlates search (Phase 6)', () => {
-  test('defaults apply and are omitted from the URL', () => {
+describe('correlates search (ADR-0019)', () => {
+  test('defaults apply and are omitted from the URL: Compare two, the default pair', () => {
     const search = parseCorrelatesSearch({})
     expect(search).toEqual(CORRELATES_DEFAULTS)
+    expect(search.view).toBe('pair')
+    expect(firstQuestion(search)).toBe(DEFAULT_PAIR.a)
+    expect(secondQuestion(search)).toBe(DEFAULT_PAIR.b)
+    expect(relatedQuestion(search)).toBe(DEFAULT_PAIR.a)
     expect(stringifySearch(correlatesSearchParams(search))).toBe('')
+    // The default pair's own questions stay out of the URL too.
+    expect(
+      stringifySearch(correlatesSearchParams({ ...search, a: 'WB_TODAY', b: 'INCOME_FEELINGS' })),
+    ).toBe('')
   })
 
-  test('a full URL round-trips exactly', () => {
-    const raw = parseSearchString(
-      '?outcome=HAPPY&wave=Y2&country=22&adjusted=true&method=spearman&topic=wellbeing',
-    )
+  test('Compare two: `a` on the columns, `b` on the rows, round-tripping exactly', () => {
+    const raw = parseSearchString('?a=HAPPY&b=LONELY&wave=Y2&country=22&method=spearman')
     const search = parseCorrelatesSearch(raw)
     expect(search).toMatchObject({
-      outcome: 'HAPPY',
+      view: 'pair',
+      a: 'HAPPY',
+      b: 'LONELY',
       wave: 'Y2',
       country: 22,
-      adjusted: true,
       method: 'spearman',
-      topic: 'wellbeing',
     })
     expect(search.invalid).toBeUndefined()
     expect(stringifySearch(correlatesSearchParams(search))).toBe(
-      '?outcome=HAPPY&topic=wellbeing&wave=Y2&country=22&adjusted=true&method=spearman',
+      '?a=HAPPY&b=LONELY&wave=Y2&country=22&method=spearman',
     )
+    // The rows are the API's y, the columns its x.
+    expect(pairRequest(search, { a: 'HAPPY', b: 'LONELY' }, 22)).toEqual({
+      y: 'LONELY',
+      x: 'HAPPY',
+      wave: 'Y2',
+      country: 22,
+      method: 'spearman',
+    })
+    // A first question that is the default pair's second takes its first as the second.
+    expect(secondQuestion(parseCorrelatesSearch({ a: 'INCOME_FEELINGS' }))).toBe('WB_TODAY')
+    const swapped = { ...parseCorrelatesSearch({}), a: 'INCOME_FEELINGS', b: 'WB_TODAY' }
+    expect(stringifySearch(correlatesSearchParams(swapped))).toBe('?a=INCOME_FEELINGS')
+    expect(parseCorrelatesSearch({ a: '9lives' }).invalid).toEqual(['a'])
+    expect(parseCorrelatesSearch({ b: 'no way' }).invalid).toEqual(['b'])
+  })
+
+  test('the view and the scope: an unknown view is reported; the defaults stay out of the URL', () => {
+    const related = parseCorrelatesSearch({ view: 'related', outcome: 'HAPPY', scope: 'all' })
+    expect(related).toMatchObject({ view: 'related', outcome: 'HAPPY', scope: 'all' })
+    expect(stringifySearch(correlatesSearchParams(related))).toBe(
+      '?view=related&outcome=HAPPY&scope=all',
+    )
+    const matrix = parseCorrelatesSearch({ view: 'matrix' })
+    expect(stringifySearch(correlatesSearchParams(matrix))).toBe('?view=matrix')
+    const bad = parseCorrelatesSearch({ view: 'globe', scope: 'moon' })
+    expect(bad.view).toBe('pair')
+    expect(bad.scope).toBe('country')
+    expect(bad.invalid).toEqual(['view', 'scope'])
+  })
+
+  test('old links still land: the ranked list and the matrix are Find related, an old pair is a and b', () => {
+    const ranked = parseCorrelatesSearch({ view: 'ranked', outcome: 'HAPPY' })
+    expect(ranked).toMatchObject({ view: 'related', outcome: 'HAPPY', scope: 'country' })
+    expect(ranked.invalid).toBeUndefined()
+    const countries = parseCorrelatesSearch({ view: 'countries', outcome: 'HAPPY' })
+    expect(countries).toMatchObject({ view: 'related', outcome: 'HAPPY', scope: 'all' })
+    expect(stringifySearch(correlatesSearchParams(countries))).toBe(
+      '?view=related&outcome=HAPPY&scope=all',
+    )
+    // The old Compare two: x was the compared question, outcome the measure.
+    const pair = parseCorrelatesSearch({ view: 'pair', outcome: 'HAPPY', x: 'LONELY' })
+    expect(pair).toMatchObject({ view: 'pair', a: 'LONELY', b: 'HAPPY', outcome: undefined })
+    expect(stringifySearch(correlatesSearchParams(pair))).toBe('?a=LONELY&b=HAPPY')
+    expect(parseCorrelatesSearch({ view: 'pair', x: '9lives' }).invalid).toEqual(['x'])
+    // An old link that named only the measure (the ranked list was the
+    // default): its question is Compare two's first.
+    const bare = parseCorrelatesSearch({ outcome: 'HAPPY', topic: 'wellbeing' })
+    expect(bare).toMatchObject({ view: 'pair', a: 'HAPPY', outcome: undefined })
+    expect(bare.invalid).toBeUndefined()
+    // Every re-parse of what a parse made is the same state.
+    for (const search of [ranked, countries, pair, bare]) {
+      expect(parseCorrelatesSearch({ ...search } as Record<string, unknown>)).toEqual(search)
+    }
+  })
+
+  test('state carries across views: one first question, named for the view on screen', () => {
+    const pair = parseCorrelatesSearch({ a: 'HAPPY', b: 'LONELY' })
+    const toRelated = { ...pair, ...viewPatch(pair, 'related') }
+    expect(toRelated).toMatchObject({ view: 'related', outcome: 'HAPPY', a: undefined })
+    expect(relatedQuestion(toRelated)).toBe('HAPPY')
+    expect(stringifySearch(correlatesSearchParams(toRelated))).toBe(
+      '?view=related&b=LONELY&outcome=HAPPY',
+    )
+    const back = { ...toRelated, ...viewPatch(toRelated, 'pair') }
+    expect(back).toMatchObject({ view: 'pair', a: 'HAPPY', b: 'LONELY', outcome: undefined })
+    expect(stringifySearch(correlatesSearchParams(back))).toBe('?a=HAPPY&b=LONELY')
+    // Compare several keeps both names as they are.
+    const toMatrix = { ...pair, ...viewPatch(pair, 'matrix') }
+    expect(toMatrix).toMatchObject({ view: 'matrix', a: 'HAPPY', b: 'LONELY' })
+    expect(firstQuestion(toMatrix)).toBe('HAPPY')
+    // A hand-made link names Find related's question `a`: read as `outcome`.
+    expect(parseCorrelatesSearch({ view: 'related', a: 'HAPPY' })).toMatchObject({
+      outcome: 'HAPPY',
+      a: undefined,
+    })
+  })
+
+  test("Compare several: `view=matrix` and the table's questions (`vars`, 2 to 10, in order)", () => {
+    const table = parseCorrelatesSearch(parseSearchString('?view=matrix&vars=HAPPY,LONELY,sfi'))
+    expect(table).toMatchObject({ view: 'matrix', vars: ['HAPPY', 'LONELY', 'sfi'] })
+    expect(table.invalid).toBeUndefined()
+    expect(stringifySearch(correlatesSearchParams(table))).toBe(
+      '?view=matrix&vars=HAPPY%2CLONELY%2Csfi',
+    )
+    // Repeated keys read the same.
+    expect(parseCorrelatesSearch({ vars: ['HAPPY', 'LONELY'] }).vars).toEqual(['HAPPY', 'LONELY'])
+    expect(tableRequest(table, ['HAPPY', 'LONELY'], 22)).toEqual({
+      vars: ['HAPPY', 'LONELY'],
+      wave: 'Y1',
+      country: 22,
+      method: undefined,
+    })
+    // One, eleven, a repeat or a bad name: reported, and the default stands.
+    const eleven = Array.from({ length: 11 }, (_, i) => `Q${i}`).join(',')
+    for (const bad of ['HAPPY', eleven, 'HAPPY,HAPPY', 'HAPPY,9lives']) {
+      const parsed = parseCorrelatesSearch({ vars: bad })
+      expect(parsed.vars).toBeUndefined()
+      expect(parsed.invalid).toEqual(['vars'])
+    }
+    expect(parseCorrelatesSearch({ view: 'matrix' }).vars).toBeUndefined()
+    // The order: as added by default (never in the URL), or similar together.
+    const similar = parseCorrelatesSearch({ view: 'matrix', order: 'similar' })
+    expect(similar.order).toBe('similar')
+    expect(stringifySearch(correlatesSearchParams(similar))).toBe('?view=matrix&order=similar')
+    expect(stringifySearch(correlatesSearchParams({ ...similar, order: 'added' }))).toBe(
+      '?view=matrix',
+    )
+    expect(parseCorrelatesSearch({ order: 'random' }).invalid).toEqual(['order'])
   })
 
   test('invalid values degrade to defaults with a notice, and stay in the URL until dismissed', () => {
-    const raw = parseSearchString(
-      '?outcome=HAPPY&country=abc&adjusted=maybe&method=kendall&wave=Y9',
-    )
+    const raw = parseSearchString('?a=HAPPY&country=abc&adjusted=maybe&method=kendall&wave=Y9')
     const search = parseCorrelatesSearch(raw)
-    expect(search.outcome).toBe('HAPPY')
+    expect(search.a).toBe('HAPPY')
     expect(search.country).toBeUndefined()
-    expect(search.adjusted).toBeUndefined()
     expect(search.method).toBeUndefined()
     expect(search.wave).toBe(CORRELATES_DEFAULTS.wave)
-    expect(search.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(search.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // The rejected raws ride along, so a re-parse reports the same notice.
     const again = parseCorrelatesSearch(correlatesSearchParams(search))
-    expect(again.invalid).toEqual(['wave', 'country', 'adjusted', 'method'])
+    expect(again.invalid).toEqual(['wave', 'country', 'method', 'adjusted'])
     // Dismissed: they drop out.
     expect(
       stringifySearch(
         correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
       ),
-    ).toBe('?outcome=HAPPY')
+    ).toBe('?a=HAPPY')
     // country=0 and an unknown name are rejected too.
     expect(parseCorrelatesSearch({ country: '0' }).invalid).toEqual(['country'])
-    expect(parseCorrelatesSearch({ outcome: '9lives' }).invalid).toEqual(['outcome'])
+    expect(parseCorrelatesSearch({ view: 'related', outcome: '9lives' }).invalid).toEqual([
+      'outcome',
+    ])
   })
 
-  test('the requests carry the API vocabulary; adjusted drops the method', () => {
-    const search = parseCorrelatesSearch({ outcome: 'HAPPY', method: 'spearman' })
-    expect(correlatesRequest(search, 9)).toEqual({
+  test("the adjusted model left the page: an old link's `adjusted` is reported, whatever it says", () => {
+    for (const value of ['true', 'false', 'yes']) {
+      const search = parseCorrelatesSearch({ a: 'HAPPY', adjusted: value })
+      expect(search.invalid).toEqual(['adjusted'])
+      expect(search).not.toHaveProperty('adjusted')
+      // It stays in the URL (so the notice survives a re-parse) until dismissed.
+      expect(stringifySearch(correlatesSearchParams(search))).toBe(`?a=HAPPY&adjusted=${value}`)
+      expect(
+        stringifySearch(
+          correlatesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
+        ),
+      ).toBe('?a=HAPPY')
+    }
+  })
+
+  test('the requests carry the API vocabulary, and never the adjusted model', () => {
+    const search = parseCorrelatesSearch({ method: 'spearman', adjusted: 'true' })
+    expect(correlatesRequest(search, 'HAPPY', 9)).toEqual({
       outcome: 'HAPPY',
       wave: 'Y1',
       by: [],
       countries: [9],
-      adjusted: undefined,
       method: 'spearman',
     })
-    expect(correlatesAcrossCountries(search, ['LONELY', 'BALANCE'])).toEqual({
+    expect(correlatesAcrossCountries(search, 'HAPPY', ['LONELY', 'BALANCE'])).toEqual({
       outcome: 'HAPPY',
       wave: 'Y1',
       against: ['LONELY', 'BALANCE'],
       by: ['country_code'],
-      adjusted: undefined,
       method: 'spearman',
     })
-    const adjusted = parseCorrelatesSearch({
-      outcome: 'HAPPY',
-      method: 'spearman',
-      adjusted: 'true',
-    })
-    expect(correlatesRequest(adjusted, 9).method).toBeUndefined()
-    expect(correlatesRequest(adjusted, 9).adjusted).toBe(true)
   })
 })

@@ -22,6 +22,7 @@ import {
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
+import { textMeasurer } from './RankedBar'
 import { TIP_OPTIONS } from './theme'
 import styles from './TransitionTable.module.css'
 
@@ -84,13 +85,27 @@ export interface HeatCell {
   tint: string
   /** Read by assistive tech after the number (a floor note, typically). */
   hidden?: string
-  /** Too few cases to rank: untinted, in muted ink (the tooltip says why). */
+  /** No number to tint (a pair built from the same answers): untinted,
+   * in muted ink (the tooltip says why). */
   muted?: boolean
+  /** Few people behind the number: tinted like the rest, with a subtle
+   * dashed inner outline (the caller adds the asterisk and its words). */
+  flagged?: boolean
+  /** No value at all (a correlation table's diagonal and upper
+   * triangle): an empty cell, no tooltip. */
+  blank?: boolean
+  /** The cell is a choice: a button (keyboard reachable) that calls this. */
+  onSelect?: () => void
+  /** That button's accessible name. */
+  name?: string
 }
 
 export interface HeatAxis {
   key: string
   label: string
+  /** A column headed by a short label (a number): its full name, as the
+   * header's tooltip and accessible name. */
+  title?: string
 }
 
 /** A fixed-width column's side padding (--space-2 in
@@ -124,6 +139,32 @@ interface TipAnchor {
 /** The room between a cell and its tooltip. */
 const TIP_GAP = 6
 
+/** Angled column headers (Compare several) rise at this angle. */
+const HEADER_ANGLE = (38 * Math.PI) / 180
+/** An angled header's line height, and the font size it is measured at. */
+const HEADER_LINE = 16
+const HEADER_SIZE = 13
+
+/** Angled headers' room, from their labels' widths: how tall the header
+ * row must be for the longest to rise in, and how far past the table's
+ * right edge the last ones reach — pure, so it is testable. */
+export function angledRoom(
+  widths: readonly number[],
+  column: number,
+): { rise: number; reach: number } {
+  const rise = Math.max(
+    0,
+    ...widths.map((width) => width * Math.sin(HEADER_ANGLE) + HEADER_LINE * Math.cos(HEADER_ANGLE)),
+  )
+  const reach = Math.max(
+    0,
+    ...widths.map(
+      (width, index) => width * Math.cos(HEADER_ANGLE) - (widths.length - 1 - index + 0.5) * column,
+    ),
+  )
+  return { rise: Math.ceil(rise) + 10, reach: Math.ceil(reach) + 8 }
+}
+
 /** How many columns lie past the visible edge of a scroll container:
  * those whose right edge sits beyond the container's, given each
  * column's right edge and the container's — pure, so it is testable
@@ -140,9 +181,13 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * `columnWidth` every column takes that width and its header wraps over
  * it; without, columns fit their labels on one line. A `sort` column
  * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. A
- * cell's tooltip is the Plot tips' look, at once on hover and on tap for
- * touch; cells are never tab stops (the data table carries the same
- * numbers and intervals). */
+ * `highlight` column (the chosen country, pinned first) wears a marked
+ * header and an outline. `wide`: from 1200px the matrix leaves the text
+ * column — centred on it, up to 1216px — and its column headers stand
+ * upright, so two dozen columns fit without scrolling. A cell's tooltip
+ * is the Plot tips' look, at once on hover and on tap for touch; cells
+ * are never tab stops (the data table carries the same numbers and
+ * intervals). */
 export function HeatTable({
   caption,
   corner,
@@ -151,6 +196,9 @@ export function HeatTable({
   cellAt,
   columnWidth,
   sort,
+  highlight,
+  wide = false,
+  angled = false,
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
@@ -163,6 +211,14 @@ export function HeatTable({
   columnWidth?: number
   /** The column the rows are ordered by, and which way. */
   sort?: { column: string; dir: SortDir }
+  /** The key of a column to mark: a highlighted header, an outline. */
+  highlight?: string
+  /** From 1200px: out of the text column, up to 1216px, upright headers. */
+  wide?: boolean
+  /** Column headers angled up at 38° (long names over narrow columns);
+   * with `columnWidth`, the header row and the box's right edge make
+   * room for them. */
+  angled?: boolean
 }) {
   const captionId = useId()
   const matrix = useRef<HTMLDivElement | null>(null)
@@ -171,9 +227,21 @@ export function HeatTable({
   const [hiddenColumns, setHiddenColumns] = useState(0)
   const [tip, setTip] = useState<TipAnchor | null>(null)
   const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
-  const anchor = (cell: Element, key: string, text: string, pinned: boolean) => {
+  const [room, setRoom] = useState<{ rise: number; reach: number } | null>(null)
+  // Angled headers: measured in the header's size once the table is laid
+  // out (estimated before, and under jsdom).
+  const labels = columns.map((column) => column.label).join('\n')
+  useLayoutEffect(() => {
+    if (!angled) return
+    const laidOut = (scroller.current?.getBoundingClientRect().width ?? 0) > 0
+    const measure = textMeasurer(HEADER_SIZE, laidOut)
+    setRoom(angledRoom(labels.split('\n').map(measure), columnWidth ?? 64))
+  }, [angled, labels, columnWidth])
+  const anchor = (element: Element, key: string, text: string, pinned: boolean) => {
     const box = matrix.current?.getBoundingClientRect()
     if (!box) return null
+    // A focused button anchors on its cell.
+    const cell = element.closest('td, th') ?? element
     const rect = cell.getBoundingClientRect()
     const x = rect.left + rect.width / 2 - box.left
     return { key, text, x, top: rect.top - box.top, bottom: rect.bottom - box.top, pinned }
@@ -194,6 +262,7 @@ export function HeatTable({
   }, [tip])
   // A scroll of the box moves the cells from under the tooltip: it goes.
   // A tapped one also goes on the next tap anywhere but this matrix's cells.
+  // (Cells are anchored as `td`; a header's tip goes with its pointer.)
   useEffect(() => {
     if (!tip) return
     const element = scroller.current
@@ -259,7 +328,7 @@ export function HeatTable({
   }
   if (rows.length === 0 || columns.length === 0) return null
   return (
-    <div className={styles.matrix} ref={matrix}>
+    <div className={styles.matrix} ref={matrix} data-wide={wide || undefined}>
       <p className={styles.caption} id={captionId}>
         {caption}
       </p>
@@ -268,15 +337,20 @@ export function HeatTable({
           className={styles.scroll}
           ref={scroller}
           data-overflow={hiddenColumns > 0 || undefined}
+          style={
+            angled && room ? ({ paddingRight: `${room.reach}px` } as CSSProperties) : undefined
+          }
         >
           <table
             className={styles.table}
             aria-labelledby={captionId}
             data-fixed={columnWidth !== undefined || undefined}
+            data-angled={angled || undefined}
             style={
-              columnWidth !== undefined
-                ? ({ '--heat-column': `${columnWidth}px` } as CSSProperties)
-                : undefined
+              {
+                ...(columnWidth !== undefined ? { '--heat-column': `${columnWidth}px` } : {}),
+                ...(angled && room ? { '--angled-rise': `${room.rise}px` } : {}),
+              } as CSSProperties
             }
           >
             <thead>
@@ -293,11 +367,34 @@ export function HeatTable({
                       aria-sort={
                         dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
                       }
+                      aria-label={column.title}
+                      data-highlight={column.key === highlight || undefined}
+                      onPointerEnter={
+                        column.title
+                          ? (event) => {
+                              if (event.pointerType === 'touch') return
+                              const title = column.title ?? ''
+                              setTip(
+                                anchor(event.currentTarget, `head:${column.key}`, title, false),
+                              )
+                            }
+                          : undefined
+                      }
+                      onPointerLeave={
+                        column.title
+                          ? (event) => {
+                              if (event.pointerType === 'touch') return
+                              setTip((current) => (current?.pinned ? current : null))
+                            }
+                          : undefined
+                      }
                     >
-                      {column.label}
-                      {dir && (
-                        <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
-                      )}
+                      <span className={styles.head}>
+                        {column.label}
+                        {dir && (
+                          <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
+                        )}
+                      </span>
                     </th>
                   )
                 })}
@@ -309,18 +406,31 @@ export function HeatTable({
                   <th scope="row">{row.label}</th>
                   {columns.map((column) => {
                     const cell = cellAt(row, column)
+                    const marked = column.key === highlight || undefined
                     if (!cell) {
                       return (
-                        <td key={column.key} className={styles.cell}>
+                        <td key={column.key} className={styles.cell} data-highlight={marked}>
                           —
                         </td>
                       )
                     }
+                    if (cell.blank) {
+                      return <td key={column.key} className={styles.blank} />
+                    }
                     const key = `${row.key}:${column.key}`
+                    const content = (
+                      <>
+                        {cell.text}
+                        {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
+                      </>
+                    )
                     return (
                       <td
                         key={column.key}
                         className={cell.muted ? styles.cellMuted : styles.cell}
+                        data-highlight={marked}
+                        data-flagged={cell.flagged || undefined}
+                        data-select={cell.onSelect ? true : undefined}
                         style={
                           cell.muted
                             ? undefined
@@ -335,13 +445,29 @@ export function HeatTable({
                           setTip((current) => (current?.pinned ? current : null))
                         }}
                         onPointerUp={(event) => {
-                          if (event.pointerType !== 'touch') return
+                          if (event.pointerType !== 'touch' || cell.onSelect) return
                           const next = anchor(event.currentTarget, key, cell.title, true)
                           setTip((current) => (current?.key === key ? null : next))
                         }}
                       >
-                        {cell.text}
-                        {cell.hidden && <span className="visually-hidden">{cell.hidden}</span>}
+                        {cell.onSelect ? (
+                          // A choice: the whole cell is the button; focus
+                          // shows the same tooltip as hover.
+                          <button
+                            type="button"
+                            className={styles.cellButton}
+                            aria-label={cell.name}
+                            onClick={cell.onSelect}
+                            onFocus={(event) =>
+                              setTip(anchor(event.currentTarget, key, cell.title, false))
+                            }
+                            onBlur={() => setTip(null)}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          content
+                        )}
                       </td>
                     )
                   })}

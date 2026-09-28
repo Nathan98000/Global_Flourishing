@@ -1,6 +1,6 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
-// plus the Phase 5 launch-checklist journeys and the Phase 6 Correlates
-// journey. No API runs in this suite: every Phase 4 view is static-first
+// plus the Phase 5 launch-checklist journeys and the Correlates journey
+// (its three views, ADR-0019). No API runs in this suite: every Phase 4 view is static-first
 // (journey 6 blocks the API at the network level to prove it), and the
 // API-only Phase 5/6 views are served their real synthetic responses back
 // through route interception from public/data/_fixtures (written by
@@ -420,65 +420,206 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
 })
 
-test('10 — Correlates: pick an outcome, read the ranked list, switch to adjusted, open the model card', async ({
+/** A fixture by name, or a 404 the page will show — never a silent stand-in. */
+function fixtureOr404(name: string) {
+  try {
+    return { json: apiFixture(name) }
+  } catch {
+    return { status: 404, json: { detail: `no fixture ${name}` } }
+  }
+}
+
+interface JourneyPlan {
+  picked: { name: string; display_name: string }
+  default: string[]
+  added: { name: string; display_name: string }[]
+  kept: string[]
+  order: string[]
+  /** The table's first cell: its column (Compare two's first question) and row. */
+  cell: { name: string; display_name: string }[]
+  related: { name: string; display_name: string }
+}
+
+test('10 — Correlates by task: Compare two and its picker, Swap, every country, Compare several, Find related, old links', async ({
   page,
 }) => {
-  // The view makes two requests per state — the ranked list for one
-  // country and its measures across countries — plain or adjusted; the
-  // fixture is chosen from the request's own parameters.
+  // Every request is answered by the synthetic response made for it,
+  // named from the request's own parameters; scripts/web_fixtures.py
+  // plans the path and writes it down (journey-10.json).
+  const plan = JSON.parse(
+    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', 'journey-10.json'), 'utf8'),
+  ) as JourneyPlan
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
-    const outcome = url.searchParams.get('outcome') === 'HAPPY' ? 'HAPPY' : 'sfi'
-    const shape = url.searchParams.getAll('by').includes('country_code') ? 'across' : 'ranked'
-    const adjusted = url.searchParams.get('adjusted') === 'true' ? '-adjusted' : ''
-    return route.fulfill({ json: apiFixture(`correlates-${outcome}-Y1-${shape}${adjusted}.json`) })
+    const outcome = url.searchParams.get('outcome')
+    const against = url.searchParams.getAll('against')
+    const across = url.searchParams.getAll('by').includes('country_code')
+    return route.fulfill(
+      fixtureOr404(
+        across && against.length === 1
+          ? `correlates-${outcome}-Y1-across-${against[0]}.json`
+          : `correlates-${outcome}-Y1-${across ? 'across' : 'ranked'}.json`,
+      ),
+    )
   })
+  await page.route(`${API}/v1/correlations/pair**`, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill(
+      fixtureOr404(
+        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}.json`,
+      ),
+    )
+  })
+  await page.route(
+    (url) => url.pathname === '/v1/correlations',
+    (route) => {
+      const url = new URL(route.request().url())
+      return route.fulfill(
+        fixtureOr404(`correlations-table-${url.searchParams.getAll('vars').join('-')}.json`),
+      )
+    },
+  )
+  const views = page.getByRole('group', { name: 'View' })
 
+  // A first visit lands on Compare two with the default pair: the grid,
+  // one SVG, shares in its cells.
   await page.goto('/correlates')
+  await expect(views.getByLabel('Compare two')).toBeChecked()
   await expect(
-    caption(page).first().getByText('What travels with Secure Flourishing Index', { exact: true }),
+    caption(page).getByText('Life evaluation today and Feelings about household income', {
+      exact: true,
+    }),
   ).toBeVisible()
-  // The caveat is a sentence in the deck, not a box.
-  await expect(page.getByText(/These are associations, not causes/)).toBeVisible()
-
-  // Pick an outcome: topic first, then its measure.
-  await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
-  await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
+  const grid = page.getByRole('img', {
+    name: /^Life evaluation today and Feelings about household income in United States/,
+  })
+  await expect(grid.locator('svg')).toHaveCount(1)
   await expect(
-    caption(page).first().getByText('What travels with Happiness', { exact: true }),
+    grid
+      .locator('svg text')
+      .filter({ hasText: /^\d+%\*?$/ })
+      .first(),
   ).toBeVisible()
-  await expect(page).toHaveURL(/outcome=HAPPY$/)
+  await expect(page.getByText('Correlation', { exact: true })).toBeVisible()
+  expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
 
-  // Read the ranked list: measures named from the catalog, signed values,
-  // no interval drawn or described — a correlation is a point estimate.
-  const ranked = page.getByRole('img', {
-    name: /most strongly associated with it in United States/,
+  // The picker: browse a topic, then search, then pick.
+  await page.getByRole('button', { name: 'First question: Life evaluation today' }).click()
+  const picker = page.getByRole('dialog', { name: 'First question' })
+  await expect(picker.getByRole('searchbox')).toBeFocused()
+  await picker.getByRole('option', { name: /^Religion & spirituality/ }).click()
+  await expect(
+    picker
+      .getByRole('listbox', { name: 'Religion & spirituality questions' })
+      .getByRole('option', { name: 'Service attendance', exact: true }),
+  ).toBeVisible()
+  await picker.getByRole('searchbox').fill('happi')
+  await picker
+    .getByRole('listbox', { name: 'Search results' })
+    .getByRole('option', { name: plan.picked.display_name, exact: true })
+    .click()
+  await expect(picker).toBeHidden()
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.picked.name}$`))
+  await expect(
+    caption(page).getByText(`${plan.picked.display_name} and Feelings about household income`, {
+      exact: true,
+    }),
+  ).toBeVisible()
+
+  // Swap.
+  await page.getByRole('button', { name: 'Swap' }).click()
+  await expect(page).toHaveURL(new RegExp(`\\?a=INCOME_FEELINGS&b=${plan.picked.name}$`))
+  await expect(
+    caption(page).getByText(`Feelings about household income and ${plan.picked.display_name}`, {
+      exact: true,
+    }),
+  ).toBeVisible()
+
+  // In every country: one dot per country, the grid gone; then back.
+  await page.getByText('In every country', { exact: true }).click()
+  await expect(page).toHaveURL(/scope=all/)
+  await expect(
+    page.getByRole('img', { name: /their correlation in each of 2 countries/ }),
+  ).toBeVisible()
+  await expect(page.getByText('Share of each column')).toBeHidden()
+  await page.getByText('In United States', { exact: true }).click()
+  await expect(page).not.toHaveURL(/scope=/)
+
+  // Compare several: the pair and the first question's top four.
+  await views.getByText('Compare several', { exact: true }).click()
+  await expect(
+    page.getByRole('list', { name: `Questions in the table · ${plan.default.length} of 10` }),
+  ).toBeVisible()
+  // Add two with the multi-select picker.
+  await page.getByRole('button', { name: 'Add questions' }).click()
+  const adding = page.getByRole('dialog', { name: 'Add questions' })
+  for (const question of plan.added) {
+    await adding.getByRole('searchbox').fill(question.display_name.slice(0, 7).toLowerCase())
+    await adding.getByRole('option', { name: question.display_name, exact: true }).click()
+  }
+  await expect(
+    adding.getByText(`2 selected · room for ${8 - plan.default.length} more`),
+  ).toBeVisible()
+  await adding.getByRole('button', { name: 'Add 2 to the table' }).click()
+  await expect(
+    page.getByRole('list', { name: `Questions in the table · ${plan.default.length + 2} of 10` }),
+  ).toBeVisible()
+  // Remove one.
+  await page.getByRole('button', { name: `Remove ${plan.added[0]?.display_name}` }).click()
+  const table = page.getByRole('group', {
+    name: `Correlations among ${plan.kept.length} questions`,
+  })
+  await expect(table.getByRole('table')).toBeVisible()
+  // Similar together: the server's order, the first column first.
+  await page.getByText('Similar together', { exact: true }).click()
+  await expect(page).toHaveURL(/order=similar/)
+  await expect(table.getByRole('columnheader').nth(1)).toHaveText(
+    plan.order[0] === 'INCOME_FEELINGS' ? 'Feelings about household income' : /./,
+  )
+  // Select a cell: Compare two, the column first and the row second (a
+  // second question that is the first's default stays out of the URL).
+  const [column, row] = plan.cell
+  await table
+    .getByRole('button', { name: /: see the two questions together$/ })
+    .first()
+    .click()
+  await expect(views.getByLabel('Compare two')).toBeChecked()
+  await expect(page).toHaveURL(new RegExp(`\\?a=${column?.name}&`))
+  await expect(
+    caption(page).getByText(`${column?.display_name} and ${row?.display_name}`, { exact: true }),
+  ).toBeVisible()
+
+  // Find related: that first question's strongest correlates; a row
+  // opens Compare two.
+  await views.getByText('Find related', { exact: true }).click()
+  const ranked = page.getByRole('group', {
+    name: /questions most strongly associated with it in United States/,
   })
   await expect(ranked).toBeVisible()
-  await expect(ranked.getByText('Loneliness', { exact: true })).toBeVisible()
-  await expect(ranked.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
-  await expect(page.getByText(/Dots are point estimates/).first()).toBeVisible()
-  expect(await page.locator('main').innerText()).not.toContain('95%')
-  // The same measures across every country, as a tinted matrix.
+  await expect(ranked.getByText(/^[+−]\d\.\d\d\*?$/).first()).toBeVisible()
+  await ranked.getByRole('button', { name: new RegExp(`^${plan.related.display_name}, `) }).click()
+  await expect(views.getByLabel('Compare two')).toBeChecked()
+  await expect(page).toHaveURL(new RegExp(`\\?a=${column?.name}`))
+  await expect(
+    caption(page).getByText(`${column?.display_name} and ${plan.related.display_name}`, {
+      exact: true,
+    }),
+  ).toBeVisible()
+
+  // Old links land on the right view.
+  await page.goto('/correlates?view=ranked&outcome=HAPPY')
+  await expect(views.getByLabel('Find related')).toBeChecked()
+  await expect(
+    page.getByRole('group', { name: /^Happiness: the \d+ questions most strongly associated/ }),
+  ).toBeVisible()
+  await page.goto('/correlates?view=countries&outcome=HAPPY')
+  await expect(views.getByLabel('Find related')).toBeChecked()
+  await expect(page.getByLabel('In every country')).toBeChecked()
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
-  await expect(matrix.getByRole('columnheader', { name: 'Testland' })).toBeVisible()
-  await expect(matrix.getByRole('rowheader', { name: 'Loneliness' })).toBeVisible()
-
-  // Switch to adjusted: intervals appear, the control set is spelled out,
-  // and the figure links to the model card.
-  await page
-    .getByRole('group', { name: 'Model' })
-    .getByText('Adjusted difference', { exact: true })
-    .click()
-  await expect(page).toHaveURL(/outcome=HAPPY&adjusted=true$/)
-  await expect(page.getByText(/Lines are 95% confidence intervals/).first()).toBeVisible()
-  await expect(page.getByText(/The model holds age band, gender/).first()).toBeVisible()
-  await page.getByRole('link', { name: 'Read the model card' }).first().click()
-  await expect(page).toHaveURL(/\/model-cards#continuous$/)
-  await expect(page.getByRole('heading', { name: 'Model card: continuous outcomes' })).toBeVisible()
-  await expect(page.getByText(/No causal claim/).first()).toBeVisible()
+  await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
+  expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 })
 
 async function streamToString(download: {

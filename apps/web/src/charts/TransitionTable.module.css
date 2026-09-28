@@ -19,7 +19,11 @@
   position: relative;
 }
 
+/* Positioned, so the cells' visually-hidden notes (absolute) are held
+   and clipped by this box rather than by the frame outside it — else
+   they widen the page past a phone's edge. */
 .scroll {
+  position: relative;
   overflow-x: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
@@ -170,8 +174,149 @@
   min-width: 4.5rem;
 }
 
-/* Too few cases to rank: no tint, muted ink; the tooltip says why. */
+/* No number to tint (a pair built from the same answers): no tint,
+   muted ink; the tooltip says why. */
 .cellMuted {
   color: var(--ink-muted);
   min-width: 4.5rem;
+}
+
+/* The marked column (Across countries: the chosen country, pinned
+   first): its header in ink and bold, the column outlined in ink —
+   drawn as inset rules so the cells' tints stay whole. */
+.table thead th[data-highlight] {
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink),
+    inset 0 1px 0 var(--ink);
+}
+
+.table td[data-highlight] {
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink);
+}
+
+.table tbody tr:last-child td[data-highlight] {
+  box-shadow:
+    inset 1px 0 0 var(--ink),
+    inset -1px 0 0 var(--ink),
+    inset 0 -1px 0 var(--ink);
+}
+
+/* Wide (Across countries) from 1200px: the matrix leaves the 60rem text
+   column, centred on it, up to 1216px wide (never closer than 2rem to
+   the window's edges); the column headers stand upright, reading
+   upward from the cells, and the cells shed their minimum width, so all
+   23 countries fit without a sideways scroll. The row labels wrap. */
+@media (min-width: 75rem) {
+  .matrix[data-wide] {
+    width: min(76rem, calc(100vw - 4rem));
+    max-width: none;
+    margin-left: calc(50% - min(38rem, 50vw - 2rem));
+  }
+
+  .matrix[data-wide] .table {
+    width: 100%;
+  }
+
+  .matrix[data-wide] thead th:not(.corner) {
+    padding: var(--space-2) 2px;
+    text-align: center;
+    vertical-align: bottom;
+  }
+
+  .matrix[data-wide] thead th:not(.corner) .head {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-align: left;
+  }
+
+  .matrix[data-wide] th[scope='row'] {
+    white-space: normal;
+    min-width: 11rem;
+    max-width: 16rem;
+  }
+
+  .matrix[data-wide] td {
+    min-width: 0;
+    padding-inline: 4px;
+    text-align: center;
+  }
+}
+
+/* Few people behind the number (ADR-0019): its asterisk, and a subtle
+   dashed inner outline, over the same tint as its neighbours. */
+.table td[data-flagged] {
+  outline: 1px dashed var(--ink-secondary);
+  outline-offset: -4px;
+}
+
+/* Angled headers (Compare several): each short name rises at 38° from
+   its column's bottom centre, the header row as tall as the longest
+   needs (--angled-rise, measured by the component); the box's right
+   padding makes room for the last ones. */
+.table[data-angled] thead th:not(.corner) {
+  position: relative;
+  height: var(--angled-rise, 7rem);
+  padding: 0;
+  vertical-align: bottom;
+}
+
+.table[data-angled] thead th:not(.corner) .head {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: rotate(-38deg);
+  transform-origin: 0 100%;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* On a phone an angled table's row labels wrap, so more of its columns
+   fit beside them before the box scrolls. */
+@media (max-width: 40rem) {
+  .table[data-angled] th[scope='row'] {
+    min-width: 7.5rem;
+    max-width: 9rem;
+    white-space: normal;
+  }
+}
+
+/* A correlation table's diagonal and upper triangle: nothing there. */
+.blank {
+  border-top-color: transparent;
+}
+
+/* A cell that is a choice (Compare several): the whole cell is the
+   button — its text, tint and ink are the cell's own; a pointer, and the
+   focus ring for the keyboard. */
+.table td[data-select] {
+  padding: 0;
+}
+
+.cellButton {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  border: 0;
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.cellButton:hover {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.cellButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }

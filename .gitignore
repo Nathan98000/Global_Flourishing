@@ -37,6 +37,8 @@ data/*
 .DS_Store
 .idea/
 .vscode/
+.claude/
+.Rhistory
 
 # Coverage
 coverage.xml

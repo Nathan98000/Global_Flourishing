@@ -181,6 +181,51 @@ describe('RadioRow', () => {
   })
 })
 
+describe('RadioRow notes', () => {
+  test('a disabled option says why: the note under the row describes it', () => {
+    render(
+      <RadioRow
+        legend="Wave"
+        name="wave"
+        options={[
+          { value: 'Y1', label: '2023' },
+          { value: 'MY', label: 'Midyear', disabled: true },
+          { value: 'Y2', label: '2024' },
+        ]}
+        value="Y1"
+        onChange={() => undefined}
+        note="Midyear isn't available: this question wasn't asked in the midyear survey."
+      />,
+    )
+    const midyear = screen.getByRole('radio', { name: 'Midyear' })
+    expect(midyear).toBeDisabled()
+    expect(midyear).toHaveAccessibleDescription(
+      "Midyear isn't available: this question wasn't asked in the midyear survey.",
+    )
+    // Only the unavailable option points at it.
+    expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
+  })
+
+  test('as a select, the note describes the select without joining its name', () => {
+    render(
+      <RadioRow
+        legend="Answer level"
+        name="level"
+        options={Array.from({ length: SELECT_ABOVE + 1 }, (_, i) => ({
+          value: String(i),
+          label: `Answer ${i}`,
+          disabled: i === 0,
+        }))}
+        value="1"
+        onChange={() => undefined}
+        note="Answer 0 isn't available."
+      />,
+    )
+    const select = screen.getByRole('combobox', { name: 'Answer level' })
+    expect(select).toHaveAccessibleDescription("Answer 0 isn't available.")
+  })
+})
+
 describe('CountryFilter', () => {
   const countries = testMeta.countries
 

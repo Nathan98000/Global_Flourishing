@@ -175,10 +175,9 @@ describe('correlates fetch layer (Phase 6)', () => {
         wave: 'Y1',
         by: [],
         countries: [9],
-        adjusted: true,
         method: 'pearson',
       }),
-    ).toBe('outcome=HAPPY&wave=Y1&adjusted=true&filter=country_code%3A9')
+    ).toBe('outcome=HAPPY&wave=Y1&filter=country_code%3A9')
     expect(
       canonicalCorrelatesKey({
         outcome: 'sfi',
