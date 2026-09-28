@@ -185,9 +185,12 @@ questions (below).
   correlates golden is regenerated.
 - Compare two fetches the derived scores' details (eleven small static
   files) to disable pairs built from the same answers.
-- Responses are cached by (data version, query) — an ETag that ignores
-  the build — so a browser can keep an older-shaped body across a deploy
-  that changes a shape without a new data build; filed as a follow-up.
+- Responses were cached by (data version, query) — an ETag that ignored
+  the build — so a browser could keep an older-shaped body across a deploy
+  that changed a shape without a new data build. Fixed here: the ETag and
+  the LRU key now start with the deployed commit (`FA_GIT_SHA`, already set
+  by `deploy.yml`; a per-start token in local dev). The first request after
+  each deploy re-downloads instead of getting a 304.
 - `INCOME_FEELINGS`'s answers have no short labels, so its row labels
   wrap to two lines on a desktop; a `short_labels` override (a data
   rebuild) would tighten the grid.
