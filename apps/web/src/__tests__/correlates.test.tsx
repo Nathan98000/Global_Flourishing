@@ -37,6 +37,7 @@ import {
   testRow,
 } from '../test-utils/fixtures'
 import {
+  CORRELATES_NOTE,
   axisEnds,
   belowFloor,
   countriesByName,
@@ -45,7 +46,6 @@ import {
   heatCells,
   acrossSubtitle,
   legendEnds,
-  overlapNote,
   pairAxisTitle,
   pairBarTip,
   pairCellTip,
@@ -358,6 +358,12 @@ function visibleText(element: HTMLElement): string {
   return clone.textContent ?? ''
 }
 
+/** The line after a chart's data table: on this page, its one note. */
+function figureNote(chart: HTMLElement): string {
+  const details = chart.closest('figure')?.querySelector(':scope > details')
+  return details?.nextElementSibling?.textContent ?? ''
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   resetNegativePathCache()
@@ -512,8 +518,10 @@ describe('Correlates view', () => {
     expect(within(figure).getByRole('tooltip')).toHaveTextContent(/^−0\.52 · Loneliness$/)
     fireEvent.blur(rowButtons[0] as HTMLElement)
     const text = visibleText(screen.getByRole('main'))
-    expect(text).toContain('Dots are point estimates — no confidence interval is computed')
-    // The footnote carries the overlap sentence only: not how many went unranked.
+    // One note under the chart, and nothing else: no interval clause, no
+    // Methods link, not how many went unranked (ADR-0020).
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(text).not.toContain('Dots are point estimates')
     expect(text).not.toMatch(/not ranked|respondents are/)
     expect(text).not.toContain('95%')
     expect(text).not.toMatch(/adjusted|accounting for|model card|standard deviation|cause/i)
@@ -557,20 +565,19 @@ describe('Correlates view', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.40',
       '−0.52',
-      '+0.05*, few people behind this estimate',
+      '+0.05*, small sample size',
       '+0.31',
     ])
     expect(cells[2]).toHaveAttribute('data-flagged')
     expect(cells[2]?.getAttribute('style')).toContain('var(--div-')
     fireEvent.pointerEnter(cells[2] as HTMLElement)
     const tip = within(matrix).getByRole('tooltip').textContent ?? ''
-    expect(tip).toContain('+0.05')
-    expect(tip).toContain('Few people gave these answers, so this estimate is less reliable.')
+    expect(tip).toContain('+0.05*')
+    expect(tip).not.toMatch(/Few people|less reliable/)
     expect(tip).not.toMatch(/n =|people answered|Too few/)
     fireEvent.pointerLeave(cells[2] as HTMLElement)
-    expect(
-      within(matrix).getByText('* few people behind this estimate — less reliable'),
-    ).toBeInTheDocument()
+    expect(within(matrix).getByText('* small sample size')).toBeInTheDocument()
+    expect(figureNote(matrix)).toBe(CORRELATES_NOTE)
     expect(within(matrix).queryByText(/— too few/)).toBeNull()
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
@@ -635,9 +642,7 @@ describe('Correlates view', () => {
     expect(screen.getByLabelText('In every country')).not.toBeChecked()
     // The legend: fixed bins, and the asterisk.
     expect(screen.getByText('Share of each column')).toBeInTheDocument()
-    expect(
-      screen.getByText('* few people behind this estimate — less reliable'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('* small sample size')).toBeInTheDocument()
     // One SVG: the bars, the grid and every label (so the PNG carries them).
     const svgs = figure.querySelectorAll('svg')
     expect(svgs).toHaveLength(1)
@@ -664,14 +669,17 @@ describe('Correlates view', () => {
     expect(svg.innerHTML).toContain('var(--seq-')
     expect(svg.innerHTML).toContain('stroke-dasharray="3,2"')
     expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
-    // The footnote says how to read it; no causes.
+    // One note, after the data table; no column explanation, no causes.
     const main = visibleText(screen.getByRole('main'))
-    expect(main).toContain(
-      'Each column is the people who gave that answer to Service attendance; the shading shows how they answered Feelings about household income, adding to 100% down the column.',
-    )
-    expect(main).toContain('Hover a cell for its 95% confidence interval')
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(main).not.toContain('Each column is the people')
+    expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
-    expect(screen.getByRole('link', { name: 'How these numbers are made' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
+    // The screen-reader summary ends on the stars.
+    expect(figure.getAttribute('aria-label')).toMatch(
+      / \d+ cells are starred: small sample size\.$/,
+    )
     // The data table names both questions' answers, with every n.
     fireEvent.click(screen.getByText('Data table'))
     const data = screen.getAllByRole('table')[0] as HTMLElement
@@ -787,7 +795,7 @@ describe('Correlates view', () => {
     await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&b=LONELY'))
   })
 
-  test('the footnote says which overlapping questions the ranking left out', async () => {
+  test('the ranking’s overlap is not spelled out under the chart', async () => {
     mockFetch({
       ...tier,
       'filter=country_code%3A22': {
@@ -796,11 +804,9 @@ describe('Correlates view', () => {
       },
     })
     await renderAt('/correlates?view=related&outcome=HAPPY')
-    expect(
-      await screen.findByText(
-        /Secure Flourishing Index is shown; its individual questions are left out\./,
-      ),
-    ).toBeInTheDocument()
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(screen.queryByText(/are left out/)).toBeNull()
   })
 
   test('Compare several starts from the pair and the first question’s top correlates', async () => {
@@ -846,16 +852,14 @@ describe('Correlates view', () => {
       '−0.52',
       '',
       '·, built from the same answers',
-      '+0.20*, few people behind this estimate',
+      '+0.20*, small sample size',
     ])
     // The tint is on a fixed −1 to 1: −0.52 is the middle rust step, not the deepest.
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-n3)')
     // One line of legend: the ramp's ends, the asterisk, the dot — no numbers of questions.
     const legend = figure.querySelector('[class*=legendRow]') as HTMLElement
-    expect(legend.textContent).toBe(
-      '−1+1* few people behind this estimate· built from the same answers',
-    )
-    // The tooltip: the value, the row with the column; flagged, the sentence.
+    expect(legend.textContent).toBe('−1+1* small sample size· built from the same answers')
+    // The tooltip: the value (starred when flagged), the row with the column.
     const lonely = within(table).getByRole('button', {
       name: 'Loneliness with Happiness, −0.52: see the two questions together',
     })
@@ -864,6 +868,11 @@ describe('Correlates view', () => {
       /^−0\.52 · Loneliness with Happiness$/,
     )
     fireEvent.blur(lonely)
+    const flagged = within(table).getByRole('button', { name: /\+0\.20, small sample size/ })
+    fireEvent.focus(flagged)
+    expect(within(figure).getByRole('tooltip').textContent).toMatch(/^\+0\.20\* · /)
+    fireEvent.blur(flagged)
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
     expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
     // A cell opens Compare two: the column first, the row second.
     fireEvent.click(lonely)
@@ -1197,10 +1206,10 @@ describe('correlates helpers', () => {
       'goes with a higher Happiness →',
     ])
     // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
-    // correlation few people are behind says so in a sentence.
+    // correlation few people are behind keeps its asterisk, and no more.
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude')).toBe('+0.41 · Gratitude')
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude', true)).toBe(
-      '+0.41 · Gratitude\nFew people gave these answers, so this estimate is less reliable.',
+      '+0.41* · Gratitude',
     )
     expect(starred('+0.41', true)).toBe('+0.41*')
     expect(starred('+0.41', false)).toBe('+0.41')
@@ -1226,52 +1235,6 @@ describe('correlates helpers', () => {
     expect(waveNote(['Y1'], 'table')).toBe(
       "Midyear and 2024 aren't available: fewer than two of these questions were asked in the midyear survey and Wave 2.",
     )
-  })
-
-  test('the overlap footnote is built from what the server left out', () => {
-    const byName = {
-      phq2_score: { display_name: 'PHQ-2 depression score', is_derived: true, scale_type: 'count' },
-      gad2_score: { display_name: 'GAD-2 anxiety score', is_derived: true, scale_type: 'count' },
-      phq2_positive: {
-        display_name: 'PHQ-2 screen positive',
-        is_derived: true,
-        scale_type: 'binary',
-      },
-      gad2_positive: {
-        display_name: 'GAD-2 screen positive',
-        is_derived: true,
-        scale_type: 'binary',
-      },
-      DEPRESSED: {
-        display_name: 'Feeling down or depressed',
-        is_derived: false,
-        scale_type: 'ordinal',
-      },
-      sfi: { display_name: 'Secure Flourishing Index', is_derived: true, scale_type: 'scale_0_10' },
-      sfi_meaning: {
-        display_name: 'SFI: meaning & purpose',
-        is_derived: true,
-        scale_type: 'scale_0_10',
-      },
-    }
-    expect(
-      overlapNote(
-        {
-          DEPRESSED: 'phq2_score',
-          phq2_positive: 'phq2_score',
-          FEEL_ANXIOUS: 'gad2_score',
-          gad2_positive: 'gad2_score',
-        },
-        byName,
-      ),
-    ).toBe(
-      'PHQ-2 depression score and GAD-2 anxiety score are shown; their individual questions and screen-positive flags are left out.',
-    )
-    expect(overlapNote({ sfi_meaning: 'sfi', HAPPY: 'sfi' }, byName)).toBe(
-      'Secure Flourishing Index is shown; its individual questions and domain scores are left out.',
-    )
-    expect(overlapNote({}, byName)).toBeUndefined()
-    expect(overlapNote(null, byName)).toBeUndefined()
   })
 
   test('Compare two in words: axis titles, tooltips without n, fixed tint bins', () => {
@@ -1314,7 +1277,7 @@ describe('correlates helpers', () => {
       'Of people who answered 3 to Life evaluation today, 18% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
     )
     expect(pairCellTip({ ...tip, share: 0.004, flagged: true })).toBe(
-      'Of people who answered 3 to Life evaluation today, <1% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]\nFew people gave these answers, so this estimate is less reliable.',
+      'Of people who answered 3 to Life evaluation today, <1%* answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
     )
     expect(pairCellTip({ ...tip, share: null })).toBe(
       'Nobody here answered 3 to Life evaluation today.',

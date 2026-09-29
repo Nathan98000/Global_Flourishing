@@ -31,8 +31,8 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
+  CORRELATES_NOTE,
   CORRELATION_SCALE,
-  FEW_PEOPLE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   acrossSubtitle,
@@ -41,7 +41,6 @@ import {
   fewPeople,
   heatCells,
   heatKey,
-  overlapNote,
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
@@ -109,7 +108,6 @@ export function FindRelated({
   const colorOfRow = (row: EstimateRow) => signMark(row.estimate)
   const rowName = (row: EstimateRow, label: string) =>
     `${label}, ${formatEstimate(row.estimate, row.stat)}: see it beside ${title}`
-  const overlap = overlapNote(rankedResponse?.meta.dropped_overlap, variables.byName)
   const strongest = rankedRows.find((row) => row.estimate !== null)
   const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
@@ -220,7 +218,7 @@ export function FindRelated({
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
               predictorLabel={nameOf}
-              footnote={overlap ? `${overlap} ` : undefined}
+              note={CORRELATES_NOTE}
             >
               <RankedBar
                 rows={rankedRows}
@@ -269,7 +267,7 @@ export function FindRelated({
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
             predictorLabel={nameOf}
-            footnote={overlap ? `${overlap} ` : undefined}
+            note={CORRELATES_NOTE}
             wide
           >
             <CountryMatrix
@@ -341,10 +339,9 @@ function CountryMatrix({
         }
         const flagged = belowFloor(cell, minN)
         const value = formatEstimate(cell.estimate, cell.stat)
-        const tip = `${value}  ${row.label} · ${column.label}\n${intervalText(cell)}`
         return {
           text: starred(value, flagged),
-          title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
+          title: `${starred(value, flagged)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: divergingTint(cell.estimate, extent),
           hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
           flagged,

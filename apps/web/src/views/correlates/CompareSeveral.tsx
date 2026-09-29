@@ -34,7 +34,7 @@ import {
 } from '../../state/search'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
-  FEW_PEOPLE,
+  CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   starred,
@@ -272,6 +272,7 @@ function TableFigure({
       columnName={(column) =>
         column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
       }
+      note={CORRELATES_NOTE}
     >
       <HeatTable
         caption={
@@ -280,7 +281,6 @@ function TableFigure({
             stat={table.meta.stat}
             ends={['−1', '+1']}
             hues={null}
-            flagKey="* few people behind this estimate"
             extra="· built from the same answers"
           />
         }
@@ -316,10 +316,9 @@ function TableFigure({
           }
           const value = formatEstimate(correlation.estimate, correlation.stat)
           const flagged = pair.below_min_n
-          const tip = `${value} · ${rowName} with ${columnName}`
           return {
             text: starred(value, flagged),
-            title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
+            title: `${starred(value, flagged)} · ${rowName} with ${columnName}`,
             tint: divergingTint(correlation.estimate, 1),
             flagged,
             hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,

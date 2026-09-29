@@ -111,14 +111,16 @@ export function fewPeople(
 /** A cell with no value at all, in its tooltip. */
 export const NO_ESTIMATE = 'No estimate: too few people answered both.'
 
-/** The sentence a tooltip adds for an estimate few people are behind. */
-export const FEW_PEOPLE = 'Few people gave these answers, so this estimate is less reliable.'
-
-/** The asterisk's legend entry. */
-export const FEW_PEOPLE_KEY = '* few people behind this estimate — less reliable'
+/** The asterisk's key, wherever the page shows one (ADR-0020). */
+export const FEW_PEOPLE_KEY = '* small sample size'
 
 /** What a screen reader hears after a flagged value, in place of "*". */
-export const FEW_PEOPLE_HIDDEN = ', few people behind this estimate'
+export const FEW_PEOPLE_HIDDEN = ', small sample size'
+
+/** The one note under every Correlates chart, after its data table
+ * (ADR-0020): in place of the interval clause, where the n lives, any
+ * footnote and the Methods link. */
+export const CORRELATES_NOTE = "Weighted so each country's sample stands for its adult population."
 
 /** A value, with its asterisk when few people are behind it. */
 export function starred(text: string, flagged: boolean): string {
@@ -173,40 +175,15 @@ export function axisEnds(short: string): [string, string] {
   return [`← goes with a lower ${short}`, `goes with a higher ${short} →`]
 }
 
-/** A ranked row's tooltip: the signed value and the question — never
- * the n (ADR-0016, restored by ADR-0019) — and, when few people are
- * behind it, a sentence saying so. */
+/** A ranked row's tooltip: the signed value — with its asterisk when
+ * few people are behind it — and the question; never the n (ADR-0016,
+ * restored by ADR-0019). */
 export function rankedTip(
   row: Pick<EstimateRow, 'estimate' | 'stat'>,
   label: string,
   flagged = false,
 ): string {
-  const tip = `${formatEstimate(row.estimate, row.stat)} · ${label}`
-  return flagged ? `${tip}\n${FEW_PEOPLE}` : tip
-}
-
-/** What the ranked sweep left out as overlap, in one sentence built from
- * the server's map (dropped → the one that stands in for it): "PHQ-2
- * depression score and GAD-2 anxiety score are shown; their individual
- * questions and screen-positive flags are left out." */
-export function overlapNote(
-  dropped: Record<string, string> | null | undefined,
-  byName: Record<string, Pick<VariableSummary, 'display_name' | 'is_derived' | 'scale_type'>>,
-): string | undefined {
-  const pairs = Object.entries(dropped ?? {})
-  if (pairs.length === 0) return undefined
-  const kept = [...new Set(pairs.map(([, winner]) => winner))]
-  const kinds = new Set<string>(
-    pairs.map(([name]) => {
-      const variable = byName[name]
-      if (!variable?.is_derived) return 'individual questions'
-      return variable.scale_type === 'binary' ? 'screen-positive flags' : 'domain scores'
-    }),
-  )
-  const order = ['individual questions', 'domain scores', 'screen-positive flags']
-  const names = listAnd(kept.map((name) => byName[name]?.display_name ?? name))
-  const [verb, their] = kept.length === 1 ? ['is', 'its'] : ['are', 'their']
-  return `${names} ${verb} shown; ${their} ${listAnd(order.filter((kind) => kinds.has(kind)))} are left out.`
+  return `${starred(formatEstimate(row.estimate, row.stat), flagged)} · ${label}`
 }
 
 // --- Compare two ------------------------------------------------------------
@@ -228,8 +205,8 @@ export function pairAxisTitle(
 }
 
 /** A cell's tooltip: the column's people, the share of them who gave the
- * row's answer, its interval (ADR-0016) — never the n — and, when few
- * people are behind it, a sentence saying so. */
+ * row's answer (starred when few people are behind it) and its interval
+ * (ADR-0016) — never the n. */
 export function pairCellTip({
   aLevel,
   aShort,
@@ -249,14 +226,14 @@ export function pairCellTip({
 }): string {
   if (share === null) return `Nobody here answered ${aLevel} to ${aShort}.`
   const lines = [
-    `Of people who answered ${aLevel} to ${aShort}, ${shareLabel(share)} answered ${bLevel} to ${bShort}.`,
+    `Of people who answered ${aLevel} to ${aShort}, ${starred(shareLabel(share), flagged)} answered ${bLevel} to ${bShort}.`,
   ]
   if (interval) lines.push(interval)
-  if (flagged) lines.push(FEW_PEOPLE)
   return lines.join('\n')
 }
 
-/** A bar's tooltip: the share who gave that answer, and its interval. */
+/** A bar's tooltip: the share who gave that answer (starred when its
+ * column rests on few people), and its interval. */
 export function pairBarTip({
   level,
   short,
@@ -270,8 +247,7 @@ export function pairBarTip({
   interval: string | undefined
   flagged: boolean
 }): string {
-  const lines = [`${shareLabel(share)} answered ${level} to ${short}.`]
+  const lines = [`${starred(shareLabel(share), flagged)} answered ${level} to ${short}.`]
   if (interval) lines.push(interval)
-  if (flagged) lines.push(FEW_PEOPLE)
   return lines.join('\n')
 }

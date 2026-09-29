@@ -49,6 +49,7 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
+  CORRELATES_NOTE,
   CORRELATION_SCALE,
   FEW_PEOPLE_KEY,
   fewPeople,
@@ -376,9 +377,13 @@ function PairFigure({
     ...(countryName ? { country: countryName } : {}),
   }
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
-  const ariaLabel = `${a.display_name} and ${b.display_name} in ${countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}.${
-    flaggedCount > 0 ? ` ${flaggedCount} of the cells rest on few people and are starred.` : ''
-  } The data table below carries every number.`
+  const ariaLabel = `${a.display_name} and ${b.display_name} in ${countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
+    flaggedCount === 1
+      ? ' 1 cell is starred: small sample size.'
+      : flaggedCount > 1
+        ? ` ${flaggedCount} cells are starred: small sample size.`
+        : ''
+  }`
   // The data table names both questions' answers (a binned axis already
   // carries its bin's label).
   const label = (column: string, value: string | number) => {
@@ -411,12 +416,7 @@ function PairFigure({
       columnName={(column) =>
         column === pair.x ? a.display_name : column === pair.y ? b.display_name : undefined
       }
-      footnote={
-        <>
-          Each column is the people who gave that answer to {aShort}; the shading shows how they
-          answered {bShort}, adding to 100% down the column.{' '}
-        </>
-      }
+      note={CORRELATES_NOTE}
     >
       <CrossTab
         columns={columns}
@@ -501,6 +501,7 @@ function EveryCountry({
       exportName={name}
       isRefreshing={isRefreshing}
       predictorLabel={(predictor) => (predictor === b.name ? b.display_name : undefined)}
+      note={CORRELATES_NOTE}
     >
       <RankedBar
         rows={sorted.rows}

@@ -2,7 +2,8 @@
 // role="img" chart node whose aria-label states what it shows and its
 // extremes, a <details> data table with the same numbers (the
 // screen-reader and copy-paste path), a one-line footnote linked to
-// Methods, and CSV/PNG export. Charts render inside; this never fetches.
+// Methods (or, on the Correlates page, one plain note in its place), and
+// CSV/PNG export. Charts render inside; this never fetches.
 
 import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
@@ -70,6 +71,7 @@ export function ChartFigure({
   predictorLabel,
   columnName,
   footnote,
+  note,
   unit,
   wide = false,
   interactive = false,
@@ -101,6 +103,10 @@ export function ChartFigure({
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
+  /** The whole line under the chart, in place of the provenance line —
+   * its interval clause, where the n lives, the footnote and the Methods
+   * link (the Correlates page's one note, ADR-0020). */
+  note?: string
   /** Whose sample the weights stand for (a state view's chart is
    * weighted by state whatever mark it draws). */
   unit?: 'country' | 'state'
@@ -202,8 +208,12 @@ export function ChartFigure({
         />
       </details>
       <p className={styles.provenance}>
-        {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
-        <Link to="/methods">How these numbers are made</Link>
+        {note ?? (
+          <>
+            {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
+            <Link to="/methods">How these numbers are made</Link>
+          </>
+        )}
       </p>
     </figure>
   )

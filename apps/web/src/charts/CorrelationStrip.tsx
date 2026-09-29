@@ -6,6 +6,7 @@
 
 import type { EstimateRow } from '../api/types'
 import { formatEstimate } from '../format'
+import { FEW_PEOPLE_HIDDEN } from '../views/correlatesRows'
 import styles from './CorrelationStrip.module.css'
 import { signMark } from './theme'
 
@@ -42,7 +43,7 @@ export function CorrelationStrip({
         </span>
         <span className={styles.value}>
           {text}
-          {flagged && <span className="visually-hidden">, few people behind this estimate</span>}
+          {flagged && <span className="visually-hidden">{FEW_PEOPLE_HIDDEN}</span>}
         </span>
       </span>
     </div>
