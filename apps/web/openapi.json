@@ -229,17 +229,6 @@
             ],
             "title": "Pooled"
           },
-          "population_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Population Source"
-          },
           "stat": {
             "title": "Stat",
             "type": "string"
@@ -1197,17 +1186,6 @@
               }
             ],
             "title": "Pooled"
-          },
-          "population_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Population Source"
           },
           "scale_type": {
             "title": "Scale Type",

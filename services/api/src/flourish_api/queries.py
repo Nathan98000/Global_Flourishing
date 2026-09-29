@@ -234,8 +234,7 @@ def parse_aggregate_query(
         problems.add(
             "global-scope estimates must group by country (by=country_code) or "
             "filter to countries (filter=country_code:N) — weights are "
-            "normalised within country, so pooling countries is not "
-            "meaningful until the population-rescaled option (Phase 5)"
+            "normalised within country, so pooling countries is not meaningful"
         )
     if scope != "global" and countries and countries != [22]:
         problems.add(f"scope {scope!r} is US-only; drop the country filter {countries}")

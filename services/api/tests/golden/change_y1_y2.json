@@ -23,7 +23,6 @@
     "other_wave": null,
     "outcome": "ATTEND_SVCS",
     "pooled": null,
-    "population_source": null,
     "scale_type": "ordinal",
     "scope": "global",
     "se_method": "taylor",

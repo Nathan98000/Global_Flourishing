@@ -7,7 +7,6 @@ import pytest
 from flourish_stats import weights
 from flourish_stats.weights import (
     WEIGHT_TABLE,
-    adult_population_table,
     eligibility_expr,
     get,
     resolve,
@@ -200,26 +199,6 @@ def test_state_scopes_name_the_state_their_weight_is_calibrated_to() -> None:
     with pytest.raises(ValueError, match="not eligible"):
         validate_frame(frame, y2)
     assert json.loads(weight_table_json())[0]["state_column"] is None
-
-
-def test_the_adult_population_table_covers_the_23_countries() -> None:
-    """The packaged UN table (ADR-0020): one row per GFS country, Hong Kong
-    apart from China, and China with India about three-fifths of the
-    adults the pooled estimates stand for."""
-    table = adult_population_table()
-    assert len(table.by_iso3) == 23
-    assert {"CHN", "HKG", "IND", "USA", "TUR", "SWE"} <= set(table.by_iso3)
-    assert table.year == 2023
-    assert table.source == "UN World Population Prospects 2024, ages 18+, 1 July 2023"
-    total = sum(table.by_iso3.values())
-    assert 0.55 <= (table.by_iso3["CHN"] + table.by_iso3["IND"]) / total <= 0.62
-    assert table.by_iso3["CHN"] > table.by_iso3["IND"] > table.by_iso3["USA"] > table.by_iso3["HKG"]
-    assert table.by_country({22: "USA", 24: "HKG"}) == {
-        22: float(table.by_iso3["USA"]),
-        24: float(table.by_iso3["HKG"]),
-    }
-    with pytest.raises(ValueError, match="no adult population"):
-        table.by_country({1: "TST"})
 
 
 def test_midyear_answers_pair_with_either_wave_on_its_own_frame() -> None:

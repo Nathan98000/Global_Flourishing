@@ -1,18 +1,23 @@
 # ADR-0020: Correlates: all countries and midyear pairs
 
-**Status:** Accepted · **Date:** 2026-09-29 · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-09-29, revised the same day after the review · **Phase:** 7
 
 Supersedes, in ADR-0019: §5's legend, tooltip sentence and screen-reader
 words for a flagged estimate, §7's column explanation under Compare two,
 and §9's footnote under Find related (the dedupe sentence). The rest of
 ADR-0019 stands. Answers ADR-0015's open item "revisit the ranking floor
-if the sweep ever runs on pooled countries" (decision 3).
+if the sweep ever runs on pooled countries" (decision 3). Its first
+version pooled the countries by adult population; the review replaced
+that with the average of the countries (see "History" at the end).
 
 Related: ADR-0007 (the API's data tier and its memory budget), ADR-0011
 (every cell shown), ADR-0015 (signs follow the label; the ranking floor),
 ADR-0016 (no n in any tooltip), ADR-0019 (Correlates by task),
 `docs/prompts/correlates-polish-2026-09-29.md` (the owner's ten requests
-and decisions of 29 September).
+and decisions of 29 September), `docs/reviews/correlates-2026-09-29.md`
+(the browser review of this branch) and
+`docs/prompts/correlates-review-2026-09-29.md` (the owner's decisions on
+it).
 
 ## Context
 
@@ -29,79 +34,96 @@ a serif with a sans in boxes, tooltips repeated a sentence the asterisk
 already carried, and "In every country" read too close to the coming
 "All countries".
 
+Before release, a browser review of this branch found that one estimate
+over every country's people can contradict almost every country:
+religious service attendance and life evaluation go together in 20 of
+the 23 countries, but one estimate over everyone, each country weighted
+to its adult population, read 0.00. It mixes the relationship *inside*
+countries with the differences *between* them (the countries where more
+people attend services report lower life evaluations). The owner chose
+the plain average of the countries, which reads +0.10.
+
 ## Decision
 
-1. **All countries, pooled by adult population.** The Country select
-   opens with "All countries" (`country=all`), then the 23 countries A–Z;
-   the default stays the United States. On the wave's whole eligible
-   frame, each row's weight is multiplied by its country's adult
-   population over the sum of that country's weights, so each country's
-   weights sum to its adults (`flourish_stats.weights.
-   pooled_population_weights`). The rescaling happens before any row is
-   dropped for a missing answer: a country that did not ask a question
-   has no complete cases for it and drops out of that estimate, and its
-   people's weights are untouched for every other one. The populations are
-   the UN's World Population Prospects 2024 estimates of the population
-   aged 18 and over on 1 July 2023, built from the UN's single-age file by
-   `scripts/adult_population.py` into `stats/src/flourish_stats/data/
-   adult_population.csv` (23 rows; Hong Kong apart from China, as the UN
-   reports it). China and India are 58.3% of the 3.67 billion adults the
-   pooled figures stand for, and dominate them accordingly; the Methods
-   page says so.
+1. **All countries, the plain average of the countries.** The Country
+   select opens with "All countries" (`country=all`), then the 23
+   countries A–Z; the default stays the United States. Every GFS weight
+   has mean 1 within its country, so no estimate is taken over every
+   country's people at once: for each pair of questions, All countries is
+   the plain mean of the countries' own correlations over the countries
+   that asked both — every country counts the same, and one that wasn't
+   asked drops out (`flourish_stats.averaging.average_countries`). The
+   mean is of the unrounded estimates on their own scale (no Fisher z),
+   so it equals what a reader gets by averaging the country chart's dots;
+   by rank and at the midyear survey (each pairing, decision 4) the same.
+   Compare two's grid averages the same way: each cell is the plain mean,
+   over countries, of that country's share of the column's people who gave
+   the row's answer; a country drops out of a column's average when nobody
+   there gave that column's answer, so every column still adds to 100%;
+   the bars are the plain mean of the countries' shares. The countries are
+   independent samples, so an average of K estimates has standard error
+   √(Σ SE²) ⁄ K and the normal interval every estimator here takes.
 
-   The API takes `pooled=population` in place of a country filter on
+   The API takes `pooled=average` in place of a country filter on
    `/v1/correlates`, `/v1/correlations/pair` and `/v1/correlations` (a
    422 with a country filter, with `by=country_code`, with
-   `adjusted=true` or for another pooling; without it, the one-country
-   rule and its 422 stand). A pooled response says so — `meta.pooled`,
-   `meta.countries` (the countries behind at least one of its estimates)
-   and `meta.population_source` — and every pooled row carries
-   `n_countries`. The page subtitles a pooled chart "All countries,
-   combined by adult population · Wave 1, 2023", or "21 of 23 countries
-   (not China or Egypt), combined by adult population · …" when it covers
-   fewer (the missing countries named when three or fewer); a cell or row
-   covering fewer than all adds "Asked in 21 of 23 countries." to its
-   tooltip; data tables and CSVs gain a Countries column. Country by
-   country pins and picks out nothing, and Compare two's strip reads the
-   pooled pair.
+   `adjusted=true` or for another value; without it, the one-country
+   rule and its 422 stand). A response says `meta.pooled = "average"` and
+   lists `meta.countries` (every country in at least one of its
+   averages); every averaged row carries `n_countries`, and its `n` is
+   the complete cases summed over its countries. An average of
+   correlations wears the asterisk (`flagged`) only when every country in
+   it does; a grid cell or bar is flagged on the existing thresholds
+   (fewer than 30 people gave both answers, or fewer than 100 are in the
+   column) applied to the countries' summed n. The page subtitles an
+   average "All countries (average of 23) · Wave 1, 2023", or "Average of
+   21 countries (not asked in China or Egypt) · …" when fewer asked (the
+   missing countries named when three or fewer, the count alone
+   otherwise); a row or cell covering fewer than all adds "Asked in 12 of
+   23 countries." to its tooltip, and nothing else marks it; data tables
+   and CSVs gain a Countries column.
 
-2. **Pooled correlations are precomputed when the image is built.** On
-   demand, Find related's pooled sweep of about 100 questions over the
-   208,000 people of Wave 1 took 1.2 s (straight-line) and 1.9 s (by
-   rank) on one local thread — ten times a single country's — and peaked
-   near 500 MB; a single country's sweep already takes about 2 s on Cloud
-   Run's 1 CPU / 512 MiB instance. `flourish_api.pooled` therefore
-   computes every pooled pair Find related and Compare several can ask
-   for — each wave's servable ordered questions, and at the midyear survey
-   each pairing (decision 4) — by **the same frames and the same
-   estimator** as the on-demand path, when the image is built from the
-   staged data (`infra/Dockerfile` runs it after the data is copied in;
-   locally, `make pooled`). The file is a Parquet beside the DuckDB
-   (36,264 pairs, 467 KB; 110 s and 0.8 GB on a ten-core laptop), read
-   at start in about 50 ms, and served from memory: pooled Find related
-   and Compare several answer in 2–15 ms. A file made from another data
-   build or another population table is ignored, and anything it does not
-   hold — a demographic domain, a breakdown, Compare two's grid (two
-   questions, one small frame: 250–400 ms, 350 MB peak) — runs on demand.
-   The serving policy is applied at serve time exactly as the estimator's
-   `finalize` applies it. Tests hold the file's values to the on-demand
-   estimator's within 1e-12, on the synthetic data for every request
-   shape and on a slice of the release.
+2. **Every country's correlations are precomputed when the image is
+   built.** On demand, Find related's All countries sweep — about 100
+   questions in each of 23 countries — takes 1.2 s straight-line and 1.7 s
+   by rank on one local thread, and its country-by-country table 0.25 s; a
+   single country's sweep already takes about 2 s on Cloud Run's 1 CPU /
+   512 MiB instance. `flourish_api.country_correlations` therefore
+   computes each country's correlation of every pair the views can ask
+   for — each wave's servable ordered questions, at the midyear survey
+   each pairing (decision 4), both methods — by **the same frames and the
+   same estimator** as the on-demand path, when the image is built from
+   the staged data (`infra/Dockerfile` runs it after the data is copied
+   in; locally, `make country-correlations`). The file is a Parquet
+   beside the DuckDB (699,554 rows, one per pair and country with people
+   behind it; 10.6 MB; 106 s and 0.85 GB on a ten-core laptop), read at
+   start in about 50 ms and held in memory in about 25 MB. It serves the
+   averages, Find related's country-by-country table and Compare two's
+   country-by-country chart, each in 2–16 ms. A file made from another
+   data build is ignored, and anything it does not hold — a demographic
+   domain, a breakdown, a pair built from the same answers, Compare two's
+   grid (two questions, one small frame: 250–470 ms) — runs on demand. The
+   serving policy is applied at serve time exactly as the estimator's
+   `finalize` applies it. Tests hold the file's per-country values to the
+   on-demand estimator's within 1e-12 (on the synthetic data for every
+   request shape, and on a slice of the release), each average to the mean
+   of its countries' values, and a question not asked in a country out of
+   that country's rows.
 
    The proportion estimator now builds one level's indicator at a time
    instead of crossing every row with every level: the same arithmetic,
-   and a pooled eleven-answer question no longer holds some 600 MB at once
-   (a one-country pair's peak fell too, 353 → 229 MB).
+   and an eleven-answer question over every country's 208,000 people no
+   longer holds some 600 MB at once (a one-country pair's peak fell too,
+   353 → 229 MB).
 
-3. **The ranking floor is unchanged for pooled sweeps** (ADR-0015's open
-   item). The floor is 100 complete cases (`FA_CORRELATES_MIN_N`), the
-   flags and the dedupe are as before. Pooled, nearly every candidate
-   clears it, and a question asked in only one or a few countries ranks
-   on those countries' people: at Wave 1 the China-only "Chinese folk
-   teachings important" ranks third against *Life evaluation today* — its
-   row says "Asked in 1 of 23 countries." A coverage floor (say, half the
-   countries) was considered and left for the owner: it would hide real
-   estimates, which ADR-0011 avoids; the coverage line tells instead.
+3. **The ranking floor reads the countries' total** (ADR-0015's open
+   item). The floor stays 100 complete cases (`FA_CORRELATES_MIN_N`),
+   applied for All countries to the complete cases summed over the
+   countries in the average; the flags and the dedupe are as before. A
+   question asked in only a few countries still ranks on their people —
+   its tooltip says how many asked it ("Asked in 12 of 23 countries.") —
+   and no cutoff hides it: asterisks, never small-group cutoffs (ADR-0011,
+   the owner's standing rule).
 
 4. **The midyear survey, paired with 2023 or 2024.** Midyear is never
    disabled, and the wave follows the question. At `wave=MY` a midyear
@@ -124,8 +146,9 @@ already carried, and "In every country" read too close to the coming
    `other_wave`; for any other question, the midyear questions only.
    Responses say `meta.other_wave` and, per question, `meta.answer_waves`.
    A table's cells between two questions from another wave are taken on
-   the same people, so they differ from that pair at its own wave. Pooling
-   works here too, and the precomputed file covers both pairings.
+   the same people, so they differ from that pair at its own wave. All
+   countries works here too, and the precomputed file covers both
+   pairings.
 
    On the page (`views/correlates/midyear.ts`, pure and tested): a
    midyear question picked at 2023 or 2024 switches to Midyear, that wave
@@ -194,11 +217,23 @@ model on the page; the QuestionPicker on Correlates only.
   deploy, and a rebuild whenever the estimator changed. Building the file
   with the image keeps it tied to the code and the staged data that serve
   it, and needs no rebuild.
-- **Faster on-demand pooled estimation** (a numpy estimator over cached
-  compact frames). A second implementation of the estimator to keep equal
-  to the first; the precompute reuses the one there is.
-- **Equal weight per country** in the pool. A "typical country" figure
-  answers a different question; the owner chose the population.
+- **Faster on-demand estimation** (a numpy estimator over cached compact
+  frames). A second implementation of the estimator to keep equal to the
+  first; the precompute reuses the one there is.
+- **One estimate over every country's people** (this ADR's first
+  version, see "History"). It can contradict almost every country, and
+  weighting by adult population gave China and India 58% of every figure.
+- **Pooling inside countries** (people compared only with others in their
+  own country, then combined): a within-country figure that needs
+  "adjusted" language and still lands off the dots.
+- **The countries averaged by adult population** (the review's
+  recommendation). Always among the dots, but China and India would still
+  carry most of every figure; the owner chose every country counting the
+  same.
+- **The median country.** Robust, but not the mean of the dots, and the
+  grid's columns would no longer add to 100%.
+- **Averaging on Fisher's z.** The number would no longer be the mean of
+  the dots a reader sees.
 - **`my_y2` for the 2024 pairing.** Its type-1 restriction is about
   change; it would drop the two in three whose midyear and Wave 2 answers
   share an interview, for no reason a correlation has.
@@ -208,23 +243,34 @@ model on the page; the QuestionPicker on Correlates only.
 ## Consequences
 
 - The API gains `pooled` and `other_wave` on the three correlation
-  endpoints, `n_countries` on every row and five optional meta fields;
+  endpoints, `n_countries` on every row and four optional meta fields;
   the OpenAPI schema and client are regenerated, and the goldens gain the
   new null fields. The static tier is unchanged; no data rebuild is
   needed and `data_version` is unchanged (the ETag keys on the commit,
   ADR-0019).
 - The image build runs the precompute: a few minutes more per deploy on
-  the runner, which has the memory (about 0.8 GB). CI's image, built with
-  no data staged, writes nothing and boots as before. Locally, `make
-  pooled` after `make data`; without the file, pooled requests run on
-  demand.
-- One public-data file joins the repository —
-  `stats/src/flourish_stats/data/adult_population.csv`, the UN's figures,
-  no microdata — whitelisted by path in `.gitignore`, pre-commit and the
-  stats wheel (hatch `artifacts`).
-- The synthetic database gains *Daily social media time* and the
-  synthetic countries' adult populations, so tests and the journeys land
-  where users do.
-- Revisit the ranking floor if one-country questions crowd the pooled
-  lists (decision 3), and the 2024 pairing's wording if the owner wants
-  the same-interview countries named on the page.
+  the runner, which has the memory (about 0.85 GB). CI's image, built
+  with no data staged, writes nothing and boots as before. Locally, `make
+  country-correlations` after `make data`; without the file, every
+  request runs on demand. The file's new name means a pooled file from
+  the first version is never read.
+- No data file joins the repository.
+- The synthetic database gains *Daily social media time*, so tests and
+  the journeys land where users do.
+- Revisit the ranking floor if one-country questions crowd the All
+  countries lists (decision 3).
+
+## History
+
+The first version of this ADR (29 September, never released) pooled
+every country's people into one estimate, each country's weights
+rescaled to its adult population: `pooled=population` on the API,
+`flourish_stats.weights.pooled_population_weights`, the UN's World
+Population Prospects 2024 adults (ages 18+, 1 July 2023) in
+`stats/src/flourish_stats/data/adult_population.csv`, rebuilt by
+`scripts/adult_population.py`, and `meta.population_source` on every
+pooled response, with a precomputed file of pooled correlations
+(`flourish_api.pooled`, `make pooled`). The review showed it could
+contradict almost every country; the owner replaced it with the plain
+average of the countries (decisions 1–3), and the population table, its
+script and every population code path were removed.

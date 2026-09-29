@@ -20,10 +20,10 @@ names the weight it used, alongside the unweighted number of respondents
 (n) behind it.
 
 Weights are normalised to mean 1 **within** each country, so pooling
-countries without re-scaling would count Türkiye's 1,473 respondents the
-same as the United States' 38,312. Figures are per-country — except the
-Correlates page's **All countries**, which re-scales each country to its
-adult population first ([below](#all-countries-pooled-by-adult-population)).
+countries would count Türkiye's 1,473 respondents the same as the United
+States' 38,312. Figures are per-country — and the Correlates page's **All
+countries** is the average of the countries' own figures, never one figure
+over everyone ([below](#all-countries-the-average-of-the-countries)).
 
 ## Which weight, when
 
@@ -60,38 +60,50 @@ them:
   to the 54,358 standalone midyear interviews, and the engine applies
   that restriction itself.
 
-## All countries: pooled by adult population
+## All countries: the average of the countries
 
-On the Correlates page, **All countries** puts every country's people
-into one estimate. Pooling needs a common scale: each respondent's weight
-is multiplied by their country's adult population over the sum of that
-country's weights, so each country's weights sum to its adults. A pooled
-estimate therefore describes the 3.67 billion adults of the 23 countries
-together, each country counting as many times as it has adults — which
-means **China and India, 58% of those adults between them, dominate every
-pooled figure** (China alone 31%, India 27%; the next largest, the United
-States, 7%). It is an all-countries figure, not a typical country's.
+On the Correlates page, **All countries** is the plain average of the
+countries' own numbers. Each country's estimate is taken on its own
+people and its own weights, exactly as when that country is chosen, and
+the results are averaged with every country counting the same: Hong Kong
+as much as China. The average is of the unrounded numbers on their own
+scale (a correlation is not transformed first), so it is exactly what you
+get by averaging the dots on the country-by-country chart.
 
-The adult populations are the United Nations' *World Population Prospects
-2024* estimates of the population aged 18 and over on 1 July 2023, summed
-from the UN's single-year-of-age file by `scripts/adult_population.py`
-into `flourish_stats/data/adult_population.csv` (one row per country;
-Hong Kong separately from China, as the UN reports it). The table is
-public UN data; it is the one weight fact the app takes from outside the
-study.
+Why not put every country's people into one estimate? Because a
+correlation over everyone mixes two things: how answers go together
+*within* countries, and how the countries differ *from each other*.
+Religious service attendance and life evaluation go together in 20 of the
+23 countries, but the countries where more people attend services also
+report lower life evaluations on average. One estimate over everyone,
+each country weighted to its adult population, reads 0.00; the average of
+the countries reads +0.10. The average answers what readers ask of "All
+countries": how the relationship typically looks inside a country.
 
-The rescaling happens on each wave's whole eligible frame, before anyone
-is dropped for a missing answer, so a country that did not ask a question
-simply has no one behind that estimate: it drops out, and the chart says
-so ("21 of 23 countries (not China or Egypt), combined by adult
-population"), as does any row or cell covering fewer countries than all
-("Asked in 21 of 23 countries."). Scaling one country's weights by a
-constant changes none of its own estimates, so a question asked in one
-country alone gives that country's number. The interval of a pooled share
-(Compare two's grid) is the usual design-based one over the pooled
-design, taking the populations as known. Pooled correlations are computed
-when the app is built, by the same estimator the API runs on demand, and
-checked equal to it within 10⁻¹².
+A country that wasn't asked a question drops out of every average that
+involves it, and out of the country-by-country chart. The subtitle says
+so ("Average of 21 countries (not asked in China or Egypt)", naming the
+countries when three or fewer are missing), as does the tooltip of any
+row or cell that covers fewer countries than all ("Asked in 21 of 23
+countries.").
+
+In Compare two's grid, each cell is the average, over the countries, of
+the share of that column's people who gave the row's answer. A country
+where nobody gave the column's answer drops out of that column, so every
+column still adds to 100%. The bars above the grid are the average of the
+countries' shares. The countries are independent samples, so an average
+of K countries' estimates has standard error √(Σ SE²) ⁄ K, and its
+interval is the usual 95% normal one.
+
+An average's **n** is the complete cases summed over its countries, and
+Find related ranks a question for All countries when that total reaches
+the floor (100). The small-sample asterisk marks an average of
+correlations only when *every* country in it rests on few people; a grid
+cell is starred on the same thresholds as a country's, applied to the
+summed counts. Each country's correlation for every pair of questions the
+views can ask for is computed when the app is built, by the same
+estimator the API runs on demand, and checked equal to it within 10⁻¹²;
+the averages and both country-by-country views are read from that file.
 
 ## Confidence intervals: the survey design matters
 
@@ -289,9 +301,10 @@ other correlates rules in the engine). This is a deliberate exception to
 the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
 matrix shows each with its value and an asterisk (see "Few people behind
-an estimate" below). Pooled across all countries the floor is the same
-100 people, so a question asked in only one or a few countries can rank
-on those countries' answers; its row says how many countries asked it.
+an estimate" below). For All countries the floor reads the complete cases
+summed over the countries in the average, so a question asked in only
+one or a few countries can rank on those countries' answers; its row
+says how many countries asked it.
 
 **One construct, once.** A score and the questions it is built from are
 associated by construction, so a ranked list never holds two measures

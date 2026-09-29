@@ -30,7 +30,6 @@ _CORRELATES_META = (
     "dropped_overlap",
     "pooled",
     "countries",
-    "population_source",
     "other_wave",
     "answer_waves",
 )

@@ -208,9 +208,9 @@ class EstimateRow(BaseModel):
     weight: str
     suppressed: bool
     flagged: bool
-    #: pooled estimates only (``pooled=population``, ADR-0020): how many
-    #: countries have people behind this estimate — a question one country
-    #: did not ask leaves that country out; null on every other response
+    #: averages over the countries only (``pooled=average``, ADR-0020): how
+    #: many countries are in it — a question one country did not ask leaves
+    #: that country out; null on every other response
     n_countries: int | None = None
 
 
@@ -258,13 +258,11 @@ class ResponseMeta(BaseModel):
     #: each mapped to the one that stands in for it; empty when nothing
     #: overlapped, null on every other response.
     dropped_overlap: dict[str, str] | None = None
-    #: pooled responses only (ADR-0020): ``population`` — every country
-    #: pooled, each weighted to its adult population; the countries with
-    #: people behind at least one estimate; and where the populations come
-    #: from. Null on every other response.
+    #: averages over the countries only (ADR-0020): ``average`` — each
+    #: country's own estimate, and their plain mean — and every country in
+    #: at least one of the averages. Null on every other response.
     pooled: str | None = None
     countries: list[int] | None = None
-    population_source: str | None = None
     #: correlations at the midyear survey only (ADR-0020): the wave the
     #: questions it did not ask read the same people's answers from, and
     #: which wave each question's answers came from. Null elsewhere.
@@ -391,10 +389,9 @@ class CorrelationsMeta(BaseModel):
     filters: dict[str, list[GroupValue]]
     #: the floor below which a pair is flagged (``FA_CORRELATES_MIN_N``)
     min_n: int
-    #: pooled tables only (ADR-0020), as in ``ResponseMeta``
+    #: tables averaged over the countries only (ADR-0020), as in ``ResponseMeta``
     pooled: str | None = None
     countries: list[int] | None = None
-    population_source: str | None = None
     #: tables at the midyear survey only (ADR-0020), as in ``ResponseMeta``
     other_wave: str | None = None
     answer_waves: dict[str, str] | None = None

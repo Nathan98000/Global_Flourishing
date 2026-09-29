@@ -1,4 +1,4 @@
-"""Weighted correlations, adjusted associations and pooled weights."""
+"""Weighted correlations and adjusted associations."""
 
 import math
 
@@ -9,7 +9,6 @@ from flourish_stats import (
     Design,
     SuppressionPolicy,
     adjusted_association,
-    pooled_population_weights,
     weighted_correlation,
     weighted_correlations,
 )
@@ -172,77 +171,6 @@ def test_sweep_undefined_and_empty_cells() -> None:
         weighted_correlations(TOY, "y", ["y"], TAYLOR)
     with pytest.raises(ValueError, match="method"):
         weighted_correlations(TOY, "y", ["x2"], TAYLOR, method="kendall")  # type: ignore[arg-type]
-
-
-# --- pooled across countries (ADR-0020) ------------------------------------
-
-#: Two countries on one frame, each weight with mean 1 in its country; the
-#: third country never asked x (its column is null there).
-POOLED = pl.DataFrame(
-    {
-        "country_code": [1, 1, 1, 2, 2, 2, 3, 3],
-        "w": [0.5, 1.0, 1.5, 2.0, 0.5, 0.5, 1.2, 0.8],
-        "x": [1, 4, 6, 2, 5, 9, None, None],
-        "y": [2, 3, 7, 1, 6, 8, 4, 5],
-    }
-)
-POPULATIONS = {1: 10e6, 2: 30e6, 3: 5e6}
-
-
-def test_pooled_weights_sum_to_each_countrys_adult_population() -> None:
-    pooled = pooled_population_weights(POOLED, POPULATIONS, weight="w")
-    totals = dict(pooled.group_by("country_code").agg(pl.col("w").sum()).iter_rows())
-    for code, population in POPULATIONS.items():
-        assert totals[code] == pytest.approx(population, rel=1e-12)
-    # Row order kept; within a country the weights keep their ratios —
-    # and a country's rows with missing answers still share its population.
-    assert pooled["x"].to_list() == POOLED["x"].to_list()
-    assert pooled["w"][1] / pooled["w"][0] == pytest.approx(2.0, rel=1e-12)
-    assert pooled["w"][6] + pooled["w"][7] == pytest.approx(5e6, rel=1e-12)
-    with pytest.raises(ValueError, match="no adult population"):
-        pooled_population_weights(POOLED, {1: 10e6, 2: 30e6}, weight="w")
-
-
-def test_a_one_country_frame_keeps_its_correlation_when_pooled() -> None:
-    frame = TOY.with_columns(pl.lit(22).alias("country_code"))
-    pooled = pooled_population_weights(frame, {22: 258e6}, weight="w")
-    for method in ("pearson", "spearman"):
-        before = weighted_correlation(frame, "y", "x2", TAYLOR, method=method).to_pylist()[0]
-        after = weighted_correlation(pooled, "y", "x2", TAYLOR, method=method).to_pylist()[0]
-        assert after["estimate"] == pytest.approx(before["estimate"], abs=1e-12)
-        assert after["n"] == before["n"]
-        swept = weighted_correlations(pooled, "y", ["x2"], TAYLOR, method=method).to_pylist()[0]
-        assert swept["estimate"] == pytest.approx(before["estimate"], abs=1e-12)
-
-
-def test_a_pooled_correlation_matches_the_hand_computed_one() -> None:
-    """Rescale by hand, then the weighted Pearson moments by hand: the
-    engine on the pooled frame gives the same number, and country 3 —
-    which never asked x — drops out of it while keeping its population."""
-    design = Design(weight="w")
-    pooled = pooled_population_weights(POOLED, POPULATIONS, weight="w")
-    rows = POOLED.to_dicts()
-    country_w = {
-        code: sum(r["w"] for r in rows if r["country_code"] == code) for code in POPULATIONS
-    }
-    triples = [
-        (r["w"] * POPULATIONS[r["country_code"]] / country_w[r["country_code"]], r["x"], r["y"])
-        for r in rows
-        if r["x"] is not None
-    ]
-    total = sum(w for w, _, _ in triples)
-    mx = sum(w * x for w, x, _ in triples) / total
-    my = sum(w * y for w, _, y in triples) / total
-    sxy = sum(w * (x - mx) * (y - my) for w, x, y in triples)
-    sxx = sum(w * (x - mx) ** 2 for w, x, _ in triples)
-    syy = sum(w * (y - my) ** 2 for w, _, y in triples)
-    expected = sxy / math.sqrt(sxx * syy)
-    row = weighted_correlation(pooled, "x", "y", design, policy=NO_SUPPRESSION).to_pylist()[0]
-    assert row["estimate"] == pytest.approx(expected, abs=1e-12)
-    assert row["n"] == 6
-    # Unpooled, the two samples count by their size alone: a different number.
-    unpooled = weighted_correlation(POOLED, "x", "y", design, policy=NO_SUPPRESSION).to_pylist()
-    assert abs(unpooled[0]["estimate"] - expected) > 1e-3
 
 
 # --- adjusted associations -----------------------------------------------

@@ -27,7 +27,6 @@ from flourish_stats import (
     WeightSpec,
     eligibility_expr,
     pairing_spec,
-    pooled_population_weights,
     resolve,
     validate_frame,
 )
@@ -57,19 +56,6 @@ STATE_COLUMN = "state"
 #: release codes every yes/no item 1 = Yes, 2 = No, and the derived
 #: screeners code "positive" as 1 — so "1" is the event in both worlds.
 BINARY_EVENT_CODE = 1
-
-
-def pool_countries(store: DataStore, frame: pl.DataFrame, spec: WeightSpec) -> pl.DataFrame:
-    """Every country on one eligible frame, each weighted to its adult
-    population.
-
-    Called on the wave's whole eligible frame, before anything is nulled
-    or dropped: a country's weight is its population whatever the
-    question, and one that did not ask a question drops out of that
-    estimate by having no complete cases for it.
-    """
-    pooled = pooled_population_weights(frame, store.require_populations(), weight=spec.weight)
-    return pooled
 
 
 def wave_column(wave: str) -> str:

@@ -452,16 +452,9 @@ def _coverage(responses: pl.DataFrame, respondents: pl.DataFrame) -> pl.DataFram
 #: rows, is the candidate it excludes.
 SYNTHETIC_MIN_N = 20
 
-#: The synthetic countries' adult populations, in the packaged table's
-#: shape (flourish_stats/data/adult_population.csv), for pooled requests
-#: (ADR-0020): round numbers, the United States the larger by far.
-SYNTHETIC_POPULATIONS: dict[str, int] = {"TST": 20_000_000, "USA": 260_000_000}
-POPULATION_FILE = "adult_population.csv"
-
 
 def build_synthetic_db(directory: Path) -> Path:
-    """Write flourish.duckdb + manifest.json into ``directory``, and the
-    synthetic countries' adult populations (``POPULATION_FILE``)."""
+    """Write flourish.duckdb + manifest.json into ``directory``."""
     directory.mkdir(parents=True, exist_ok=True)
     db_path = directory / "flourish.duckdb"
     respondents = _respondents()
@@ -499,23 +492,14 @@ def build_synthetic_db(directory: Path) -> Path:
     finally:
         con.close()
     (directory / "manifest.json").write_text(json.dumps({"data_version": "synthetic.0.0.1"}))
-    (directory / POPULATION_FILE).write_text(
-        "iso3,adult_population,year,source\n"
-        + "".join(
-            f"{iso3},{people},2023,Synthetic test populations\n"
-            for iso3, people in SYNTHETIC_POPULATIONS.items()
-        )
-    )
     return db_path
 
 
 def synthetic_settings(directory: Path, **overrides: Any) -> Settings:
-    """The synthetic API's settings: the DuckDB and the countries' adult
-    populations (pooled requests, ADR-0020) in ``directory``, and the
+    """The synthetic API's settings: the DuckDB in ``directory`` and the
     lowered ranking floor; ``overrides`` are further settings."""
     return Settings(
         data_path=directory / "flourish.duckdb",
-        population_path=directory / POPULATION_FILE,
         correlates_min_n=SYNTHETIC_MIN_N,
         **overrides,
     )

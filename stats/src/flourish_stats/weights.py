@@ -25,11 +25,10 @@ Two facts of the release make this table load-bearing:
   ``state_column``: eligibility, validation and grouping read that one,
   never a fixed ``state``.
 
-Pooling countries lives here too (ADR-0020): every weight has mean 1
-within its country, so an "All countries" estimate rescales each
-country's weights to sum to its adult population
-(:func:`pooled_population_weights`), the UN figures in
-``data/adult_population.csv`` (:func:`adult_population_table`).
+No weight pools the countries: every weight has mean 1 within its
+country, so "All countries" is the plain average of the countries' own
+estimates (:mod:`flourish_stats.averaging`, ADR-0020), never one
+estimate over every country's people.
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -38,12 +37,8 @@ country's weights to sum to its adult population
 
 from __future__ import annotations
 
-import csv
 import json
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from importlib import resources
-from pathlib import Path
 
 import polars as pl
 import pyarrow as pa
@@ -318,83 +313,6 @@ def weight_table_json() -> str:
     """The full table as JSON, for the Phase 3 API to serve from /v1/meta."""
     rows = [asdict(spec) | {"waves": list(spec.waves)} for spec in WEIGHT_TABLE]
     return json.dumps(rows, indent=2, ensure_ascii=False) + "\n"
-
-
-@dataclass(frozen=True)
-class PopulationTable:
-    """The adult populations the pooled estimates weight countries by
-    (``flourish_stats/data/adult_population.csv``, rebuilt from the UN by
-    ``scripts/adult_population.py``): ISO3 → persons aged 18+."""
-
-    by_iso3: dict[str, int]
-    year: int
-    source: str
-
-    def by_country(self, iso3_of: Mapping[int, str]) -> dict[int, float]:
-        """Country code → adult population, for the codes in ``iso3_of``
-        (the catalog's ``countries``); a country the table lacks raises."""
-        missing = sorted(code for code, iso3 in iso3_of.items() if iso3 not in self.by_iso3)
-        if missing:
-            raise ValueError(f"no adult population for country codes {missing}")
-        return {code: float(self.by_iso3[iso3]) for code, iso3 in iso3_of.items()}
-
-
-def adult_population_table(path: Path | None = None) -> PopulationTable:
-    """The adult population table: the packaged UN figures, or a table in
-    the same shape at ``path`` (the synthetic test countries' own)."""
-    if path is None:
-        text = (resources.files("flourish_stats") / "data" / "adult_population.csv").read_text()
-    else:
-        text = path.read_text()
-    rows = list(csv.DictReader(text.splitlines()))
-    years = {int(row["year"]) for row in rows}
-    sources = {row["source"] for row in rows}
-    if len(years) != 1 or len(sources) != 1:
-        raise ValueError("the adult population table must hold one year from one source")
-    return PopulationTable(
-        by_iso3={row["iso3"]: int(row["adult_population"]) for row in rows},
-        year=years.pop(),
-        source=sources.pop(),
-    )
-
-
-def pooled_population_weights(
-    frame: pl.DataFrame | pa.Table,
-    populations: Mapping[int, float],
-    *,
-    weight: str,
-    country_column: str = "country_code",
-) -> pl.DataFrame:
-    """Rescale within-country weights by adult population for pooling.
-
-    Every GFS weight has mean 1 within its country, so pooling countries
-    without rescaling counts Türkiye and the US equally (proposal §3.3).
-    This multiplies each row's ``weight`` by its country's adult
-    population (``populations``: country code → persons) over the sum of
-    that country's weights in ``frame``, so each country's weights sum to
-    its adult population and a pooled estimate is the all-countries
-    figure the ``populations`` describe (ADR-0020).
-
-    ``frame`` must be the wave's whole eligible frame: rescale *before*
-    any row is dropped for a missing answer, so a country's weight is its
-    population whatever the question. A country that did not ask a
-    question then simply has no complete cases for it and drops out of
-    that estimate. Scaling one country's weights by a constant changes no
-    within-country estimate. Row order is kept; a country in ``frame``
-    with no population raises.
-    """
-    df = pl.from_arrow(frame) if isinstance(frame, pa.Table) else frame
-    if not isinstance(df, pl.DataFrame):  # pl.from_arrow can return a Series
-        raise TypeError("frame must convert to a polars DataFrame")
-    present = set(df[country_column].unique().to_list())
-    missing = sorted(code for code in present if code not in populations)
-    if missing:
-        raise ValueError(f"no adult population for {country_column} {missing}")
-    population = pl.col(country_column).replace_strict(
-        dict(populations), return_dtype=pl.Float64, default=None
-    )
-    share = pl.col(weight) / pl.col(weight).sum().over(country_column)
-    return df.with_columns((share * population).alias(weight))
 
 
 def eligibility_expr(spec: WeightSpec) -> pl.Expr:

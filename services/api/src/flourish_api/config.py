@@ -24,10 +24,6 @@ class Settings(BaseSettings):
     # data=absent, and /v1/* return 503 (see flourish_api.data).
     data_path: Path = Path("data/flourish.duckdb")
 
-    # The adult populations the pooled "All countries" estimates weight
-    # each country by (ADR-0020). None reads the UN table packaged with
-    # flourish_stats; the synthetic tests point at their own countries'.
-    population_path: Path | None = None
     # Every country's correlations, precomputed when the image is built
     # (flourish_api.country_correlations, ADR-0020); None means the default
     # file beside the DuckDB. Absent, every request is estimated on demand.

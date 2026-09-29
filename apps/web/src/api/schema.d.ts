@@ -398,8 +398,6 @@ export interface components {
             other_wave?: string | null;
             /** Pooled */
             pooled?: string | null;
-            /** Population Source */
-            population_source?: string | null;
             /** Stat */
             stat: string;
             suppression: components["schemas"]["SuppressionModel"];
@@ -711,8 +709,6 @@ export interface components {
             outcome: string;
             /** Pooled */
             pooled?: string | null;
-            /** Population Source */
-            population_source?: string | null;
             /** Scale Type */
             scale_type: string;
             /** Scope */
