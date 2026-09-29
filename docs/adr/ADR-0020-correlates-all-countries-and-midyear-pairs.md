@@ -240,7 +240,16 @@ the plain average of the countries, which reads +0.10.
    shades (the US States map and the What Matters matrix share the ramp
    and step in nine too); its key reads "Share of each column (columns
    add to 100%)"; a column under 44px writes its shares without "%" (the
-   key says it; the asterisk stays).
+   key says it; the asterisk stays). Compare several's table drops the
+   shaded corner and its "Question ↓ · with →"; its headings stand
+   horizontal, wrapped to three lines at most (the column widens until
+   they fit); with more than six questions, or on a phone, its columns are
+   numbered and its rows' labels carry the same numbers (every question
+   then has a row). The diverging ramp's upper steps are deeper, so +0.3
+   and +0.7 read clearly apart in both themes (2:1 at least), and Find
+   related's country-by-country table takes the same fixed −1 to 1
+   window, not one fitted to its largest value: one colour scale for both
+   tables.
 
 Standing rules, unchanged: no generated takeaways; one chart on screen at
 a time; no cause-and-effect reminder; no small-group cutoffs; no adjusted

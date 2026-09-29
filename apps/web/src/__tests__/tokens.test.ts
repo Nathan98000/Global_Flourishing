@@ -215,6 +215,11 @@ describe.each([
     expect(step('--div-p5', '--div-p4')).toBeGreaterThan(step('--div-p4', '--div-p3'))
     // The two signed marks are told apart (rust vs teal, not one hue).
     expect(vars['--div-neg-mark']).not.toBe(vars['--div-pos-mark'])
+    // On the fixed −1 to 1 window, ±0.3 falls in the second step and ±0.7
+    // in the fourth: the deepened upper steps keep them clearly apart
+    // (review M7), both ways.
+    assertContrast(vars, '--div-p2', '--div-p4', 2, theme)
+    assertContrast(vars, '--div-n2', '--div-n4', 2, theme)
   })
 })
 

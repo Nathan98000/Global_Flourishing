@@ -51,7 +51,6 @@ import {
   starred,
   statisticPhrase,
   tableCaption,
-  tintExtent,
 } from '../correlatesRows'
 import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
 import {
@@ -369,14 +368,15 @@ function CountryMatrix({
   chosen: number | undefined
   short: string
 }) {
-  // The tint window fits the cells at or above the floor; a cell below
-  // it is shown all the same, tinted, with its asterisk.
-  const ranked = rows.filter((row) => !belowFloor(row, minN))
-  const extent = tintExtent(ranked)
+  // One colour scale for both tables (review M8): a correlation's fixed
+  // window, −1 to 1, on the one diverging ramp — the same tint is the same
+  // value here and in Compare several. A cell below the floor is shown all
+  // the same, tinted, with its asterisk.
+  const extent = 1
   const stat = rows[0]?.stat ?? 'pearson_r'
   return (
     <HeatTable
-      caption={<DivergingLegend extent={extent} stat={stat} short={short} />}
+      caption={<DivergingLegend extent={extent} stat={stat} short={short} ends={['−1', '+1']} />}
       corner="Question ↓ · country →"
       rows={predictors.map((name) => ({ key: name, label: nameOf(name), tag: tagOf(name) }))}
       columns={countries.map((country) => ({

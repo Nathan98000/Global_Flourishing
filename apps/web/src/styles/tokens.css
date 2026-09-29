@@ -152,20 +152,20 @@
   /* Diverging ramp (correlates matrix): rust ← page tone → teal, five
      tints per sign with a stronger end step, every one keeping ink text
      AA on top; mark-grade hues for signed dots */
-  --div-n5: #c98761;
-  --div-n4: #d8aa8f;
-  --div-n3: #e1c0ac;
+  --div-n5: #9a522b;
+  --div-n4: #c9865f;
+  --div-n3: #dcae93;
   --div-n2: #e9d4c5;
   --div-n1: #efe4d9;
   --div-0: #f6f4ee;
   --div-p1: #e0e5df;
   --div-p2: #cbd6cf;
-  --div-p3: #b1c4bd;
-  --div-p4: #93afa8;
-  --div-p5: #648d86;
+  --div-p3: #98b6ad;
+  --div-p4: #66958a;
+  --div-p5: #2c665c;
   --div-neg-mark: #b4531f;
   --div-pos-mark: #1f5d55;
-  --div-n5-ink: var(--tint-ink-dark);
+  --div-n5-ink: var(--tint-ink-light);
   --div-n4-ink: var(--tint-ink-dark);
   --div-n3-ink: var(--tint-ink-dark);
   --div-n2-ink: var(--tint-ink-dark);
@@ -175,7 +175,7 @@
   --div-p2-ink: var(--tint-ink-dark);
   --div-p3-ink: var(--tint-ink-dark);
   --div-p4-ink: var(--tint-ink-dark);
-  --div-p5-ink: var(--tint-ink-dark);
+  --div-p5-ink: var(--tint-ink-light);
 
   /* Banners */
   --notice-bg: #eef1ea;
@@ -255,17 +255,17 @@
     /* Diverging, dark (widened in ADR-0018): each step climbs about 9 L*
        (the end step 16), so neighbouring tints stay apart on the dark
        page; the end steps are light enough to take the dark ink. */
-    --div-n5: #b97a56;
-    --div-n4: #83563b;
-    --div-n3: #65442e;
+    --div-n5: #e0a47c;
+    --div-n4: #8a5a3b;
+    --div-n3: #66432e;
     --div-n2: #493223;
     --div-n1: #2e2117;
     --div-0: #141310;
     --div-p1: #192622;
     --div-p2: #223c35;
-    --div-p3: #2a5349;
-    --div-p4: #326a5e;
-    --div-p5: #4b9686;
+    --div-p3: #2f6254;
+    --div-p4: #46907f;
+    --div-p5: #86cbb9;
     --div-neg-mark: #d98b5a;
     --div-pos-mark: #7fb8ad;
     --div-n5-ink: var(--tint-ink-dark);
@@ -277,7 +277,7 @@
     --div-p1-ink: var(--tint-ink-light);
     --div-p2-ink: var(--tint-ink-light);
     --div-p3-ink: var(--tint-ink-light);
-    --div-p4-ink: var(--tint-ink-light);
+    --div-p4-ink: var(--tint-ink-dark);
     --div-p5-ink: var(--tint-ink-dark);
 
     --notice-bg: #17201c;
@@ -360,17 +360,17 @@
   --seq-900-ink: var(--tint-ink-dark);
 
   /* Diverging, dark: as in the media block above (ADR-0018). */
-  --div-n5: #b97a56;
-  --div-n4: #83563b;
-  --div-n3: #65442e;
+  --div-n5: #e0a47c;
+  --div-n4: #8a5a3b;
+  --div-n3: #66432e;
   --div-n2: #493223;
   --div-n1: #2e2117;
   --div-0: #141310;
   --div-p1: #192622;
   --div-p2: #223c35;
-  --div-p3: #2a5349;
-  --div-p4: #326a5e;
-  --div-p5: #4b9686;
+  --div-p3: #2f6254;
+  --div-p4: #46907f;
+  --div-p5: #86cbb9;
   --div-neg-mark: #d98b5a;
   --div-pos-mark: #7fb8ad;
   --div-n5-ink: var(--tint-ink-dark);
@@ -382,7 +382,7 @@
   --div-p1-ink: var(--tint-ink-light);
   --div-p2-ink: var(--tint-ink-light);
   --div-p3-ink: var(--tint-ink-light);
-  --div-p4-ink: var(--tint-ink-light);
+  --div-p4-ink: var(--tint-ink-dark);
   --div-p5-ink: var(--tint-ink-dark);
 
   --notice-bg: #17201c;

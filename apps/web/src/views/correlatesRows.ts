@@ -140,18 +140,6 @@ export function waveNote(
     : `${chips} aren't available: this question was asked only in ${names(present)}.`
 }
 
-/** The largest absolute estimate in view — the symmetric window the
- * diverging tint scale spans, fitted to the data for correlations and
- * coefficients alike (a fixed ±1 leaves every real correlation in the
- * two palest tints). */
-export function tintExtent(rows: readonly EstimateRow[]): number {
-  let extent = 0
-  for (const row of rows) {
-    if (row.estimate !== null) extent = Math.max(extent, Math.abs(row.estimate))
-  }
-  return extent > 0 ? extent : 1
-}
-
 /** The diverging legend's ends: "−0.52" and "+0.52". */
 export function legendEnds(extent: number, stat: string): [string, string] {
   return [formatEstimate(-extent, stat), formatEstimate(extent, stat)]

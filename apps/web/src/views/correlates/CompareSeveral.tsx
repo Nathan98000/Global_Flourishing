@@ -5,9 +5,11 @@
 // question's top four correlates (after the ranking's overlap dedupe), so
 // it is never empty. Its order is as added, or similar together — the
 // server's clustering; the page only reorders. Rows are questions 2…n and
-// columns 1…n−1, named by their short names (the columns angled); the
-// tint runs on a fixed −1 to 1, so a shade means the same number in every
-// table. A cell opens Compare two with the pair.
+// columns 1…n−1, named by their short names, the headings horizontal over
+// columns wide enough for three lines — or, past six questions or on a
+// phone, numbered, every question a numbered row; the tint runs on a fixed
+// −1 to 1, so a shade means the same number in every table. A cell opens
+// Compare two with the pair.
 
 import { useEffect, useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
@@ -15,8 +17,9 @@ import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
 import type { CorrelationsResponse, EstimateResponse, Meta, Wave } from '../../api/types'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { textMeasurer, wrapLabel } from '../../charts/RankedBar'
 import { divergingTint } from '../../charts/theme'
-import { HeatTable } from '../../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable } from '../../charts/TransitionTable'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { RadioRow } from '../../components/controls/RadioRow'
@@ -24,6 +27,7 @@ import { correlationTableToCsv, downloadTextFile } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
 import { shortName } from '../../labels'
+import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import {
   TABLE_MIN,
   correlatesRequest,
@@ -69,6 +73,28 @@ import own from './Correlates.module.css'
 const DEFAULT_RELATED = 4
 /** The table's columns: wide enough for "+0.68*". */
 const TABLE_COLUMN = 60
+/** Column headings wrap to this many lines at most (review M7). */
+const HEADER_LINES = 3
+/** A column never grows past this to fit its heading. */
+const TABLE_COLUMN_MAX = 150
+/** More questions than this — or a phone — and the columns are numbered,
+ * the rows' labels prefixed with the same numbers (review M7). */
+const NUMBERED_ABOVE = 6
+
+/** The column width at which every heading wraps to three lines at most:
+ * the narrowest from TABLE_COLUMN up, capped at TABLE_COLUMN_MAX (a
+ * heading still too long there takes more lines — nothing is cut). */
+export function headingColumnWidth(
+  labels: readonly string[],
+  measure: (text: string) => number,
+): number {
+  for (let width = TABLE_COLUMN; width < TABLE_COLUMN_MAX; width += 4) {
+    const room = width - 2 * HEAT_CELL_PAD
+    if (labels.every((label) => wrapLabel(label, room, measure, Infinity).length <= HEADER_LINES))
+      return width
+  }
+  return TABLE_COLUMN_MAX
+}
 
 /** The questions in the order the table shows them: as added, or the
  * server's similar-together order when it is for these questions. */
@@ -251,6 +277,39 @@ function TableFigure({
   onOpenPair: (row: string, column: string) => void
 }) {
   const pooled = table.meta.pooled === 'average'
+  // The table's axes (review M7): horizontal headings over columns wide
+  // enough for three lines; past six questions, or on a phone, numbered
+  // columns and the same numbers before the rows' labels — every question
+  // then has a row, so each number has its name.
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const numbered = narrow || order.length > NUMBERED_ABOVE
+  const numberOf = (entry: string) => order.indexOf(entry) + 1
+  const rows = (numbered ? order : order.slice(1)).map((entry) => ({
+    key: entry,
+    label: numbered ? `${numberOf(entry)}. ${nameOf(entry)}` : nameOf(entry),
+    tag: tagOf(entry),
+  }))
+  const columns = order.slice(0, -1).map((entry) =>
+    numbered
+      ? {
+          key: entry,
+          label: String(numberOf(entry)),
+          title: withTag(nameOf(entry), tagOf(entry)),
+        }
+      : { key: entry, label: nameOf(entry), tag: tagOf(entry) },
+  )
+  const columnWidth = useMemo(
+    () =>
+      numbered
+        ? TABLE_COLUMN
+        : headingColumnWidth(
+            columns.map((column) => (column.tag ? `${column.label} ${column.tag}` : column.label)),
+            textMeasurer(13, typeof window !== 'undefined', 500),
+          ),
+    // The headings are the columns' labels: they change with the order.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [numbered, columns.map((column) => column.label).join('|')],
+  )
   const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
   const pairOf = (one: string, other: string) =>
     pairs.get(`${one}|${other}`) ?? pairs.get(`${other}|${one}`)
@@ -342,15 +401,10 @@ function TableFigure({
             extra="· built from the same answers"
           />
         }
-        corner="Question ↓ · with →"
-        rows={order
-          .slice(1)
-          .map((entry) => ({ key: entry, label: nameOf(entry), tag: tagOf(entry) }))}
-        columns={order
-          .slice(0, -1)
-          .map((entry) => ({ key: entry, label: nameOf(entry), tag: tagOf(entry) }))}
-        columnWidth={TABLE_COLUMN}
-        angled
+        rows={rows}
+        columns={columns}
+        columnWidth={columnWidth}
+        rowsWrap={numbered}
         cellAt={(row, column) => {
           if (order.indexOf(column.key) >= order.indexOf(row.key))
             return { text: '', title: '', tint: 'transparent', blank: true }

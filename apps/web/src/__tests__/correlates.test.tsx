@@ -24,11 +24,12 @@ import type {
 import { footnoteCopy } from '../charts/ChartFigure'
 import { shareLabel, shareTint } from '../charts/CrossTab'
 import { DIVERGING_RAMP, SEQUENTIAL_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
-import { RankedBar } from '../charts/RankedBar'
-import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
+import { RankedBar, wrapLabel } from '../charts/RankedBar'
+import { HEAT_CELL_PAD, HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
+import { headingColumnWidth } from '../views/correlates/CompareSeveral'
 import {
   attendVariable,
   happyVariable,
@@ -63,7 +64,6 @@ import {
   starred,
   shortName,
   statisticPhrase,
-  tintExtent,
   waveNote,
 } from '../views/correlatesRows'
 
@@ -1319,15 +1319,16 @@ describe('Correlates view', () => {
     expect(screen.queryByText(/Start from/)).toBeNull()
     const table = within(figure).getByRole('table')
     // Rows are the questions from the second on; columns up to the last
-    // but one — by short name, with no numbers anywhere; headers angled.
+    // but one — by short name, with no numbers at six questions or fewer;
+    // headings horizontal, over an empty, unshaded corner (review M7).
     expect(
       within(table)
         .getAllByRole('rowheader')
         .map((th) => th.textContent),
     ).toEqual(['Loneliness', 'Service attendance'])
     const headers = within(table).getAllByRole('columnheader')
-    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Happiness', 'Loneliness'])
-    expect(table).toHaveAttribute('data-angled')
+    expect(headers.map((th) => th.textContent)).toEqual(['Happiness', 'Loneliness'])
+    expect(table.textContent).not.toMatch(/Question ↓|with →/)
     const cells = within(table).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.52',
@@ -1364,6 +1365,47 @@ describe('Correlates view', () => {
     )
   })
 
+  test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('40rem'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+    mockFetch(tier)
+    await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
+    const table = within(figure).getByRole('table')
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.map((th) => th.textContent)).toEqual(['1', '2'])
+    // A numbered heading's full name is its accessible name.
+    expect(headers[0]).toHaveAttribute('aria-label', 'Happiness')
+    // Every question has a row, so every number has its name.
+    expect(
+      within(table)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['1. Happiness', '2. Loneliness', '3. Service attendance'])
+  })
+
+  test('a heading wraps to three lines at most: the column widens until it does', () => {
+    const measure = (text: string) => text.length * 7
+    expect(headingColumnWidth(['Happiness'], measure)).toBe(60)
+    const long = ['Feelings about household income', 'Religious service attendance']
+    const width = headingColumnWidth(long, measure)
+    expect(width).toBeGreaterThan(60)
+    for (const label of long)
+      expect(
+        wrapLabel(label, width - 2 * HEAT_CELL_PAD, measure, Infinity).length,
+      ).toBeLessThanOrEqual(3)
+    // Never past the cap: a longer heading takes more lines instead.
+    expect(headingColumnWidth(['word '.repeat(60)], measure)).toBe(150)
+  })
+
   test('Compare several: similar together is the server’s order; the page only reorders', async () => {
     mockFetch(tier)
     const router = await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
@@ -1376,7 +1418,6 @@ describe('Correlates view', () => {
       expect(
         within(table)
           .getAllByRole('columnheader')
-          .slice(1)
           .map((th) => th.textContent),
       ).toEqual(['Loneliness', 'Happiness']),
     )
@@ -1654,9 +1695,7 @@ describe('correlates helpers', () => {
     expect(defaultCountry({ countries: [{ code: 3, name: 'Elsewhere', iso3: 'ELS' }] })).toBe(3)
   })
 
-  test('the tint extent fits the data; the legend and subtitle say so in words', () => {
-    expect(tintExtent(acrossPlain.rows)).toBe(0.52)
-    expect(tintExtent([])).toBe(1)
+  test('the legend and subtitle say the window in words', () => {
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
       'The 20 questions ranked for Japan, country by country · Wave 2, 2024 · correlation, −1 to 1',
