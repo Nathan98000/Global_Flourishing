@@ -18,3 +18,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flourish_stats"]
+# The UN adult populations the pooled estimates weight by (ADR-0020): a
+# .csv, so the repo's `*.csv` ignore rule would leave it out of the wheel.
+artifacts = ["src/flourish_stats/data/adult_population.csv"]

@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup data data-validate parity loadtest gen-client api web web-fixtures lint format typecheck test build docker-build docker-run deploy clean
+.PHONY: help setup data data-validate parity loadtest gen-client api pooled web web-fixtures lint format typecheck test build docker-build docker-run deploy clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ api: ## Run the API dev server on :8080
 
 web: ## Run the Vite dev server
 	pnpm -C apps/web dev
+
+pooled: ## Precompute the pooled correlations beside data/flourish.duckdb (the image does this itself)
+	uv run python -m flourish_api.pooled
 
 web-fixtures: ## Synthetic static tier into apps/web/public/data (vitest/Playwright/Lighthouse)
 	uv run python scripts/web_fixtures.py

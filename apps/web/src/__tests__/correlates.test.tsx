@@ -40,6 +40,9 @@ import {
   CORRELATES_NOTE,
   axisEnds,
   belowFloor,
+  coverageLine,
+  pooledPlace,
+  scopeLabel,
   countriesByName,
   fewPeople,
   defaultCountry,
@@ -429,6 +432,204 @@ async function renderAt(path: string) {
 
 const ruleLines = (figure: HTMLElement) =>
   figure.querySelectorAll('svg [aria-label="rule"] line').length
+
+// --- All countries: every country pooled by adult population (ADR-0020) ---
+
+const POOLED_META = {
+  pooled: 'population',
+  countries: [1, 22],
+  population_source: 'UN World Population Prospects 2024, ages 18+, 1 July 2023',
+} as const
+
+const pairPooled: PairResponse = {
+  ...pairFixture,
+  correlation: { ...pairFixture.correlation, n_countries: 2 },
+  shares: {
+    meta: { ...pairFixture.shares.meta, filters: {}, ...POOLED_META, countries: [1, 22] },
+    rows: pairFixture.shares.rows.map((row) => ({ ...row, n_countries: 2 })),
+  },
+}
+
+/** Pooled: LONELY was asked in one of the two countries only. */
+const rankedPooled = testResponse(
+  [
+    { ...plainRow('LONELY', -0.48, undefined, 900), n_countries: 1 },
+    { ...plainRow('ATTEND_SVCS', 0.28, undefined, 1800), n_countries: 2 },
+  ],
+  {
+    outcome: 'HAPPY',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: [],
+    filters: {},
+    adjusted: false,
+    controls: [],
+    model: null,
+    min_n: 20,
+    n_excluded: 0,
+    dropped_overlap: {},
+    ...POOLED_META,
+    countries: [1, 22],
+  },
+)
+
+const tablePooled: CorrelationsResponse = {
+  ...tableFixture,
+  meta: { ...tableFixture.meta, filters: {}, ...POOLED_META, countries: [1, 22] },
+  pairs: tableFixture.pairs.map((pair) =>
+    pair.correlation
+      ? { ...pair, correlation: { ...pair.correlation, n_countries: pair.b === 'LONELY' ? 1 : 2 } }
+      : pair,
+  ),
+}
+
+const pooledPairRow = testResponse(
+  [{ ...plainRow('INCOME_FEELINGS', 0.27, undefined, 120), n_countries: 2 }],
+  {
+    outcome: 'ATTEND_SVCS',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: [],
+    filters: {},
+    min_n: 20,
+    ...POOLED_META,
+    countries: [1, 22],
+  },
+)
+
+/** The pooled requests first: a route matches on its first needle. */
+const pooledTier: Routes = {
+  'pair?y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&pooled=population': pairPooled,
+  'outcome=HAPPY&wave=Y1&pooled=population': rankedPooled,
+  'vars=ATTEND_SVCS&wave=Y1&pooled=population': tablePooled,
+  'outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&pooled=population': pooledPairRow,
+  ...tier,
+}
+
+describe('All countries (ADR-0020)', () => {
+  test('the Country select offers All countries first; chosen, Compare two pools every country', async () => {
+    const calls = mockFetch(pooledTier)
+    const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    await screen.findByRole('img', { name: /in United States: for each of 3 answers/ })
+    const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
+    expect(select.options[0]?.text).toBe('All countries')
+    expect(select.value).toBe('22')
+    fireEvent.change(select, { target: { value: 'all' } })
+    await waitFor(() => expect(router.state.location.searchStr).toContain('country=all'))
+    const figure = await screen.findByRole('img', {
+      name: /in all countries combined: for each of 3 answers/,
+    })
+    const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
+    expect(request).toContain('pooled=population')
+    expect(request).not.toContain('filter=country_code')
+    expect(
+      screen.getByText('All countries, combined by adult population · Wave 1, 2023'),
+    ).toBeInTheDocument()
+    // The toggle's first choice names the scope.
+    expect(screen.getByLabelText('All countries')).toBeChecked()
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    // The data table gains a Countries column.
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table')[0] as HTMLElement
+    expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
+    // Back to one country: the URL drops the pooling.
+    fireEvent.change(select, { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
+  })
+
+  test('Find related pooled: the pooled list; a row asked in fewer countries says so', async () => {
+    const calls = mockFetch(pooledTier)
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=all')
+    const figure = await screen.findByRole('group', {
+      name: /most strongly associated with it in all countries combined/,
+    })
+    expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=population'))).toBe(true)
+    expect(
+      screen.getByText(
+        'All countries, combined by adult population · Wave 1, 2023 · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+    const [lonely, attend] = within(figure).getAllByRole('button')
+    fireEvent.focus(lonely as HTMLElement)
+    expect(within(figure).getByRole('tooltip').textContent).toBe(
+      '−0.48 · Loneliness\nAsked in 1 of 2 countries.',
+    )
+    fireEvent.blur(lonely as HTMLElement)
+    fireEvent.focus(attend as HTMLElement)
+    expect(within(figure).getByRole('tooltip').textContent).toBe('+0.28 · Service attendance')
+  })
+
+  test('Find related country by country, pooled: every country A–Z, none pinned', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=all&scope=all')
+    const matrix = await screen.findByRole('img', { name: /ranked for all countries combined/ })
+    const headers = within(matrix).getAllByRole('columnheader')
+    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Testland', 'United States'])
+    expect(headers.some((th) => th.hasAttribute('data-highlight'))).toBe(false)
+    expect(
+      screen.getByText(
+        'The 2 questions ranked for all countries combined, country by country · Wave 1, 2023 · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('Compare two country by country, pooled: nothing picked out; the strip reads the pooled pair', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=all&scope=all')
+    const figure = await screen.findByRole('img', {
+      name: /their correlation in each of 2 countries, strongest first, on a fixed scale from −1 to 1\. /,
+    })
+    expect(figure.innerHTML).not.toContain('var(--control-selected)')
+    const strip = screen.getByText('Correlation').parentElement as HTMLElement
+    expect(within(strip).getByText('+0.27')).toBeInTheDocument()
+  })
+
+  test('Compare several pooled: the pooled table, coverage in the tooltips, a Countries column', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS&country=all')
+    const figure = await screen.findByRole('group', {
+      name: /Correlations among 3 questions in all countries combined/,
+    })
+    expect(
+      screen.getByText(
+        'All countries, combined by adult population · Wave 1, 2023 · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+    const lonely = within(figure).getByRole('button', {
+      name: 'Loneliness with Happiness, −0.52: see the two questions together',
+    })
+    fireEvent.focus(lonely)
+    expect(within(figure).getByRole('tooltip').textContent).toBe(
+      '−0.52 · Loneliness with Happiness\nAsked in 1 of 2 countries.',
+    )
+    fireEvent.blur(lonely)
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table').at(-1) as HTMLElement
+    expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
+  })
+
+  test('where a pooled estimate stands, in words', () => {
+    const countries = [
+      ...testMeta.countries,
+      { code: 25, name: 'China', iso3: 'CHN' },
+      { code: 4, name: 'Egypt', iso3: 'EGY' },
+      { code: 9, name: 'Japan', iso3: 'JPN' },
+      { code: 23, name: 'Sweden', iso3: 'SWE' },
+    ]
+    const everyone = countries.map((country) => country.code)
+    expect(pooledPlace(everyone, countries)).toBe('All countries, combined by adult population')
+    expect(pooledPlace(undefined, countries)).toBe('All countries, combined by adult population')
+    expect(pooledPlace([1, 22, 9, 23], countries)).toBe(
+      '4 of 6 countries (not China or Egypt), combined by adult population',
+    )
+    expect(pooledPlace([1, 22], countries)).toBe('2 of 6 countries, combined by adult population')
+    expect(coverageLine({ n_countries: 21 }, 23)).toBe('Asked in 21 of 23 countries.')
+    expect(coverageLine({ n_countries: 23 }, 23)).toBeUndefined()
+    expect(coverageLine({ n_countries: null }, 23)).toBeUndefined()
+    expect(scopeLabel('All countries')).toBe('All countries')
+    expect(scopeLabel('Japan')).toBe('In Japan')
+  })
+})
 
 describe('Correlates view', () => {
   test('a first visit lands on Compare two with the default pair, one chart and no causes', async () => {
@@ -1101,7 +1302,9 @@ describe('Correlates view', () => {
     await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
+    // Every country pooled first, then each A–Z.
     expect([...select.options].map((option) => option.text)).toEqual([
+      'All countries',
       'Albania',
       'Testland',
       'United States',

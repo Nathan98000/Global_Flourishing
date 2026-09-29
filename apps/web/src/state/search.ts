@@ -6,7 +6,7 @@
 // parse — it can never be forged into or trapped in a shared URL.
 
 import type { ChangeRequest } from '../api/change'
-import type { CorrelatesRequest } from '../api/correlates'
+import type { CorrelatesRequest, CountryScope } from '../api/correlates'
 import type { PairRequest, TableRequest } from '../api/correlations'
 import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
@@ -680,8 +680,9 @@ export interface CorrelatesSearch {
   /** Compare several: as added, or similar together. */
   order: CorrelatesOrder
   wave: Wave
-  /** The country every view is taken in; absent = the default one. */
-  country?: number
+  /** The country every view is taken in — or `all`, every country pooled
+   * by adult population (ADR-0020); absent = the default one. */
+  country?: CountryScope
   /** Rank correlation instead of Pearson. */
   method?: 'spearman'
   invalid?: string[]
@@ -755,6 +756,10 @@ const parseCorrelatesView = (value: unknown): CorrelatesViewName | undefined =>
 /** A param the page no longer offers: present at all, it is reported. */
 const parseRetired = (): undefined => undefined
 
+/** `country=all` (every country, pooled) or a country's code. */
+const parseCountryScope = (value: unknown): CountryScope | undefined =>
+  value === 'all' ? 'all' : parseCountryCode(value)
+
 export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
   const collect = new Collector()
   const named = first(raw, 'view')
@@ -797,7 +802,7 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
       CORRELATES_DEFAULTS.order,
     ),
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
-    country: collect.take('country', raw, parseCountryCode, undefined),
+    country: collect.take('country', raw, parseCountryScope, undefined),
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
   }
   // The adjusted models are no longer offered (ADR-0018).
@@ -832,18 +837,20 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
   )
 }
 
-/** A ranked list for one question in one country: the server sweeps,
- * ranks and cuts. */
+/** A ranked list for one question in one country — or every country
+ * pooled by adult population: the server sweeps, ranks and cuts. */
 export function correlatesRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   outcome: string,
-  country: number,
+  country: CountryScope,
+  against?: readonly string[],
 ): CorrelatesRequest {
   return {
     outcome,
     wave: search.wave,
+    ...(against ? { against } : {}),
     by: [],
-    countries: [country],
+    ...(country === 'all' ? { pooled: true } : { countries: [country] }),
     method: search.method,
   }
 }
@@ -853,7 +860,7 @@ export function correlatesRequest(
 export function pairRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   pair: { a: string; b: string },
-  country: number,
+  country: CountryScope,
 ): PairRequest {
   return {
     y: pair.b,
@@ -868,7 +875,7 @@ export function pairRequest(
 export function tableRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   vars: readonly string[],
-  country: number,
+  country: CountryScope,
 ): TableRequest {
   return { vars, wave: search.wave, country, method: search.method }
 }

@@ -134,6 +134,20 @@
             "title": "Ci Level",
             "type": "number"
           },
+          "countries": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countries"
+          },
           "data_version": {
             "anyOf": [
               {
@@ -178,6 +192,28 @@
           "n_frame": {
             "title": "N Frame",
             "type": "integer"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pooled"
+          },
+          "population_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population Source"
           },
           "stat": {
             "title": "Stat",
@@ -423,6 +459,17 @@
           "n": {
             "title": "N",
             "type": "integer"
+          },
+          "n_countries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Countries"
           },
           "n_psu": {
             "anyOf": [
@@ -972,6 +1019,20 @@
             ],
             "title": "Controls"
           },
+          "countries": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countries"
+          },
           "data_version": {
             "anyOf": [
               {
@@ -1075,6 +1136,28 @@
           "outcome": {
             "title": "Outcome",
             "type": "string"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pooled"
+          },
+          "population_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population Source"
           },
           "scale_type": {
             "title": "Scale Type",
@@ -1935,7 +2018,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
+        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``pooled=population`` — in place of a country filter — pools every\ncountry, each weighted to its adult population (UN World Population\nProspects 2024; ``meta.population_source``): ``meta.countries`` lists\nthe countries behind at least one estimate and each row's\n``n_countries`` how many are behind it (a question a country did not\nask leaves that country out). The ranking floor and the dedupe are\nunchanged.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {
@@ -2034,6 +2117,24 @@
             }
           },
           {
+            "description": "population: every country in one estimate, each weighted to its adult population (ADR-0020), in place of a country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "population: every country in one estimate, each weighted to its adult population (ADR-0020), in place of a country filter.",
+              "title": "Pooled"
+            }
+          },
+          {
             "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
             "in": "query",
             "name": "adjusted",
@@ -2073,7 +2174,7 @@
     },
     "/v1/correlations": {
       "get": {
-        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's. ``similar_order`` lists the questions\nwith those that go together side by side: average-linkage clustering\non 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),\nties broken toward the order asked.",
+        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's. ``similar_order`` lists the questions\nwith those that go together side by side: average-linkage clustering\non 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),\nties broken toward the order asked. ``pooled=population`` pools every\ncountry, each weighted to its adult population: each correlation's\n``n_countries`` counts the countries behind it and ``meta.countries``\nlists every country behind at least one.",
         "operationId": "correlations_v1_correlations_get",
         "parameters": [
           {
@@ -2100,7 +2201,7 @@
             }
           },
           {
-            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -2116,7 +2217,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
               "title": "Filter"
             }
           },
@@ -2130,6 +2231,24 @@
               "description": "pearson (default) or spearman.",
               "title": "Method",
               "type": "string"
+            }
+          },
+          {
+            "description": "population: every country in one table, each weighted to its adult population (ADR-0020), in place of the country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "population: every country in one table, each weighted to its adult population (ADR-0020), in place of the country filter.",
+              "title": "Pooled"
             }
           }
         ],
@@ -2160,7 +2279,7 @@
     },
     "/v1/correlations/pair": {
       "get": {
-        "description": "Both items must be ordered (a 0–10 scale, an ordered or yes/no\nanswer, a count), asked at the wave and not built from the same\nanswers (a score and its own question go together by construction:\n422). ``columns`` are x's answers (its levels: up to eleven answers,\nelse ten equal-width bins between its weighted 1st and 99th\npercentiles, the end bins taking in the tails), each with the weighted\nshare of the people who answered both who gave it; ``rows`` are y's,\nlevelled the same way; both run from least to most of what the item's\nlabel names. ``cells`` gives, column by column, the weighted share of\nthe column's people who gave each row's answer — every column adds to\n1 — and ``shares`` the same cells as estimate rows with their\ndesign-based CIs (the /v1/aggregate proportion estimator grouped by\nx). A cell is ``flagged`` when fewer than ``cell_flag_below`` people\ngave that pair of answers or its column holds fewer than\n``column_flag_below`` (flagged, never withheld). ``correlation`` is the\nweighted Pearson or Spearman coefficient over the people who answered\nboth — the number /v1/correlates reports for the pair, with no\ninterval.",
+        "description": "Both items must be ordered (a 0–10 scale, an ordered or yes/no\nanswer, a count), asked at the wave and not built from the same\nanswers (a score and its own question go together by construction:\n422). ``columns`` are x's answers (its levels: up to eleven answers,\nelse ten equal-width bins between its weighted 1st and 99th\npercentiles, the end bins taking in the tails), each with the weighted\nshare of the people who answered both who gave it; ``rows`` are y's,\nlevelled the same way; both run from least to most of what the item's\nlabel names. ``cells`` gives, column by column, the weighted share of\nthe column's people who gave each row's answer — every column adds to\n1 — and ``shares`` the same cells as estimate rows with their\ndesign-based CIs (the /v1/aggregate proportion estimator grouped by\nx). A cell is ``flagged`` when fewer than ``cell_flag_below`` people\ngave that pair of answers or its column holds fewer than\n``column_flag_below`` (flagged, never withheld). ``correlation`` is the\nweighted Pearson or Spearman coefficient over the people who answered\nboth — the number /v1/correlates reports for the pair, with no\ninterval. ``pooled=population`` pools every country, each weighted to\nits adult population: ``shares.meta.countries`` lists the countries\nwith people who answered both, and ``correlation.n_countries`` counts\nthem.",
         "operationId": "correlation_pair_v1_correlations_pair_get",
         "parameters": [
           {
@@ -2195,7 +2314,7 @@
             }
           },
           {
-            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -2211,7 +2330,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
               "title": "Filter"
             }
           },
@@ -2225,6 +2344,24 @@
               "description": "pearson (default) or spearman.",
               "title": "Method",
               "type": "string"
+            }
+          },
+          {
+            "description": "population: every country in one cross-tab, each weighted to its adult population (ADR-0020), in place of the country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "population: every country in one cross-tab, each weighted to its adult population (ADR-0020), in place of the country filter.",
+              "title": "Pooled"
             }
           }
         ],

@@ -27,9 +27,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import polars as pl
+from flourish_api.config import Settings
 
 AGE_BANDS = ("18-24", "25-29", "30-39", "40-49")
 US_STATES = ("CA", "NY", "TX")
@@ -417,8 +419,21 @@ def _coverage(responses: pl.DataFrame, respondents: pl.DataFrame) -> pl.DataFram
     )
 
 
+#: The synthetic countries hold 60 people, so the ranked sweep's floor
+#: (100 in serving) is lowered for the test app; EDUCATION_3, which has no
+#: rows, is the candidate it excludes.
+SYNTHETIC_MIN_N = 20
+
+#: The synthetic countries' adult populations, in the packaged table's
+#: shape (flourish_stats/data/adult_population.csv), for pooled requests
+#: (ADR-0020): round numbers, the United States the larger by far.
+SYNTHETIC_POPULATIONS: dict[str, int] = {"TST": 20_000_000, "USA": 260_000_000}
+POPULATION_FILE = "adult_population.csv"
+
+
 def build_synthetic_db(directory: Path) -> Path:
-    """Write flourish.duckdb + manifest.json into ``directory``."""
+    """Write flourish.duckdb + manifest.json into ``directory``, and the
+    synthetic countries' adult populations (``POPULATION_FILE``)."""
     directory.mkdir(parents=True, exist_ok=True)
     db_path = directory / "flourish.duckdb"
     respondents = _respondents()
@@ -456,4 +471,23 @@ def build_synthetic_db(directory: Path) -> Path:
     finally:
         con.close()
     (directory / "manifest.json").write_text(json.dumps({"data_version": "synthetic.0.0.1"}))
+    (directory / POPULATION_FILE).write_text(
+        "iso3,adult_population,year,source\n"
+        + "".join(
+            f"{iso3},{people},2023,Synthetic test populations\n"
+            for iso3, people in SYNTHETIC_POPULATIONS.items()
+        )
+    )
     return db_path
+
+
+def synthetic_settings(directory: Path, **overrides: Any) -> Settings:
+    """The synthetic API's settings: the DuckDB and the countries' adult
+    populations (pooled requests, ADR-0020) in ``directory``, and the
+    lowered ranking floor; ``overrides`` are further settings."""
+    return Settings(
+        data_path=directory / "flourish.duckdb",
+        population_path=directory / POPULATION_FILE,
+        correlates_min_n=SYNTHETIC_MIN_N,
+        **overrides,
+    )

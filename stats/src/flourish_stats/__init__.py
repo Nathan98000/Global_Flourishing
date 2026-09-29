@@ -27,7 +27,9 @@ from .panel import (
 from .suppression import DEFAULT_POLICY, NO_SUPPRESSION, SuppressionPolicy, suppress
 from .weights import (
     WEIGHT_TABLE,
+    PopulationTable,
     WeightSpec,
+    adult_population_table,
     eligibility_expr,
     get,
     pooled_population_weights,
@@ -42,9 +44,11 @@ __all__ = [
     "RESULT_COLUMNS",
     "WEIGHT_TABLE",
     "Design",
+    "PopulationTable",
     "SuppressionPolicy",
     "WeightSpec",
     "adjusted_association",
+    "adult_population_table",
     "eligibility_expr",
     "get",
     "kish_n_eff",

@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import math
 from statistics import median
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from flourish_stats import SuppressionPolicy, adjusted_association, weighted_correlations
 from flourish_stats.correlations import CORRELATES_MIN_N, DEFAULT_CONTROLS
 
@@ -28,10 +28,18 @@ from flourish_api.data import (
     VariableInfo,
     adjusted_gate,
     correlates_min_n,
+    pooled_correlations,
     require_data,
     suppression_policy,
 )
-from flourish_api.frames import AssembledFrame, assemble_correlates_frame
+from flourish_api.frames import (
+    AssembledFrame,
+    assemble_correlates_frame,
+    correlation_spec,
+    countries_in,
+    coverage_masks,
+)
+from flourish_api.pooled import PooledTable
 from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
     ORDERED_SCALE_TYPES,
@@ -179,6 +187,62 @@ def estimate_rows(
     }
 
 
+def with_coverage(
+    assembled: AssembledFrame,
+    estimated: dict[str, list[EstimateRow]],
+) -> tuple[dict[str, list[EstimateRow]], dict[str, int]]:
+    """Pooled rows, each with how many countries have people behind it
+    (ADR-0020), and each predictor's countries over all its groups as a
+    coverage mask: one pass over the frame for every predictor."""
+    groups = list(assembled.groups)
+    masks = coverage_masks(assembled.frame, assembled.value, list(estimated), groups)
+    rows: dict[str, list[EstimateRow]] = {}
+    union: dict[str, int] = {}
+    for name, predictor_rows in estimated.items():
+        rows[name] = []
+        union[name] = 0
+        for row in predictor_rows:
+            mask = masks.get((tuple(row.group[column] for column in groups), name), 0)
+            union[name] |= mask
+            rows[name].append(row.model_copy(update={"n_countries": mask.bit_count()}))
+    return rows, union
+
+
+def precomputed_rows(
+    table: PooledTable | None,
+    query: CorrelatesQuery,
+    predictors: list[VariableInfo],
+    policy: SuppressionPolicy,
+) -> tuple[dict[str, list[EstimateRow]], dict[str, int], int, int] | None:
+    """A pooled request's rows from the precomputed table (ADR-0020):
+    per predictor, its row; each row's coverage mask; the frame's size and
+    the outcome's answers. None when the table cannot serve the request
+    whole — a breakdown, a domain, a pair it does not hold."""
+    if table is None or not query.pooled or query.by or query.filters or query.adjusted:
+        return None
+    config = (query.wave, None)
+    facts = table.frame(config)
+    if facts is None:
+        return None
+    weight = correlation_spec(query.wave).weight
+    rows: dict[str, list[EstimateRow]] = {}
+    masks: dict[str, int] = {}
+    for predictor in predictors:
+        row = table.row(
+            config,
+            query.method,
+            query.outcome.name,
+            predictor.name,
+            weight=weight,
+            policy=policy,
+        )
+        if row is None:
+            return None
+        rows[predictor.name] = [row]
+        masks[predictor.name] = table.mask(config, query.method, query.outcome.name, predictor.name)
+    return rows, masks, facts.n_frame, facts.n_valid.get(query.outcome.name, 0)
+
+
 def rankable(rows: list[EstimateRow], adjusted: bool, min_n: int) -> list[EstimateRow]:
     """The rows a predictor is ranked on: its per-SD coefficient when
     adjusted, and only the groups with at least ``min_n`` complete cases
@@ -204,11 +268,25 @@ def run_correlates(
     query: CorrelatesQuery,
     policy: SuppressionPolicy,
     min_n: int = CORRELATES_MIN_N,
+    pooled: PooledTable | None = None,
 ) -> EstimateResponse:
     assert store.catalog is not None
     predictors = list(query.against) or candidate_predictors(store.catalog, query)
-    assembled = assemble_correlates_frame(store, query, predictors)
-    estimated = list(estimate_rows(assembled, query, predictors, policy).items())
+    spec = correlation_spec(query.wave)
+    masks: dict[str, int] = {}
+    served = precomputed_rows(pooled, query, predictors, policy)
+    if served is not None:
+        by_predictor, masks, n_frame, n_valid = served
+        se_method = "none"
+    else:
+        assembled = assemble_correlates_frame(store, query, predictors)
+        by_predictor = estimate_rows(assembled, query, predictors, policy)
+        if query.pooled:
+            by_predictor, masks = with_coverage(assembled, by_predictor)
+        n_frame = assembled.frame.height
+        n_valid = assembled.frame[assembled.value].drop_nulls().len()
+        se_method = assembled.design.se_method if query.adjusted else "none"
+    estimated = list(by_predictor.items())
     n_excluded = 0
     dropped: dict[str, str] = {}
     if not query.against:
@@ -230,13 +308,13 @@ def run_correlates(
         waves=[query.wave],
         scope="global",
         oriented=False,
-        weight_key=assembled.spec.key,
-        weight=assembled.spec.weight,
-        se_method=assembled.design.se_method if query.adjusted else "none",
+        weight_key=spec.key,
+        weight=spec.weight,
+        se_method=se_method,
         ci_level=0.95,
         suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
-        n_frame=assembled.frame.height,
-        n_valid=assembled.frame[assembled.value].drop_nulls().len(),
+        n_frame=n_frame,
+        n_valid=n_valid,
         by=list(query.by),
         filters={
             **({"country_code": list(query.countries)} if query.countries else {}),
@@ -250,8 +328,26 @@ def run_correlates(
         min_n=min_n,
         n_excluded=n_excluded,
         dropped_overlap=dropped,
+        **pooled_meta(store, query.pooled, [masks.get(name, 0) for name, _ in estimated]),
     )
     return EstimateResponse(meta=meta, rows=rows)
+
+
+def pooled_meta(store: DataStore, pooled: bool, masks: list[int]) -> dict[str, Any]:
+    """What a pooled response says about itself (ADR-0020): pooled by
+    population, the countries behind at least one of its estimates (the
+    union of their coverage masks), and the populations' source; nothing
+    for any other response."""
+    if not pooled:
+        return {}
+    union = 0
+    for mask in masks:
+        union |= mask
+    return {
+        "pooled": "population",
+        "countries": countries_in(union),
+        "population_source": store.population_source,
+    }
 
 
 @router.get("/correlates", summary="What travels with an outcome: ranked associations")
@@ -261,6 +357,7 @@ def correlates(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     min_n: Annotated[int, Depends(correlates_min_n)],
+    pooled_table: Annotated[PooledTable | None, Depends(pooled_correlations)],
     outcome: str,
     wave: str,
     against: Annotated[list[str] | None, Query()] = None,
@@ -268,6 +365,15 @@ def correlates(
     by: Annotated[list[str] | None, Query()] = None,
     filter: Annotated[list[str] | None, Query()] = None,
     limit: int = CORRELATES_DEFAULT_LIMIT,
+    pooled: Annotated[
+        str | None,
+        Query(
+            description=(
+                "population: every country in one estimate, each weighted to its adult "
+                "population (ADR-0020), in place of a country filter."
+            )
+        ),
+    ] = None,
 ) -> EstimateResponse:
     """Associations, not causes. Rows are weighted Pearson or Spearman
     coefficients with no interval (``ci_method = "none"``). Omit
@@ -281,6 +387,14 @@ def correlates(
     ``limit`` and ``meta.dropped_overlap`` names what was left out, and
     what stands in for it. Binary items enter as indicators of code 1
     (Yes / screen positive). Global scope only.
+
+    ``pooled=population`` — in place of a country filter — pools every
+    country, each weighted to its adult population (UN World Population
+    Prospects 2024; ``meta.population_source``): ``meta.countries`` lists
+    the countries behind at least one estimate and each row's
+    ``n_countries`` how many are behind it (a question a country did not
+    ask leaves that country out). The ranking floor and the dedupe are
+    unchanged.
 
     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
     regression under the fixed control set (``stat = "beta"``, plus a
@@ -297,5 +411,11 @@ def correlates(
         by=by or [],
         filters=filter or [],
         limit=limit,
+        pooled=pooled,
     )
-    return run_correlates(store, query, policy, min_n)
+    if query.adjusted and query.pooled:
+        raise HTTPException(
+            status_code=422,
+            detail=["pooled=population serves plain correlations; drop adjusted=true"],
+        )
+    return run_correlates(store, query, policy, min_n, pooled_table)

@@ -7,6 +7,7 @@ the committed Wave-1 SFI table and the R-parity reference values.
 import json
 from pathlib import Path
 
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
@@ -116,3 +117,102 @@ def test_screener_items_align_positively_with_their_score(
     assert set(rows) == set(items)
     for item in items:
         assert rows[item]["estimate"] is not None and rows[item]["estimate"] > 0.5, item
+
+
+# --- pooled across countries (ADR-0020) ------------------------------------
+
+#: A slice of the release's questions for the precompute checks: 0–10,
+#: ordered and yes/no items, a derived score and its own question.
+POOLED_SLICE = [
+    "WB_TODAY",
+    "INCOME_FEELINGS",
+    "HAPPY",
+    "LIFE_SAT",
+    "sfi",
+    "DEPRESSED",
+    "phq2_score",
+]
+
+
+def test_the_population_table_covers_every_country_of_the_release(built_client: TestClient) -> None:
+    from flourish_stats import adult_population_table
+
+    meta = built_client.get("/v1/meta").json()
+    table = adult_population_table()
+    assert {country["iso3"] for country in meta["countries"]} == set(table.by_iso3)
+    body = built_client.get(
+        "/v1/correlates",
+        params={
+            "outcome": "WB_TODAY",
+            "wave": "Y1",
+            "against": "INCOME_FEELINGS",
+            "pooled": "population",
+        },
+    ).json()
+    assert body["meta"]["countries"] == sorted(country["code"] for country in meta["countries"])
+    assert body["rows"][0]["n_countries"] == 23
+
+
+def test_the_pooled_weights_sum_to_each_countrys_adults_on_the_release(
+    built_client: TestClient,
+) -> None:
+    from flourish_api.frames import assemble_matrix_frame
+    from flourish_api.queries import parse_matrix_query
+
+    store = built_client.app.state.store  # type: ignore[attr-defined]
+    query = parse_matrix_query(
+        store.catalog,
+        names=["WB_TODAY", "HAPPY"],
+        wave="Y1",
+        method="pearson",
+        filters=[],
+        pooled="population",
+    )
+    frame = assemble_matrix_frame(store, query).frame
+    assert frame.height == 207_919
+    totals = dict(frame.group_by("country_code").agg(pl.col("w_c1").sum()).iter_rows())
+    for code, population in store.populations.items():
+        assert totals[code] == pytest.approx(population, rel=1e-12)
+
+
+def test_the_pooled_precompute_equals_the_on_demand_estimator_on_the_release(
+    tmp_path: Path,
+) -> None:
+    from flourish_api import pooled
+    from flourish_api.config import Settings
+    from flourish_api.data import DataStore
+    from flourish_api.main import create_app
+
+    data = REPO_ROOT / "data" / "flourish.duckdb"
+    file = tmp_path / "pooled_slice.parquet"
+    store = DataStore(Settings(data_path=data))
+    assert pooled.write(store, file, only=POOLED_SLICE) > 0
+    store.close()
+    served = TestClient(create_app(Settings(data_path=data, pooled_path=file, cache_size=0)))
+    assert served.app.state.pooled is not None  # type: ignore[attr-defined]
+    fresh = TestClient(
+        create_app(Settings(data_path=data, pooled_path=tmp_path / "absent.parquet", cache_size=0))
+    )
+    for method in ("pearson", "spearman"):
+        params = {"vars": POOLED_SLICE[:5], "wave": "Y1", "method": method, "pooled": "population"}
+        got = served.get("/v1/correlations", params=params).json()
+        want = fresh.get("/v1/correlations", params=params).json()
+        assert got["meta"] == want["meta"]
+        for a, b in zip(got["pairs"], want["pairs"], strict=True):
+            assert (a["a"], a["b"], a["shares_answers"]) == (b["a"], b["b"], b["shares_answers"])
+            if b["correlation"] is None:
+                assert a["correlation"] is None
+                continue
+            assert abs(a["correlation"]["estimate"] - b["correlation"]["estimate"]) <= 1e-12
+            assert a["correlation"]["n"] == b["correlation"]["n"]
+            assert a["correlation"]["n_countries"] == b["correlation"]["n_countries"]
+            assert a["correlation"]["sum_w"] == pytest.approx(b["correlation"]["sum_w"], rel=1e-12)
+        against = {"outcome": "DEPRESSED", "wave": "Y1", "against": ["HAPPY", "sfi", "WB_TODAY"]}
+        got = served.get(
+            "/v1/correlates", params={**against, "method": method, "pooled": "population"}
+        )
+        want = fresh.get(
+            "/v1/correlates", params={**against, "method": method, "pooled": "population"}
+        )
+        for a, b in zip(got.json()["rows"], want.json()["rows"], strict=True):
+            assert abs(a["estimate"] - b["estimate"]) <= 1e-12 and a["n"] == b["n"]

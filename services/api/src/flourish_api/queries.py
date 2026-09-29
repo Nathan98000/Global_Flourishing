@@ -423,6 +423,9 @@ def parse_change_query(
 # --- /v1/correlates ---------------------------------------------------------
 
 CORRELATION_METHODS = ("pearson", "spearman")
+#: How a correlation may pool the countries in place of a country filter
+#: (ADR-0020): ``population`` weights each country to its adult population.
+POOLINGS = ("population",)
 #: A ranked sweep returns this many predictors unless `limit` says otherwise.
 CORRELATES_DEFAULT_LIMIT = 20
 CORRELATES_MAX_LIMIT = 200
@@ -451,6 +454,8 @@ class CorrelatesQuery:
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
     limit: int
+    #: every country, each weighted to its adult population (ADR-0020)
+    pooled: bool = False
 
     @property
     def family(self) -> str:
@@ -480,6 +485,25 @@ def _ordered_item(problems: _Problems, info: VariableInfo, role: str) -> None:
             f"{role} {info.name!r} has scale_type {info.scale_type!r}, which has no "
             f"order; associations need one of {sorted(ORDERED_SCALE_TYPES)}"
         )
+
+
+def _pooling(problems: _Problems, pooled: str | None) -> bool:
+    """Whether the request pools every country (``pooled=population``)."""
+    if pooled is None:
+        return False
+    if pooled not in POOLINGS:
+        problems.add(f"pooled must be one of {list(POOLINGS)}, got {pooled!r}")
+        return False
+    return True
+
+
+#: What a correlation needs in place of pooling: weights are normalised
+#: within each country, so without the population rescaling the countries
+#: cannot share one estimate.
+_ONE_COUNTRY = (
+    "weights are normalised within country, so countries share one estimate "
+    "only when each is weighted to its adult population (pooled=population)"
+)
 
 
 def _parse_country_and_domain_filters(
@@ -527,10 +551,12 @@ def parse_correlates_query(
     by: list[str],
     filters: list[str],
     limit: int,
+    pooled: str | None = None,
 ) -> CorrelatesQuery:
     """Validate a correlates request; every problem is reported at once
     as a 422, in the same shape as the other routes."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
 
     info = catalog.outcome(outcome)
     if info is None:
@@ -594,12 +620,21 @@ def parse_correlates_query(
     countries, domain_filters = _parse_country_and_domain_filters(
         catalog, filters, set(BREAKDOWNS), problems
     )
-    if "country_code" not in seen and not countries:
+    if pools:
+        if countries:
+            problems.add(
+                "pooled=population pools every country: drop the country filter "
+                "(filter=country_code:N)"
+            )
+        if "country_code" in seen:
+            problems.add(
+                "pooled=population pools every country into one estimate: drop "
+                "by=country_code (country by country is by=country_code without pooled)"
+            )
+    elif "country_code" not in seen and not countries:
         problems.add(
-            "global-scope estimates must group by country (by=country_code) or "
-            "filter to countries (filter=country_code:N) — weights are "
-            "normalised within country, so pooling countries is not "
-            "meaningful until the population-rescaled option (Phase 5)"
+            "global-scope estimates must group by country (by=country_code), filter "
+            f"to countries (filter=country_code:N) or pool them — {_ONE_COUNTRY}"
         )
 
     problems.raise_if_any()
@@ -615,6 +650,7 @@ def parse_correlates_query(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
         limit=limit,
+        pooled=pools,
     )
 
 
@@ -624,8 +660,9 @@ def parse_correlates_query(
 @dataclass(frozen=True)
 class PairQuery:
     """A validated /v1/correlations/pair request: two ordered items at one
-    wave, in one country (the global weights are normalised within
-    country, so a pair is never pooled across countries)."""
+    wave, in one country — or in every country pooled, each weighted to
+    its adult population (the global weights are normalised within
+    country, so countries share an estimate only that way, ADR-0020)."""
 
     y: VariableInfo
     x: VariableInfo
@@ -633,6 +670,8 @@ class PairQuery:
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
+    #: every country, each weighted to its adult population (ADR-0020)
+    pooled: bool = False
 
 
 def _ordered_at_wave(
@@ -656,15 +695,22 @@ def _ordered_at_wave(
 
 
 def _one_country(
-    catalog: Catalog, filters: list[str], problems: _Problems
+    catalog: Catalog, filters: list[str], problems: _Problems, pools: bool = False
 ) -> tuple[list[int], dict[str, list[str | int]]]:
+    """Exactly one country — or, pooled, none named at all."""
     countries, domain_filters = _parse_country_and_domain_filters(
         catalog, filters, set(BREAKDOWNS), problems
     )
-    if len(countries) != 1:
+    if pools:
+        if countries:
+            problems.add(
+                "pooled=population pools every country: drop the country filter "
+                "(filter=country_code:N)"
+            )
+    elif len(countries) != 1:
         problems.add(
-            "filter to exactly one country (filter=country_code:N) — weights are "
-            "normalised within country, so a correlation is taken one country at a time"
+            "filter to exactly one country (filter=country_code:N) or pool every "
+            f"country (pooled=population) — {_ONE_COUNTRY}"
         )
     return countries, domain_filters
 
@@ -677,9 +723,11 @@ def parse_pair_query(
     wave: str,
     method: str,
     filters: list[str],
+    pooled: str | None = None,
 ) -> PairQuery:
     """Validate a pair request; every problem is reported at once as a 422."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
     if wave not in WAVES:
         problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
     y_info = _ordered_at_wave(catalog, problems, y, wave, "y")
@@ -695,7 +743,7 @@ def parse_pair_query(
             )
     if method not in CORRELATION_METHODS:
         problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
-    countries, domain_filters = _one_country(catalog, filters, problems)
+    countries, domain_filters = _one_country(catalog, filters, problems, pools)
     problems.raise_if_any()
     assert y_info is not None and x_info is not None
     return PairQuery(
@@ -707,6 +755,7 @@ def parse_pair_query(
         filters=tuple(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
+        pooled=pools,
     )
 
 
@@ -718,13 +767,15 @@ MATRIX_MAX_VARS = 10
 @dataclass(frozen=True)
 class MatrixQuery:
     """A validated /v1/correlations request: 2–10 ordered items at one
-    wave, in one country."""
+    wave, in one country or pooled."""
 
     variables: tuple[VariableInfo, ...]
     wave: str
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
+    #: every country, each weighted to its adult population (ADR-0020)
+    pooled: bool = False
 
 
 def parse_matrix_query(
@@ -734,9 +785,11 @@ def parse_matrix_query(
     wave: str,
     method: str,
     filters: list[str],
+    pooled: str | None = None,
 ) -> MatrixQuery:
     """Validate a correlation-table request; every problem at once, 422."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
     if wave not in WAVES:
         problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
     if not MATRIX_MIN_VARS <= len(names) <= MATRIX_MAX_VARS:
@@ -753,7 +806,7 @@ def parse_matrix_query(
             variables.append(info)
     if method not in CORRELATION_METHODS:
         problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
-    countries, domain_filters = _one_country(catalog, filters, problems)
+    countries, domain_filters = _one_country(catalog, filters, problems, pools)
     problems.raise_if_any()
     return MatrixQuery(
         variables=tuple(variables),
@@ -763,4 +816,5 @@ def parse_matrix_query(
         filters=tuple(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
+        pooled=pools,
     )

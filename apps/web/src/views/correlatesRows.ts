@@ -23,8 +23,16 @@ export function countriesByName(countries: readonly Country[]): Country[] {
   return [...countries].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Every country A–Z, the chosen one pinned first (the matrix's columns). */
-export function pinnedFirst(countries: readonly Country[], chosen: number | undefined): Country[] {
+/** The Country select's first choice: every country pooled, each
+ * weighted to its adult population (ADR-0020). */
+export const ALL_COUNTRIES = 'All countries'
+
+/** Every country A–Z, the chosen one pinned first (the matrix's columns);
+ * pooled — no one country chosen — simply A–Z. */
+export function pinnedFirst(
+  countries: readonly Country[],
+  chosen: number | 'all' | undefined,
+): Country[] {
   const byName = countriesByName(countries)
   const pinned = byName.find((country) => country.code === chosen)
   return pinned ? [pinned, ...byName.filter((country) => country !== pinned)] : byName
@@ -32,10 +40,52 @@ export function pinnedFirst(countries: readonly Country[], chosen: number | unde
 
 export { shortName }
 
-/** "A", "A and B", "A, B and C". */
-function listAnd(items: readonly string[]): string {
+/** "A", "A and B", "A, B and C" (or "A, B or C"). */
+function listAnd(items: readonly string[], conjunction = 'and'): string {
   if (items.length <= 1) return items[0] ?? ''
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+  return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`
+}
+
+/** Where a pooled estimate stands (ADR-0020): "All countries, combined
+ * by adult population", or — when it covers fewer (a question some
+ * countries didn't ask) — "21 of 23 countries (not China or Egypt),
+ * combined by adult population", naming the missing ones when there are
+ * three or fewer. `covered`: the response's countries. */
+export function pooledPlace(
+  covered: readonly number[] | null | undefined,
+  countries: readonly Country[],
+): string {
+  const inIt = new Set(covered ?? countries.map((country) => country.code))
+  const missing = countriesByName(countries)
+    .filter((country) => !inIt.has(country.code))
+    .map((country) => country.name)
+  if (missing.length === 0) return 'All countries, combined by adult population'
+  const named = missing.length <= 3 ? ` (not ${listAnd(missing, 'or')})` : ''
+  return `${countries.length - missing.length} of ${countries.length} countries${named}, combined by adult population`
+}
+
+/** The scope toggle's first choice (Compare two, Find related): "In
+ * United States", or "All countries" when every country is pooled. */
+export function scopeLabel(countryName: string): string {
+  if (countryName === ALL_COUNTRIES) return ALL_COUNTRIES
+  return countryName ? `In ${countryName}` : 'In one country'
+}
+
+/** A pooled estimate's tooltip line when it covers fewer countries than
+ * all of them: "Asked in 21 of 23 countries." */
+export function coverageLine(
+  row: Pick<EstimateRow, 'n_countries'> | null | undefined,
+  total: number,
+): string | undefined {
+  const covered = row?.n_countries
+  return covered !== null && covered !== undefined && covered < total
+    ? `Asked in ${covered} of ${total} countries.`
+    : undefined
+}
+
+/** A tooltip with its coverage line, when there is one. */
+export function withCoverage(tip: string, line: string | undefined): string {
+  return line ? `${tip}\n${line}` : tip
 }
 
 /** Why the Wave options are unavailable, in one line under the row:
@@ -89,7 +139,8 @@ export function acrossSubtitle(
   method?: CorrelationMethod,
 ): string {
   const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
-  return `${questions} ranked for ${countryName}, country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
+  const place = countryName === ALL_COUNTRIES ? 'all countries combined' : countryName
+  return `${questions} ranked for ${place}, country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
 /** Whether a correlation rests on fewer people than the ranking floor

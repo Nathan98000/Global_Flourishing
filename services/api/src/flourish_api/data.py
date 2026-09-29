@@ -21,12 +21,12 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import duckdb
 import polars as pl
 from fastapi import HTTPException, Query, Request
-from flourish_stats import SuppressionPolicy
+from flourish_stats import SuppressionPolicy, adult_population_table
 from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame, wide_frame
 
 # The servable allow-list and the derived-score registry are shared data
@@ -35,6 +35,9 @@ from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame, wi
 from flourish_stats.outcomes import DERIVED_OUTCOMES, DERIVED_WAVES, SERVABLE_SCALE_TYPES
 
 from flourish_api.config import Settings
+
+if TYPE_CHECKING:  # the table's module imports this one
+    from flourish_api.pooled import PooledTable
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,11 @@ class DataStore:
         self.data_version: str | None = None
         self.con: duckdb.DuckDBPyConnection | None = None
         self.catalog: Catalog | None = None
+        #: country code → adult population, for pooled estimates (ADR-0020);
+        #: None, with the reason, when the table does not cover the catalog
+        self.populations: dict[int, float] | None = None
+        self.population_source: str | None = None
+        self.population_problem: str | None = None
         if not self.present:
             return
         self.con = duckdb.connect(str(settings.data_path), read_only=True)
@@ -143,6 +151,30 @@ class DataStore:
             manifest: dict[str, Any] = json.loads(settings.manifest_path.read_text())
             version = manifest.get("data_version")
             self.data_version = str(version) if version is not None else None
+        table = adult_population_table(settings.population_path)
+        iso3_of = {
+            int(code): str(iso3)
+            for code, iso3 in self.catalog.countries.select("code", "iso3").iter_rows()
+        }
+        try:
+            self.populations = table.by_country(iso3_of)
+            self.population_source = table.source
+        except ValueError as error:
+            # Served, but honestly unpoolable: pooled requests say why.
+            self.population_problem = str(error)
+
+    def require_populations(self) -> dict[int, float]:
+        """The adult populations a pooled estimate weights countries by,
+        or a 503 saying which country the table is missing."""
+        if self.populations is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Pooled estimates are unavailable on this server: the adult "
+                    f"population table does not cover the catalog ({self.population_problem})."
+                ),
+            )
+        return self.populations
 
     def _table(self, name: str) -> pl.DataFrame:
         assert self.con is not None
@@ -277,6 +309,14 @@ def adjusted_gate(
     if adjusted and not request.app.state.adjusted_enabled:
         raise HTTPException(status_code=422, detail=[ADJUSTED_OFF])
     return adjusted
+
+
+def pooled_correlations(request: Request) -> PooledTable | None:
+    """FastAPI dependency: the pooled correlations precomputed with the
+    image (ADR-0020), or None — pooled requests are then estimated on
+    demand."""
+    table: PooledTable | None = request.app.state.pooled
+    return table
 
 
 def require_data(request: Request) -> DataStore:

@@ -44,16 +44,21 @@ from flourish_api.data import (
     VariableInfo,
     correlates_min_n,
     pair_flags,
+    pooled_correlations,
     require_data,
     suppression_policy,
 )
 from flourish_api.frames import (
     BINARY_EVENT_CODE,
+    COUNTRY_BIT,
     PAIR_X,
     PAIR_Y_ALIGNED,
     assemble_matrix_frame,
     assemble_pair_frame,
+    correlation_spec,
+    coverage_masks,
 )
+from flourish_api.pooled import PooledTable
 from flourish_api.queries import (
     MatrixQuery,
     PairQuery,
@@ -61,6 +66,7 @@ from flourish_api.queries import (
     parse_pair_query,
     shares_answers,
 )
+from flourish_api.routes.correlates import pooled_meta
 from flourish_api.schemas import (
     CorrelationPairModel,
     CorrelationsMeta,
@@ -133,16 +139,23 @@ def code_of(info: VariableInfo, level: int) -> int:
     return level
 
 
-def answer_labels(catalog: Catalog, info: VariableInfo, wave: str, country: int) -> dict[int, str]:
+def answer_labels(
+    catalog: Catalog, info: VariableInfo, wave: str, country: int | None
+) -> dict[int, str]:
     """Each code's short label (the curated one when set, else the
-    codebook's), the wave's and the country's own where they differ."""
+    codebook's), the wave's and the country's own where they differ — a
+    pooled pair (no one country) reads the labels every country shares."""
     rows = catalog.value_labels.filter(
         (pl.col("variable") == info.name) & ~pl.col("is_nonresponse")
     )
     # (An all-null column can arrive typed as a number: compare as text.)
+    in_country = (
+        pl.col("country_code").is_null()
+        if country is None
+        else pl.col("country_code").is_null() | (pl.col("country_code") == country)
+    )
     rows = rows.filter(
-        (pl.col("wave").is_null() | (pl.col("wave").cast(pl.Utf8) == wave))
-        & (pl.col("country_code").is_null() | (pl.col("country_code") == country))
+        (pl.col("wave").is_null() | (pl.col("wave").cast(pl.Utf8) == wave)) & in_country
     )
     labels: dict[int, str] = {}
     # General rows first, so a wave's or a country's own label wins.
@@ -237,7 +250,9 @@ def axis_groups(
     if levels is None:
         expression, groups = bin_groups(frame, column, design, integer=not is_continuous(info))
         return expression, groups, "bins"
-    labels = answer_labels(store.catalog, info, query.wave, query.countries[0])
+    labels = answer_labels(
+        store.catalog, info, query.wave, query.countries[0] if query.countries else None
+    )
     answers: list[Group] = []
     for level in levels:
         code = code_of(info, level)
@@ -300,6 +315,11 @@ def run_pair(
         ),
         [],
     )[0].model_copy(update={"predictor": query.x.name})
+    # Pooled: the countries with people who answered both (ADR-0020).
+    mask = 0
+    if query.pooled:
+        mask = coverage_masks(frame, PAIR_X, [PAIR_Y_ALIGNED])[((), PAIR_Y_ALIGNED)]
+        correlation = correlation.model_copy(update={"n_countries": mask.bit_count()})
 
     # Who gave each of x's answers (among those who answered both) ...
     column_rows = {
@@ -328,11 +348,24 @@ def run_pair(
         if row.group[COLUMN] is not None
     }
 
+    # Pooled: each column's countries — those with people who gave that
+    # answer to x and answered y — which every share in it is taken over.
+    column_masks: dict[object, int] = {}
+    if query.pooled:
+        column_masks = {
+            key: int(mask or 0)
+            for key, mask in frame.filter(pl.col(ROW).is_not_null())
+            .group_by(COLUMN)
+            .agg(pl.col(COUNTRY_BIT).unique().sum())
+            .iter_rows()
+        }
+
     column_models: list[PairColumnModel] = []
     cells: list[PairCellModel] = []
     shares: list[EstimateRow] = []
     for column in columns:
         found = column_rows.get(column.key)
+        covered = column_masks.get(column.key, 0).bit_count() if query.pooled else None
         column_n = found.n if found is not None else 0
         column_models.append(
             PairColumnModel(
@@ -353,6 +386,8 @@ def run_pair(
                 if cell is not None
                 else empty_row(key, "proportion", design, policy)
             )
+            if covered is not None:
+                estimate = estimate.model_copy(update={"n_countries": covered})
             shares.append(estimate)
             cells.append(
                 PairCellModel(
@@ -383,9 +418,10 @@ def run_pair(
         n_valid=frame[ROW].drop_nulls().len(),
         by=[query.x.name, query.y.name],
         filters={
-            "country_code": list(query.countries),
+            **({"country_code": list(query.countries)} if query.countries else {}),
             **{item.column: list(item.values) for item in query.filters},
         },
+        **pooled_meta(store, query.pooled, [mask]),
     )
     return PairResponse(
         x=query.x.name,
@@ -417,9 +453,22 @@ def correlation_pair(
     wave: str,
     filter: Annotated[
         list[str] | None,
-        Query(description="Exactly one country_code:N, plus optional demographic domains."),
+        Query(
+            description=(
+                "Exactly one country_code:N (none when pooled), plus optional demographic domains."
+            )
+        ),
     ] = None,
     method: Annotated[str, Query(description="pearson (default) or spearman.")] = "pearson",
+    pooled: Annotated[
+        str | None,
+        Query(
+            description=(
+                "population: every country in one cross-tab, each weighted to its adult "
+                "population (ADR-0020), in place of the country filter."
+            )
+        ),
+    ] = None,
 ) -> PairResponse:
     """Both items must be ordered (a 0–10 scale, an ordered or yes/no
     answer, a count), asked at the wave and not built from the same
@@ -438,10 +487,13 @@ def correlation_pair(
     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
     weighted Pearson or Spearman coefficient over the people who answered
     both — the number /v1/correlates reports for the pair, with no
-    interval."""
+    interval. ``pooled=population`` pools every country, each weighted to
+    its adult population: ``shares.meta.countries`` lists the countries
+    with people who answered both, and ``correlation.n_countries`` counts
+    them."""
     assert store.catalog is not None
     query = parse_pair_query(
-        store.catalog, y=y, x=x, wave=wave, method=method, filters=filter or []
+        store.catalog, y=y, x=x, wave=wave, method=method, filters=filter or [], pooled=pooled
     )
     return run_pair(store, query, policy, flags, min_n)
 
@@ -487,21 +539,60 @@ def similar_order(names: list[str], pairs: list[CorrelationPairModel]) -> list[s
     return [names[i] for i in clusters[0]] if clusters else []
 
 
+def precomputed_pairs(
+    table: PooledTable | None, query: MatrixQuery, policy: SuppressionPolicy
+) -> tuple[dict[tuple[str, str], EstimateRow], dict[tuple[str, str], int], int] | None:
+    """A pooled table's correlations from the precomputed file (ADR-0020):
+    each estimable pair's row and coverage mask, and the frame's size;
+    None when the file cannot serve the whole table (a domain, a pair it
+    does not hold)."""
+    if table is None or not query.pooled or query.filters:
+        return None
+    config = (query.wave, None)
+    facts = table.frame(config)
+    if facts is None:
+        return None
+    weight = correlation_spec(query.wave).weight
+    rows: dict[tuple[str, str], EstimateRow] = {}
+    masks: dict[tuple[str, str], int] = {}
+    variables = list(query.variables)
+    for i, a in enumerate(variables[:-1]):
+        for b in variables[i + 1 :]:
+            if shares_answers(a, b):
+                continue
+            row = table.row(config, query.method, a.name, b.name, weight=weight, policy=policy)
+            if row is None:
+                return None
+            rows[(a.name, b.name)] = row
+            masks[(a.name, b.name)] = table.mask(config, query.method, a.name, b.name)
+    return rows, masks, facts.n_frame
+
+
 def run_matrix(
-    store: DataStore, query: MatrixQuery, policy: SuppressionPolicy, min_n: int
+    store: DataStore,
+    query: MatrixQuery,
+    policy: SuppressionPolicy,
+    min_n: int,
+    pooled: PooledTable | None = None,
 ) -> CorrelationsResponse:
     """Every pair i < j: row i's correlations with the questions after it
     in one engine pass, the pairs built from the same answers left out
-    of the pass and marked."""
-    assembled = assemble_matrix_frame(store, query)
-    frame, design = assembled.frame, assembled.design
+    of the pass and marked. Pooled, from the precomputed file when it
+    holds them (ADR-0020), each with how many countries it covers."""
     variables = list(query.variables)
-    pairs: list[CorrelationPairModel] = []
-    for i, a in enumerate(variables[:-1]):
-        later = variables[i + 1 :]
-        estimated: dict[str, EstimateRow] = {}
-        others = [b.name for b in later if not shares_answers(a, b)]
-        if others:
+    served = precomputed_pairs(pooled, query, policy)
+    estimated: dict[tuple[str, str], EstimateRow] = {}
+    masks: dict[tuple[str, str], int] = {}
+    if served is not None:
+        estimated, masks, n_frame = served
+    else:
+        assembled = assemble_matrix_frame(store, query)
+        frame, design = assembled.frame, assembled.design
+        n_frame = frame.height
+        for i, a in enumerate(variables[:-1]):
+            others = [b.name for b in variables[i + 1 :] if not shares_answers(a, b)]
+            if not others:
+                continue
             table = weighted_correlations(
                 frame,
                 a.name,
@@ -510,11 +601,22 @@ def run_matrix(
                 method="spearman" if query.method == "spearman" else "pearson",
                 policy=policy,
             )
+            covered = coverage_masks(frame, a.name, others) if query.pooled else {}
             for row in rows_from_table(table, []):
-                assert row.predictor is not None
-                estimated[row.predictor] = row
-        for b in later:
-            row = estimated.get(b.name)
+                b = row.predictor
+                assert b is not None
+                mask = covered.get(((), b), 0)
+                estimated[(a.name, b)] = (
+                    row.model_copy(update={"n_countries": mask.bit_count()})
+                    if query.pooled
+                    else row
+                )
+                masks[(a.name, b)] = mask
+    spec = correlation_spec(query.wave)
+    pairs: list[CorrelationPairModel] = []
+    for i, a in enumerate(variables[:-1]):
+        for b in variables[i + 1 :]:
+            row = estimated.get((a.name, b.name))
             pairs.append(
                 CorrelationPairModel(
                     a=a.name,
@@ -529,16 +631,17 @@ def run_matrix(
         vars=[v.name for v in variables],
         wave=query.wave,
         stat=f"{query.method}_r",
-        weight_key=assembled.spec.key,
-        weight=assembled.spec.weight,
+        weight_key=spec.key,
+        weight=spec.weight,
         ci_level=0.95,
         suppression=SuppressionModel(threshold=policy.threshold, flag_below=policy.flag_below),
-        n_frame=frame.height,
+        n_frame=n_frame,
         filters={
-            "country_code": list(query.countries),
+            **({"country_code": list(query.countries)} if query.countries else {}),
             **{item.column: list(item.values) for item in query.filters},
         },
         min_n=min_n,
+        **pooled_meta(store, query.pooled, list(masks.values())),
     )
     names = [v.name for v in variables]
     return CorrelationsResponse(meta=meta, pairs=pairs, similar_order=similar_order(names, pairs))
@@ -549,6 +652,7 @@ def correlations(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     min_n: Annotated[int, Depends(correlates_min_n)],
+    pooled_table: Annotated[PooledTable | None, Depends(pooled_correlations)],
     names: Annotated[
         list[str],
         Query(
@@ -559,9 +663,22 @@ def correlations(
     wave: str,
     filter: Annotated[
         list[str] | None,
-        Query(description="Exactly one country_code:N, plus optional demographic domains."),
+        Query(
+            description=(
+                "Exactly one country_code:N (none when pooled), plus optional demographic domains."
+            )
+        ),
     ] = None,
     method: Annotated[str, Query(description="pearson (default) or spearman.")] = "pearson",
+    pooled: Annotated[
+        str | None,
+        Query(
+            description=(
+                "population: every country in one table, each weighted to its adult "
+                "population (ADR-0020), in place of the country filter."
+            )
+        ),
+    ] = None,
 ) -> CorrelationsResponse:
     """Associations, not causes. Every pair i < j of the questions named,
     in the order named: the weighted Pearson or Spearman correlation over
@@ -575,9 +692,12 @@ def correlations(
     signs are the ranked list's. ``similar_order`` lists the questions
     with those that go together side by side: average-linkage clustering
     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
-    ties broken toward the order asked."""
+    ties broken toward the order asked. ``pooled=population`` pools every
+    country, each weighted to its adult population: each correlation's
+    ``n_countries`` counts the countries behind it and ``meta.countries``
+    lists every country behind at least one."""
     assert store.catalog is not None
     query = parse_matrix_query(
-        store.catalog, names=names, wave=wave, method=method, filters=filter or []
+        store.catalog, names=names, wave=wave, method=method, filters=filter or [], pooled=pooled
     )
-    return run_matrix(store, query, policy, min_n)
+    return run_matrix(store, query, policy, min_n, pooled_table)

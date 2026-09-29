@@ -41,6 +41,7 @@ import { ciText, formatEstimate } from '../../format'
 import { groupValueLabel, shortName } from '../../labels'
 import {
   correlatesAcrossCountries,
+  correlatesRequest,
   firstQuestion,
   pairRequest,
   secondQuestion,
@@ -53,6 +54,8 @@ import {
   CORRELATION_SCALE,
   FEW_PEOPLE_KEY,
   fewPeople,
+  pooledPlace,
+  scopeLabel,
   pairAxisTitle,
   pairBarTip,
   pairCellTip,
@@ -104,6 +107,11 @@ export function ComparePair({
   const across = useCorrelates(ready ? correlatesAcrossCountries(search, aName, [bName]) : null, {
     enabled: everywhere,
   })
+  // All countries, country by country: the strip reads the pooled pair.
+  const pooledPair = useCorrelates(
+    ready ? correlatesRequest(search, aName, 'all', [bName]) : null,
+    { enabled: everywhere && country === 'all' },
+  )
   const aDetail = useVariable(ready ? aName : null).data?.detail
   const bDetail = useVariable(ready ? bName : null).data?.detail
 
@@ -133,7 +141,7 @@ export function ComparePair({
       legendHidden
       name="pair-scope"
       options={[
-        { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
+        { value: 'country', label: scopeLabel(countryName) },
         { value: 'all', label: 'Country by country' },
       ]}
       value={search.scope}
@@ -141,7 +149,10 @@ export function ComparePair({
     />
   )
   const acrossResponse = across.data
-  const chosenRow = acrossResponse?.rows.find((row) => row.group['country_code'] === country)
+  const chosenRow =
+    country === 'all'
+      ? pooledPair.data?.rows[0]
+      : acrossResponse?.rows.find((row) => row.group['country_code'] === country)
 
   return (
     <>
@@ -196,7 +207,7 @@ export function ComparePair({
             a={a}
             b={b}
             response={acrossResponse}
-            chosen={country}
+            chosen={country === 'all' ? undefined : country}
             countryName={countryName}
             wave={search.wave}
             method={search.method}
@@ -377,7 +388,9 @@ function PairFigure({
     ...(countryName ? { country: countryName } : {}),
   }
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
-  const ariaLabel = `${a.display_name} and ${b.display_name} in ${countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
+  const pooled = pair.shares.meta.pooled === 'population'
+  const place = pooled ? pooledPlace(pair.shares.meta.countries, served.countries) : countryName
+  const ariaLabel = `${a.display_name} and ${b.display_name} in ${pooled ? 'all countries combined' : countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
     flaggedCount === 1
       ? ' 1 cell is starred: small sample size.'
       : flaggedCount > 1
@@ -395,7 +408,7 @@ function PairFigure({
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave}`}
+      subtitle={`${place} · ${WAVE_TITLES[wave] ?? wave}`}
       ariaLabel={ariaLabel}
       marks="table"
       intro={
@@ -480,7 +493,7 @@ function EveryCountry({
   const bShort = shortName(b)
   const top = sorted.rows[0]
   const bottom = sorted.rows[sorted.rows.length - 1]
-  const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1; ${countryName} is picked out.${
+  const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1${chosen !== undefined ? `; ${countryName} is picked out` : ''}.${
     top && bottom
       ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''

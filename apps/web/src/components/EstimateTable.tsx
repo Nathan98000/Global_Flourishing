@@ -1,8 +1,10 @@
 // The numbers behind a view, as a real table: the screen-reader path and
 // the copy-paste path for every chart, and a view in its own right.
 // Columns: the row's identity, Estimate, the CI, and n (§6 — the weight
-// is named once in the caption). Every cell is shown (ADR-0011); a
-// missing interval reads "—" and the n rides on every row.
+// is named once in the caption) — and, for estimates pooled across
+// countries, how many countries each covers (ADR-0020). Every cell is
+// shown (ADR-0011); a missing interval reads "—" and the n rides on
+// every row.
 
 import type { EstimateResponse, EstimateRow } from '../api/types'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
@@ -70,6 +72,8 @@ export function EstimateTable({
   // A response of point estimates (plain correlations) has no interval to
   // tabulate: the column goes, rather than a column of dashes under "95% CI".
   const hasIntervals = !(rows.length > 0 && rows.every((row) => row.ci_method === 'none'))
+  // Pooled estimates say how many countries are behind each.
+  const hasCountries = rows.some((row) => row.n_countries !== null && row.n_countries !== undefined)
   const level = (value: number | null | undefined) => {
     if (value === null || value === undefined) return '—'
     const named = levelLabel?.(value)
@@ -106,6 +110,7 @@ export function EstimateTable({
               </th>
             )}
             <th scope="col">n</th>
+            {hasCountries && <th scope="col">Countries</th>}
           </tr>
         </thead>
         <tbody>
@@ -130,6 +135,7 @@ export function EstimateTable({
               <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
               {hasIntervals && <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>}
               <td className={styles.number}>{formatCount(row.n)}</td>
+              {hasCountries && <td className={styles.number}>{row.n_countries ?? '—'}</td>}
             </tr>
           ))}
         </tbody>

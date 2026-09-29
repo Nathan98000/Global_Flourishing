@@ -33,7 +33,13 @@ import {
   type CorrelatesViewName,
 } from '../state/search'
 import { WAVE_CHIPS } from '../waves'
-import { METHOD_DIFFERENCE, countriesByName, defaultCountry, waveNote } from './correlatesRows'
+import {
+  ALL_COUNTRIES,
+  METHOD_DIFFERENCE,
+  countriesByName,
+  defaultCountry,
+  waveNote,
+} from './correlatesRows'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
@@ -82,6 +88,7 @@ export function CorrelatesView() {
   const boot = useBootStatus()
   const variables = useVariables()
   const served = meta.data?.meta
+  // A country's code, or `all`: every country pooled (ADR-0020).
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
@@ -108,7 +115,12 @@ export function CorrelatesView() {
   }
 
   const byName = variables.data.byName
-  const countryName = country !== undefined ? groupValueLabel('country_code', country, served) : ''
+  const countryName =
+    country === 'all'
+      ? ALL_COUNTRIES
+      : country !== undefined
+        ? groupValueLabel('country_code', country, served)
+        : ''
   // A wave the view's questions were not asked in stays in the row,
   // disabled, and the line under the row says why.
   const inView = questionsInView(search)
@@ -141,15 +153,20 @@ export function CorrelatesView() {
           <span className={styles.fieldLabel}>Country</span>
           <select
             value={country ?? ''}
-            onChange={(event) =>
+            onChange={(event) => {
+              const value = event.target.value
               setSearch({
                 country:
-                  Number(event.target.value) === defaultCountry(served)
-                    ? undefined
-                    : Number(event.target.value),
+                  value === 'all'
+                    ? 'all'
+                    : Number(value) === defaultCountry(served)
+                      ? undefined
+                      : Number(value),
               })
-            }
+            }}
           >
+            {/* Every country pooled first, then each on its own, A–Z. */}
+            <option value="all">{ALL_COUNTRIES}</option>
             {countries.map((entry) => (
               <option key={entry.code} value={entry.code}>
                 {entry.name}

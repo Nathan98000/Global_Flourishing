@@ -380,6 +380,25 @@ describe('correlates search (ADR-0019)', () => {
     expect(parseCorrelatesSearch({ b: 'no way' }).invalid).toEqual(['b'])
   })
 
+  test('country=all pools every country (ADR-0020): parsed, kept, and sent as pooled', () => {
+    const search = parseCorrelatesSearch(parseSearchString('?view=related&country=all'))
+    expect(search.country).toBe('all')
+    expect(search.invalid).toBeUndefined()
+    expect(stringifySearch(correlatesSearchParams(search))).toBe('?view=related&country=all')
+    expect(parseCorrelatesSearch({ ...search } as Record<string, unknown>)).toEqual(search)
+    expect(correlatesRequest(search, 'HAPPY', 'all')).toEqual({
+      outcome: 'HAPPY',
+      wave: 'Y1',
+      by: [],
+      pooled: true,
+      method: undefined,
+    })
+    expect(correlatesRequest(search, 'HAPPY', 22)).toMatchObject({ countries: [22] })
+    expect(pairRequest(search, { a: 'HAPPY', b: 'LONELY' }, 'all').country).toBe('all')
+    expect(tableRequest(search, ['HAPPY', 'LONELY'], 'all').country).toBe('all')
+    expect(parseCorrelatesSearch({ country: 'everywhere' }).invalid).toEqual(['country'])
+  })
+
   test('the view and the scope: an unknown view is reported; the defaults stay out of the URL', () => {
     const related = parseCorrelatesSearch({ view: 'related', outcome: 'HAPPY', scope: 'all' })
     expect(related).toMatchObject({ view: 'related', outcome: 'HAPPY', scope: 'all' })

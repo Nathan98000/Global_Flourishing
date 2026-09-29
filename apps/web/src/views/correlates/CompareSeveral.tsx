@@ -37,8 +37,11 @@ import {
   CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
+  coverageLine,
+  pooledPlace,
   starred,
   statisticPhrase,
+  withCoverage,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
 import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
@@ -197,6 +200,7 @@ function TableFigure({
   served: Meta
   onOpenPair: (row: string, column: string) => void
 }) {
+  const pooled = table.meta.pooled === 'population'
   const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
   const pairOf = (one: string, other: string) =>
     pairs.get(`${one}|${other}`) ?? pairs.get(`${other}|${one}`)
@@ -247,8 +251,8 @@ function TableFigure({
   return (
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
-      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
-      ariaLabel={`Correlations among ${order.length} questions in ${countryName}, as a table: ${order
+      subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      ariaLabel={`Correlations among ${order.length} questions in ${pooled ? 'all countries combined' : countryName}, as a table: ${order
         .map(nameOf)
         .join('; ')}.${
         strongestPair && strongest
@@ -318,7 +322,10 @@ function TableFigure({
           const flagged = pair.below_min_n
           return {
             text: starred(value, flagged),
-            title: `${starred(value, flagged)} · ${rowName} with ${columnName}`,
+            title: withCoverage(
+              `${starred(value, flagged)} · ${rowName} with ${columnName}`,
+              coverageLine(correlation, served.countries.length),
+            ),
             tint: divergingTint(correlation.estimate, 1),
             flagged,
             hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,

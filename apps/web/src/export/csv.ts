@@ -69,6 +69,25 @@ function quoted(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 }
 
+/** A pooled response's own `#` lines (ADR-0020): how it pooled, the
+ * countries behind it, the populations' source; none otherwise. */
+function pooledLines(
+  meta: Pick<EstimateResponse['meta'], 'pooled' | 'countries' | 'population_source'>,
+): string[] {
+  if (!meta.pooled) return []
+  return [
+    `# pooled: ${meta.pooled}`,
+    `# countries: ${(meta.countries ?? []).map(String).join(',')}`,
+    `# population_source: ${pythonStr(meta.population_source)}`,
+  ]
+}
+
+/** Pooled rows carry how many countries are behind each: one more
+ * column, last, only then. */
+function countriesColumn(rows: readonly (EstimateRow | null | undefined)[]): boolean {
+  return rows.some((row) => row?.n_countries !== null && row?.n_countries !== undefined)
+}
+
 export function responseToCsv(response: EstimateResponse): string {
   const meta = response.meta
   const lines: string[] = []
@@ -77,6 +96,7 @@ export function responseToCsv(response: EstimateResponse): string {
     const rendered = Array.isArray(value) ? value.map(String).join(',') : pythonStr(value)
     lines.push(`# ${field}: ${rendered}`)
   }
+  lines.push(...pooledLines(meta))
   if (meta.suppression.threshold === 0 && meta.suppression.flag_below === 0) {
     // ADR-0011 default: every cell is shown (byte-identical to the API).
     lines.push('# suppression: none (all cells shown)')
@@ -94,13 +114,19 @@ export function responseToCsv(response: EstimateResponse): string {
   const subrowKeys = SUBROW_KEYS.filter((key) =>
     response.rows.some((row) => row[key] !== null && row[key] !== undefined),
   )
-  lines.push([...groupColumns, ...subrowKeys, ...RECORD_FIELDS].map(quoted).join(','))
+  const countries = countriesColumn(response.rows)
+  lines.push(
+    [...groupColumns, ...subrowKeys, ...RECORD_FIELDS, ...(countries ? ['n_countries'] : [])]
+      .map(quoted)
+      .join(','),
+  )
   for (const row of response.rows) {
     lines.push(
       [
         ...groupColumns.map((column) => cell(row.group[column])),
         ...subrowKeys.map((key) => cell(row[key])),
         ...RECORD_FIELDS.map((field) => cell(row[field as keyof EstimateRow])),
+        ...(countries ? [cell(row.n_countries)] : []),
       ]
         .map(quoted)
         .join(','),
@@ -131,8 +157,21 @@ export function correlationTableToCsv(table: CorrelationsResponse): string {
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
+    ...pooledLines(meta),
   ]
-  lines.push(['a', 'b', 'shares_answers', 'below_min_n', ...RECORD_FIELDS].map(quoted).join(','))
+  const countries = countriesColumn(table.pairs.map((pair) => pair.correlation))
+  lines.push(
+    [
+      'a',
+      'b',
+      'shares_answers',
+      'below_min_n',
+      ...RECORD_FIELDS,
+      ...(countries ? ['n_countries'] : []),
+    ]
+      .map(quoted)
+      .join(','),
+  )
   for (const pair of table.pairs) {
     const row = pair.correlation
     lines.push(
@@ -142,6 +181,7 @@ export function correlationTableToCsv(table: CorrelationsResponse): string {
         pythonStr(pair.shares_answers),
         pythonStr(pair.below_min_n),
         ...RECORD_FIELDS.map((field) => (row ? cell(row[field as keyof EstimateRow]) : '')),
+        ...(countries ? [row ? cell(row.n_countries) : ''] : []),
       ]
         .map(quoted)
         .join(','),
@@ -179,9 +219,21 @@ export function pairToCsv(pair: PairResponse): string {
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
+    ...pooledLines(meta),
   ]
+  const countries = countriesColumn(pair.shares.rows)
   lines.push(
-    ['x', 'x_label', 'x_share', 'x_n', 'y', 'y_label', ...RECORD_FIELDS, 'cell_flagged']
+    [
+      'x',
+      'x_label',
+      'x_share',
+      'x_n',
+      'y',
+      'y_label',
+      ...RECORD_FIELDS,
+      'cell_flagged',
+      ...(countries ? ['n_countries'] : []),
+    ]
       .map(quoted)
       .join(','),
   )
@@ -200,6 +252,7 @@ export function pairToCsv(pair: PairResponse): string {
         rows.get(entry.y)?.label ?? '',
         ...RECORD_FIELDS.map((field) => (record ? cell(record[field as keyof EstimateRow]) : '')),
         pythonStr(entry.flagged),
+        ...(countries ? [record ? cell(record.n_countries) : ''] : []),
       ]
         .map(quoted)
         .join(','),

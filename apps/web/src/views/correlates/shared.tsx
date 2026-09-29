@@ -5,6 +5,7 @@
 
 import { useMemo, type ReactNode } from 'react'
 import { NetworkError } from '../../api/errors'
+import type { CountryScope } from '../../api/correlates'
 import type { Meta, VariableSummary, Wave } from '../../api/types'
 import { useVariableDetails, type VariablesResult } from '../../api/variables'
 import { DIVERGING_RAMP } from '../../charts/theme'
@@ -22,8 +23,10 @@ export interface ViewProps {
   setSearch: (patch: Partial<CorrelatesSearch>) => void
   variables: VariablesResult
   served: Meta
-  /** The country every view is taken in (resolved from meta). */
-  country: number | undefined
+  /** The country every view is taken in (resolved from meta), or `all`:
+   * every country pooled by adult population (ADR-0020). */
+  country: CountryScope | undefined
+  /** Its name — "All countries" when pooled. */
   countryName: string
   apiReachable: boolean
   /** The shared row — wave, country, correlation type — which each view

@@ -44,6 +44,10 @@ import {
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
+  coverageLine,
+  pooledPlace,
+  scopeLabel,
+  withCoverage,
   starred,
   statisticPhrase,
   tintExtent,
@@ -116,7 +120,11 @@ export function FindRelated({
   const rowName = (row: EstimateRow, label: string) =>
     `${label}, ${formatEstimate(row.estimate, row.stat)}: see it beside ${title}`
   const strongest = rankedRows.find((row) => row.estimate !== null)
-  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
+  const pooled = country === 'all'
+  // Where, in a sentence: a country, or every country pooled.
+  const where = pooled ? 'all countries combined' : countryName
+  const total = served.countries.length
+  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
@@ -164,7 +172,7 @@ export function FindRelated({
           legendHidden
           name="scope"
           options={[
-            { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
+            { value: 'country', label: scopeLabel(countryName) },
             { value: 'all', label: 'Country by country' },
           ]}
           value={search.scope}
@@ -183,11 +191,15 @@ export function FindRelated({
         search.scope === 'country' ? (
           <>
             <p role="status" className="visually-hidden">
-              Updated: {title}, {predictors.length} questions ranked for {countryName}.
+              Updated: {title}, {predictors.length} questions ranked for {where}.
             </p>
             <ChartFigure
               title={`What goes with ${title}`}
-              subtitle={rankedSubtitle(countryName, search.method, search.wave)}
+              subtitle={rankedSubtitle(
+                pooled ? pooledPlace(rankedResponse.meta.countries, served.countries) : countryName,
+                search.method,
+                search.wave,
+              )}
               ariaLabel={rankedAria}
               marks="dots"
               interactive
@@ -246,7 +258,10 @@ export function FindRelated({
                 fitLabels
                 stackOnNarrow
                 tipOf={(row, label) =>
-                  rankedTip(row, label, fewPeople(row, rankedResponse.meta.min_n))
+                  withCoverage(
+                    rankedTip(row, label, fewPeople(row, rankedResponse.meta.min_n)),
+                    coverageLine(row, total),
+                  )
                 }
                 flagOf={(row) => fewPeople(row, rankedResponse.meta.min_n)}
                 onSelectRow={openPair}
@@ -258,8 +273,8 @@ export function FindRelated({
         ) : predictors.length === 0 ? (
           <EmptyState title="Nothing ranked">
             <p>
-              No question has enough respondents in {countryName} to rank against {title}, so there
-              is nothing to set across countries.
+              No question has enough respondents in {where} to rank against {title}, so there is
+              nothing to set across countries.
             </p>
           </EmptyState>
         ) : across.isPending ? (
@@ -270,7 +285,7 @@ export function FindRelated({
           <ChartFigure
             title={`What goes with ${title}, country by country`}
             subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
-            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
+            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
             meta={served}
@@ -288,7 +303,7 @@ export function FindRelated({
               minN={acrossResponse.meta.min_n}
               nameOf={nameOf}
               countries={pinnedFirst(served.countries, country)}
-              chosen={country}
+              chosen={pooled ? undefined : country}
               short={short}
             />
           </ChartFigure>

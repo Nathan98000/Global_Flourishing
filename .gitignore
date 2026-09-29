@@ -26,9 +26,12 @@ data/*
 *.parquet
 *.duckdb
 *.pdf
-# The R-parity case-definition table (30 estimator specs, no microdata) is
-# the one committed .csv; pre-commit whitelists the same path.
+# Two committed .csv files, both free of microdata, which pre-commit
+# whitelists by the same paths: the R-parity case-definition table (30
+# estimator specs) and the UN's adult populations of the 23 GFS countries
+# (public figures that weight the pooled estimates, ADR-0020).
 !stats/verify/cases.csv
+!stats/src/flourish_stats/data/adult_population.csv
 
 # Environment / editors
 .env

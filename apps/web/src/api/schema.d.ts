@@ -99,6 +99,14 @@ export interface paths {
          *     what stands in for it. Binary items enter as indicators of code 1
          *     (Yes / screen positive). Global scope only.
          *
+         *     ``pooled=population`` — in place of a country filter — pools every
+         *     country, each weighted to its adult population (UN World Population
+         *     Prospects 2024; ``meta.population_source``): ``meta.countries`` lists
+         *     the countries behind at least one estimate and each row's
+         *     ``n_countries`` how many are behind it (a question a country did not
+         *     ask leaves that country out). The ranking floor and the dedupe are
+         *     unchanged.
+         *
          *     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
          *     regression under the fixed control set (``stat = "beta"``, plus a
          *     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
@@ -134,7 +142,10 @@ export interface paths {
          *     signs are the ranked list's. ``similar_order`` lists the questions
          *     with those that go together side by side: average-linkage clustering
          *     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
-         *     ties broken toward the order asked.
+         *     ties broken toward the order asked. ``pooled=population`` pools every
+         *     country, each weighted to its adult population: each correlation's
+         *     ``n_countries`` counts the countries behind it and ``meta.countries``
+         *     lists every country behind at least one.
          */
         get: operations["correlations_v1_correlations_get"];
         put?: never;
@@ -171,7 +182,10 @@ export interface paths {
          *     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
          *     weighted Pearson or Spearman coefficient over the people who answered
          *     both — the number /v1/correlates reports for the pair, with no
-         *     interval.
+         *     interval. ``pooled=population`` pools every country, each weighted to
+         *     its adult population: ``shares.meta.countries`` lists the countries
+         *     with people who answered both, and ``correlation.n_countries`` counts
+         *     them.
          */
         get: operations["correlation_pair_v1_correlations_pair_get"];
         put?: never;
@@ -342,6 +356,8 @@ export interface components {
         CorrelationsMeta: {
             /** Ci Level */
             ci_level: number;
+            /** Countries */
+            countries?: number[] | null;
             /** Data Version */
             data_version: string | null;
             /** Filters */
@@ -352,6 +368,10 @@ export interface components {
             min_n: number;
             /** N Frame */
             n_frame: number;
+            /** Pooled */
+            pooled?: string | null;
+            /** Population Source */
+            population_source?: string | null;
             /** Stat */
             stat: string;
             suppression: components["schemas"]["SuppressionModel"];
@@ -432,6 +452,8 @@ export interface components {
             measure?: string | null;
             /** N */
             n: number;
+            /** N Countries */
+            n_countries?: number | null;
             /** N Psu */
             n_psu: number | null;
             /** N Strata */
@@ -625,6 +647,8 @@ export interface components {
             ci_level: number;
             /** Controls */
             controls?: string[] | null;
+            /** Countries */
+            countries?: number[] | null;
             /** Data Version */
             data_version: string | null;
             /** Direction */
@@ -651,6 +675,10 @@ export interface components {
             oriented: boolean;
             /** Outcome */
             outcome: string;
+            /** Pooled */
+            pooled?: string | null;
+            /** Population Source */
+            population_source?: string | null;
             /** Scale Type */
             scale_type: string;
             /** Scope */
@@ -940,6 +968,8 @@ export interface operations {
                 by?: string[] | null;
                 filter?: string[] | null;
                 limit?: number;
+                /** @description population: every country in one estimate, each weighted to its adult population (ADR-0020), in place of a country filter. */
+                pooled?: string | null;
                 /** @description The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422. */
                 adjusted?: boolean;
             };
@@ -975,10 +1005,12 @@ export interface operations {
                 /** @description 2 to 10 ordered questions asked at the wave, repeatable, in table order. */
                 vars: string[];
                 wave: string;
-                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                /** @description Exactly one country_code:N (none when pooled), plus optional demographic domains. */
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
+                /** @description population: every country in one table, each weighted to its adult population (ADR-0020), in place of the country filter. */
+                pooled?: string | null;
             };
             header?: never;
             path?: never;
@@ -1014,10 +1046,12 @@ export interface operations {
                 /** @description The question on the columns. */
                 x: string;
                 wave: string;
-                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                /** @description Exactly one country_code:N (none when pooled), plus optional demographic domains. */
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
+                /** @description population: every country in one cross-tab, each weighted to its adult population (ADR-0020), in place of the country filter. */
+                pooled?: string | null;
             };
             header?: never;
             path?: never;

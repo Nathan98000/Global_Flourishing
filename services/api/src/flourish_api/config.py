@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # data=absent, and /v1/* return 503 (see flourish_api.data).
     data_path: Path = Path("data/flourish.duckdb")
 
+    # The adult populations the pooled "All countries" estimates weight
+    # each country by (ADR-0020). None reads the UN table packaged with
+    # flourish_stats; the synthetic tests point at their own countries'.
+    population_path: Path | None = None
+    # The pooled correlations precomputed when the image is built
+    # (flourish_api.pooled, ADR-0020); None means the default file beside
+    # the DuckDB. Absent, pooled requests are estimated on demand.
+    pooled_path: Path | None = None
+
     # DuckDB tuning for the 512 MiB / 1 CPU Cloud Run shape. Values are
     # config, not code, so ADR-0007's measured tuning is an env change.
     duckdb_threads: int = 2
@@ -73,3 +82,7 @@ class Settings(BaseSettings):
     @property
     def manifest_path(self) -> Path:
         return self.data_path.parent / "manifest.json"
+
+    @property
+    def pooled_file(self) -> Path:
+        return self.pooled_path or self.data_path.parent / "pooled_correlations.parquet"
