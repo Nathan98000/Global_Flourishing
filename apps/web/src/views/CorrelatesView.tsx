@@ -168,9 +168,11 @@ export function CorrelatesView() {
             }
           />
           <Disclosure variant="info" label="What’s the difference?">
-            {METHOD_DIFFERENCE.map((line) => (
-              <p key={line} className={styles.methodHint}>
-                {line}
+            {METHOD_DIFFERENCE.map((paragraph, index) => (
+              <p key={index} className={styles.methodHint}>
+                {paragraph.map((words, at) =>
+                  typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
+                )}
               </p>
             ))}
           </Disclosure>

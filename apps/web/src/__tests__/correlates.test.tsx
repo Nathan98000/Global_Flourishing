@@ -1030,12 +1030,21 @@ describe('Correlates view', () => {
     const info = screen.getByRole('button', { name: 'What’s the difference?' })
     expect(info).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(info)
-    expect(
-      screen.getByText('Straight-line (Pearson): how closely two answers follow a straight line.'),
-    ).toBeVisible()
-    expect(
-      screen.getByText('By rank (Spearman): how consistently one rises with the other.'),
-    ).toBeVisible()
+    // Four short paragraphs, each method named in bold.
+    const panel = document.getElementById(info.getAttribute('aria-controls') ?? '') as HTMLElement
+    expect(panel).toBeVisible()
+    expect(panel).toHaveAttribute('data-variant', 'info')
+    const paragraphs = [...panel.querySelectorAll('p')].map((p) => p.textContent)
+    expect(paragraphs).toHaveLength(4)
+    expect(paragraphs[0]).toMatch(/^Both numbers run from −1 to 1\. Near 0/)
+    expect(paragraphs[1]).toMatch(/^Straight-line \(Pearson\) treats answers as numbers/)
+    expect(paragraphs[2]).toMatch(/^By rank \(Spearman\) puts people in order/)
+    expect(paragraphs[3]).toMatch(/are pulling Straight-line\.$/)
+    expect([...panel.querySelectorAll('strong')].map((b) => b.textContent)).toEqual([
+      'Straight-line (Pearson)',
+      'By rank (Spearman)',
+      'Straight-line',
+    ])
     fireEvent.keyDown(info, { key: 'Escape' })
     expect(info).toHaveAttribute('aria-expanded', 'false')
     expect(info).toHaveFocus()

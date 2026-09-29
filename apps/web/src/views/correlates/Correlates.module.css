@@ -127,6 +127,11 @@
   .typeCell > fieldset {
     flex: 1 1 100%;
   }
+
+  /* "What's the difference?" spans the column, so its note can. */
+  .typeCell > div {
+    flex: 1 1 100%;
+  }
 }
 
 /* Compare two's header row: the correlation strip on the left, In

@@ -127,11 +127,29 @@ export function starred(text: string, flagged: boolean): string {
   return flagged ? `${text}*` : text
 }
 
-/** "What's the difference?" beside the correlation type, in plain words. */
-export const METHOD_DIFFERENCE = [
-  'Straight-line (Pearson): how closely two answers follow a straight line.',
-  'By rank (Spearman): how consistently one rises with the other.',
-] as const
+/** A run of a paragraph: plain words, or a method's name in bold. */
+export type Words = string | { strong: string }
+
+/** "What's the difference?" beside the correlation type (ADR-0020): four
+ * short paragraphs in plain words, the method names in bold. */
+export const METHOD_DIFFERENCE: readonly (readonly Words[])[] = [
+  [
+    'Both numbers run from −1 to 1. Near 0, answers to the two questions don’t go together. Toward +1, higher answers to one go with higher answers to the other; toward −1, higher goes with lower.',
+  ],
+  [
+    { strong: 'Straight-line (Pearson)' },
+    ' treats answers as numbers and asks how closely people fall along a straight line. The size of each gap counts, so it suits 0–10 scales, but a few unusual answers can pull it.',
+  ],
+  [
+    { strong: 'By rank (Spearman)' },
+    ' puts people in order on each question and asks how closely the two orders match. Only the order counts, not the size of the gaps, so it suits answers like “Never … Always”, and unusual answers pull it less.',
+  ],
+  [
+    'The two are usually close. A big difference means the pattern bends (steep at one end, flat at the other), or a few unusual answers are pulling ',
+    { strong: 'Straight-line' },
+    '.',
+  ],
+]
 
 /** Predictor × country lookup for the cross-country matrix. */
 export function heatCells(rows: readonly EstimateRow[]): Map<string, EstimateRow> {

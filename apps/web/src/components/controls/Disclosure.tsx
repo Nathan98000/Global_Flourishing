@@ -7,7 +7,8 @@
 // country filter's rules, for settings that most readers never change.
 // The `info` variant is a small text button with an "i" — a note a reader
 // opens to learn what a control's options mean (Correlates' "What's the
-// difference?").
+// difference?") — whose panel is wider, a reading measure of about 26rem
+// on a desktop and the column's full width on a phone.
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import styles from './Disclosure.module.css'
@@ -83,6 +84,7 @@ export function Disclosure({
         className={styles.panel}
         hidden={!open}
         data-anchor={anchorRight ? 'right' : undefined}
+        data-variant={variant}
       >
         {children}
       </div>

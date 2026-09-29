@@ -65,6 +65,12 @@
   display: none;
 }
 
+/* The info note: a reading measure, not the settings panel's. */
+.panel[data-variant='info'] {
+  width: 26rem;
+  max-width: calc(100vw - 2 * var(--space-4));
+}
+
 /* Opened near the right edge of the row: hang from the button's right
    edge instead, so the panel stays inside the page column. */
 .panel[data-anchor='right'] {
@@ -120,5 +126,15 @@
 @media (max-width: 40rem) {
   .info {
     min-height: 44px;
+  }
+
+  /* On a phone the note takes the column's full width (the disclosure
+     spans it: see the page's control row), whichever edge it hung from. */
+  .panel[data-variant='info'],
+  .panel[data-variant='info'][data-anchor='right'] {
+    right: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
   }
 }
