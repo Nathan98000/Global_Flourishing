@@ -32,6 +32,7 @@ import {
 import { RankedBar } from '../../charts/RankedBar'
 import { SEQUENTIAL_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
+import { EstimateTable } from '../../components/EstimateTable'
 import { LoadingBlock } from '../../components/Loading'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
 import { RadioRow } from '../../components/controls/RadioRow'
@@ -64,6 +65,7 @@ import {
   pairCellTip,
   rankedTip,
   statisticPhrase,
+  tableCaption,
 } from '../correlatesRows'
 import {
   otherWaveOf,
@@ -422,6 +424,78 @@ function PairFigure({
     if (column === pair.y) return rowLabel.get(code) ?? String(value)
     return undefined
   }
+  const columnName = (column: string) =>
+    column === pair.x
+      ? yearTagged(a.display_name, a, wave, other)
+      : column === pair.y
+        ? yearTagged(b.display_name, b, wave, other)
+        : undefined
+  // Every number the chart shows is in its data table (review M6): the
+  // bars, the grid and the correlation, each with its asterisk.
+  const weighting = tableCaption(pooled)
+  const cellFlagged = new Map(
+    pair.shares.rows.map((row, index) => [row, pair.cells[index]?.flagged === true]),
+  )
+  const bars: EstimateResponse = {
+    meta: { ...pair.shares.meta, by: [pair.x] },
+    rows: pair.columns.map((column) => ({
+      group: { [pair.x]: column.label },
+      stat: 'proportion',
+      estimate: column.share,
+      se: null,
+      ci_lo: column.ci_lo,
+      ci_hi: column.ci_hi,
+      ci_level: pair.shares.meta.ci_level,
+      ci_method: 'normal',
+      n: column.n,
+      sum_w: 0,
+      n_psu: null,
+      n_strata: null,
+      df: null,
+      se_method: pair.shares.meta.se_method,
+      weight: pair.shares.meta.weight,
+      suppressed: false,
+      flagged: column.flagged,
+      n_countries: pooled ? (pair.shares.meta.countries?.length ?? null) : null,
+    })),
+  }
+  const correlation: EstimateResponse = {
+    meta: { ...pair.shares.meta, by: [], stat: pair.correlation.stat },
+    rows: [pair.correlation],
+  }
+  const dataTable = (
+    <>
+      <EstimateTable
+        response={bars}
+        meta={served}
+        caption={`Share of respondents who gave each answer to ${aShort}`}
+        columnName={columnName}
+        weightCaption={weighting}
+        estimateHeader="Share"
+        smallSampleOf={(row) => row.flagged}
+      />
+      <EstimateTable
+        response={pair.shares}
+        meta={served}
+        caption="Share of each column (columns add to 100%)"
+        groupLabel={label}
+        columnName={columnName}
+        weightCaption={weighting}
+        estimateHeader="Share of column"
+        smallSampleOf={(row) => cellFlagged.get(row) === true}
+      />
+      <EstimateTable
+        response={correlation}
+        meta={served}
+        caption="Correlation"
+        predictorLabel={() => `${a.display_name} and ${b.display_name}`}
+        predictorHeader="Questions"
+        weightCaption={weighting}
+        estimateHeader="Correlation"
+        smallSampleOf={(row) => fewPeople(row, pair.min_n)}
+      />
+    </>
+  )
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
@@ -442,14 +516,7 @@ function PairFigure({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      groupLabel={label}
-      columnName={(column) =>
-        column === pair.x
-          ? yearTagged(a.display_name, a, wave, other)
-          : column === pair.y
-            ? yearTagged(b.display_name, b, wave, other)
-            : undefined
-      }
+      dataTable={dataTable}
       note={CORRELATES_NOTE}
     >
       <CrossTab
@@ -532,6 +599,14 @@ function EveryCountry({
       ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''
   }${averageText ? ` A dashed line marks the All countries average, ${averageText}.` : ''} The data table below carries every number.`
+  // The data table: every country's dot, then the average the rule marks.
+  const table: EstimateResponse =
+    average && average.estimate !== null
+      ? {
+          ...sorted,
+          rows: [...sorted.rows, { ...average, group: { country_code: ALL_COUNTRIES } }],
+        }
+      : sorted
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
@@ -539,7 +614,7 @@ function EveryCountry({
       ariaLabel={ariaLabel}
       marks="dots"
       intro={header}
-      response={sorted}
+      response={table}
       meta={served}
       csv={{
         kind: 'client',
@@ -550,6 +625,13 @@ function EveryCountry({
       predictorLabel={(predictor) =>
         predictor === b.name ? yearTagged(b.display_name, b, wave, other) : undefined
       }
+      groupLabel={(column, value) =>
+        column === 'country_code' && value === ALL_COUNTRIES ? 'All countries (average)' : undefined
+      }
+      tableCaption={tableCaption(response.meta.pooled === 'average')}
+      predictorHeader="Question"
+      estimateHeader="Correlation"
+      smallSampleOf={(row) => fewPeople(row, minN)}
       note={CORRELATES_NOTE}
     >
       <RankedBar

@@ -39,6 +39,10 @@ export function EstimateTable({
   groupLabel,
   predictorLabel,
   columnName,
+  weightCaption,
+  estimateHeader = 'Estimate',
+  predictorHeader = 'Measure',
+  smallSampleOf,
 }: {
   response: EstimateResponse
   meta: Meta
@@ -57,6 +61,16 @@ export function EstimateTable({
    * the rows are grouped by: Compare two's question); falls back to
    * meta's labels. */
   columnName?: (column: string) => string | undefined
+  /** In place of "Weighted estimates (w_c1).": the weighting in plain
+   * words, with no weight code (the Correlates page). */
+  weightCaption?: string
+  /** The estimate column's header ("Share of column", "Correlation"). */
+  estimateHeader?: string
+  /** The predictor column's header ("Question"). */
+  predictorHeader?: string
+  /** A "Small sample" column: whether each row's value wears the chart's
+   * asterisk. */
+  smallSampleOf?: (row: EstimateRow) => boolean
 }) {
   const by = response.meta.by
   const rows = response.rows
@@ -87,11 +101,12 @@ export function EstimateTable({
       <table className={styles.table}>
         {/* The weight is named once here, not repeated on every row (§6). */}
         <caption className={styles.caption}>
-          {caption ? `${caption} · ` : ''}Weighted estimates ({response.meta.weight}).
+          {caption ? `${caption} · ` : ''}
+          {weightCaption ?? `Weighted estimates (${response.meta.weight}).`}
         </caption>
         <thead>
           <tr>
-            {hasPredictor && <th scope="col">Measure</th>}
+            {hasPredictor && <th scope="col">{predictorHeader}</th>}
             {by.map((column) => (
               <th key={column} scope="col">
                 {columnName?.(column) ?? columnLabel(column, meta)}
@@ -103,13 +118,14 @@ export function EstimateTable({
             {hasTransition && <th scope="col">Later answer</th>}
             {hasMeasure && <th scope="col">{measureHeader}</th>}
             {hasP && <th scope="col">p</th>}
-            <th scope="col">Estimate</th>
+            <th scope="col">{estimateHeader}</th>
             {hasIntervals && (
               <th scope="col" className={styles.ci}>
                 {ciLabel(response.meta.ci_level)}
               </th>
             )}
             <th scope="col">n</th>
+            {smallSampleOf && <th scope="col">Small sample</th>}
             {hasCountries && <th scope="col">Countries</th>}
           </tr>
         </thead>
@@ -135,6 +151,7 @@ export function EstimateTable({
               <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
               {hasIntervals && <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>}
               <td className={styles.number}>{formatCount(row.n)}</td>
+              {smallSampleOf && <td>{smallSampleOf(row) ? 'Yes' : 'No'}</td>}
               {hasCountries && <td className={styles.number}>{row.n_countries ?? '—'}</td>}
             </tr>
           ))}

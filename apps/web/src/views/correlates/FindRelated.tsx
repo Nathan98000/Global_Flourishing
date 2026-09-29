@@ -50,6 +50,7 @@ import {
   withCoverage,
   starred,
   statisticPhrase,
+  tableCaption,
   tintExtent,
 } from '../correlatesRows'
 import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
@@ -258,6 +259,9 @@ export function FindRelated({
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
               predictorLabel={textName}
+              tableCaption={tableCaption(pooled)}
+              predictorHeader="Question"
+              estimateHeader="Correlation"
               note={CORRELATES_NOTE}
             >
               <RankedBar
@@ -317,6 +321,9 @@ export function FindRelated({
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
             predictorLabel={textName}
+            tableCaption={tableCaption(pooled)}
+            predictorHeader="Question"
+            estimateHeader="Correlation"
             note={CORRELATES_NOTE}
             wide
           >

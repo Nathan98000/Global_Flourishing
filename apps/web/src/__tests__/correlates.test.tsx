@@ -579,7 +579,7 @@ describe('All countries (ADR-0020)', () => {
       name: /their correlation in each of 2 countries, strongest first, on a fixed scale from −1 to 1\. /,
     })
     expect(figure.innerHTML).not.toContain('var(--control-selected)')
-    const strip = screen.getByText('Correlation').parentElement as HTMLElement
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
     expect(within(strip).getByText('+0.27')).toBeInTheDocument()
     expect(within(strip).getByText('All countries:')).toBeInTheDocument()
     expect(figure.querySelector('svg')?.textContent).toContain('All countries +0.27')
@@ -928,7 +928,14 @@ describe('Correlates view', () => {
     // The data table names the question and its n on every row.
     fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
     const data = screen.getAllByRole('table')[0] as HTMLElement
-    expect(within(data).getByRole('columnheader', { name: 'Measure' })).toBeInTheDocument()
+    // Plain headings and caption: "Question", "Correlation", and the
+    // weighting in words — no weight code (review M6).
+    expect(within(data).getByRole('columnheader', { name: 'Question' })).toBeInTheDocument()
+    expect(within(data).getByRole('columnheader', { name: 'Correlation' })).toBeInTheDocument()
+    expect(
+      within(data).getByText('Weighted to each country’s adult population.'),
+    ).toBeInTheDocument()
+    expect(data.textContent).not.toContain('w_c1')
     expect(within(data).getByText('Loneliness')).toBeInTheDocument()
     expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
   })
@@ -1034,14 +1041,15 @@ describe('Correlates view', () => {
     // The rows' people on the columns' answers: the second on the rows.
     const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
     expect(pair).toContain('y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
+    const caption = figure.closest('figure')?.querySelector('figcaption') as HTMLElement
     expect(
-      screen.getByText('Service attendance and Feelings about household income'),
+      within(caption).getByText('Service attendance and Feelings about household income'),
     ).toBeInTheDocument()
     expect(screen.getByText('United States · Wave 1, 2023')).toBeInTheDocument()
     // The header: the correlation strip alone. Where is chosen outside
     // the figure, under the shared control row, as in Find related.
-    expect(screen.getByText('Correlation')).toBeInTheDocument()
-    expect(screen.getByText('+0.31')).toBeInTheDocument()
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
+    expect(within(strip).getByText('+0.31')).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
     expect(screen.getByLabelText('Country by country')).not.toBeChecked()
     const where = screen.getByRole('group', { name: 'Where' })
@@ -1088,9 +1096,10 @@ describe('Correlates view', () => {
     expect(figure.getAttribute('aria-label')).toMatch(
       / \d+ cells are starred: small sample size\.$/,
     )
-    // The data table names both questions' answers, with every n.
+    // The data table names both questions' answers, with every n (its
+    // second table: the grid, after the bars).
     fireEvent.click(screen.getByText('Data table'))
-    const data = screen.getAllByRole('table')[0] as HTMLElement
+    const data = screen.getAllByRole('table')[1] as HTMLElement
     expect(
       within(data).getByRole('columnheader', { name: 'Service attendance' }),
     ).toBeInTheDocument()
@@ -1142,7 +1151,7 @@ describe('Correlates view', () => {
       'A dashed line marks the All countries average, +0.27.',
     )
     // The strip still reads the chosen country's correlation, and names it.
-    const strip = screen.getByText('Correlation').parentElement as HTMLElement
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
     expect(within(strip).getByText('United States:')).toBeInTheDocument()
   })
@@ -1162,6 +1171,39 @@ describe('Correlates view', () => {
       name: /their correlation in each of 1 countries/,
     })
     expect(figure.querySelector('svg')?.textContent ?? '').not.toContain('Testland')
+  })
+
+  test('Compare two: the data table below carries every number, as the summary says', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    const figure = await screen.findByRole('img', {
+      name: /The data table below carries every number\./,
+    })
+    const holder = figure.closest('figure') as HTMLElement
+    fireEvent.click(within(holder).getByText('Data table'))
+    const tables = within(holder).getAllByRole('table')
+    const text = tables.map((table) => table.textContent ?? '').join(' ')
+    // The bars, every cell and the correlation, each value as the table
+    // prints it; the asterisks as a "Small sample" column.
+    for (const column of pairFixture.columns)
+      expect(text).toContain(formatEstimate(column.share, 'proportion'))
+    for (const row of pairFixture.shares.rows)
+      expect(text).toContain(formatEstimate(row.estimate, 'proportion'))
+    expect(text).toContain(formatEstimate(pairFixture.correlation.estimate, 'pearson_r'))
+    const headers = tables.map((table) =>
+      within(table)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    )
+    expect(headers[0]).toContain('Share')
+    expect(headers[1]).toContain('Share of column')
+    expect(headers[2]).toContain('Correlation')
+    for (const header of headers) expect(header).toContain('Small sample')
+    const flagged = pairFixture.cells.filter((cell) => cell.flagged).length
+    expect(within(tables[1] as HTMLElement).queryAllByText('Yes')).toHaveLength(flagged)
+    // The weighting in words; no weight code.
+    expect(text).toContain('Weighted to each country’s adult population.')
+    expect(text).not.toMatch(/w_c1|Weighted estimates/)
   })
 
   test('Compare two: pick either question, and Swap exchanges the two', async () => {

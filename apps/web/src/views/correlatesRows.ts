@@ -203,6 +203,14 @@ export const FEW_PEOPLE_HIDDEN = ', small sample size'
  * footnote and the Methods link. */
 export const CORRELATES_NOTE = "Weighted so each country's sample stands for its adult population."
 
+/** The data tables' weighting, in plain words — never a weight code
+ * (review M6): one country's, or the average of every country's. */
+export function tableCaption(pooled: boolean): string {
+  return pooled
+    ? 'Each country weighted to its adult population; countries averaged equally.'
+    : 'Weighted to each country’s adult population.'
+}
+
 /** A value, with its asterisk when few people are behind it. */
 export function starred(text: string, flagged: boolean): string {
   return flagged ? `${text}*` : text

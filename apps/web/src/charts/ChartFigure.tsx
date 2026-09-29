@@ -7,7 +7,7 @@
 
 import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
-import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
+import type { EstimateResponse, EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { exportFilename, type ExportName } from '../export/filename'
@@ -70,6 +70,11 @@ export function ChartFigure({
   groupLabel,
   predictorLabel,
   columnName,
+  tableCaption,
+  estimateHeader,
+  predictorHeader,
+  smallSampleOf,
+  dataTable,
   footnote,
   note,
   unit,
@@ -100,6 +105,13 @@ export function ChartFigure({
   groupLabel?: (column: string, value: string | number) => string | undefined
   predictorLabel?: (name: string) => string | undefined
   columnName?: (column: string) => string | undefined
+  tableCaption?: string
+  estimateHeader?: string
+  predictorHeader?: string
+  smallSampleOf?: (row: EstimateRow) => boolean
+  /** The data table's contents in place of the one table of `response`
+   * (Compare two: its bars, its grid and its correlation). */
+  dataTable?: React.ReactNode
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
@@ -198,14 +210,20 @@ export function ChartFigure({
       </div>
       <details className={styles.details}>
         <summary>Data table</summary>
-        <EstimateTable
-          response={response}
-          meta={meta}
-          levelLabel={levelLabel}
-          groupLabel={groupLabel}
-          predictorLabel={predictorLabel}
-          columnName={columnName}
-        />
+        {dataTable ?? (
+          <EstimateTable
+            response={response}
+            meta={meta}
+            levelLabel={levelLabel}
+            groupLabel={groupLabel}
+            predictorLabel={predictorLabel}
+            columnName={columnName}
+            weightCaption={tableCaption}
+            estimateHeader={estimateHeader}
+            predictorHeader={predictorHeader}
+            smallSampleOf={smallSampleOf}
+          />
+        )}
       </details>
       <p className={styles.provenance}>
         {note ?? (

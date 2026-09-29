@@ -41,6 +41,7 @@ import {
   pooledPlace,
   starred,
   statisticPhrase,
+  tableCaption,
   withCoverage,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
@@ -327,6 +328,8 @@ function TableFigure({
       columnName={(column) =>
         column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
       }
+      tableCaption={tableCaption(pooled)}
+      estimateHeader="Correlation"
       note={CORRELATES_NOTE}
     >
       <HeatTable
