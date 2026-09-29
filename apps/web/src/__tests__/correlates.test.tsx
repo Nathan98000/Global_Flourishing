@@ -1038,11 +1038,16 @@ describe('Correlates view', () => {
       screen.getByText('Service attendance and Feelings about household income'),
     ).toBeInTheDocument()
     expect(screen.getByText('United States · Wave 1, 2023')).toBeInTheDocument()
-    // The header row: the correlation strip, and where.
+    // The header: the correlation strip alone. Where is chosen outside
+    // the figure, under the shared control row, as in Find related.
     expect(screen.getByText('Correlation')).toBeInTheDocument()
     expect(screen.getByText('+0.31')).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
     expect(screen.getByLabelText('Country by country')).not.toBeChecked()
+    const where = screen.getByRole('group', { name: 'Where' })
+    expect(figure.contains(where)).toBe(false)
+    const shared = screen.getByRole('group', { name: 'Correlation type' })
+    expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The legend: how to read it, the fixed bins, and the asterisk.
     expect(screen.getByText('Share of each column (columns add to 100%)')).toBeInTheDocument()
     expect(screen.getByText('* small sample size')).toBeInTheDocument()

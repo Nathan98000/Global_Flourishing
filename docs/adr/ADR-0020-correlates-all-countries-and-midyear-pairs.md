@@ -83,7 +83,9 @@ the plain average of the countries, which reads +0.10.
    23 countries." to its tooltip, and nothing else marks it; data tables
    and CSVs gain a Countries column. The strip above each Compare two
    chart names its scope ("United States: +0.54", "All countries:
-   +0.10"). Country by country, Compare two draws the All countries
+   +0.10") and is all its header holds: the scope toggle, "In {country} ·
+   Country by country", sits in one place in both views that have it —
+   directly under the shared control row. Country by country, Compare two draws the All countries
    average as a dashed rule labelled "All countries +0.10" at its top, in
    ink, whatever country is chosen (the chosen one stays picked out), and
    a country that wasn't asked has no row. A value that shows as 0.00

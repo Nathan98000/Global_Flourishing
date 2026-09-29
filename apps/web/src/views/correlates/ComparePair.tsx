@@ -2,11 +2,11 @@
 // answers to another, in one country. The view owns its two pickers, set
 // in a sentence ("How do answers to [A ▾] relate to [B ▾]?") with a Swap;
 // A is the columns, B the rows. Its chart is a column-percent heat grid
-// (each column adds to 100%) under bars of who gave each of A's answers;
-// a header row holds the pair's correlation strip and the scope toggle —
-// In {country} · Country by country, where the grid gives way to the
-// pair's correlation in each country. One chart at a time. Every number
-// is the server's.
+// (each column adds to 100%) under bars of who gave each of A's answers,
+// headed by the pair's correlation strip. The scope toggle — In {country}
+// · Country by country, where the grid gives way to the pair's
+// correlation in each country — sits under the shared control row, as in
+// Find related. One chart at a time. Every number is the server's.
 
 import { useMemo, type ReactNode } from 'react'
 import { useCorrelates } from '../../api/correlates'
@@ -223,6 +223,8 @@ export function ComparePair({
         </button>
       </div>
       {controls}
+      {/* Where, in the one place every view has it: under the shared row. */}
+      <div className={own.scopeRow}>{scopeToggle}</div>
       {problem || !a || !b ? (
         <EmptyState title="Pick two questions to compare">
           <p>{problem ?? 'Choose two questions'} — choose another question above.</p>
@@ -246,18 +248,15 @@ export function ComparePair({
             isRefreshing={across.isPlaceholderData}
             served={served}
             header={
-              <HeaderRow
-                strip={
-                  chosenRow ? (
-                    <CorrelationStrip
-                      row={chosenRow}
-                      scope={countryName}
-                      flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
-                    />
-                  ) : null
-                }
-                toggle={scopeToggle}
-              />
+              <HeaderRow>
+                {chosenRow ? (
+                  <CorrelationStrip
+                    row={chosenRow}
+                    scope={countryName}
+                    flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
+                  />
+                ) : null}
+              </HeaderRow>
             }
           />
         ) : null
@@ -278,16 +277,13 @@ export function ComparePair({
           isRefreshing={pair.isPlaceholderData}
           served={served}
           header={
-            <HeaderRow
-              strip={
-                <CorrelationStrip
-                  row={pair.data.correlation}
-                  scope={countryName}
-                  flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
-                />
-              }
-              toggle={scopeToggle}
-            />
+            <HeaderRow>
+              <CorrelationStrip
+                row={pair.data.correlation}
+                scope={countryName}
+                flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
+              />
+            </HeaderRow>
           }
         />
       ) : null}
@@ -295,14 +291,10 @@ export function ComparePair({
   )
 }
 
-/** The pair's header: the correlation on the left, where on the right. */
-function HeaderRow({ strip, toggle }: { strip: ReactNode; toggle: ReactNode }) {
-  return (
-    <div className={own.headerRow}>
-      {strip}
-      {toggle}
-    </div>
-  )
+/** The chart's header: only its labelled correlation strip (where the
+ * number is taken sits with the page's controls, review M5). */
+function HeaderRow({ children }: { children: ReactNode }) {
+  return <div className={own.headerRow}>{children}</div>
 }
 
 /** The key to the grid: how to read it, its fixed bins in the ramp's own
