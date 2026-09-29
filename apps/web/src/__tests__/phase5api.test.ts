@@ -193,15 +193,15 @@ describe('correlates fetch layer (Phase 6)', () => {
     )
   })
 
-  test('All countries is pooled=population, in place of the country filter (ADR-0020)', async () => {
+  test('All countries is pooled=average, in place of the country filter (ADR-0020)', async () => {
     const { canonicalCorrelatesKey } = await import('../api/correlates')
     const { canonicalPairParams, canonicalTableParams } = await import('../api/correlations')
     expect(canonicalCorrelatesKey({ outcome: 'HAPPY', wave: 'Y1', by: [], pooled: true })).toBe(
-      'outcome=HAPPY&wave=Y1&pooled=population',
+      'outcome=HAPPY&wave=Y1&pooled=average',
     )
     expect(
       canonicalPairParams({ y: 'LONELY', x: 'HAPPY', wave: 'Y1', country: 'all' }).toString(),
-    ).toBe('y=LONELY&x=HAPPY&wave=Y1&pooled=population')
+    ).toBe('y=LONELY&x=HAPPY&wave=Y1&pooled=average')
     expect(
       canonicalTableParams({ vars: ['HAPPY', 'LONELY'], wave: 'Y1', country: 22 }).toString(),
     ).toBe('vars=HAPPY&vars=LONELY&wave=Y1&filter=country_code%3A22')

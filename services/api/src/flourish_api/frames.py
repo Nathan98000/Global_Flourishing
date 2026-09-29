@@ -59,15 +59,9 @@ STATE_COLUMN = "state"
 BINARY_EVENT_CODE = 1
 
 
-#: A pooled frame's per-row country bit, 2 ** country_code: a coverage
-#: mask is the sum of the distinct bits among an estimate's complete
-#: cases, i.e. the set of countries with people behind it (ADR-0020).
-COUNTRY_BIT = "_country_bit"
-
-
 def pool_countries(store: DataStore, frame: pl.DataFrame, spec: WeightSpec) -> pl.DataFrame:
     """Every country on one eligible frame, each weighted to its adult
-    population (ADR-0020), and each row's country bit.
+    population.
 
     Called on the wave's whole eligible frame, before anything is nulled
     or dropped: a country's weight is its population whatever the
@@ -75,35 +69,7 @@ def pool_countries(store: DataStore, frame: pl.DataFrame, spec: WeightSpec) -> p
     estimate by having no complete cases for it.
     """
     pooled = pooled_population_weights(frame, store.require_populations(), weight=spec.weight)
-    bit = pl.lit(2, dtype=pl.Int64).pow(pl.col("country_code").cast(pl.Int64)).cast(pl.Int64)
-    return pooled.with_columns(bit.alias(COUNTRY_BIT))
-
-
-def coverage_masks(
-    frame: pl.DataFrame, x: str, ys: Sequence[str], groups: Sequence[str] = ()
-) -> dict[tuple[tuple[object, ...], str], int]:
-    """(group values, y) → the countries with complete cases for (x, y),
-    as a bit mask over country codes (``COUNTRY_BIT``); one pass."""
-    masks = [
-        pl.col(COUNTRY_BIT)
-        .filter(pl.col(x).is_not_null() & pl.col(y).is_not_null())
-        .unique()
-        .sum()
-        .alias(f"{index}")
-        for index, y in enumerate(ys)
-    ]
-    table = frame.group_by(list(groups)).agg(masks) if groups else frame.select(masks)
-    out: dict[tuple[tuple[object, ...], str], int] = {}
-    for row in table.iter_rows(named=True):
-        key = tuple(row[column] for column in groups)
-        for index, y in enumerate(ys):
-            out[(key, y)] = int(row[f"{index}"] or 0)
-    return out
-
-
-def countries_in(mask: int) -> list[int]:
-    """The country codes a coverage mask holds, in order."""
-    return [code for code in range(mask.bit_length()) if mask >> code & 1]
+    return pooled
 
 
 def wave_column(wave: str) -> str:
@@ -302,8 +268,8 @@ def assemble_correlates_frame(
 
     One wide query (never one frame per predictor); the eligible rows for
     the wave's weight spec are the design; a country filter subsets —
-    pooled, every country stays, each weighted to its adult population —
-    and every other filter nulls the **outcome** outside the domain,
+    averaged (``pooled``), every country stays, each estimated on its own
+    (``by`` country) — and every other filter nulls the **outcome** outside the domain,
     which removes the row from every complete-case set while it stays in
     the variance design. Binary items become indicators of :data:`BINARY_EVENT_CODE`.
     The adjusted models' control columns ride along when ``adjusted``.
@@ -324,8 +290,6 @@ def assemble_correlates_frame(
         country_codes=query.countries or None,
     )
     frame = frame.filter(eligibility_expr(spec))
-    if query.pooled:
-        frame = pool_countries(store, frame, spec)
     frame = apply_domain_filters(frame, query.outcome.name, query.filters)
     # Every correlation and coefficient is signed: the outcome and each
     # ordered predictor are aligned to their labels first (ADR-0015). A
@@ -372,7 +336,7 @@ def _indicator(name: str) -> pl.Expr:
 
 
 def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
-    """Two items on the country's eligible frame (or, pooled, every
+    """Two items on the country's eligible frame (or, averaged, every
     country's), for /v1/correlations/pair.
 
     Both are aligned (a yes/no item as its indicator of "yes"), so each
@@ -393,8 +357,6 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
         country_codes=query.countries or None,
     )
     frame = frame.filter(eligibility_expr(spec))
-    if query.pooled:
-        frame = pool_countries(store, frame, spec)
     frame = apply_domain_filters(frame, query.y.name, query.filters)
     y, x = query.y, query.x
 
@@ -428,7 +390,7 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
 
 def assemble_matrix_frame(store: DataStore, query: MatrixQuery) -> AssembledFrame:
     """Every question of a correlation table on the country's eligible
-    frame (or, pooled, every country's), each aligned to its label (a
+    frame (or, averaged, every country's), each aligned to its label (a
     yes/no item as its indicator of "yes"), so every pair's correlation
     carries the sign the ranked list would give it. A non-country filter
     nulls every question outside its domain: each pair's complete cases
@@ -445,8 +407,6 @@ def assemble_matrix_frame(store: DataStore, query: MatrixQuery) -> AssembledFram
         country_codes=query.countries or None,
     )
     frame = frame.filter(eligibility_expr(spec))
-    if query.pooled:
-        frame = pool_countries(store, frame, spec)
     for variable in query.variables:
         frame = apply_domain_filters(frame, variable.name, query.filters)
         if variable.scale_type == "binary":

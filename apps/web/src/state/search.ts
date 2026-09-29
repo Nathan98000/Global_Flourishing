@@ -680,8 +680,8 @@ export interface CorrelatesSearch {
   /** Compare several: as added, or similar together. */
   order: CorrelatesOrder
   wave: Wave
-  /** The country every view is taken in — or `all`, every country pooled
-   * by adult population (ADR-0020); absent = the default one. */
+  /** The country every view is taken in — or `all`, the average of every
+   * country (ADR-0020); absent = the default one. */
   country?: CountryScope
   /** Rank correlation instead of Pearson. */
   method?: 'spearman'
@@ -842,8 +842,8 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
   )
 }
 
-/** A ranked list for one question in one country — or every country
- * pooled by adult population: the server sweeps, ranks and cuts. */
+/** A ranked list for one question in one country — or the average of
+ * every country: the server sweeps, averages, ranks and cuts. */
 export function correlatesRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   outcome: string,

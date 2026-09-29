@@ -106,7 +106,7 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
 #: the first question's top four), adds two questions, removes the first
 #: of them, orders the table "similar together" and opens its first cell;
 #: then Find related for that cell's first question, whose top row opens
-#: Compare two again. Then All countries, pooled, in each view; and
+#: Compare two again. Then All countries, averaged, in each view; and
 #: Midyear, from the chip (the midyear question beside the same people's
 #: 2023 answers, then 2024's, then back) and from the picker. The plan is
 #: written beside the fixtures (journey-10.json) so the spec needn't
@@ -117,8 +117,8 @@ JOURNEY_PICKED = "HAPPY"
 #: Added in Compare several: the first two of these not already there.
 JOURNEY_ADD_FROM = ("BALANCE", "CHILD_MEM", "LONELY", "ATTEND_SVCS", "WB_TODAY")
 BASE = {"wave": "Y1", "filter": "country_code:1"}
-#: Every country pooled by adult population (ADR-0020), in place of BASE's country.
-POOLED = {"wave": "Y1", "pooled": "population"}
+#: Every country, each on its own and averaged (ADR-0020), in place of BASE's country.
+POOLED = {"wave": "Y1", "pooled": "average"}
 #: The midyear question the page brings in at Midyear (ADR-0020).
 MIDYEAR_QUESTION = "TIME_MEDIA"
 
@@ -126,7 +126,7 @@ MIDYEAR_QUESTION = "TIME_MEDIA"
 def scope(params: dict[str, object]) -> str:
     """The part of a fixture's name that says where and when, as the
     journey's route handlers rebuild it from a request: the wave when not
-    Wave 1, the other answers' wave, and "all" when pooled — nothing for
+    Wave 1, the other answers' wave, and "all" when averaged — nothing for
     one country at Wave 1."""
     parts = [str(params["wave"])] if params.get("wave", "Y1") != "Y1" else []
     if params.get("other_wave"):
@@ -202,9 +202,9 @@ def correlation_fixtures(
     related = ranked(order[0])[0]
     pair(related, order[0])
 
-    # All countries (ADR-0020): Compare two's default pair pooled, country
-    # by country with the pooled pair in its strip, Compare several's
-    # default table and Find related's list, each pooled.
+    # All countries (ADR-0020): Compare two's default pair averaged, country
+    # by country with the average in its strip, Compare several's default
+    # table and Find related's list, each averaged.
     pair(b, a, POOLED)
     fixtures.append(
         (
@@ -255,8 +255,7 @@ def main() -> int:
         index = export_static(db_path, target, data_version=DATA_VERSION, only=FIXTURE_OUTCOMES)
 
         # 60 synthetic people per country: rank at a lower floor than the
-        # serving default (100) so the fixtures carry a ranked list; the
-        # synthetic countries' own adult populations pool them (ADR-0020).
+        # serving default (100) so the fixtures carry a ranked list.
         client = TestClient(create_app(synthetic_settings(Path(tmp))))
         sample = client.get(
             "/v1/export.csv", params={"outcome": "HAPPY", "wave": "Y1", "by": "country_code"}

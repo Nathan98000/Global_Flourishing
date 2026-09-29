@@ -208,13 +208,13 @@ def test_pooling_works_at_the_midyear_survey_too(client: TestClient) -> None:
         x="MONEY",
         wave="MY",
         other_wave="Y2",
-        pooled="population",
+        pooled="average",
     )
     meta = body["shares"]["meta"]
-    assert meta["pooled"] == "population" and meta["countries"] == [1, 22]
+    assert meta["pooled"] == "average" and meta["countries"] == [1, 22]
     assert meta["answer_waves"] == {"MONEY": "MY", "HAPPY": "Y2"}
     assert body["correlation"]["n_countries"] == 2
-    sweep = get(client, "/v1/correlates", outcome="MONEY", wave="MY", pooled="population")
+    sweep = get(client, "/v1/correlates", outcome="MONEY", wave="MY", pooled="average")
     assert sweep["meta"]["other_wave"] == "Y1" and sweep["rows"]
 
 

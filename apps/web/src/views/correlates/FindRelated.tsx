@@ -137,8 +137,8 @@ export function FindRelated({
     `${label}, ${formatEstimate(row.estimate, row.stat)}: see it beside ${title}`
   const strongest = rankedRows.find((row) => row.estimate !== null)
   const pooled = country === 'all'
-  // Where, in a sentence: a country, or every country pooled.
-  const where = pooled ? 'all countries combined' : countryName
+  // Where, in a sentence: a country, or the average of every country.
+  const where = pooled ? 'all countries (their average)' : countryName
   const total = served.countries.length
   const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${waveTitle(search.wave, otherWave)}, ${statisticPhrase(search.method)}.${
     strongest?.predictor

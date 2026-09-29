@@ -404,7 +404,7 @@ interface JourneyPlan {
   /** The table's first cell: its column (Compare two's first question) and row. */
   cell: { name: string; display_name: string }[]
   related: { name: string; display_name: string }
-  /** Compare several's default table, every country pooled (ADR-0020). */
+  /** Compare several's default table, every country averaged (ADR-0020). */
   pooled_default: string[]
   /** The midyear question the page brings in at Midyear (ADR-0020). */
   midyear: { name: string; display_name: string }
@@ -412,7 +412,7 @@ interface JourneyPlan {
 
 /** Where and when a request is taken, as scripts/web_fixtures.py names
  * its fixture: the wave when not Wave 1, the other answers' wave, and
- * "all" when every country is pooled (ADR-0020). */
+ * "all" when every country is averaged (ADR-0020). */
 function scopeOf(url: URL, withWave = true): string {
   const wave = url.searchParams.get('wave') ?? 'Y1'
   return [
@@ -606,17 +606,19 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
   expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 
-  // All countries (ADR-0020): every view pooled by adult population.
+  // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
   await expect(
-    page.getByText('All countries, combined by adult population · Wave 1, 2023', { exact: true }),
+    page.getByText('All countries (average of 2) · Wave 1, 2023', { exact: true }),
   ).toBeVisible()
   const where = page.getByRole('group', { name: 'Where' })
   await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
   await expect(
-    page.getByRole('img', { name: /Feelings about household income in all countries combined/ }),
+    page.getByRole('img', {
+      name: /Feelings about household income, averaged over 2 countries/,
+    }),
   ).toBeVisible()
-  // Country by country: every country, none picked out; the strip reads the pooled pair.
+  // Country by country: every country, none picked out; the strip reads the average.
   await where.getByText('Country by country', { exact: true }).click()
   const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(pooledAcross).toBeVisible()
@@ -627,14 +629,14 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(
     page.getByRole('group', {
       name: new RegExp(
-        `^Correlations among ${plan.pooled_default.length} questions in all countries combined`,
+        `^Correlations among ${plan.pooled_default.length} questions averaged over 2 countries`,
       ),
     }),
   ).toBeVisible()
   await views.getByText('Find related', { exact: true }).click()
   await expect(
     page.getByRole('group', {
-      name: /questions most strongly associated with it in all countries combined/,
+      name: /questions most strongly associated with it in all countries \(their average\)/,
     }),
   ).toBeVisible()
 

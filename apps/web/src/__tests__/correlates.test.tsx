@@ -40,6 +40,7 @@ import {
   CORRELATES_NOTE,
   axisEnds,
   belowFloor,
+  averagedOver,
   coverageLine,
   pooledPlace,
   scopeLabel,
@@ -433,13 +434,9 @@ async function renderAt(path: string) {
 const ruleLines = (figure: HTMLElement) =>
   figure.querySelectorAll('svg [aria-label="rule"] line').length
 
-// --- All countries: every country pooled by adult population (ADR-0020) ---
+// --- All countries: the plain average of the countries (ADR-0020) ---
 
-const POOLED_META = {
-  pooled: 'population',
-  countries: [1, 22],
-  population_source: 'UN World Population Prospects 2024, ages 18+, 1 July 2023',
-} as const
+const POOLED_META = { pooled: 'average', countries: [1, 22] } as const
 
 const pairPooled: PairResponse = {
   ...pairFixture,
@@ -499,15 +496,15 @@ const pooledPairRow = testResponse(
 
 /** The pooled requests first: a route matches on its first needle. */
 const pooledTier: Routes = {
-  'pair?y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&pooled=population': pairPooled,
-  'outcome=HAPPY&wave=Y1&pooled=population': rankedPooled,
-  'vars=ATTEND_SVCS&wave=Y1&pooled=population': tablePooled,
-  'outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&pooled=population': pooledPairRow,
+  'pair?y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&pooled=average': pairPooled,
+  'outcome=HAPPY&wave=Y1&pooled=average': rankedPooled,
+  'vars=ATTEND_SVCS&wave=Y1&pooled=average': tablePooled,
+  'outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&pooled=average': pooledPairRow,
   ...tier,
 }
 
 describe('All countries (ADR-0020)', () => {
-  test('the Country select offers All countries first; chosen, Compare two pools every country', async () => {
+  test('the Country select offers All countries first; chosen, Compare two averages every country', async () => {
     const calls = mockFetch(pooledTier)
     const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
     await screen.findByRole('img', { name: /in United States: for each of 3 answers/ })
@@ -517,14 +514,12 @@ describe('All countries (ADR-0020)', () => {
     fireEvent.change(select, { target: { value: 'all' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('country=all'))
     const figure = await screen.findByRole('img', {
-      name: /in all countries combined: for each of 3 answers/,
+      name: /, averaged over 2 countries: for each of 3 answers/,
     })
     const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
-    expect(request).toContain('pooled=population')
+    expect(request).toContain('pooled=average')
     expect(request).not.toContain('filter=country_code')
-    expect(
-      screen.getByText('All countries, combined by adult population · Wave 1, 2023'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('All countries (average of 2) · Wave 1, 2023')).toBeInTheDocument()
     // The toggle's first choice names the scope.
     expect(screen.getByLabelText('All countries')).toBeChecked()
     expect(figureNote(figure)).toBe(CORRELATES_NOTE)
@@ -532,22 +527,20 @@ describe('All countries (ADR-0020)', () => {
     fireEvent.click(screen.getByText('Data table'))
     const data = screen.getAllByRole('table')[0] as HTMLElement
     expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
-    // Back to one country: the URL drops the pooling.
+    // Back to one country: the URL drops the average.
     fireEvent.change(select, { target: { value: '22' } })
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
   })
 
-  test('Find related pooled: the pooled list; a row asked in fewer countries says so', async () => {
+  test('Find related, All countries: the averaged list; a row asked in fewer countries says so', async () => {
     const calls = mockFetch(pooledTier)
     await renderAt('/correlates?view=related&outcome=HAPPY&country=all')
     const figure = await screen.findByRole('group', {
-      name: /most strongly associated with it in all countries combined/,
+      name: /most strongly associated with it in all countries \(their average\)/,
     })
-    expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=population'))).toBe(true)
+    expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=average'))).toBe(true)
     expect(
-      screen.getByText(
-        'All countries, combined by adult population · Wave 1, 2023 · correlation, −1 to 1',
-      ),
+      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const [lonely, attend] = within(figure).getAllByRole('button')
     fireEvent.focus(lonely as HTMLElement)
@@ -559,21 +552,23 @@ describe('All countries (ADR-0020)', () => {
     expect(within(figure).getByRole('tooltip').textContent).toBe('+0.28 · Service attendance')
   })
 
-  test('Find related country by country, pooled: every country A–Z, none pinned', async () => {
+  test('Find related country by country, All countries: every country A–Z, none pinned', async () => {
     mockFetch(pooledTier)
     await renderAt('/correlates?view=related&outcome=HAPPY&country=all&scope=all')
-    const matrix = await screen.findByRole('img', { name: /ranked for all countries combined/ })
+    const matrix = await screen.findByRole('img', {
+      name: /ranked for all countries \(their average\)/,
+    })
     const headers = within(matrix).getAllByRole('columnheader')
     expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Testland', 'United States'])
     expect(headers.some((th) => th.hasAttribute('data-highlight'))).toBe(false)
     expect(
       screen.getByText(
-        'The 2 questions ranked for all countries combined, country by country · Wave 1, 2023 · correlation, −1 to 1',
+        'The 2 questions ranked for all countries, country by country · Wave 1, 2023 · correlation, −1 to 1',
       ),
     ).toBeInTheDocument()
   })
 
-  test('Compare two country by country, pooled: nothing picked out; the strip reads the pooled pair', async () => {
+  test('Compare two country by country, All countries: nothing picked out; the strip reads the average', async () => {
     mockFetch(pooledTier)
     await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=all&scope=all')
     const figure = await screen.findByRole('img', {
@@ -584,16 +579,14 @@ describe('All countries (ADR-0020)', () => {
     expect(within(strip).getByText('+0.27')).toBeInTheDocument()
   })
 
-  test('Compare several pooled: the pooled table, coverage in the tooltips, a Countries column', async () => {
+  test('Compare several, All countries: the averaged table, coverage in the tooltips, a Countries column', async () => {
     mockFetch(pooledTier)
     await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS&country=all')
     const figure = await screen.findByRole('group', {
-      name: /Correlations among 3 questions in all countries combined/,
+      name: /Correlations among 3 questions averaged over 2 countries/,
     })
     expect(
-      screen.getByText(
-        'All countries, combined by adult population · Wave 1, 2023 · correlation, −1 to 1',
-      ),
+      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const lonely = within(figure).getByRole('button', {
       name: 'Loneliness with Happiness, −0.52: see the two questions together',
@@ -608,7 +601,7 @@ describe('All countries (ADR-0020)', () => {
     expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
   })
 
-  test('where a pooled estimate stands, in words', () => {
+  test('where an average over the countries stands, in words', () => {
     const countries = [
       ...testMeta.countries,
       { code: 25, name: 'China', iso3: 'CHN' },
@@ -617,12 +610,15 @@ describe('All countries (ADR-0020)', () => {
       { code: 23, name: 'Sweden', iso3: 'SWE' },
     ]
     const everyone = countries.map((country) => country.code)
-    expect(pooledPlace(everyone, countries)).toBe('All countries, combined by adult population')
-    expect(pooledPlace(undefined, countries)).toBe('All countries, combined by adult population')
+    expect(pooledPlace(everyone, countries)).toBe('All countries (average of 6)')
+    expect(pooledPlace(undefined, countries)).toBe('All countries (average of 6)')
     expect(pooledPlace([1, 22, 9, 23], countries)).toBe(
-      '4 of 6 countries (not China or Egypt), combined by adult population',
+      'Average of 4 countries (not asked in China or Egypt)',
     )
-    expect(pooledPlace([1, 22], countries)).toBe('2 of 6 countries, combined by adult population')
+    // More than three left out: the count alone.
+    expect(pooledPlace([1, 22], countries)).toBe('Average of 2 countries')
+    expect(pooledPlace([22], countries)).toBe('Average of 1 country')
+    expect(averagedOver([1, 22, 9, 23], countries)).toBe('averaged over 4 countries')
     expect(coverageLine({ n_countries: 21 }, 23)).toBe('Asked in 21 of 23 countries.')
     expect(coverageLine({ n_countries: 23 }, 23)).toBeUndefined()
     expect(coverageLine({ n_countries: null }, 23)).toBeUndefined()
@@ -1594,9 +1590,12 @@ describe('correlates helpers', () => {
     expect(belowFloor({ n: 100 }, 100)).toBe(false)
     expect(belowFloor({ n: 7 }, null)).toBe(false)
     // An asterisk only on a value: a cell with no estimate says so instead.
-    expect(fewPeople({ estimate: 0.1, n: 7 }, 100)).toBe(true)
-    expect(fewPeople({ estimate: null, n: 7 }, 100)).toBe(false)
-    expect(fewPeople({ estimate: 0.1, n: 700 }, 100)).toBe(false)
+    expect(fewPeople({ estimate: 0.1, n: 7, flagged: false }, 100)).toBe(true)
+    expect(fewPeople({ estimate: null, n: 7, flagged: false }, 100)).toBe(false)
+    expect(fewPeople({ estimate: 0.1, n: 700, flagged: false }, 100)).toBe(false)
+    // An average: starred when the server flags every country in it
+    // below the floor, whatever the countries' total (ADR-0020).
+    expect(fewPeople({ estimate: 0.1, n: 700, flagged: true }, 100)).toBe(true)
     // Columns past the visible edge of the matrix, for the "N more" hint.
     expect(columnsPastEdge([100, 200, 300, 400], 250)).toBe(2)
     expect(columnsPastEdge([100, 200], 250)).toBe(0)

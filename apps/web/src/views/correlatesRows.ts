@@ -31,12 +31,12 @@ export function countriesByName(countries: readonly Country[]): Country[] {
   return [...countries].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** The Country select's first choice: every country pooled, each
- * weighted to its adult population (ADR-0020). */
+/** The Country select's first choice: every country, each on its own,
+ * and their plain average (ADR-0020). */
 export const ALL_COUNTRIES = 'All countries'
 
 /** Every country A–Z, the chosen one pinned first (the matrix's columns);
- * pooled — no one country chosen — simply A–Z. */
+ * for the average — no one country chosen — simply A–Z. */
 export function pinnedFirst(
   countries: readonly Country[],
   chosen: number | 'all' | undefined,
@@ -54,33 +54,52 @@ function listAnd(items: readonly string[], conjunction = 'and'): string {
   return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`
 }
 
-/** Where a pooled estimate stands (ADR-0020): "All countries, combined
- * by adult population", or — when it covers fewer (a question some
- * countries didn't ask) — "21 of 23 countries (not China or Egypt),
- * combined by adult population", naming the missing ones when there are
- * three or fewer. `covered`: the response's countries. */
+/** The countries an average leaves out (a question they weren't asked),
+ * A–Z by name. `covered`: the response's countries. */
+function leftOut(
+  covered: readonly number[] | null | undefined,
+  countries: readonly Country[],
+): string[] {
+  const inIt = new Set(covered ?? countries.map((country) => country.code))
+  return countriesByName(countries)
+    .filter((country) => !inIt.has(country.code))
+    .map((country) => country.name)
+}
+
+/** Where an average over the countries stands (ADR-0020): "All countries
+ * (average of 23)", or — when fewer asked — "Average of 21 countries (not
+ * asked in China or Egypt)", naming the missing ones when there are three
+ * or fewer, the count alone otherwise. */
 export function pooledPlace(
   covered: readonly number[] | null | undefined,
   countries: readonly Country[],
 ): string {
-  const inIt = new Set(covered ?? countries.map((country) => country.code))
-  const missing = countriesByName(countries)
-    .filter((country) => !inIt.has(country.code))
-    .map((country) => country.name)
-  if (missing.length === 0) return 'All countries, combined by adult population'
-  const named = missing.length <= 3 ? ` (not ${listAnd(missing, 'or')})` : ''
-  return `${countries.length - missing.length} of ${countries.length} countries${named}, combined by adult population`
+  const missing = leftOut(covered, countries)
+  const count = countries.length - missing.length
+  if (missing.length === 0) return `${ALL_COUNTRIES} (average of ${count})`
+  const named = missing.length <= 3 ? ` (not asked in ${listAnd(missing, 'or')})` : ''
+  return `Average of ${count} ${count === 1 ? 'country' : 'countries'}${named}`
+}
+
+/** An average's place in a sentence (screen readers): "averaged over 23
+ * countries". */
+export function averagedOver(
+  covered: readonly number[] | null | undefined,
+  countries: readonly Country[],
+): string {
+  const count = countries.length - leftOut(covered, countries).length
+  return `averaged over ${count} ${count === 1 ? 'country' : 'countries'}`
 }
 
 /** The scope toggle's first choice (Compare two, Find related): "In
- * United States", or "All countries" when every country is pooled. */
+ * United States", or "All countries" for the average. */
 export function scopeLabel(countryName: string): string {
   if (countryName === ALL_COUNTRIES) return ALL_COUNTRIES
   return countryName ? `In ${countryName}` : 'In one country'
 }
 
-/** A pooled estimate's tooltip line when it covers fewer countries than
- * all of them: "Asked in 21 of 23 countries." */
+/** An average's tooltip line when it covers fewer countries than all of
+ * them: "Asked in 21 of 23 countries." */
 export function coverageLine(
   row: Pick<EstimateRow, 'n_countries'> | null | undefined,
   total: number,
@@ -148,7 +167,7 @@ export function acrossSubtitle(
   other?: OtherWave,
 ): string {
   const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
-  const place = countryName === ALL_COUNTRIES ? 'all countries combined' : countryName
+  const place = countryName === ALL_COUNTRIES ? 'all countries' : countryName
   return `${questions} ranked for ${place}, country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`
 }
 
@@ -159,13 +178,15 @@ export function belowFloor(row: Pick<EstimateRow, 'n'>, minN: number | null | un
 }
 
 /** Whether few people are behind a correlation: it has a value, and
- * rests on fewer people than the ranking floor. (No value: no asterisk
- * — the cell says there is no estimate instead.) */
+ * rests on fewer people than the ranking floor — or, for an average over
+ * the countries, the server flags it: every country in it does
+ * (ADR-0020). (No value: no asterisk — the cell says there is no
+ * estimate instead.) */
 export function fewPeople(
-  row: Pick<EstimateRow, 'estimate' | 'n'>,
+  row: Pick<EstimateRow, 'estimate' | 'n' | 'flagged'>,
   minN: number | null | undefined,
 ): boolean {
-  return row.estimate !== null && belowFloor(row, minN)
+  return row.estimate !== null && (row.flagged || belowFloor(row, minN))
 }
 
 /** A cell with no value at all, in its tooltip. */

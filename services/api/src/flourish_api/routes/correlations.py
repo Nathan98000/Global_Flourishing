@@ -23,42 +23,42 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 import polars as pl
 from fastapi import APIRouter, Depends, Query
 from flourish_stats import (
     Design,
     SuppressionPolicy,
+    average_countries,
     weighted_correlation,
     weighted_correlations,
     weighted_proportion,
     weighted_quantile,
 )
+from flourish_stats.averaging import COUNTRY
 from flourish_stats.outcomes import DERIVED_OUTCOMES
 
+from flourish_api.country_correlations import CountryCorrelations
 from flourish_api.data import (
     Catalog,
     DataStore,
     PairFlags,
     VariableInfo,
     correlates_min_n,
+    country_correlations,
     pair_flags,
-    pooled_correlations,
     require_data,
     suppression_policy,
 )
 from flourish_api.frames import (
     BINARY_EVENT_CODE,
-    COUNTRY_BIT,
     PAIR_X,
     PAIR_Y_ALIGNED,
     assemble_matrix_frame,
     assemble_pair_frame,
     correlation_spec,
-    coverage_masks,
 )
-from flourish_api.pooled import PooledTable
 from flourish_api.queries import (
     MatrixQuery,
     PairQuery,
@@ -66,7 +66,12 @@ from flourish_api.queries import (
     parse_pair_query,
     shares_answers,
 )
-from flourish_api.routes.correlates import midyear_meta, pooled_meta
+from flourish_api.routes.correlates import (
+    averaged_meta,
+    averaged_rows,
+    correlation_records,
+    midyear_meta,
+)
 from flourish_api.schemas import (
     CorrelationPairModel,
     CorrelationsMeta,
@@ -289,6 +294,49 @@ def empty_row(
     )
 
 
+def averaged_share(
+    average: dict[str, Any], *, design: Design, policy: SuppressionPolicy, level: int | None
+) -> EstimateRow:
+    """A share's plain average over the countries (ADR-0020) as an estimator
+    row: the mean of the countries' shares, SE √(Σ se²) / K with its normal
+    interval, ``n`` summed over the countries in it and ``n_countries`` of
+    them (the serving policy applied to the summed n)."""
+    n = int(average["n"])
+    suppressed = n < policy.threshold
+    shown = {
+        key: None if suppressed else average[key] for key in ("estimate", "se", "ci_lo", "ci_hi")
+    }
+    return EstimateRow(
+        group={},
+        level=level,
+        stat="proportion",
+        **shown,
+        ci_level=0.95,
+        ci_method="normal",
+        n=n,
+        sum_w=float(average["sum_w"]),
+        n_psu=None,
+        n_strata=None,
+        df=None,
+        se_method=design.se_method,
+        weight=design.weight,
+        suppressed=suppressed,
+        flagged=not suppressed and n < policy.flag_below,
+        n_countries=int(average["n_countries"]),
+    )
+
+
+def _frame(table: object) -> pl.DataFrame:
+    frame = pl.from_arrow(table)  # type: ignore[arg-type]
+    assert isinstance(frame, pl.DataFrame)
+    return frame
+
+
+def _share_records(table: object, groups: list[str]) -> pl.DataFrame:
+    """A proportion table's rows as averaging records (``average_countries``)."""
+    return _frame(table).select(*groups, "level", "estimate", "se", "n", "sum_w")
+
+
 def run_pair(
     store: DataStore,
     query: PairQuery,
@@ -303,61 +351,89 @@ def run_pair(
         store, query, query.y, frame, PAIR_Y_ALIGNED, design
     )
     frame = frame.with_columns(x_expression.alias(COLUMN), y_expression.alias(ROW))
+    method = "spearman" if query.method == "spearman" else "pearson"
+    x_levels = [group.key for group in columns]
+    y_levels = [group.key for group in rows]
+    countries: list[int] = []
 
-    correlation = rows_from_table(
-        weighted_correlation(
-            frame,
-            PAIR_X,
-            PAIR_Y_ALIGNED,
-            design,
-            method="spearman" if query.method == "spearman" else "pearson",
-            policy=policy,
-        ),
-        [],
-    )[0].model_copy(update={"predictor": query.x.name})
-    # Pooled: the countries with people who answered both (ADR-0020).
-    mask = 0
-    if query.pooled:
-        mask = coverage_masks(frame, PAIR_X, [PAIR_Y_ALIGNED])[((), PAIR_Y_ALIGNED)]
-        correlation = correlation.model_copy(update={"n_countries": mask.bit_count()})
-
-    # Who gave each of x's answers (among those who answered both) ...
-    column_rows = {
-        row.level: row
-        for row in rows_from_table(
-            weighted_proportion(
-                frame, COLUMN, design, levels=[group.key for group in columns], policy=policy
+    if not query.pooled:
+        correlation = rows_from_table(
+            weighted_correlation(
+                frame, PAIR_X, PAIR_Y_ALIGNED, design, method=method, policy=policy
             ),
             [],
+        )[0].model_copy(update={"predictor": query.x.name})
+        # Who gave each of x's answers (among those who answered both) ...
+        column_rows = {
+            row.level: row
+            for row in rows_from_table(
+                weighted_proportion(frame, COLUMN, design, levels=x_levels, policy=policy), []
+            )
+        }
+        # ... and, within each such column, each of y's.
+        cell_rows = {
+            (row.group[COLUMN], row.level): row
+            for row in rows_from_table(
+                weighted_proportion(
+                    frame, ROW, design, by=[COLUMN], levels=y_levels, policy=policy
+                ),
+                [COLUMN],
+            )
+            if row.group[COLUMN] is not None
+        }
+    else:
+        # All countries (ADR-0020): each country on its own, then the plain
+        # mean — of the correlations; of the shares who gave each of x's
+        # answers, over the countries with people who answered both; and of
+        # each column's shares, over the countries with people in that
+        # column (a country where nobody gave the column's answer drops
+        # out of it, so every column still adds to 100%).
+        correlations = _frame(
+            weighted_correlation(
+                frame, PAIR_X, PAIR_Y_ALIGNED, design, method=method, by=[COUNTRY], policy=policy
+            )
         )
-    }
-    # ... and, within each such column, each of y's.
-    cell_rows = {
-        (row.group[COLUMN], row.level): row
-        for row in rows_from_table(
-            weighted_proportion(
-                frame,
-                ROW,
-                design,
-                by=[COLUMN],
-                levels=[group.key for group in rows],
-                policy=policy,
+        averaged, _ = averaged_rows(
+            correlations.select(
+                pl.lit(query.x.name).alias("predictor"), COUNTRY, "estimate", "se", "n", "sum_w"
             ),
-            [COLUMN],
+            [query.x.name],
+            [],
+            stat=f"{method}_r",
+            weight=design.weight,
+            policy=policy,
+            min_n=min_n,
         )
-        if row.group[COLUMN] is not None
-    }
-
-    # Pooled: each column's countries — those with people who gave that
-    # answer to x and answered y — which every share in it is taken over.
-    column_masks: dict[object, int] = {}
-    if query.pooled:
-        column_masks = {
-            key: int(mask or 0)
-            for key, mask in frame.filter(pl.col(ROW).is_not_null())
-            .group_by(COLUMN)
-            .agg(pl.col(COUNTRY_BIT).unique().sum())
-            .iter_rows()
+        correlation = averaged[query.x.name][0]
+        bars = average_countries(
+            _share_records(
+                weighted_proportion(
+                    frame, COLUMN, design, by=[COUNTRY], levels=x_levels, policy=policy
+                ),
+                [COUNTRY],
+            ),
+            ["level"],
+        )
+        column_rows = {
+            int(average["level"]): averaged_share(
+                average, design=design, policy=policy, level=int(average["level"])
+            )
+            for average in bars.iter_rows(named=True)
+        }
+        countries = sorted(
+            {int(code) for average in bars.iter_rows(named=True) for code in average["countries"]}
+        )
+        within = _share_records(
+            weighted_proportion(
+                frame, ROW, design, by=[COUNTRY, COLUMN], levels=y_levels, policy=policy
+            ),
+            [COUNTRY, COLUMN],
+        ).filter(pl.col(COLUMN).is_not_null())
+        cell_rows = {
+            (average[COLUMN], int(average["level"])): averaged_share(
+                average, design=design, policy=policy, level=int(average["level"])
+            )
+            for average in average_countries(within, [COLUMN, "level"]).iter_rows(named=True)
         }
 
     column_models: list[PairColumnModel] = []
@@ -365,7 +441,6 @@ def run_pair(
     shares: list[EstimateRow] = []
     for column in columns:
         found = column_rows.get(column.key)
-        covered = column_masks.get(column.key, 0).bit_count() if query.pooled else None
         column_n = found.n if found is not None else 0
         column_models.append(
             PairColumnModel(
@@ -386,8 +461,8 @@ def run_pair(
                 if cell is not None
                 else empty_row(key, "proportion", design, policy)
             )
-            if covered is not None:
-                estimate = estimate.model_copy(update={"n_countries": covered})
+            if query.pooled and cell is None:
+                estimate = estimate.model_copy(update={"n_countries": 0})
             shares.append(estimate)
             cells.append(
                 PairCellModel(
@@ -421,7 +496,7 @@ def run_pair(
             **({"country_code": list(query.countries)} if query.countries else {}),
             **{item.column: list(item.values) for item in query.filters},
         },
-        **pooled_meta(store, query.pooled, [mask]),
+        **averaged_meta(query.pooled, countries),
         **midyear_meta(
             query.wave,
             query.other_wave,
@@ -470,8 +545,8 @@ def correlation_pair(
         str | None,
         Query(
             description=(
-                "population: every country in one cross-tab, each weighted to its adult "
-                "population (ADR-0020), in place of the country filter."
+                "average: each country's own cross-tab and correlation, and their plain "
+                "average (ADR-0020), in place of the country filter."
             )
         ),
     ] = None,
@@ -497,10 +572,15 @@ def correlation_pair(
     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
     weighted Pearson or Spearman coefficient over the people who answered
     both — the number /v1/correlates reports for the pair, with no
-    interval. ``pooled=population`` pools every country, each weighted to
-    its adult population: ``shares.meta.countries`` lists the countries
-    with people who answered both, and ``correlation.n_countries`` counts
-    them. At ``wave=MY`` one question at least must be a midyear
+    interval. ``pooled=average`` takes each country on its own and their
+    plain mean: of the correlations (``correlation.n_countries`` counts
+    the countries in it; ``flagged`` when every one rests on fewer than
+    ``min_n`` people), of the shares who gave each of x's answers, and of
+    each column's shares over the countries with people in that column —
+    so every column still adds to 1 — each with SE √(Σ se²) / K and a
+    normal interval, and ``n`` summed over the countries (the flags read
+    it); ``shares.meta.countries`` lists the countries with people who
+    answered both. At ``wave=MY`` one question at least must be a midyear
     question; the other reads its midyear answers or the same people's
     ``other_wave`` answers (``shares.meta.answer_waves``)."""
     assert store.catalog is not None
@@ -558,79 +638,68 @@ def similar_order(names: list[str], pairs: list[CorrelationPairModel]) -> list[s
     return [names[i] for i in clusters[0]] if clusters else []
 
 
-def precomputed_pairs(
-    table: PooledTable | None, query: MatrixQuery, policy: SuppressionPolicy
-) -> tuple[dict[tuple[str, str], EstimateRow], dict[tuple[str, str], int], int] | None:
-    """A pooled table's correlations from the precomputed file (ADR-0020):
-    each estimable pair's row and coverage mask, and the frame's size;
-    None when the file cannot serve the whole table (a domain, a pair it
-    does not hold)."""
-    if table is None or not query.pooled or query.filters:
-        return None
-    config = (query.wave, query.other_wave)
-    facts = table.frame(config)
-    if facts is None:
-        return None
-    weight = correlation_spec(query.wave, query.other_wave).weight
-    rows: dict[tuple[str, str], EstimateRow] = {}
-    masks: dict[tuple[str, str], int] = {}
-    variables = list(query.variables)
-    for i, a in enumerate(variables[:-1]):
-        for b in variables[i + 1 :]:
-            if shares_answers(a, b):
-                continue
-            row = table.row(config, query.method, a.name, b.name, weight=weight, policy=policy)
-            if row is None:
-                return None
-            rows[(a.name, b.name)] = row
-            masks[(a.name, b.name)] = table.mask(config, query.method, a.name, b.name)
-    return rows, masks, facts.n_frame
-
-
 def run_matrix(
     store: DataStore,
     query: MatrixQuery,
     policy: SuppressionPolicy,
     min_n: int,
-    pooled: PooledTable | None = None,
+    table: CountryCorrelations | None = None,
 ) -> CorrelationsResponse:
     """Every pair i < j: row i's correlations with the questions after it
     in one engine pass, the pairs built from the same answers left out
-    of the pass and marked. Pooled, from the precomputed file when it
-    holds them (ADR-0020), each with how many countries it covers."""
+    of the pass and marked. All countries: each pair's correlation in each
+    country — from the precomputed file when it holds them (ADR-0020) —
+    and their plain average."""
     variables = list(query.variables)
-    served = precomputed_pairs(pooled, query, policy)
+    spec = correlation_spec(query.wave, query.other_wave)
+    method = "spearman" if query.method == "spearman" else "pearson"
+    config = (query.wave, query.other_wave)
+    names = [v.name for v in variables]
+    served = (
+        table
+        if table is not None and query.pooled and not query.filters and table.holds(config, names)
+        else None
+    )
+    facts = served.frame(config) if served is not None else None
+    assembled = assemble_matrix_frame(store, query) if facts is None else None
+    n_frame = facts.n_frame if facts is not None else (assembled.frame.height if assembled else 0)
     estimated: dict[tuple[str, str], EstimateRow] = {}
-    masks: dict[tuple[str, str], int] = {}
-    if served is not None:
-        estimated, masks, n_frame = served
-    else:
-        assembled = assemble_matrix_frame(store, query)
-        frame, design = assembled.frame, assembled.design
-        n_frame = frame.height
-        for i, a in enumerate(variables[:-1]):
-            others = [b.name for b in variables[i + 1 :] if not shares_answers(a, b)]
-            if not others:
-                continue
-            table = weighted_correlations(
-                frame,
+    countries: set[int] = set()
+    for i, a in enumerate(variables[:-1]):
+        others = [b.name for b in variables[i + 1 :] if not shares_answers(a, b)]
+        if not others:
+            continue
+        if served is not None:
+            records = served.records(config, query.method, a.name, others, policy)
+        else:
+            assert assembled is not None
+            result = weighted_correlations(
+                assembled.frame,
                 a.name,
                 others,
-                design,
-                method="spearman" if query.method == "spearman" else "pearson",
+                assembled.design,
+                method=method,
+                by=[COUNTRY] if query.pooled else [],
                 policy=policy,
             )
-            covered = coverage_masks(frame, a.name, others) if query.pooled else {}
-            for row in rows_from_table(table, []):
-                b = row.predictor
-                assert b is not None
-                mask = covered.get(((), b), 0)
-                estimated[(a.name, b)] = (
-                    row.model_copy(update={"n_countries": mask.bit_count()})
-                    if query.pooled
-                    else row
-                )
-                masks[(a.name, b)] = mask
+            if not query.pooled:
+                for row in rows_from_table(result, []):
+                    assert row.predictor is not None
+                    estimated[(a.name, row.predictor)] = row
+                continue
+            records = correlation_records(result, [])
+        averaged, covered = averaged_rows(
+            records,
+            others,
+            [],
+            stat=f"{method}_r",
+            weight=spec.weight,
+            policy=policy,
+            min_n=min_n,
+        )
+        countries.update(covered)
+        for b in others:
+            estimated[(a.name, b)] = averaged[b][0]
     spec = correlation_spec(query.wave, query.other_wave)
     pairs: list[CorrelationPairModel] = []
     for i, a in enumerate(variables[:-1]):
@@ -641,7 +710,9 @@ def run_matrix(
                     a=a.name,
                     b=b.name,
                     shares_answers=row is None,
-                    below_min_n=row is not None and row.n < min_n,
+                    # An average's asterisk: every country in it below the floor.
+                    below_min_n=row is not None
+                    and (row.flagged if query.pooled else row.n < min_n),
                     correlation=row,
                 )
             )
@@ -660,7 +731,7 @@ def run_matrix(
             **{item.column: list(item.values) for item in query.filters},
         },
         min_n=min_n,
-        **pooled_meta(store, query.pooled, list(masks.values())),
+        **averaged_meta(query.pooled, sorted(countries)),
         **midyear_meta(
             query.wave,
             query.other_wave,
@@ -677,7 +748,7 @@ def correlations(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     min_n: Annotated[int, Depends(correlates_min_n)],
-    pooled_table: Annotated[PooledTable | None, Depends(pooled_correlations)],
+    table: Annotated[CountryCorrelations | None, Depends(country_correlations)],
     names: Annotated[
         list[str],
         Query(
@@ -699,8 +770,8 @@ def correlations(
         str | None,
         Query(
             description=(
-                "population: every country in one table, each weighted to its adult "
-                "population (ADR-0020), in place of the country filter."
+                "average: each country's own correlations, and their plain average "
+                "(ADR-0020), in place of the country filter."
             )
         ),
     ] = None,
@@ -721,10 +792,12 @@ def correlations(
     signs are the ranked list's. ``similar_order`` lists the questions
     with those that go together side by side: average-linkage clustering
     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
-    ties broken toward the order asked. ``pooled=population`` pools every
-    country, each weighted to its adult population: each correlation's
-    ``n_countries`` counts the countries behind it and ``meta.countries``
-    lists every country behind at least one. At ``wave=MY`` the table
+    ties broken toward the order asked. ``pooled=average`` takes each
+    pair's correlation in each country and their plain mean: each
+    correlation's ``n_countries`` counts the countries in it, ``n`` sums
+    their people, ``below_min_n`` says every one rests on fewer than
+    ``meta.min_n``, and ``meta.countries`` lists every country in at least
+    one. At ``wave=MY`` the table
     holds one midyear question at least; the questions the midyear survey
     did not ask read the same people's ``other_wave`` answers, and every
     pair — two such questions included — is taken on the same people."""
@@ -738,4 +811,4 @@ def correlations(
         pooled=pooled,
         other_wave=other_wave,
     )
-    return run_matrix(store, query, policy, min_n, pooled_table)
+    return run_matrix(store, query, policy, min_n, table)

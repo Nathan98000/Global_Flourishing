@@ -25,9 +25,9 @@ export interface ViewProps {
   variables: VariablesResult
   served: Meta
   /** The country every view is taken in (resolved from meta), or `all`:
-   * every country pooled by adult population (ADR-0020). */
+   * the average of every country (ADR-0020). */
   country: CountryScope | undefined
-  /** Its name — "All countries" when pooled. */
+  /** Its name — "All countries" for the average. */
   countryName: string
   apiReachable: boolean
   /** The shared row — wave, country, correlation type — which each view

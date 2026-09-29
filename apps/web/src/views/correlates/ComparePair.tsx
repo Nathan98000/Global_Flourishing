@@ -52,6 +52,7 @@ import { WAVE_TITLES } from '../../waves'
 import {
   CORRELATES_NOTE,
   CORRELATION_SCALE,
+  averagedOver,
   FEW_PEOPLE_KEY,
   fewPeople,
   pooledPlace,
@@ -126,7 +127,7 @@ export function ComparePair({
       enabled: everywhere,
     },
   )
-  // All countries, country by country: the strip reads the pooled pair.
+  // All countries, country by country: the strip reads the average.
   const pooledPair = useCorrelates(
     ready ? correlatesRequest(search, aName, 'all', [bName], otherWave) : null,
     { enabled: everywhere && country === 'all' },
@@ -418,9 +419,9 @@ function PairFigure({
     ...(countryName ? { country: countryName } : {}),
   }
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
-  const pooled = pair.shares.meta.pooled === 'population'
+  const pooled = pair.shares.meta.pooled === 'average'
   const place = pooled ? pooledPlace(pair.shares.meta.countries, served.countries) : countryName
-  const ariaLabel = `${a.display_name} and ${b.display_name} in ${pooled ? 'all countries combined' : countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
+  const ariaLabel = `${a.display_name} and ${b.display_name}${pooled ? `, ${averagedOver(pair.shares.meta.countries, served.countries)}` : ` in ${countryName}`}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
     flaggedCount === 1
       ? ' 1 cell is starred: small sample size.'
       : flaggedCount > 1

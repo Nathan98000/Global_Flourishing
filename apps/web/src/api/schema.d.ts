@@ -99,13 +99,14 @@ export interface paths {
          *     what stands in for it. Binary items enter as indicators of code 1
          *     (Yes / screen positive). Global scope only.
          *
-         *     ``pooled=population`` — in place of a country filter — pools every
-         *     country, each weighted to its adult population (UN World Population
-         *     Prospects 2024; ``meta.population_source``): ``meta.countries`` lists
-         *     the countries behind at least one estimate and each row's
-         *     ``n_countries`` how many are behind it (a question a country did not
-         *     ask leaves that country out). The ranking floor and the dedupe are
-         *     unchanged.
+         *     ``pooled=average`` — in place of a country filter — takes each
+         *     country's own correlation and their plain mean: every country counts
+         *     the same, and one with no estimate (it did not ask a question) drops
+         *     out. Each row's ``n`` is the complete cases summed over the countries
+         *     in its average (the ranking floor reads it), ``n_countries`` counts
+         *     them, and ``flagged`` says every one of them rests on fewer than
+         *     ``meta.min_n`` people; ``meta.countries`` lists every country in at
+         *     least one average. The dedupe is unchanged.
          *
          *     At ``wave=MY`` a midyear question reads its midyear answers and any
          *     other question the same respondents' ``other_wave`` answers (Y1 by
@@ -151,10 +152,12 @@ export interface paths {
          *     signs are the ranked list's. ``similar_order`` lists the questions
          *     with those that go together side by side: average-linkage clustering
          *     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
-         *     ties broken toward the order asked. ``pooled=population`` pools every
-         *     country, each weighted to its adult population: each correlation's
-         *     ``n_countries`` counts the countries behind it and ``meta.countries``
-         *     lists every country behind at least one. At ``wave=MY`` the table
+         *     ties broken toward the order asked. ``pooled=average`` takes each
+         *     pair's correlation in each country and their plain mean: each
+         *     correlation's ``n_countries`` counts the countries in it, ``n`` sums
+         *     their people, ``below_min_n`` says every one rests on fewer than
+         *     ``meta.min_n``, and ``meta.countries`` lists every country in at least
+         *     one. At ``wave=MY`` the table
          *     holds one midyear question at least; the questions the midyear survey
          *     did not ask read the same people's ``other_wave`` answers, and every
          *     pair — two such questions included — is taken on the same people.
@@ -194,10 +197,15 @@ export interface paths {
          *     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
          *     weighted Pearson or Spearman coefficient over the people who answered
          *     both — the number /v1/correlates reports for the pair, with no
-         *     interval. ``pooled=population`` pools every country, each weighted to
-         *     its adult population: ``shares.meta.countries`` lists the countries
-         *     with people who answered both, and ``correlation.n_countries`` counts
-         *     them. At ``wave=MY`` one question at least must be a midyear
+         *     interval. ``pooled=average`` takes each country on its own and their
+         *     plain mean: of the correlations (``correlation.n_countries`` counts
+         *     the countries in it; ``flagged`` when every one rests on fewer than
+         *     ``min_n`` people), of the shares who gave each of x's answers, and of
+         *     each column's shares over the countries with people in that column —
+         *     so every column still adds to 1 — each with SE √(Σ se²) / K and a
+         *     normal interval, and ``n`` summed over the countries (the flags read
+         *     it); ``shares.meta.countries`` lists the countries with people who
+         *     answered both. At ``wave=MY`` one question at least must be a midyear
          *     question; the other reads its midyear answers or the same people's
          *     ``other_wave`` answers (``shares.meta.answer_waves``).
          */
@@ -994,7 +1002,7 @@ export interface operations {
                 by?: string[] | null;
                 filter?: string[] | null;
                 limit?: number;
-                /** @description population: every country in one estimate, each weighted to its adult population (ADR-0020), in place of a country filter. */
+                /** @description average: each country's own estimate, and their plain average — every country counts the same (ADR-0020) — in place of a country filter. */
                 pooled?: string | null;
                 /** @description At wave=MY: Y1 (default) or Y2 — the wave every question the midyear survey did not ask reads the same people's answers from (ADR-0020). */
                 other_wave?: string | null;
@@ -1037,7 +1045,7 @@ export interface operations {
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
-                /** @description population: every country in one table, each weighted to its adult population (ADR-0020), in place of the country filter. */
+                /** @description average: each country's own correlations, and their plain average (ADR-0020), in place of the country filter. */
                 pooled?: string | null;
                 /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
                 other_wave?: string | null;
@@ -1080,7 +1088,7 @@ export interface operations {
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
-                /** @description population: every country in one cross-tab, each weighted to its adult population (ADR-0020), in place of the country filter. */
+                /** @description average: each country's own cross-tab and correlation, and their plain average (ADR-0020), in place of the country filter. */
                 pooled?: string | null;
                 /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
                 other_wave?: string | null;

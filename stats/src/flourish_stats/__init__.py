@@ -7,6 +7,7 @@ verified against R's ``survey`` package. See ``docs/METHODS.md`` for the
 plain-language account and ADR-0005/0006 for the design decisions.
 """
 
+from .averaging import average_countries
 from .correlations import adjusted_association, weighted_correlation, weighted_correlations
 from .design import Design
 from .estimators import (
@@ -50,6 +51,7 @@ __all__ = [
     "WeightSpec",
     "adjusted_association",
     "adult_population_table",
+    "average_countries",
     "eligibility_expr",
     "get",
     "kish_n_eff",

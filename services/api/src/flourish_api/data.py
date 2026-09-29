@@ -37,7 +37,7 @@ from flourish_stats.outcomes import DERIVED_OUTCOMES, DERIVED_WAVES, SERVABLE_SC
 from flourish_api.config import Settings
 
 if TYPE_CHECKING:  # the table's module imports this one
-    from flourish_api.pooled import PooledTable
+    from flourish_api.country_correlations import CountryCorrelations
 
 
 @dataclass(frozen=True)
@@ -311,11 +311,11 @@ def adjusted_gate(
     return adjusted
 
 
-def pooled_correlations(request: Request) -> PooledTable | None:
-    """FastAPI dependency: the pooled correlations precomputed with the
-    image (ADR-0020), or None — pooled requests are then estimated on
+def country_correlations(request: Request) -> CountryCorrelations | None:
+    """FastAPI dependency: every country's correlations precomputed with
+    the image (ADR-0020), or None — every request is then estimated on
     demand."""
-    table: PooledTable | None = request.app.state.pooled
+    table: CountryCorrelations | None = request.app.state.country_correlations
     return table
 
 

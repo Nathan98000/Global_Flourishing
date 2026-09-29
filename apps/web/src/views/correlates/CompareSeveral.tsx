@@ -36,6 +36,7 @@ import {
   CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
+  averagedOver,
   coverageLine,
   pooledPlace,
   starred,
@@ -240,7 +241,7 @@ function TableFigure({
   served: Meta
   onOpenPair: (row: string, column: string) => void
 }) {
-  const pooled = table.meta.pooled === 'population'
+  const pooled = table.meta.pooled === 'average'
   const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
   const pairOf = (one: string, other: string) =>
     pairs.get(`${one}|${other}`) ?? pairs.get(`${other}|${one}`)
@@ -292,7 +293,7 @@ function TableFigure({
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
       subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
-      ariaLabel={`Correlations among ${order.length} questions in ${pooled ? 'all countries combined' : countryName}, as a table: ${order
+      ariaLabel={`Correlations among ${order.length} questions ${pooled ? averagedOver(table.meta.countries, served.countries) : `in ${countryName}`}, as a table: ${order
         .map(nameOf)
         .join('; ')}.${
         strongestPair && strongest

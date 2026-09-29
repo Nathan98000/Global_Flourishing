@@ -28,10 +28,10 @@ class Settings(BaseSettings):
     # each country by (ADR-0020). None reads the UN table packaged with
     # flourish_stats; the synthetic tests point at their own countries'.
     population_path: Path | None = None
-    # The pooled correlations precomputed when the image is built
-    # (flourish_api.pooled, ADR-0020); None means the default file beside
-    # the DuckDB. Absent, pooled requests are estimated on demand.
-    pooled_path: Path | None = None
+    # Every country's correlations, precomputed when the image is built
+    # (flourish_api.country_correlations, ADR-0020); None means the default
+    # file beside the DuckDB. Absent, every request is estimated on demand.
+    country_correlations_path: Path | None = None
 
     # DuckDB tuning for the 512 MiB / 1 CPU Cloud Run shape. Values are
     # config, not code, so ADR-0007's measured tuning is an env change.
@@ -84,5 +84,7 @@ class Settings(BaseSettings):
         return self.data_path.parent / "manifest.json"
 
     @property
-    def pooled_file(self) -> Path:
-        return self.pooled_path or self.data_path.parent / "pooled_correlations.parquet"
+    def country_correlations_file(self) -> Path:
+        return (
+            self.country_correlations_path or self.data_path.parent / "country_correlations.parquet"
+        )

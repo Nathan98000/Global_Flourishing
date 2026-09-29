@@ -15,20 +15,29 @@ same answers, only the one built from more of them stays.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from statistics import median
 from typing import Annotated, Any
 
+import polars as pl
 from fastapi import APIRouter, Depends, HTTPException, Query
-from flourish_stats import SuppressionPolicy, adjusted_association, weighted_correlations
+from flourish_stats import (
+    SuppressionPolicy,
+    adjusted_association,
+    average_countries,
+    weighted_correlations,
+)
+from flourish_stats.averaging import COUNTRY
 from flourish_stats.correlations import CORRELATES_MIN_N, DEFAULT_CONTROLS
 
+from flourish_api.country_correlations import CountryCorrelations, FrameFacts
 from flourish_api.data import (
     Catalog,
     DataStore,
     VariableInfo,
     adjusted_gate,
     correlates_min_n,
-    pooled_correlations,
+    country_correlations,
     require_data,
     suppression_policy,
 )
@@ -36,10 +45,7 @@ from flourish_api.frames import (
     AssembledFrame,
     assemble_correlates_frame,
     correlation_spec,
-    countries_in,
-    coverage_masks,
 )
-from flourish_api.pooled import PooledTable
 from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
     ORDERED_SCALE_TYPES,
@@ -50,7 +56,13 @@ from flourish_api.queries import (
     parse_correlates_query,
     shares_answers,
 )
-from flourish_api.schemas import EstimateResponse, EstimateRow, ResponseMeta, SuppressionModel
+from flourish_api.schemas import (
+    EstimateResponse,
+    EstimateRow,
+    GroupValue,
+    ResponseMeta,
+    SuppressionModel,
+)
 from flourish_api.serialize import rows_from_table
 
 router = APIRouter()
@@ -216,60 +228,176 @@ def estimate_rows(
     }
 
 
-def with_coverage(
-    assembled: AssembledFrame,
-    estimated: dict[str, list[EstimateRow]],
-) -> tuple[dict[str, list[EstimateRow]], dict[str, int]]:
-    """Pooled rows, each with how many countries have people behind it
-    (ADR-0020), and each predictor's countries over all its groups as a
-    coverage mask: one pass over the frame for every predictor."""
-    groups = list(assembled.groups)
-    masks = coverage_masks(assembled.frame, assembled.value, list(estimated), groups)
-    rows: dict[str, list[EstimateRow]] = {}
-    union: dict[str, int] = {}
-    for name, predictor_rows in estimated.items():
-        rows[name] = []
-        union[name] = 0
-        for row in predictor_rows:
-            mask = masks.get((tuple(row.group[column] for column in groups), name), 0)
-            union[name] |= mask
-            rows[name].append(row.model_copy(update={"n_countries": mask.bit_count()}))
-    return rows, union
+def correlation_records(table: object, groups: Sequence[str]) -> pl.DataFrame:
+    """An estimator table's rows as averaging records: the group columns,
+    the predictor, the country and the estimate, SE, n and Σw."""
+    frame = pl.from_arrow(table)  # type: ignore[arg-type]
+    assert isinstance(frame, pl.DataFrame)
+    return frame.select(*groups, "predictor", COUNTRY, "estimate", "se", "n", "sum_w")
 
 
-def precomputed_rows(
-    table: PooledTable | None,
+def file_records(
+    table: CountryCorrelations | None,
     query: CorrelatesQuery,
     predictors: list[VariableInfo],
     policy: SuppressionPolicy,
-) -> tuple[dict[str, list[EstimateRow]], dict[str, int], int, int] | None:
-    """A pooled request's rows from the precomputed table (ADR-0020):
-    per predictor, its row; each row's coverage mask; the frame's size and
-    the outcome's answers. None when the table cannot serve the request
-    whole — a breakdown, a domain, a pair it does not hold."""
-    if table is None or not query.pooled or query.by or query.filters or query.adjusted:
+) -> tuple[pl.DataFrame, FrameFacts] | None:
+    """The query's correlations in every country, from the precomputed file
+    (ADR-0020), and the file's facts about the frame — for an average over
+    the countries or a view country by country; None when the file cannot
+    serve the request whole (a domain, a breakdown, an adjusted model, a
+    pair it does not hold)."""
+    country_by_country = not query.pooled and query.by == (COUNTRY,)
+    averaged = query.pooled and not query.by
+    if (
+        table is None
+        or not (country_by_country or averaged)
+        or query.filters
+        or query.adjusted
+        or any(shares_answers(query.outcome, p) for p in predictors)
+    ):
         return None
     config = (query.wave, query.other_wave)
     facts = table.frame(config)
-    if facts is None:
+    names = [query.outcome.name, *(p.name for p in predictors)]
+    if facts is None or not table.holds(config, names):
         return None
-    weight = correlation_spec(query.wave, query.other_wave).weight
+    records = table.records(
+        config, query.method, query.outcome.name, [p.name for p in predictors], policy
+    )
+    return records, facts
+
+
+def country_rows(
+    records: pl.DataFrame,
+    predictors: list[VariableInfo],
+    countries: Sequence[int],
+    *,
+    stat: str,
+    weight: str,
+    policy: SuppressionPolicy,
+) -> dict[str, list[EstimateRow]]:
+    """Per predictor, a row per country of the frame — as the on-demand
+    estimator gives them, a country with nobody behind the pair at n = 0
+    with no estimate — the serving policy applied as ``finalize`` applies
+    it."""
+    found = {
+        (str(row["predictor"]), int(row[COUNTRY])): row for row in records.iter_rows(named=True)
+    }
     rows: dict[str, list[EstimateRow]] = {}
-    masks: dict[str, int] = {}
     for predictor in predictors:
-        row = table.row(
-            config,
-            query.method,
-            query.outcome.name,
-            predictor.name,
-            weight=weight,
-            policy=policy,
-        )
-        if row is None:
-            return None
-        rows[predictor.name] = [row]
-        masks[predictor.name] = table.mask(config, query.method, query.outcome.name, predictor.name)
-    return rows, masks, facts.n_frame, facts.n_valid.get(query.outcome.name, 0)
+        rows[predictor.name] = []
+        for code in countries:
+            record = found.get((predictor.name, code))
+            n = int(record["n"]) if record else 0
+            suppressed = n < policy.threshold
+            rows[predictor.name].append(
+                EstimateRow(
+                    group={COUNTRY: code},
+                    predictor=predictor.name,
+                    stat=stat,
+                    estimate=None if suppressed or not record else record["estimate"],
+                    se=None,
+                    ci_lo=None,
+                    ci_hi=None,
+                    ci_level=0.95,
+                    ci_method="none",
+                    n=n,
+                    sum_w=float(record["sum_w"]) if record else 0.0,
+                    n_psu=None,
+                    n_strata=None,
+                    df=None,
+                    se_method="none",
+                    weight=weight,
+                    suppressed=suppressed,
+                    flagged=not suppressed and n < policy.flag_below,
+                )
+            )
+    return rows
+
+
+def averaged_correlation(
+    average: dict[str, Any] | None,
+    *,
+    group: dict[str, GroupValue],
+    predictor: str,
+    stat: str,
+    weight: str,
+    policy: SuppressionPolicy,
+    min_n: int,
+) -> EstimateRow:
+    """A correlation's plain average over the countries (ADR-0020) as an
+    estimator row: no interval (a country's has none), ``n`` and ``sum_w``
+    summed over the countries in it and ``n_countries`` of them. It is
+    ``flagged`` — shown with an asterisk — only when every country in it
+    rests on fewer than ``min_n`` people. With no country behind it: no
+    estimate, n = 0."""
+    n = int(average["n"]) if average else 0
+    estimate = average["estimate"] if average else None
+    largest = int(average["n_largest"]) if average else 0
+    suppressed = n < policy.threshold
+    return EstimateRow(
+        group=group,
+        predictor=predictor,
+        stat=stat,
+        estimate=None if suppressed else estimate,
+        se=None,
+        ci_lo=None,
+        ci_hi=None,
+        ci_level=0.95,
+        ci_method="none",
+        n=n,
+        sum_w=float(average["sum_w"]) if average else 0.0,
+        n_psu=None,
+        n_strata=None,
+        df=None,
+        se_method="none",
+        weight=weight,
+        suppressed=suppressed,
+        flagged=(
+            not suppressed and estimate is not None and (n < policy.flag_below or largest < min_n)
+        ),
+        n_countries=int(average["n_countries"]) if average else 0,
+    )
+
+
+def averaged_rows(
+    records: pl.DataFrame,
+    predictors: Sequence[str],
+    by: Sequence[str],
+    *,
+    stat: str,
+    weight: str,
+    policy: SuppressionPolicy,
+    min_n: int,
+) -> tuple[dict[str, list[EstimateRow]], list[int]]:
+    """Per predictor, its correlation averaged over the countries — one row
+    per breakdown group, in order — and every country in any of the
+    averages (ADR-0020). A predictor no country has an estimate for keeps
+    one row with none."""
+    # (The records arrive in the estimator's order: breakdown groups sorted.)
+    averages = average_countries(records, [*by, "predictor"])
+    found: dict[str, list[dict[str, Any]]] = {}
+    countries: set[int] = set()
+    for average in averages.iter_rows(named=True):
+        found.setdefault(str(average["predictor"]), []).append(average)
+        countries.update(int(code) for code in average["countries"])
+    rows: dict[str, list[EstimateRow]] = {}
+    for name in predictors:
+        kept = found.get(name) or [None]
+        rows[name] = [
+            averaged_correlation(
+                average,
+                group={column: average[column] for column in by} if average else {},
+                predictor=name,
+                stat=stat,
+                weight=weight,
+                policy=policy,
+                min_n=min_n,
+            )
+            for average in kept
+        ]
+    return rows, sorted(countries)
 
 
 def rankable(rows: list[EstimateRow], adjusted: bool, min_n: int) -> list[EstimateRow]:
@@ -297,24 +425,60 @@ def run_correlates(
     query: CorrelatesQuery,
     policy: SuppressionPolicy,
     min_n: int = CORRELATES_MIN_N,
-    pooled: PooledTable | None = None,
+    table: CountryCorrelations | None = None,
 ) -> EstimateResponse:
     assert store.catalog is not None
     predictors = list(query.against) or candidate_predictors(store.catalog, query)
     spec = correlation_spec(query.wave, query.other_wave)
-    masks: dict[str, int] = {}
-    served = precomputed_rows(pooled, query, predictors, policy)
+    stat = "beta" if query.adjusted else f"{query.method}_r"
+    countries: list[int] = []
+    served = file_records(table, query, predictors, policy)
+    records: pl.DataFrame | None = None
     if served is not None:
-        by_predictor, masks, n_frame, n_valid = served
+        records, facts = served
+        n_frame, n_valid = facts.n_frame, facts.n_valid.get(query.outcome.name, 0)
         se_method = "none"
+        by_predictor = (
+            {}
+            if query.pooled
+            else country_rows(
+                records, predictors, facts.countries, stat=stat, weight=spec.weight, policy=policy
+            )
+        )
     else:
         assembled = assemble_correlates_frame(store, query, predictors)
-        by_predictor = estimate_rows(assembled, query, predictors, policy)
-        if query.pooled:
-            by_predictor, masks = with_coverage(assembled, by_predictor)
         n_frame = assembled.frame.height
         n_valid = assembled.frame[assembled.value].drop_nulls().len()
         se_method = assembled.design.se_method if query.adjusted else "none"
+        if query.pooled:
+            # Each country on its own, then their plain average (ADR-0020).
+            groups = [*assembled.groups, COUNTRY]
+            records = correlation_records(
+                weighted_correlations(
+                    assembled.frame,
+                    assembled.value,
+                    [p.name for p in predictors],
+                    assembled.design,
+                    method="spearman" if query.method == "spearman" else "pearson",
+                    by=groups,
+                    policy=policy,
+                ),
+                list(assembled.groups),
+            )
+            by_predictor = {}
+        else:
+            by_predictor = estimate_rows(assembled, query, predictors, policy)
+    if query.pooled:
+        assert records is not None
+        by_predictor, countries = averaged_rows(
+            records,
+            [p.name for p in predictors],
+            query.by,
+            stat=stat,
+            weight=spec.weight,
+            policy=policy,
+            min_n=min_n,
+        )
     estimated = list(by_predictor.items())
     n_excluded = 0
     dropped: dict[str, str] = {}
@@ -327,7 +491,6 @@ def run_correlates(
         infos = {p.name: p for p in predictors}
         estimated, dropped = drop_overlaps(ranked, infos, query.limit)
     rows = [row for _, predictor_rows in estimated for row in predictor_rows]
-    stat = "beta" if query.adjusted else f"{query.method}_r"
     meta = ResponseMeta(
         data_version=store.data_version,
         outcome=query.outcome.name,
@@ -357,7 +520,7 @@ def run_correlates(
         min_n=min_n,
         n_excluded=n_excluded,
         dropped_overlap=dropped,
-        **pooled_meta(store, query.pooled, [masks.get(name, 0) for name, _ in estimated]),
+        **averaged_meta(query.pooled, countries),
         **midyear_meta(
             query.wave,
             query.other_wave,
@@ -368,21 +531,13 @@ def run_correlates(
     return EstimateResponse(meta=meta, rows=rows)
 
 
-def pooled_meta(store: DataStore, pooled: bool, masks: list[int]) -> dict[str, Any]:
-    """What a pooled response says about itself (ADR-0020): pooled by
-    population, the countries behind at least one of its estimates (the
-    union of their coverage masks), and the populations' source; nothing
-    for any other response."""
+def averaged_meta(pooled: bool, countries: list[int]) -> dict[str, Any]:
+    """What an average over the countries says about itself (ADR-0020):
+    ``average``, and every country in at least one of its averages;
+    nothing for any other response."""
     if not pooled:
         return {}
-    union = 0
-    for mask in masks:
-        union |= mask
-    return {
-        "pooled": "population",
-        "countries": countries_in(union),
-        "population_source": store.population_source,
-    }
+    return {"pooled": "average", "countries": countries}
 
 
 @router.get("/correlates", summary="What travels with an outcome: ranked associations")
@@ -392,7 +547,7 @@ def correlates(
     store: Annotated[DataStore, Depends(require_data)],
     policy: Annotated[SuppressionPolicy, Depends(suppression_policy)],
     min_n: Annotated[int, Depends(correlates_min_n)],
-    pooled_table: Annotated[PooledTable | None, Depends(pooled_correlations)],
+    table: Annotated[CountryCorrelations | None, Depends(country_correlations)],
     outcome: str,
     wave: str,
     against: Annotated[list[str] | None, Query()] = None,
@@ -404,8 +559,8 @@ def correlates(
         str | None,
         Query(
             description=(
-                "population: every country in one estimate, each weighted to its adult "
-                "population (ADR-0020), in place of a country filter."
+                "average: each country's own estimate, and their plain average — every "
+                "country counts the same (ADR-0020) — in place of a country filter."
             )
         ),
     ] = None,
@@ -432,13 +587,14 @@ def correlates(
     what stands in for it. Binary items enter as indicators of code 1
     (Yes / screen positive). Global scope only.
 
-    ``pooled=population`` — in place of a country filter — pools every
-    country, each weighted to its adult population (UN World Population
-    Prospects 2024; ``meta.population_source``): ``meta.countries`` lists
-    the countries behind at least one estimate and each row's
-    ``n_countries`` how many are behind it (a question a country did not
-    ask leaves that country out). The ranking floor and the dedupe are
-    unchanged.
+    ``pooled=average`` — in place of a country filter — takes each
+    country's own correlation and their plain mean: every country counts
+    the same, and one with no estimate (it did not ask a question) drops
+    out. Each row's ``n`` is the complete cases summed over the countries
+    in its average (the ranking floor reads it), ``n_countries`` counts
+    them, and ``flagged`` says every one of them rests on fewer than
+    ``meta.min_n`` people; ``meta.countries`` lists every country in at
+    least one average. The dedupe is unchanged.
 
     At ``wave=MY`` a midyear question reads its midyear answers and any
     other question the same respondents' ``other_wave`` answers (Y1 by
@@ -470,6 +626,6 @@ def correlates(
     if query.adjusted and query.pooled:
         raise HTTPException(
             status_code=422,
-            detail=["pooled=population serves plain correlations; drop adjusted=true"],
+            detail=["pooled=average serves plain correlations; drop adjusted=true"],
         )
-    return run_correlates(store, query, policy, min_n, pooled_table)
+    return run_correlates(store, query, policy, min_n, table)

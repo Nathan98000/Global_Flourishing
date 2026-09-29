@@ -423,9 +423,10 @@ def parse_change_query(
 # --- /v1/correlates ---------------------------------------------------------
 
 CORRELATION_METHODS = ("pearson", "spearman")
-#: How a correlation may pool the countries in place of a country filter
-#: (ADR-0020): ``population`` weights each country to its adult population.
-POOLINGS = ("population",)
+#: How a correlation may take every country in place of a country filter
+#: (ADR-0020): ``average`` — each country's own estimate, and their plain
+#: mean (every country counts the same; one that did not ask drops out).
+POOLINGS = ("average",)
 #: The waves a midyear question's answers can be set beside (ADR-0020):
 #: at wave=MY every other question reads the same respondent's answers
 #: from one of these (``other_wave``, default Y1).
@@ -458,7 +459,7 @@ class CorrelatesQuery:
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
     limit: int
-    #: every country, each weighted to its adult population (ADR-0020)
+    #: every country, each on its own, and their plain average (ADR-0020)
     pooled: bool = False
     #: at wave=MY: the wave every question not asked in the midyear survey
     #: reads the same respondents' answers from (ADR-0020); None elsewhere
@@ -511,7 +512,7 @@ def _ordered_item(problems: _Problems, info: VariableInfo, role: str) -> None:
 
 
 def _pooling(problems: _Problems, pooled: str | None) -> bool:
-    """Whether the request pools every country (``pooled=population``)."""
+    """Whether the request averages every country (``pooled=average``)."""
     if pooled is None:
         return False
     if pooled not in POOLINGS:
@@ -568,12 +569,12 @@ def _needs_midyear(problems: _Problems, names: list[str], other_wave: str | None
     )
 
 
-#: What a correlation needs in place of pooling: weights are normalised
-#: within each country, so without the population rescaling the countries
-#: cannot share one estimate.
+#: What a correlation needs in place of one country: weights are
+#: normalised within each country, so the countries never share one
+#: estimate — "all countries" is the average of theirs.
 _ONE_COUNTRY = (
-    "weights are normalised within country, so countries share one estimate "
-    "only when each is weighted to its adult population (pooled=population)"
+    "weights are normalised within country, so countries share no estimate; "
+    "all countries is the plain average of the countries' own (pooled=average)"
 )
 
 
@@ -705,18 +706,18 @@ def parse_correlates_query(
     if pools:
         if countries:
             problems.add(
-                "pooled=population pools every country: drop the country filter "
+                "pooled=average averages every country: drop the country filter "
                 "(filter=country_code:N)"
             )
         if "country_code" in seen:
             problems.add(
-                "pooled=population pools every country into one estimate: drop "
+                "pooled=average averages every country into one estimate: drop "
                 "by=country_code (country by country is by=country_code without pooled)"
             )
     elif "country_code" not in seen and not countries:
         problems.add(
             "global-scope estimates must group by country (by=country_code), filter "
-            f"to countries (filter=country_code:N) or pool them — {_ONE_COUNTRY}"
+            f"to countries (filter=country_code:N) or average them — {_ONE_COUNTRY}"
         )
 
     problems.raise_if_any()
@@ -743,9 +744,9 @@ def parse_correlates_query(
 @dataclass(frozen=True)
 class PairQuery:
     """A validated /v1/correlations/pair request: two ordered items at one
-    wave, in one country — or in every country pooled, each weighted to
-    its adult population (the global weights are normalised within
-    country, so countries share an estimate only that way, ADR-0020)."""
+    wave, in one country — or in every country, each on its own and
+    averaged (the global weights are normalised within country, so
+    countries share no one estimate, ADR-0020)."""
 
     y: VariableInfo
     x: VariableInfo
@@ -753,7 +754,7 @@ class PairQuery:
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
-    #: every country, each weighted to its adult population (ADR-0020)
+    #: every country, each on its own, and their plain average (ADR-0020)
     pooled: bool = False
     #: at wave=MY: the wave the questions the midyear survey did not ask
     #: read their answers from (ADR-0020); None elsewhere
@@ -789,20 +790,20 @@ def _ordered_at_wave(
 def _one_country(
     catalog: Catalog, filters: list[str], problems: _Problems, pools: bool = False
 ) -> tuple[list[int], dict[str, list[str | int]]]:
-    """Exactly one country — or, pooled, none named at all."""
+    """Exactly one country — or, averaged, none named at all."""
     countries, domain_filters = _parse_country_and_domain_filters(
         catalog, filters, set(BREAKDOWNS), problems
     )
     if pools:
         if countries:
             problems.add(
-                "pooled=population pools every country: drop the country filter "
+                "pooled=average averages every country: drop the country filter "
                 "(filter=country_code:N)"
             )
     elif len(countries) != 1:
         problems.add(
-            "filter to exactly one country (filter=country_code:N) or pool every "
-            f"country (pooled=population) — {_ONE_COUNTRY}"
+            "filter to exactly one country (filter=country_code:N) or average every "
+            f"country (pooled=average) — {_ONE_COUNTRY}"
         )
     return countries, domain_filters
 
@@ -864,14 +865,14 @@ MATRIX_MAX_VARS = 10
 @dataclass(frozen=True)
 class MatrixQuery:
     """A validated /v1/correlations request: 2–10 ordered items at one
-    wave, in one country or pooled."""
+    wave, in one country or every country averaged."""
 
     variables: tuple[VariableInfo, ...]
     wave: str
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
-    #: every country, each weighted to its adult population (ADR-0020)
+    #: every country, each on its own, and their plain average (ADR-0020)
     pooled: bool = False
     #: at wave=MY: the wave the questions the midyear survey did not ask
     #: read their answers from (ADR-0020); None elsewhere

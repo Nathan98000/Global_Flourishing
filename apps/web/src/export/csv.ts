@@ -69,16 +69,14 @@ function quoted(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 }
 
-/** A pooled response's own `#` lines (ADR-0020): how it pooled, the
- * countries behind it, the populations' source; none otherwise. */
-function pooledLines(
-  meta: Pick<EstimateResponse['meta'], 'pooled' | 'countries' | 'population_source'>,
-): string[] {
+/** An average over the countries says so in its own `#` lines
+ * (ADR-0020): `# pooled: average` and the countries in it; none
+ * otherwise. */
+function pooledLines(meta: Pick<EstimateResponse['meta'], 'pooled' | 'countries'>): string[] {
   if (!meta.pooled) return []
   return [
     `# pooled: ${meta.pooled}`,
     `# countries: ${(meta.countries ?? []).map(String).join(',')}`,
-    `# population_source: ${pythonStr(meta.population_source)}`,
   ]
 }
 
