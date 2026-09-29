@@ -4,7 +4,8 @@ same respondent's answers from ``other_wave`` (Y1 by default, or Y2), on
 the frame and the weight the pairing takes — every midyear respondent
 (``w_l1m``) for 2023, those who also did Wave 2 (``w_l1m2``) for 2024.
 
-In the synthetic data MONEY is asked only in the midyear survey, BALANCE
+In the synthetic data MONEY and TIME_MEDIA are asked only in the midyear
+survey, BALANCE
 in all three waves (so it is a midyear question too), HAPPY, WB_TODAY and
 INCOME_FEELINGS at Wave 1 and Wave 2, and LONELY at Wave 1 only.
 """
@@ -15,7 +16,7 @@ from fastapi.testclient import TestClient
 from flourish_api.data import DataStore
 from flourish_stats import NO_SUPPRESSION, Design, weighted_correlation
 
-MY_ANSWERS = {"MONEY", "BALANCE"}
+MY_ANSWERS = {"MONEY", "BALANCE", "TIME_MEDIA"}
 
 
 def get(client: TestClient, path: str, **params: object) -> dict:
@@ -161,7 +162,10 @@ def test_find_related_ranks_what_the_pairing_allows(client: TestClient) -> None:
     # Any other question: the midyear questions only.
     other = get(client, "/v1/correlates", outcome="HAPPY", wave="MY", **one)
     assert {row["predictor"] for row in other["rows"]} == MY_ANSWERS
-    assert other["meta"]["answer_waves"] == {"HAPPY": "Y1", "MONEY": "MY", "BALANCE": "MY"}
+    assert other["meta"]["answer_waves"] == {
+        "HAPPY": "Y1",
+        **dict.fromkeys(sorted(MY_ANSWERS), "MY"),
+    }
 
 
 def test_a_table_takes_every_cell_on_the_same_people(client: TestClient, store: DataStore) -> None:

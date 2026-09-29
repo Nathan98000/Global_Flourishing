@@ -289,40 +289,6 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
-/** The synthetic midyear family holds one importance item and no
- * chartable item, so What Matters' third view is served one here:
- * Service attendance's own catalog entry, value labels and Wave 1
- * shares, dressed as a midyear question (static paths, as the tier
- * would carry it). */
-async function serveMidyearQuestion(page: Page) {
-  const read = (path: string) =>
-    JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', path), 'utf8')) as Record<
-      string,
-      unknown
-    >
-  const catalog = read('variables.json') as { variables: Record<string, unknown>[] }
-  const source = catalog.variables.find((variable) => variable['name'] === 'ATTEND_SVCS')
-  const question = {
-    ...source,
-    name: 'SVCS_MY',
-    display_name: 'Service attendance, midyear',
-    family: 'midyear',
-    waves_available: ['MY'],
-  }
-  const shares = read('v1/ATTEND_SVCS/Y1/proportion_by-country_code.json')
-  await page.route('**/data/variables.json', (route) =>
-    route.fulfill({ json: { ...catalog, variables: [...catalog.variables, question] } }),
-  )
-  await page.route('**/data/v1/SVCS_MY/variable.json', (route) =>
-    route.fulfill({ json: { ...read('v1/ATTEND_SVCS/variable.json'), ...question } }),
-  )
-  await page.route('**/data/v1/SVCS_MY/MY/proportion_by-country_code.json', (route) =>
-    route.fulfill({
-      json: { ...shares, meta: { ...(shares['meta'] as object), outcome: 'SVCS_MY' } },
-    }),
-  )
-}
-
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
   page,
 }) => {
@@ -333,7 +299,6 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   // midyear weight, and the view must show them without a word about
   // administration modes.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
-  await serveMidyearQuestion(page)
   await page.goto('/what-matters')
   const views = page.getByRole('group', { name: 'View' })
 
@@ -379,9 +344,10 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
 
-  // Other questions: one question's bar chart, alone on screen.
+  // Other questions: one question's bar chart, alone on screen — the
+  // synthetic family's one chartable item, Daily social media time.
   await views.getByText('Other questions', { exact: true }).click()
-  const question = page.getByRole('img', { name: /Service attendance, midyear/ })
+  const question = page.getByRole('img', { name: /Daily social media time/ })
   await expect(question).toBeVisible()
   // Rounded bars render as paths in Plot's "bar" mark group.
   await expect(question.locator('[aria-label="bar"] > *').first()).toBeVisible()
@@ -438,9 +404,28 @@ interface JourneyPlan {
   /** The table's first cell: its column (Compare two's first question) and row. */
   cell: { name: string; display_name: string }[]
   related: { name: string; display_name: string }
+  /** Compare several's default table, every country pooled (ADR-0020). */
+  pooled_default: string[]
+  /** The midyear question the page brings in at Midyear (ADR-0020). */
+  midyear: { name: string; display_name: string }
 }
 
-test('10 — Correlates by task: Compare two and its picker, Swap, every country, Compare several, Find related, old links', async ({
+/** Where and when a request is taken, as scripts/web_fixtures.py names
+ * its fixture: the wave when not Wave 1, the other answers' wave, and
+ * "all" when every country is pooled (ADR-0020). */
+function scopeOf(url: URL, withWave = true): string {
+  const wave = url.searchParams.get('wave') ?? 'Y1'
+  return [
+    withWave && wave !== 'Y1' ? wave : null,
+    url.searchParams.get('other_wave'),
+    url.searchParams.get('pooled') ? 'all' : null,
+  ]
+    .filter(Boolean)
+    .map((part) => `-${part}`)
+    .join('')
+}
+
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country, Compare several, Find related, old links, All countries, Midyear', async ({
   page,
 }) => {
   // Every request is answered by the synthetic response made for it,
@@ -453,21 +438,19 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
     const outcome = url.searchParams.get('outcome')
+    const wave = url.searchParams.get('wave') ?? 'Y1'
     const against = url.searchParams.getAll('against')
-    const across = url.searchParams.getAll('by').includes('country_code')
+    const shape = url.searchParams.getAll('by').includes('country_code') ? 'across' : 'ranked'
+    const one = against.length === 1 ? `-${against[0]}` : ''
     return route.fulfill(
-      fixtureOr404(
-        across && against.length === 1
-          ? `correlates-${outcome}-Y1-across-${against[0]}.json`
-          : `correlates-${outcome}-Y1-${across ? 'across' : 'ranked'}.json`,
-      ),
+      fixtureOr404(`correlates-${outcome}-${wave}${scopeOf(url, false)}-${shape}${one}.json`),
     )
   })
   await page.route(`${API}/v1/correlations/pair**`, (route) => {
     const url = new URL(route.request().url())
     return route.fulfill(
       fixtureOr404(
-        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}.json`,
+        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}${scopeOf(url)}.json`,
       ),
     )
   })
@@ -476,7 +459,9 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
     (route) => {
       const url = new URL(route.request().url())
       return route.fulfill(
-        fixtureOr404(`correlations-table-${url.searchParams.getAll('vars').join('-')}.json`),
+        fixtureOr404(
+          `correlations-table-${url.searchParams.getAll('vars').join('-')}${scopeOf(url)}.json`,
+        ),
       )
     },
   )
@@ -536,8 +521,8 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
     }),
   ).toBeVisible()
 
-  // In every country: one dot per country, the grid gone; then back.
-  await page.getByText('In every country', { exact: true }).click()
+  // Country by country: one dot per country, the grid gone; then back.
+  await page.getByText('Country by country', { exact: true }).click()
   await expect(page).toHaveURL(/scope=all/)
   await expect(
     page.getByRole('img', { name: /their correlation in each of 2 countries/ }),
@@ -615,11 +600,104 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
   ).toBeVisible()
   await page.goto('/correlates?view=countries&outcome=HAPPY')
   await expect(views.getByLabel('Find related')).toBeChecked()
-  await expect(page.getByLabel('In every country')).toBeChecked()
+  await expect(page.getByLabel('Country by country')).toBeChecked()
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
   expect(await page.locator('main').innerText()).not.toMatch(JARGON)
+
+  // All countries (ADR-0020): every view pooled by adult population.
+  await page.goto('/correlates?country=all')
+  await expect(
+    page.getByText('All countries, combined by adult population · Wave 1, 2023', { exact: true }),
+  ).toBeVisible()
+  const where = page.getByRole('group', { name: 'Where' })
+  await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
+  await expect(
+    page.getByRole('img', { name: /Feelings about household income in all countries combined/ }),
+  ).toBeVisible()
+  // Country by country: every country, none picked out; the strip reads the pooled pair.
+  await where.getByText('Country by country', { exact: true }).click()
+  const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  await expect(pooledAcross).toBeVisible()
+  expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
+  await expect(page.getByText('Correlation', { exact: true })).toBeVisible()
+  await where.getByText('All countries', { exact: true }).click()
+  await views.getByText('Compare several', { exact: true }).click()
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^Correlations among ${plan.pooled_default.length} questions in all countries combined`,
+      ),
+    }),
+  ).toBeVisible()
+  await views.getByText('Find related', { exact: true }).click()
+  await expect(
+    page.getByRole('group', {
+      name: /questions most strongly associated with it in all countries combined/,
+    }),
+  ).toBeVisible()
+
+  // Midyear from the chip: the midyear question beside the same people's
+  // 2023 answers, then 2024's; back at 2023 the default returns — and the
+  // line under the row says each time what changed on its own.
+  await page.goto('/correlates')
+  const wave = page.getByRole('group', { name: 'Wave' })
+  await wave.getByText('Midyear', { exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY$`))
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name}, from the midyear survey, took the place of Life evaluation today.`,
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByText('United States · Midyear survey, with 2023 answers from the same people', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  const other = page.getByRole('group', { name: 'Other questions’ answers from' })
+  await other.getByText('2024', { exact: true }).click()
+  await expect(page).toHaveURL(/other=Y2/)
+  await expect(
+    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('img', {
+      name: new RegExp(`^${plan.midyear.display_name} and Feelings about household income in`),
+    }),
+  ).toBeVisible()
+  await wave.getByText('2023', { exact: true }).click()
+  await expect(page).toHaveURL(/\/correlates$/)
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name} was asked only in the midyear survey, so Life evaluation today took its place.`,
+    ),
+  ).toBeVisible()
+
+  // Midyear from the picker: a midyear question picked at 2023 takes the
+  // page to Midyear.
+  await page.goto('/correlates?view=related&outcome=HAPPY')
+  await page.getByRole('button', { name: 'Question: Happiness' }).click()
+  const questionPicker = page.getByRole('dialog', { name: 'Question' })
+  await questionPicker.getByRole('searchbox').fill('social')
+  await questionPicker
+    .getByRole('option', { name: `${plan.midyear.display_name}, Midyear`, exact: true })
+    .click()
+  await expect(page).toHaveURL(new RegExp(`outcome=${plan.midyear.name}&wave=MY`))
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name} was asked only in the midyear survey, so the page now shows Midyear, with the same people’s 2023 answers to the other questions.`,
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^${plan.midyear.display_name}: the \\d+ questions most strongly associated`,
+      ),
+    }),
+  ).toBeVisible()
 })
 
 async function streamToString(download: {

@@ -66,6 +66,19 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
         False,
     ),
     ("CHILD_MEM", "Childhood memory", "childhood", "ordinal", "none", 1, 4, ["Y1"], False),
+    # The midyear question the Correlates page brings in at Midyear
+    # (ADR-0020): five ordered answers, asked only in the midyear survey.
+    (
+        "TIME_MEDIA",
+        "Daily social media time",
+        "midyear",
+        "ordinal",
+        "none",
+        1,
+        5,
+        ["MY"],
+        False,
+    ),
     # The Correlates page's default pair (ADR-0019): a 0–10 item and a
     # four-answer descending one that goes with it.
     (
@@ -117,6 +130,15 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
 #: INCOME_FEELINGS 1 = Living comfortably … 4 = Finding it very difficult.
 #: Everything else is ascending.
 DESCENDING: frozenset[str] = frozenset({"ATTEND_SVCS", "INCOME_FEELINGS"})
+
+#: TIME_MEDIA's answers (the release's wording).
+TIME_MEDIA_LABELS: tuple[str, ...] = (
+    "None/I don't use social media",
+    "Less than 30 minutes",
+    "30 minutes to less than an hour",
+    "1 to 2 hours",
+    "More than 2 hours",
+)
 
 #: INCOME_FEELINGS' answers (the release's wording).
 INCOME_FEELINGS_LABELS: tuple[str, ...] = (
@@ -265,6 +287,8 @@ def _responses(respondents: pl.DataFrame) -> pl.DataFrame:
         if person["has_midyear"]:
             add(person, "MY", "MONEY", (i * 5) % 11, None)
             add(person, "MY", "BALANCE", (i * 2 + 1) % 11, None)
+            # More time for those less at ease with their income.
+            add(person, "MY", "TIME_MEDIA", 1 + (income_feelings(i, today) + i) % 5, None)
     # Every row decides the columns' types (the first "skipped" comes
     # well after the first hundred rows).
     return pl.DataFrame(rows, infer_schema_length=None).sort("variable", "wave", "id")
@@ -360,14 +384,18 @@ def _value_labels() -> pl.DataFrame:
     )
     rows.extend(
         {
-            "variable": "INCOME_FEELINGS",
+            "variable": variable,
             "wave": None,
             "country_code": None,
             "code": code,
             "label": label,
             "is_nonresponse": False,
         }
-        for code, label in enumerate(INCOME_FEELINGS_LABELS, start=1)
+        for variable, labels in (
+            ("INCOME_FEELINGS", INCOME_FEELINGS_LABELS),
+            ("TIME_MEDIA", TIME_MEDIA_LABELS),
+        )
+        for code, label in enumerate(labels, start=1)
     )
     rows.append(
         {

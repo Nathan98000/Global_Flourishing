@@ -27,16 +27,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "services" / "api" / "tests"))
 
 from fastapi.testclient import TestClient  # noqa: E402
-from flourish_api.config import Settings  # noqa: E402
 from flourish_api.main import create_app  # noqa: E402
 from flourish_pipeline.aggregate import export_static  # noqa: E402
-from synthetic_db import build_synthetic_db  # noqa: E402
+from synthetic_db import build_synthetic_db, synthetic_settings  # noqa: E402
 
 #: Enough shapes for every front-end test: a 0-10 item over two waves, a
 #: lower_better item, an ordinal item (suppressed proportions), the
 #: three-wave item (MY toggle), an MY-only item, a derived score and a
-#: derived binary.
-FIXTURE_OUTCOMES = ("HAPPY", "LONELY", "ATTEND_SVCS", "BALANCE", "MONEY", "sfi", "phq2_positive")
+#: derived binary — and the midyear family's one chartable item, which
+#: What Matters' third view shows.
+FIXTURE_OUTCOMES = (
+    "HAPPY",
+    "LONELY",
+    "ATTEND_SVCS",
+    "BALANCE",
+    "MONEY",
+    "TIME_MEDIA",
+    "sfi",
+    "phq2_positive",
+)
 
 DATA_VERSION = "synthetic.0.0.1"
 
@@ -91,19 +100,40 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
     ),
 )
 
-#: Journey 10's path (ADR-0019), in the synthetic data: it lands on
-#: Compare two's default pair, picks HAPPY as the first question, swaps
-#: the two, looks in every country, opens Compare several (the pair and
+#: Journey 10's path (ADR-0019, ADR-0020), in the synthetic data: it lands
+#: on Compare two's default pair, picks HAPPY as the first question, swaps
+#: the two, looks country by country, opens Compare several (the pair and
 #: the first question's top four), adds two questions, removes the first
 #: of them, orders the table "similar together" and opens its first cell;
 #: then Find related for that cell's first question, whose top row opens
-#: Compare two again. The plan is written beside the fixtures
-#: (journey-10.json) so the spec needn't repeat the server's choices.
+#: Compare two again. Then All countries, pooled, in each view; and
+#: Midyear, from the chip (the midyear question beside the same people's
+#: 2023 answers, then 2024's, then back) and from the picker. The plan is
+#: written beside the fixtures (journey-10.json) so the spec needn't
+#: repeat the server's choices; each fixture is named from its request
+#: (``scope``), as the spec's route handlers rebuild the name.
 DEFAULT_PAIR = ("WB_TODAY", "INCOME_FEELINGS")
 JOURNEY_PICKED = "HAPPY"
 #: Added in Compare several: the first two of these not already there.
 JOURNEY_ADD_FROM = ("BALANCE", "CHILD_MEM", "LONELY", "ATTEND_SVCS", "WB_TODAY")
 BASE = {"wave": "Y1", "filter": "country_code:1"}
+#: Every country pooled by adult population (ADR-0020), in place of BASE's country.
+POOLED = {"wave": "Y1", "pooled": "population"}
+#: The midyear question the page brings in at Midyear (ADR-0020).
+MIDYEAR_QUESTION = "TIME_MEDIA"
+
+
+def scope(params: dict[str, object]) -> str:
+    """The part of a fixture's name that says where and when, as the
+    journey's route handlers rebuild it from a request: the wave when not
+    Wave 1, the other answers' wave, and "all" when pooled — nothing for
+    one country at Wave 1."""
+    parts = [str(params["wave"])] if params.get("wave", "Y1") != "Y1" else []
+    if params.get("other_wave"):
+        parts.append(str(params["other_wave"]))
+    if params.get("pooled"):
+        parts.append("all")
+    return "".join(f"-{part}" for part in parts)
 
 
 def correlation_fixtures(
@@ -114,21 +144,27 @@ def correlation_fixtures(
     journey finds it by it — and the plan the journey follows."""
     fixtures: list[tuple[str, str, dict[str, object]]] = []
 
-    def pair(y: str, x: str) -> None:
+    def pair(y: str, x: str, where: dict[str, object] = BASE) -> None:
+        params = {"y": y, "x": x, **where}
         fixtures.append(
-            (f"correlations-pair-{y}-{x}.json", "/v1/correlations/pair", {"y": y, "x": x, **BASE})
+            (f"correlations-pair-{y}-{x}{scope(where)}.json", "/v1/correlations/pair", params)
         )
 
-    def ranked(outcome: str) -> list[str]:
-        params = {"outcome": outcome, **BASE}
-        fixtures.append((f"correlates-{outcome}-Y1-ranked.json", "/v1/correlates", params))
+    def ranked(outcome: str, where: dict[str, object] = BASE) -> list[str]:
+        params = {"outcome": outcome, **where}
+        wave = str(where.get("wave", "Y1"))
+        extra = scope({**where, "wave": "Y1"})
+        name = f"correlates-{outcome}-{wave}{extra}-ranked.json"
+        fixtures.append((name, "/v1/correlates", params))
         response = client.get("/v1/correlates", params=params)
         response.raise_for_status()
         return [row["predictor"] for row in response.json()["rows"]]
 
-    def table(names: list[str]) -> dict[str, object]:
-        params = {"vars": names, **BASE}
-        fixtures.append((f"correlations-table-{'-'.join(names)}.json", "/v1/correlations", params))
+    def table(names: list[str], where: dict[str, object] = BASE) -> dict[str, object]:
+        params = {"vars": names, **where}
+        fixtures.append(
+            (f"correlations-table-{'-'.join(names)}{scope(where)}.json", "/v1/correlations", params)
+        )
         response = client.get("/v1/correlations", params=params)
         response.raise_for_status()
         return response.json()
@@ -165,6 +201,35 @@ def correlation_fixtures(
     # Find related for that first question; its top row opens a pair.
     related = ranked(order[0])[0]
     pair(related, order[0])
+
+    # All countries (ADR-0020): Compare two's default pair pooled, country
+    # by country with the pooled pair in its strip, Compare several's
+    # default table and Find related's list, each pooled.
+    pair(b, a, POOLED)
+    fixtures.append(
+        (
+            f"correlates-{a}-Y1-all-ranked-{b}.json",
+            "/v1/correlates",
+            {"outcome": a, "against": b, **POOLED},
+        )
+    )
+    fixtures.append(
+        (
+            f"correlates-{a}-Y1-across-{b}.json",
+            "/v1/correlates",
+            {"outcome": a, "wave": "Y1", "against": b, "by": "country_code"},
+        )
+    )
+    pooled_top = [name for name in ranked(a, POOLED) if name != b][:4]
+    pooled_default = [a, b, *pooled_top]
+    table(pooled_default, POOLED)
+
+    # Midyear (ADR-0020): from the chip, the default pair becomes the
+    # midyear question beside the same people's 2023 answers, then 2024's;
+    # from the picker, Find related's question at Midyear.
+    for other in ("Y1", "Y2"):
+        pair(b, MIDYEAR_QUESTION, {**BASE, "wave": "MY", "other_wave": other})
+    ranked(MIDYEAR_QUESTION, {**BASE, "wave": "MY", "other_wave": "Y1"})
     plan: dict[str, object] = {
         "picked": {"name": JOURNEY_PICKED, "display_name": display(JOURNEY_PICKED)},
         "default": default,
@@ -173,6 +238,8 @@ def correlation_fixtures(
         "order": order,
         "cell": [{"name": name, "display_name": display(name)} for name in order[:2]],
         "related": {"name": related, "display_name": display(related)},
+        "pooled_default": pooled_default,
+        "midyear": {"name": MIDYEAR_QUESTION, "display_name": display(MIDYEAR_QUESTION)},
     }
     return fixtures, plan
 
@@ -188,8 +255,9 @@ def main() -> int:
         index = export_static(db_path, target, data_version=DATA_VERSION, only=FIXTURE_OUTCOMES)
 
         # 60 synthetic people per country: rank at a lower floor than the
-        # serving default (100) so the fixtures carry a ranked list.
-        client = TestClient(create_app(Settings(data_path=db_path, correlates_min_n=20)))
+        # serving default (100) so the fixtures carry a ranked list; the
+        # synthetic countries' own adult populations pool them (ADR-0020).
+        client = TestClient(create_app(synthetic_settings(Path(tmp))))
         sample = client.get(
             "/v1/export.csv", params={"outcome": "HAPPY", "wave": "Y1", "by": "country_code"}
         )
