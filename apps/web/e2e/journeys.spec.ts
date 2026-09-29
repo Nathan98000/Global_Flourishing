@@ -425,7 +425,7 @@ function scopeOf(url: URL, withWave = true): string {
     .join('')
 }
 
-test('10 — Correlates by task: Compare two and its picker, Swap, country by country, Compare several, Find related, old links, All countries, Midyear', async ({
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries, Midyear through the note, the phone line', async ({
   page,
 }) => {
   // Every request is answered by the synthetic response made for it,
@@ -486,7 +486,8 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       .filter({ hasText: /^\d+%\*?$/ })
       .first(),
   ).toBeVisible()
-  await expect(page.getByText('Correlation', { exact: true })).toBeVisible()
+  // The strip names its scope; where is chosen under the shared row.
+  await expect(page.getByText('United States:', { exact: true })).toBeVisible()
   expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
 
   // The picker: browse a topic, then search, then pick.
@@ -521,12 +522,24 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     }),
   ).toBeVisible()
 
-  // Country by country: one dot per country, the grid gone; then back.
+  // Country by country: one dot per country, the grid gone, and the All
+  // countries average as a labelled rule — the chosen country still
+  // picked out; then back.
   await page.getByText('Country by country', { exact: true }).click()
   await expect(page).toHaveURL(/scope=all/)
+  const everyCountry = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  await expect(everyCountry).toBeVisible()
+  await expect(everyCountry).toHaveAttribute(
+    'aria-label',
+    /A dashed line marks the All countries average, [+−]?\d\.\d\d\*?\./,
+  )
   await expect(
-    page.getByRole('img', { name: /their correlation in each of 2 countries/ }),
+    everyCountry
+      .locator('svg text')
+      .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
+      .first(),
   ).toBeVisible()
+  expect(await everyCountry.innerHTML()).toContain('var(--control-selected)')
   await expect(page.getByText('Share of each column (columns add to 100%)')).toBeHidden()
   await page.getByText('In United States', { exact: true }).click()
   await expect(page).not.toHaveURL(/scope=/)
@@ -556,12 +569,17 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     name: `Correlations among ${plan.kept.length} questions`,
   })
   await expect(table.getByRole('table')).toBeVisible()
-  // Similar together: the server's order, the first column first.
+  // Similar together: the server's order, the first column first. Seven
+  // questions: numbered columns (review M7), each heading named for its
+  // question, over an empty corner that is no heading at all.
   await page.getByText('Similar together', { exact: true }).click()
   await expect(page).toHaveURL(/order=similar/)
-  await expect(table.getByRole('columnheader').nth(1)).toHaveText(
+  const firstColumn = table.getByRole('columnheader').first()
+  await expect(firstColumn).toHaveText('1')
+  await expect(firstColumn).toHaveAccessibleName(
     plan.order[0] === 'INCOME_FEELINGS' ? 'Feelings about household income' : /./,
   )
+  await expect(table.getByRole('rowheader').first()).toHaveText(/^1\. /)
   // Select a cell: Compare two, the column first and the row second (a
   // second question that is the first's default stays out of the URL).
   const [column, row] = plan.cell
@@ -623,7 +641,13 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(pooledAcross).toBeVisible()
   expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
-  await expect(page.getByText('Correlation', { exact: true })).toBeVisible()
+  await expect(page.getByText('All countries:', { exact: true })).toBeVisible()
+  await expect(
+    pooledAcross
+      .locator('svg text')
+      .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
+      .first(),
+  ).toBeVisible()
   await where.getByText('All countries', { exact: true }).click()
   await views.getByText('Compare several', { exact: true }).click()
   await expect(
@@ -709,6 +733,35 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       ),
     }),
   ).toBeVisible()
+  // Find related's note is plural, and its choice of year works the same.
+  await expect(page.getByText(/^The other questions use the same people’s/)).toBeVisible()
+  await page.getByRole('combobox', { name: 'Year of the other answers' }).selectOption('Y2')
+  await expect(page).toHaveURL(/other=Y2/)
+  await expect(
+    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
+      exact: false,
+    }),
+  ).toBeVisible()
+
+  // A phone: the shared row folds into one line; Change opens it in place.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/correlates')
+  await expect(
+    page.getByText('2023 · United States · Straight-line', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  const change = page.getByRole('button', { name: 'Change wave, country and correlation type' })
+  await change.click()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Correlation type' })).toBeVisible()
+  await page.getByRole('button', { name: 'Done changing' }).click()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  // No sideways scroll at phone width.
+  expect(
+    await page.evaluate<boolean>(
+      'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+    ),
+  ).toBe(true)
 })
 
 async function streamToString(download: {

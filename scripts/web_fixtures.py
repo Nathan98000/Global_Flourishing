@@ -108,7 +108,9 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
 #: then Find related for that cell's first question, whose top row opens
 #: Compare two again. Then All countries, averaged, in each view; and
 #: Midyear, from the chip (the midyear question beside the same people's
-#: 2023 answers, then 2024's, then back) and from the picker. The plan is
+#: 2023 answers, then 2024's, then back) and from the picker (Find related
+#: at Midyear, then 2024's answers through the note's choice); and the
+#: phone's summary line. The plan is
 #: written beside the fixtures (journey-10.json) so the spec needn't
 #: repeat the server's choices; each fixture is named from its request
 #: (``scope``), as the spec's route handlers rebuild the name.
@@ -187,6 +189,15 @@ def correlation_fixtures(
             {"outcome": first, "wave": "Y1", "against": second, "by": "country_code"},
         )
     )
+    # ... and the All countries average its rule marks (the chosen country
+    # still picked out).
+    fixtures.append(
+        (
+            f"correlates-{first}-Y1-all-ranked-{second}.json",
+            "/v1/correlates",
+            {"outcome": first, "against": second, **POOLED},
+        )
+    )
     # Compare several: the pair and the first question's top four.
     top = [name for name in ranked(first) if name != second][:4]
     default = [first, second, *top]
@@ -229,7 +240,10 @@ def correlation_fixtures(
     # from the picker, Find related's question at Midyear.
     for other in ("Y1", "Y2"):
         pair(b, MIDYEAR_QUESTION, {**BASE, "wave": "MY", "other_wave": other})
-    ranked(MIDYEAR_QUESTION, {**BASE, "wave": "MY", "other_wave": "Y1"})
+    # Find related at Midyear, beside 2023 answers and — through the note's
+    # choice of year — 2024's.
+    for other in ("Y1", "Y2"):
+        ranked(MIDYEAR_QUESTION, {**BASE, "wave": "MY", "other_wave": other})
     plan: dict[str, object] = {
         "picked": {"name": JOURNEY_PICKED, "display_name": display(JOURNEY_PICKED)},
         "default": default,
