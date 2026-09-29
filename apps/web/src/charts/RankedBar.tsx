@@ -90,18 +90,27 @@ const LABEL_PAD = 12
 /** Under jsdom nothing is laid out: a label's width is estimated. */
 const CHAR_EM = 0.55
 
-/** The chart's text measurer: canvas in the chart's own face once the
- * page is laid out; an estimate before (and under jsdom, which has no
- * canvas). */
-export function textMeasurer(fontSize: number, laidOut: boolean): (text: string) => number {
+/** A bold face runs this much wider than the regular one (the estimate's
+ * allowance, before layout). */
+const BOLD_EM = 1.08
+
+/** The chart's text measurer: canvas in the chart's own face (and
+ * weight) once the page is laid out; an estimate before (and under
+ * jsdom, which has no canvas). */
+export function textMeasurer(
+  fontSize: number,
+  laidOut: boolean,
+  weight = 400,
+): (text: string) => number {
   if (laidOut && typeof document !== 'undefined') {
     const context = document.createElement('canvas').getContext('2d')
     if (context) {
-      context.font = `${fontSize}px ${FONT_FAMILY}`
+      context.font = `${weight} ${fontSize}px ${FONT_FAMILY}`
       return (text) => context.measureText(text).width
     }
   }
-  return (text) => text.length * fontSize * CHAR_EM
+  const em = CHAR_EM * (weight >= 600 ? BOLD_EM : 1)
+  return (text) => text.length * fontSize * em
 }
 
 /** A label broken at word boundaries into lines no wider than `width`,
