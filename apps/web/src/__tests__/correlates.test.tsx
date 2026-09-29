@@ -51,6 +51,7 @@ import {
   acrossSubtitle,
   legendEnds,
   pairAxisTitle,
+  likelyRange,
   pairBarTip,
   pairCellTip,
   pinnedFirst,
@@ -1703,33 +1704,34 @@ describe('correlates helpers', () => {
     }
     expect(pairAxisTitle(incomeVariable, feelingsDetail)).toBe('Feelings about household income')
     expect(pairAxisTitle(sfiVariable, todayDetail)).toBe('Secure Flourishing Index')
+    // Tooltips in plain words (review M2): three lines, no asterisk, no n.
+    expect(likelyRange(0.438, 0.864)).toBe('Likely range: 44%–86%')
+    expect(likelyRange(-0.004, 0.021)).toBe('Likely range: 0%–2%')
+    expect(likelyRange(null, 0.5)).toBeUndefined()
     const tip = {
-      aLevel: '3',
+      aLevel: '0',
       aShort: 'Life evaluation today',
-      bLevel: 'Getting by on present income',
-      bShort: 'Feelings about household income',
-      share: 0.184,
-      interval: '95% CI [15.0%, 21.8%]',
-      flagged: false,
+      bLevel: 'Finding it very difficult on present income',
+      share: 0.65,
+      range: likelyRange(0.438, 0.864),
     }
     expect(pairCellTip(tip)).toBe(
-      'Of people who answered 3 to Life evaluation today, 18% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
+      'Life evaluation today: 0\n65% — Finding it very difficult on present income\nLikely range: 44%–86%',
     )
-    expect(pairCellTip({ ...tip, share: 0.004, flagged: true })).toBe(
-      'Of people who answered 3 to Life evaluation today, <1%* answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
+    expect(pairCellTip({ ...tip, share: 0.004, range: undefined })).toBe(
+      'Life evaluation today: 0\n<1% — Finding it very difficult on present income',
     )
     expect(pairCellTip({ ...tip, share: null })).toBe(
-      'Nobody here answered 3 to Life evaluation today.',
+      'Life evaluation today: 0\nNobody here gave this answer.',
     )
     expect(
       pairBarTip({
         level: '8',
         short: 'Life evaluation today',
-        share: 0.21,
-        interval: undefined,
-        flagged: false,
+        share: 0.25,
+        range: likelyRange(0.2474, 0.2561),
       }),
-    ).toBe('21% answered 8 to Life evaluation today.')
+    ).toBe('Life evaluation today: 8\n25% of people\nLikely range: 25%–26%')
     // Shares: whole percents, "<1%" for a sliver, never "0%" above zero.
     expect(shareLabel(0.57)).toBe('57%')
     expect(shareLabel(0.004)).toBe('<1%')

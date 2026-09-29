@@ -183,8 +183,14 @@ the plain average of the countries, which reads +0.10.
    did not ask pulls the page to Midyear.
 
 5. **Copy, labels and type.** Tooltips lose "Few people gave these
-   answers, so this estimate is less reliable." and keep the value's
-   asterisk; still no n in any tooltip (ADR-0016). The asterisk's key
+   answers, so this estimate is less reliable."; still no n in any
+   tooltip (ADR-0016). Compare two's grid and bars say theirs in plain
+   words, in three lines — the column ("Life evaluation today: 0"), the
+   share and the row's answer ("65% — Finding it very difficult on
+   present income") or "25% of people", and "Likely range: 44%–86%" in
+   place of "95% CI [a, b]" — with no asterisk inside them (the cell
+   carries it); ranked rows and matrix cells keep "+0.41 · Gratitude",
+   the value starred when few people are behind it. The asterisk's key
    reads "* small sample size" everywhere on the page, and screen readers
    hear ", small sample size"; Compare two's summary ends "… N cells are
    starred: small sample size." Every Correlates chart ends, after its

@@ -135,7 +135,8 @@ a conservative, standard choice. The parity suite pins this behaviour to
 R exactly, including its subtleties for subgroups.
 
 Intervals shown are **95% confidence intervals**, estimate ± 1.96
-standard errors (normal-based, like R's `confint` on a `svymean`). With
+standard errors (normal-based, like R's `confint` on a `svymean`); the
+Correlates page's tooltips call the interval the *likely range*. With
 the study's sample sizes the normal approximation is comfortable for
 typical cells; in the very small cells the app now shows (see below),
 read the interval — and the n — with care, and a cell resting on a

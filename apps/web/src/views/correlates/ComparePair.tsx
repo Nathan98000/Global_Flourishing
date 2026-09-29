@@ -37,7 +37,7 @@ import { QuestionPicker } from '../../components/controls/QuestionPicker'
 import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, pairToCsv, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
-import { ciText, formatEstimate } from '../../format'
+import { formatEstimate } from '../../format'
 import { groupValueLabel, shortName } from '../../labels'
 import {
   correlatesAcrossCountries,
@@ -56,6 +56,7 @@ import {
   averagedOver,
   FEW_PEOPLE_KEY,
   fewPeople,
+  likelyRange,
   pooledPlace,
   scopeLabel,
   pairAxisTitle,
@@ -359,7 +360,6 @@ function PairFigure({
   header: ReactNode
 }) {
   const aShort = yearTagged(shortName(a), a, wave, other)
-  const bShort = yearTagged(shortName(b), b, wave, other)
   const columnLabel = useMemo(
     () => new Map(pair.columns.map((column) => [column.code, column.label])),
     [pair],
@@ -376,16 +376,7 @@ function PairFigure({
           level: column.label,
           short: aShort,
           share: column.share,
-          interval:
-            column.ci_lo !== null && column.ci_hi !== null
-              ? ciText({
-                  ci_lo: column.ci_lo,
-                  ci_hi: column.ci_hi,
-                  ci_level: pair.shares.meta.ci_level,
-                  stat: 'proportion',
-                })
-              : undefined,
-          flagged: column.flagged,
+          range: likelyRange(column.ci_lo, column.ci_hi),
         }),
       })),
     [pair, aShort],
@@ -408,15 +399,12 @@ function PairFigure({
             aLevel: columnLabel.get(cell.x) ?? String(cell.x),
             aShort,
             bLevel: rowLabel.get(cell.y) ?? String(cell.y),
-            bShort,
             share: cell.share,
-            interval:
-              record && record.ci_lo !== null && record.ci_hi !== null ? ciText(record) : undefined,
-            flagged: cell.flagged,
+            range: record ? likelyRange(record.ci_lo, record.ci_hi) : undefined,
           }),
         }
       }),
-    [pair, aShort, bShort, columnLabel, rowLabel],
+    [pair, aShort, columnLabel, rowLabel],
   )
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,

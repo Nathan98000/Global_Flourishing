@@ -306,50 +306,51 @@ export function pairAxisTitle(
   return ends ? `${short} · ${ends.slice(1, -1)}` : short
 }
 
-/** A cell's tooltip: the column's people, the share of them who gave the
- * row's answer (starred when few people are behind it) and its interval
- * (ADR-0016) — never the n. */
+/** A share's interval in plain words (review M2): "Likely range:
+ * 44%–86%", whole percents, never below 0% or above 100%; none when the
+ * interval can't be computed. */
+export function likelyRange(lo: number | null, hi: number | null): string | undefined {
+  if (lo === null || hi === null) return undefined
+  const percent = (value: number) => `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
+  return `Likely range: ${percent(lo)}–${percent(hi)}`
+}
+
+/** A cell's tooltip, in three lines (review M2): the column — "Life
+ * evaluation today: 0" — then the share and the row's answer — "65% —
+ * Finding it very difficult on present income" — then its likely range.
+ * No asterisk here (the cell carries it) and never the n (ADR-0016). */
 export function pairCellTip({
   aLevel,
   aShort,
   bLevel,
-  bShort,
   share,
-  interval,
-  flagged,
+  range,
 }: {
   aLevel: string
   aShort: string
   bLevel: string
-  bShort: string
   share: number | null
-  interval: string | undefined
-  flagged: boolean
+  range: string | undefined
 }): string {
-  if (share === null) return `Nobody here answered ${aLevel} to ${aShort}.`
-  const lines = [
-    `Of people who answered ${aLevel} to ${aShort}, ${starred(shareLabel(share), flagged)} answered ${bLevel} to ${bShort}.`,
-  ]
-  if (interval) lines.push(interval)
-  return lines.join('\n')
+  const column = `${aShort}: ${aLevel}`
+  if (share === null) return `${column}\nNobody here gave this answer.`
+  return [column, `${shareLabel(share)} — ${bLevel}`, ...(range ? [range] : [])].join('\n')
 }
 
-/** A bar's tooltip: the share who gave that answer (starred when its
- * column rests on few people), and its interval. */
+/** A bar's tooltip: "Life evaluation today: 8", "25% of people", then
+ * its likely range. */
 export function pairBarTip({
   level,
   short,
   share,
-  interval,
-  flagged,
+  range,
 }: {
   level: string
   short: string
   share: number
-  interval: string | undefined
-  flagged: boolean
+  range: string | undefined
 }): string {
-  const lines = [`${starred(shareLabel(share), flagged)} answered ${level} to ${short}.`]
-  if (interval) lines.push(interval)
-  return lines.join('\n')
+  return [`${short}: ${level}`, `${shareLabel(share)} of people`, ...(range ? [range] : [])].join(
+    '\n',
+  )
 }
