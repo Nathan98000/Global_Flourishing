@@ -800,6 +800,9 @@ variables:
   TIME_MEDIA:
     display_name: Daily social media time
     family: midyear
+    # The codebook reads "…platforms, such as [EXAMPLE]?": the survey named
+    # popular platforms country by country (review H2, 29 Sept 2026).
+    wording: "On average, how much time do you spend each day using social media platforms (the survey named popular ones in each country)?"
     notes: "1 = None … 5 = More than 2 hours; ordered bands."
   FOOD_INSECURE:
     display_name: Household ran out of food

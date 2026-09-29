@@ -6,8 +6,8 @@
     "polars": "1.44.2",
     "pyarrow": "25.0.1"
   },
-  "generated_at_utc": "2026-09-25T15:44:16+00:00",
-  "git_sha": "87d25574b2983adf3013c11397559c503ff3bc24",
+  "generated_at_utc": "2026-09-29T21:53:02+00:00",
+  "git_sha": "95928d1acff188089a8945f707faf27b3e230b5a",
   "inputs": [
     {
       "bytes": 137525983,
@@ -30,10 +30,10 @@
   ],
   "outputs": [
     {
-      "bytes": 873489,
+      "bytes": 873518,
       "path": "data/catalog.json",
       "rows": null,
-      "sha256": "11c02aa4a275cf83b16f0af43742c3ec5b11e2fd86327fe8c1134799443821db"
+      "sha256": "acad60d90bd755c393c96a1637d9b8d5f9df91e07c497ab899568168eafb6d61"
     },
     {
       "bytes": 8067,
@@ -48,10 +48,10 @@
       "sha256": "1a39e2d1da872ef116310b71f25994c61e5d7f35971b6ea7d125a53830332698"
     },
     {
-      "bytes": 25754,
+      "bytes": 25767,
       "path": "data/catalog/variables.parquet",
       "rows": 182,
-      "sha256": "809f119d87f5a2e7d7200efaa278809c037e07d0f336229d8b060f83dead5478"
+      "sha256": "76e98d841289a91146b999a0f4aedad2eda44eefbff5dbaafd3bd8d2da24b5ad"
     },
     {
       "bytes": 28806,
@@ -96,16 +96,16 @@
       "sha256": "a03390f6c9143ea5846d14ab409287b82d715f80145c62a3e66c8e2e64192632"
     },
     {
-      "bytes": 25754,
+      "bytes": 25767,
       "path": "data/parquet/variables.parquet",
       "rows": 182,
-      "sha256": "809f119d87f5a2e7d7200efaa278809c037e07d0f336229d8b060f83dead5478"
+      "sha256": "76e98d841289a91146b999a0f4aedad2eda44eefbff5dbaafd3bd8d2da24b5ad"
     },
     {
       "bytes": 6965,
       "path": "data/validation_report.md",
       "rows": null,
-      "sha256": "6ec4b7c858277657ada6ae9197d6474409038f9b79b68fb90fdb0d290c705fd6"
+      "sha256": "2070d7ca06c4c4104f2b61a413e8cd06313730f24e57d30b2c90b5094fc3fe88"
     },
     {
       "bytes": 340479,
@@ -114,20 +114,20 @@
       "sha256": "fbbe4d316316716df228496991c3d9981fde86e960d713c2c5c4db7e989c3ead"
     },
     {
-      "bytes": 150745088,
+      "bytes": 150482944,
       "path": "data/flourish.duckdb",
       "rows": 33295632,
-      "sha256": "ac94c1e3de984311f3bd58620388b6b62a8b95b7665df3437e41d86c7d2618c9"
+      "sha256": "99961df8ab5e181fca94d2148aaeb0bda83e309753c5e25e960c50bd40f5f7c9"
     }
   ],
   "pipeline_version": "0.2.0",
   "stage_seconds": {
-    "aggregate": 71.9,
-    "codebook": 2.73,
-    "derive": 2.67,
-    "ingest": 0.62,
-    "manifest": 0.27,
-    "reshape": 2.7,
-    "validate": 0.78
+    "aggregate": 77.11,
+    "codebook": 2.55,
+    "derive": 2.28,
+    "ingest": 0.6,
+    "manifest": 0.25,
+    "reshape": 2.67,
+    "validate": 0.66
   }
 }

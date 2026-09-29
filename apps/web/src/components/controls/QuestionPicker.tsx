@@ -29,7 +29,7 @@ import {
 } from 'react'
 import type { VariableSummary, Wave } from '../../api/types'
 import { shortName } from '../../labels'
-import { subtopicsOf, topicFamily, topicsOf } from '../../topics'
+import { pickerTopicName, subtopicsOf, topicFamily, topicsOf } from '../../topics'
 import { searchMeasures } from './OutcomePicker'
 import styles from './QuestionPicker.module.css'
 
@@ -114,7 +114,7 @@ function shelvesOf(variables: readonly VariableSummary[]): Shelf[] {
     const subtopics = subtopicsOf(topic.measures)
     const own: Shelf = {
       key: topic.family,
-      name: topic.name,
+      name: pickerTopicName(topic.family),
       depth: 0,
       family: topic.family,
       sections:
@@ -310,7 +310,7 @@ function Panel(
     const matches = new Set(searchMeasures([...variables], needle).map((v) => v.name))
     return topicsOf([...variables])
       .map((topic) => ({
-        title: topic.name,
+        title: pickerTopicName(topic.family),
         items: topic.measures.filter((v) => matches.has(v.name)),
       }))
       .filter((section) => section.items.length > 0)

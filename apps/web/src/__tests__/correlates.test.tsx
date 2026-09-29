@@ -877,21 +877,21 @@ describe('Correlates view', () => {
       (node) => node.textContent,
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
-    // The key and the axis ends say "a higher/lower" question.
-    // "higher" and "lower" set apart: <em> in the key, bold italic
-    // tspans in ink under the axis (so the PNG carries them).
-    // (The key's words are one inline run: the <em> sits inside it.)
-    const inKey = (words: string) =>
-      screen.getByText(
-        (_, node) =>
-          node?.textContent === words &&
-          node.querySelector('em') !== null &&
-          !node.querySelector('span'),
-      )
-    expect(inKey('Goes with a higher Happiness').querySelector('em')).toHaveTextContent(/^higher$/)
-    expect(inKey('Goes with a lower Happiness').querySelector('em')).toHaveTextContent(/^lower$/)
-    expect(svgText).toContain('← goes with a lower Happiness')
-    expect(svgText).toContain('goes with a higher Happiness →')
+    // No dot key above the list (review L6): the axis ends carry the
+    // direction, in answers — "higher answers to", never "a higher" (L2).
+    // "higher" and "lower" set apart: bold italic tspans in ink under the
+    // axis (so the PNG carries them).
+    expect(screen.queryByText(/^Goes with a/)).toBeNull()
+    // (Each end may wrap: read its lines as words.)
+    const ends = [...figure.querySelectorAll('g[aria-description="axis end"] text')].map((node) => {
+      const lines = [...node.querySelectorAll(':scope > tspan')]
+      return (lines.length > 0 ? lines : [node]).map((line) => line.textContent).join(' ')
+    })
+    expect(ends).toEqual([
+      '← goes with lower answers to Happiness',
+      'goes with higher answers to Happiness →',
+    ])
+    expect(svgText).not.toMatch(/with a (higher|lower)/)
     const turns = [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style]')]
     expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
     for (const node of turns) {
@@ -982,7 +982,7 @@ describe('Correlates view', () => {
       (_, node) =>
         node?.tagName === 'SPAN' &&
         node.textContent ===
-          'rust: goes with a lower Happiness · teal: goes with a higher Happiness',
+          'rust: goes with lower answers to Happiness · teal: goes with higher answers to Happiness',
     )
     expect([...legendWords.querySelectorAll('em')].map((node) => node.textContent)).toEqual([
       'lower',
@@ -1204,6 +1204,16 @@ describe('Correlates view', () => {
     // The weighting in words; no weight code.
     expect(text).toContain('Weighted to each country’s adult population.')
     expect(text).not.toMatch(/w_c1|Weighted estimates/)
+  })
+
+  test('Swap keeps to the last picker’s line: one no-wrap group with the "?" (review L3)', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    const swap = screen.getByRole('button', { name: /Swap/ })
+    const group = swap.parentElement as HTMLElement
+    expect(within(group).getByRole('button', { name: /^Second question:/ })).toBeInTheDocument()
+    expect(group.textContent).toMatch(/\?⇄ Swap$/)
   })
 
   test('Compare two: pick either question, and Swap exchanges the two', async () => {
@@ -1591,10 +1601,11 @@ describe('Correlates view', () => {
     expect(paragraphs[1]).toMatch(/^Straight-line \(Pearson\) treats answers as numbers/)
     expect(paragraphs[2]).toMatch(/^By rank \(Spearman\) puts people in order/)
     expect(paragraphs[3]).toMatch(/are pulling Straight-line\.$/)
+    // Only the method names in their own paragraphs are bold; the last
+    // sentence's "Straight-line" is plain (review L5).
     expect([...panel.querySelectorAll('strong')].map((b) => b.textContent)).toEqual([
       'Straight-line (Pearson)',
       'By rank (Spearman)',
-      'Straight-line',
     ])
     fireEvent.keyDown(info, { key: 'Escape' })
     expect(info).toHaveAttribute('aria-expanded', 'false')
@@ -1773,8 +1784,8 @@ describe('correlates helpers', () => {
       'Japan · Wave 2, 2024 · correlation, −1 to 1',
     )
     expect(axisEnds('Happiness')).toEqual([
-      '← goes with a lower Happiness',
-      'goes with a higher Happiness →',
+      '← goes with lower answers to Happiness',
+      'goes with higher answers to Happiness →',
     ])
     // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
     // correlation few people are behind keeps its asterisk, and no more.

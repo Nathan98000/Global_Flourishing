@@ -274,3 +274,13 @@ def test_the_midyear_timing_the_page_words_on_the_release(built_client: TestClie
     assert len(rows) == 23
     share = sum(row["type_2"] for row in rows) / sum(row["type_1"] + row["type_2"] for row in rows)
     assert 0.64 < share < 0.68
+
+
+def test_no_displayed_wording_carries_a_codebook_placeholder(built_client: TestClient) -> None:
+    """Review H2: every wording the page shows — the summaries and the
+    codebook entries alike — reads as a question, never "[EXAMPLE]"."""
+    variables = built_client.get("/v1/variables").json()["variables"]
+    bracketed = [row["name"] for row in variables if "[" in (row["wording"] or "")]
+    assert bracketed == []
+    detail = built_client.get("/v1/variables/TIME_MEDIA").json()
+    assert detail["wording"].endswith("(the survey named popular ones in each country)?")

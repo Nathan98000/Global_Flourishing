@@ -115,6 +115,10 @@ class VariableOverride:
     short_labels: dict[int, str] = field(default_factory=dict[int, str])
     extra_value_labels: tuple[ExtraValueLabel, ...] = ()
     codebook_headings: tuple[str, ...] = ()
+    #: The question's wording where the codebook's cannot be shown as it
+    #: stands (a placeholder the survey filled in per country); None keeps
+    #: the codebook's.
+    wording: str | None = None
     notes: str | None = None
     review_status: str = "reviewed"
     is_us_only: bool = False
@@ -221,6 +225,9 @@ def _parse_variable(name: str, raw: Any, *, us_only: bool) -> VariableOverride:
         short_labels=short_labels,
         extra_value_labels=tuple(extra_value_labels),
         codebook_headings=tuple(str(h) for h in entry.get("codebook_headings", [])),
+        wording=None
+        if entry.get("wording") is None
+        else _require_str(entry.get("wording"), f"{name}.wording"),
         notes=None if entry.get("notes") is None else str(entry["notes"]),
         review_status=review_status,
         is_us_only=us_only,

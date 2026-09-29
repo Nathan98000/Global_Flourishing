@@ -254,7 +254,18 @@ the plain average of the countries, which reads +0.10.
    Straight-line", with a "Change" button that opens it in place (the row
    note, with its choice of year, and the notice stay in view), so the
    chart starts on the first screen; a phone's grid gives each row label
-   more room above it than below it, so it reads with its own row.
+   more room above it than below it, so it reads with its own row. Axis
+   ends and keys speak of answers — "← goes with lower answers to
+   Happiness", "← higher answers to A go with lower answers to B" — never
+   "a higher Happiness", the turning words still set apart; Find related
+   drops the dot key above its list (the axis ends carry the direction);
+   Swap keeps to the last picker's line, one no-wrap group with the "?"
+   (a phone gives it the group's second row); the Correlates picker names
+   the midyear topic "Midyear survey" (topics.ts keeps "What matters to
+   people" for other pages); and the info box's last "Straight-line" is
+   not bold. The midyear social-media question's wording, "…such as
+   [EXAMPLE]?" in the codebook (the survey named platforms country by
+   country), is worded at the source by a new `wording` override.
 
 Standing rules, unchanged: no generated takeaways; one chart on screen at
 a time; no cause-and-effect reminder; no small-group cutoffs; no adjusted

@@ -56,7 +56,6 @@ import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } f
 import {
   DivergingLegend,
   Failure,
-  Turns,
   orderedAt,
   pickerTag,
   questionReason,
@@ -227,29 +226,6 @@ export function FindRelated({
                       <WordingPanel detail={detail} />
                     </div>
                   )}
-                  {/* The two hues, said before the rows that wear them. */}
-                  <p className={styles.signKey}>
-                    <span>
-                      <span
-                        className={styles.keyDot}
-                        style={{ background: signMark(1) }}
-                        aria-hidden="true"
-                      />
-                      <span>
-                        <Turns text={`Goes with a higher ${short}`} />
-                      </span>
-                    </span>
-                    <span>
-                      <span
-                        className={styles.keyDot}
-                        style={{ background: signMark(-1) }}
-                        aria-hidden="true"
-                      />
-                      <span>
-                        <Turns text={`Goes with a lower ${short}`} />
-                      </span>
-                    </span>
-                  </p>
                 </>
               }
               response={rankedResponse}
@@ -312,7 +288,7 @@ export function FindRelated({
               search.method,
               otherWave,
             )}
-            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
+            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
             meta={served}

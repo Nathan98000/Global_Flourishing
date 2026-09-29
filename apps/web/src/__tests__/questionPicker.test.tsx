@@ -108,7 +108,8 @@ describe('QuestionPicker', () => {
       'Wellbeing2',
       'Mental health1',
       'Religion & spirituality2',
-      'What matters to people0',
+      // The Correlates picker's own name for the midyear topic (review L4).
+      'Midyear survey0',
     ])
     const wellbeing = within(topics).getByRole('option', { name: /Wellbeing/ })
     expect(wellbeing).toHaveAttribute('aria-selected', 'true')

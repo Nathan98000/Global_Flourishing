@@ -222,9 +222,7 @@ export const METHOD_DIFFERENCE: readonly (readonly Words[])[] = [
     ' puts people in order on each question and asks how closely the two orders match. Only the order counts, not the size of the gaps, so it suits answers like “Never … Always”, and unusual answers pull it less.',
   ],
   [
-    'The two are usually close. A big difference means the pattern bends (steep at one end, flat at the other), or a few unusual answers are pulling ',
-    { strong: 'Straight-line' },
-    '.',
+    'The two are usually close. A big difference means the pattern bends (steep at one end, flat at the other), or a few unusual answers are pulling Straight-line.',
   ],
 ]
 
@@ -267,9 +265,10 @@ export const CORRELATION_SCALE = {
   narrowTicks: [-1, 0, 1],
 }
 
-/** The words under the axis's two ends (Find related). */
+/** The words under the axis's two ends (Find related): the question's
+ * answers, never the question as a quantity (review L2). */
 export function axisEnds(short: string): [string, string] {
-  return [`← goes with a lower ${short}`, `goes with a higher ${short} →`]
+  return [`← goes with lower answers to ${short}`, `goes with higher answers to ${short} →`]
 }
 
 /** A ranked row's tooltip: the signed value — with its asterisk when

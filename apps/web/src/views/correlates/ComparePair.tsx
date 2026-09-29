@@ -213,16 +213,17 @@ export function ComparePair({
               triggerTag={triggerTag(b, search)}
               onPick={(name) => setSearch({ b: name })}
             />
-            ?
+            <span>?</span>
+            {/* Swap keeps to the last picker's line (review L3). */}
+            <button
+              type="button"
+              className={own.swap}
+              onClick={() => setSearch({ a: bName, b: aName })}
+            >
+              <span aria-hidden="true">⇄ </span>Swap
+            </button>
           </span>
         </p>
-        <button
-          type="button"
-          className={own.swap}
-          onClick={() => setSearch({ a: bName, b: aName })}
-        >
-          <span aria-hidden="true">⇄ </span>Swap
-        </button>
       </div>
       {controls}
       {/* Where, in the one place every view has it: under the shared row. */}
@@ -655,8 +656,8 @@ function EveryCountry({
         labelFontSize={narrow ? 12 : 13.5}
         fixedScale={CORRELATION_SCALE}
         axisEnds={[
-          `← higher ${aShort} goes with lower ${bShort}`,
-          `higher ${aShort} goes with higher ${bShort} →`,
+          `← higher answers to ${aShort} go with lower answers to ${bShort}`,
+          `higher answers to ${aShort} go with higher answers to ${bShort} →`,
         ]}
         stackOnNarrow
         tipOf={(row, label) => rankedTip(row, label, fewPeople(row, minN))}

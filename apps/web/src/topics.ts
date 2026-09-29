@@ -43,6 +43,19 @@ export function topicFamily(variable: Pick<VariableSummary, 'name' | 'family'>):
   return TOPIC_OF_MEASURE[variable.name] ?? variable.family
 }
 
+/** The Correlates picker's own name for a topic where the page's reads
+ * wrong there (review L4): its midyear topic holds social-media time,
+ * running out of food, diligence and the arts — the midyear survey's
+ * questions — so it reads "Midyear survey"; every other page keeps
+ * TOPIC_NAMES. */
+const PICKER_TOPIC_NAMES: Record<string, string> = {
+  midyear: 'Midyear survey',
+}
+
+export function pickerTopicName(family: string): string {
+  return PICKER_TOPIC_NAMES[family] ?? topicName(family)
+}
+
 export function topicName(family: string): string {
   const named = TOPIC_NAMES[family]
   if (named) return named
