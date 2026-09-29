@@ -14,6 +14,7 @@ import { shortName } from '../../labels'
 import type { CorrelatesSearch } from '../../state/search'
 import { WAVE_CHIPS } from '../../waves'
 import { FEW_PEOPLE_KEY, legendEnds } from '../correlatesRows'
+import { answerWaveOf, isMidyear, onlyAtMidyear, otherWaveOf, type OtherWave } from './midyear'
 import styles from '../AtlasView.module.css'
 import own from './Correlates.module.css'
 
@@ -32,16 +33,23 @@ export interface ViewProps {
   /** The shared row — wave, country, correlation type — which each view
    * places under its own question sentence. */
   controls: ReactNode
+  /** Compare several reports the questions its table shows (its default
+   * table's, before any is named): the wave row reads them. */
+  onTable?: (names: readonly string[]) => void
 }
 
-/** Whether a question can be correlated at a wave: served, ordered, asked. */
-export function orderedAt(variable: VariableSummary | undefined, wave: Wave): boolean {
-  return (
-    variable !== undefined &&
-    variable.servable &&
-    variable.scale_type !== 'nominal' &&
-    variable.waves_available.includes(wave)
-  )
+/** Whether a question can be correlated at a wave: served, ordered,
+ * asked — at Midyear, in the midyear survey or in the other answers'
+ * wave, whose answers it then reads (ADR-0020). */
+export function orderedAt(
+  variable: VariableSummary | undefined,
+  wave: Wave,
+  other?: OtherWave,
+): boolean {
+  if (variable === undefined || !variable.servable || variable.scale_type === 'nominal')
+    return false
+  if (variable.waves_available.includes(wave)) return true
+  return wave === 'MY' && variable.waves_available.includes(other ?? 'Y1')
 }
 
 /** "Not asked in 2023", "Not asked in the midyear survey". */
@@ -51,11 +59,44 @@ export function notAskedIn(wave: Wave): string {
     : `Not asked in ${WAVE_CHIPS[wave] ?? wave}`
 }
 
-/** Why a question can't be chosen at a wave, in a picker's words. */
+/** Why a question can't be chosen at a wave, in a picker's words. A
+ * midyear question can be chosen at every wave (the page then shows
+ * Midyear), and at Midyear any other question that 2023 or 2024 asked —
+ * it reads the same people's answers from then (ADR-0020). */
 export function questionReason(variable: VariableSummary, wave: Wave): string | undefined {
-  if (!variable.waves_available.includes(wave)) return notAskedIn(wave)
+  if (!isMidyear(variable)) {
+    if (wave === 'MY') {
+      if (!variable.waves_available.some((asked) => asked === 'Y1' || asked === 'Y2'))
+        return 'Not asked in 2023 or 2024'
+    } else if (!variable.waves_available.includes(wave)) return notAskedIn(wave)
+  }
   if (variable.scale_type === 'nominal') return 'Answers have no order'
   return undefined
+}
+
+/** A picker's tag for an option (ADR-0020): "Midyear" on the midyear
+ * survey's questions; at Midyear, the year the others' answers come from. */
+export function pickerTag(
+  variable: VariableSummary,
+  search: Pick<CorrelatesSearch, 'wave' | 'other'>,
+): string | undefined {
+  if (search.wave !== 'MY') return onlyAtMidyear(variable, search.wave) ? 'Midyear' : undefined
+  if (isMidyear(variable)) return 'Midyear'
+  // One not asked in 2024 is read from 2023 (picking it switches there).
+  const wave = variable.waves_available.includes(otherWaveOf(search))
+    ? answerWaveOf(variable, search)
+    : 'Y1'
+  return `${WAVE_CHIPS[wave] ?? wave} answers`
+}
+
+/** A closed picker's tag: at Midyear, the year another wave's question
+ * reads its answers from ("2023"). */
+export function triggerTag(
+  variable: VariableSummary | undefined,
+  search: Pick<CorrelatesSearch, 'wave' | 'other'>,
+): string | undefined {
+  if (search.wave !== 'MY' || !variable || isMidyear(variable)) return undefined
+  return WAVE_CHIPS[otherWaveOf(search)]
 }
 
 /** Why a question can't be set beside `other` in Compare two: it is the

@@ -116,6 +116,27 @@
   font-size: var(--text-xs);
 }
 
+/* The wave chips, and — at Midyear — where the other questions' answers
+   come from, directly under them (ADR-0020). */
+.waveCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* What changed on its own: one line under the row, in ink, polite. */
+.notice {
+  max-width: 40rem;
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+
+/* Empty, it takes no room — but stays in the page, so it can speak. */
+.notice:empty {
+  margin: 0;
+}
+
 @media (max-width: 40rem) {
   .controlCells {
     display: grid;

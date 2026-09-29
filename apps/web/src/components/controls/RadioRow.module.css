@@ -46,6 +46,12 @@
   box-shadow: inset 0 -2px 0 var(--control-rule);
 }
 
+/* A compact row under another (size="small"). */
+.row[data-size='small'] .option {
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+}
+
 .option[data-disabled] {
   color: var(--ink-muted);
   opacity: 1;

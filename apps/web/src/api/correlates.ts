@@ -39,6 +39,9 @@ export interface CorrelatesRequest {
   countries?: readonly number[]
   /** Every country pooled by adult population, in place of `countries`. */
   pooled?: boolean
+  /** At the midyear survey: the wave the other questions' answers come
+   * from (ADR-0020); absent = the server's default, 2023. */
+  otherWave?: 'Y1' | 'Y2'
   filters?: readonly DomainFilter[]
   /** Predictors a ranked sweep returns (the server's default otherwise). */
   limit?: number
@@ -54,6 +57,7 @@ export function canonicalCorrelatesParams(request: CorrelatesRequest): URLSearch
   for (const column of request.by) params.append('by', column)
   for (const code of request.countries ?? []) params.append('filter', `country_code:${code}`)
   if (request.pooled) params.set('pooled', 'population')
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   for (const filter of request.filters ?? [])
     for (const value of filter.values) params.append('filter', `${filter.column}:${value}`)
   if (request.limit !== undefined) params.set('limit', String(request.limit))

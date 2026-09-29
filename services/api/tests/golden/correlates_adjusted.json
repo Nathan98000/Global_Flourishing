@@ -1,6 +1,7 @@
 {
   "meta": {
     "adjusted": true,
+    "answer_waves": null,
     "by": [
       "country_code"
     ],
@@ -23,6 +24,7 @@
     "n_frame": 120,
     "n_valid": 108,
     "oriented": false,
+    "other_wave": null,
     "outcome": "HAPPY",
     "pooled": null,
     "population_source": null,

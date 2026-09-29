@@ -220,3 +220,18 @@ def test_the_adult_population_table_covers_the_23_countries() -> None:
     }
     with pytest.raises(ValueError, match="no adult population"):
         table.by_country({1: "TST"})
+
+
+def test_midyear_answers_pair_with_either_wave_on_its_own_frame() -> None:
+    """ADR-0020: 2023 answers on the Wave 1 → midyear frame, 2024 answers
+    on the three-point frame — never my_y2, whose type-1 restriction is
+    about change, not correlation."""
+    y1 = weights.pairing_spec("Y1")
+    assert (y1.key, y1.weight) == ("y1_my", "w_l1m")
+    assert y1.requires_has_midyear and not y1.requires_retained_y2
+    y2 = weights.pairing_spec("Y2")
+    assert (y2.key, y2.weight) == ("y1_my_y2", "w_l1m2")
+    assert y2.requires_has_midyear and y2.requires_retained_y2
+    assert not y2.requires_midyear_type_1
+    with pytest.raises(KeyError, match="pair with"):
+        weights.pairing_spec("MY")

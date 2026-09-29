@@ -49,14 +49,14 @@ from flourish_api.queries import (
 from flourish_api.schemas import EstimateRow
 
 #: Bumped whenever what the file holds changes shape or meaning.
-FORMAT = 1
+FORMAT = 2
 #: The Parquet key-value metadata key the file's facts ride under.
 _META_KEY = "flourish_pooled"
 
 #: The frames a pooled request can take: (wave, the other questions'
 #: answer wave at the midyear survey — None elsewhere).
 Config = tuple[str, str | None]
-CONFIGS: tuple[Config, ...] = (("Y1", None), ("MY", None), ("Y2", None))
+CONFIGS: tuple[Config, ...] = (("Y1", None), ("Y2", None), ("MY", "Y1"), ("MY", "Y2"))
 
 
 @dataclass(frozen=True)
@@ -99,13 +99,17 @@ class FrameFacts:
 
 def universe(store: DataStore, config: Config) -> list[VariableInfo]:
     """Every question a pooled request at ``config`` can name: the servable
-    ordered items asked at the wave, in the catalog's order."""
+    ordered items asked at the wave — at the midyear survey, its own
+    questions and every question asked at the other wave — in the
+    catalog's order."""
     assert store.catalog is not None
-    wave, _ = config
+    wave, other = config
     items: list[VariableInfo] = []
     for name in store.catalog.outcome_names:
         info = store.catalog.outcome(name)
-        if info is not None and info.scale_type in ORDERED_SCALE_TYPES and wave in info.waves:
+        if info is None or info.scale_type not in ORDERED_SCALE_TYPES:
+            continue
+        if wave in info.waves or (other is not None and other in info.waves):
             items.append(info)
     return items
 
@@ -128,6 +132,7 @@ def compute(store: DataStore, only: Sequence[str] | None = None) -> tuple[pl.Dat
             countries=(),
             filters=(),
             pooled=True,
+            other_wave=other,
         )
         assembled = assemble_matrix_frame(store, query)
         frame, design = assembled.frame, assembled.design

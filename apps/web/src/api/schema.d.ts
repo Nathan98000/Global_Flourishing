@@ -107,6 +107,15 @@ export interface paths {
          *     ask leaves that country out). The ranking floor and the dedupe are
          *     unchanged.
          *
+         *     At ``wave=MY`` a midyear question reads its midyear answers and any
+         *     other question the same respondents' ``other_wave`` answers (Y1 by
+         *     default: every midyear respondent, ``w_l1m``; Y2: those who also did
+         *     Wave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear
+         *     outcome is ranked against every midyear question and every question
+         *     asked at ``other_wave``; any other outcome against the midyear
+         *     questions only. Two questions neither of which the midyear survey
+         *     asked belong at their own wave: 422.
+         *
          *     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
          *     regression under the fixed control set (``stat = "beta"``, plus a
          *     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
@@ -145,7 +154,10 @@ export interface paths {
          *     ties broken toward the order asked. ``pooled=population`` pools every
          *     country, each weighted to its adult population: each correlation's
          *     ``n_countries`` counts the countries behind it and ``meta.countries``
-         *     lists every country behind at least one.
+         *     lists every country behind at least one. At ``wave=MY`` the table
+         *     holds one midyear question at least; the questions the midyear survey
+         *     did not ask read the same people's ``other_wave`` answers, and every
+         *     pair — two such questions included — is taken on the same people.
          */
         get: operations["correlations_v1_correlations_get"];
         put?: never;
@@ -185,7 +197,9 @@ export interface paths {
          *     interval. ``pooled=population`` pools every country, each weighted to
          *     its adult population: ``shares.meta.countries`` lists the countries
          *     with people who answered both, and ``correlation.n_countries`` counts
-         *     them.
+         *     them. At ``wave=MY`` one question at least must be a midyear
+         *     question; the other reads its midyear answers or the same people's
+         *     ``other_wave`` answers (``shares.meta.answer_waves``).
          */
         get: operations["correlation_pair_v1_correlations_pair_get"];
         put?: never;
@@ -354,6 +368,10 @@ export interface components {
          * @description What a correlation table says about itself.
          */
         CorrelationsMeta: {
+            /** Answer Waves */
+            answer_waves?: {
+                [key: string]: string;
+            } | null;
             /** Ci Level */
             ci_level: number;
             /** Countries */
@@ -368,6 +386,8 @@ export interface components {
             min_n: number;
             /** N Frame */
             n_frame: number;
+            /** Other Wave */
+            other_wave?: string | null;
             /** Pooled */
             pooled?: string | null;
             /** Population Source */
@@ -641,6 +661,10 @@ export interface components {
         ResponseMeta: {
             /** Adjusted */
             adjusted?: boolean | null;
+            /** Answer Waves */
+            answer_waves?: {
+                [key: string]: string;
+            } | null;
             /** By */
             by: string[];
             /** Ci Level */
@@ -673,6 +697,8 @@ export interface components {
             n_valid: number;
             /** Oriented */
             oriented: boolean;
+            /** Other Wave */
+            other_wave?: string | null;
             /** Outcome */
             outcome: string;
             /** Pooled */
@@ -970,6 +996,8 @@ export interface operations {
                 limit?: number;
                 /** @description population: every country in one estimate, each weighted to its adult population (ADR-0020), in place of a country filter. */
                 pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — the wave every question the midyear survey did not ask reads the same people's answers from (ADR-0020). */
+                other_wave?: string | null;
                 /** @description The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422. */
                 adjusted?: boolean;
             };
@@ -1011,6 +1039,8 @@ export interface operations {
                 method?: string;
                 /** @description population: every country in one table, each weighted to its adult population (ADR-0020), in place of the country filter. */
                 pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
+                other_wave?: string | null;
             };
             header?: never;
             path?: never;
@@ -1052,6 +1082,8 @@ export interface operations {
                 method?: string;
                 /** @description population: every country in one cross-tab, each weighted to its adult population (ADR-0020), in place of the country filter. */
                 pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
+                other_wave?: string | null;
             };
             header?: never;
             path?: never;

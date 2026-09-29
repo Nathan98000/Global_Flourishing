@@ -631,6 +631,164 @@ describe('All countries (ADR-0020)', () => {
   })
 })
 
+// --- Midyear: reachable, and paired with 2023 or 2024 (ADR-0020) ----------
+
+const timeMediaVariable: VariableSummary = {
+  ...attendVariable,
+  name: 'TIME_MEDIA',
+  display_name: 'Daily social media time',
+  family: 'midyear',
+  subfamily: null,
+  waves_available: ['MY'],
+  min: 1,
+  max: 5,
+}
+
+const midyearTier: Routes = {
+  ...tier,
+  '/data/variables.json': {
+    variables: [
+      sfiVariable,
+      happyVariable,
+      attendVariable,
+      lonelyVariable,
+      urbanVariable,
+      todayVariable,
+      incomeVariable,
+      timeMediaVariable,
+    ],
+  },
+}
+
+describe('Midyear (ADR-0020)', () => {
+  test('the Midyear chip is open; chosen, Compare two takes a midyear question beside 2023 answers', async () => {
+    const calls = mockFetch(midyearTier)
+    const router = await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
+    expect(screen.queryByRole('group', { name: 'Other questions’ answers from' })).toBeNull()
+    fireEvent.click(within(wave).getByText('Midyear', { exact: true }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
+    expect(
+      screen.getByText(
+        'Daily social media time, from the midyear survey, took the place of Life evaluation today.',
+      ),
+    ).toHaveAttribute('role', 'status')
+    const other = screen.getByRole('group', { name: 'Other questions’ answers from' })
+    expect(within(other).getByLabelText('2023')).toBeChecked()
+    expect(
+      screen.getByText(
+        'The other questions use the same people’s 2023 answers, usually given 8–12 months earlier.',
+      ),
+    ).toBeInTheDocument()
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
+    expect(request).toContain('y=INCOME_FEELINGS&x=TIME_MEDIA&wave=MY')
+    expect(request).toContain('other_wave=Y1')
+    expect(
+      screen.getByText('United States · Midyear survey, with 2023 answers from the same people'),
+    ).toBeInTheDocument()
+    // The other wave's question wears its year: on its trigger, its axis.
+    expect(
+      screen.getByRole('button', {
+        name: 'Second question: Feelings about household income, 2023 answers',
+      }),
+    ).toHaveTextContent('2023')
+    expect(
+      screen.getByRole('button', { name: 'First question: Daily social media time' }),
+    ).toBeVisible()
+  })
+
+  test('2024 answers: the control switches the request, the note and the subtitle', async () => {
+    const calls = mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const other = screen.getByRole('group', { name: 'Other questions’ answers from' })
+    fireEvent.click(within(other).getByText('2024', { exact: true }))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('other=Y2'))
+    await waitFor(() =>
+      expect(
+        calls.some((url) => url.includes('/v1/correlations/pair') && url.includes('other_wave=Y2')),
+      ).toBe(true),
+    )
+    expect(
+      screen.getByText(
+        'The other questions use the same people’s 2024 answers: from the same interview for two in three people, about six months later for the rest.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'United States · Midyear survey, with 2024 answers from the same people',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('back to 2023 with a midyear question in view: the default takes its place, the line says so', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    fireEvent.click(within(wave).getByText('2023', { exact: true }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+    expect(
+      screen.getByText(
+        'Daily social media time was asked only in the midyear survey, so Life evaluation today took its place.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('picking a midyear question at 2023 switches to Midyear; the picker tags it', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    await screen.findByRole('group', { name: /most strongly associated with it/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    const picker = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(picker).getByRole('searchbox'), { target: { value: 'social' } })
+    const option = within(picker).getByRole('option', { name: 'Daily social media time, Midyear' })
+    expect(option).not.toHaveAttribute('aria-disabled')
+    fireEvent.click(option)
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?view=related&outcome=TIME_MEDIA&wave=MY'),
+    )
+    expect(
+      screen.getByText(
+        'Daily social media time was asked only in the midyear survey, so the page now shows Midyear, with the same people’s 2023 answers to the other questions.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('Find related at Midyear ranks other waves’ questions with their year', async () => {
+    const calls = mockFetch(midyearTier)
+    await renderAt('/correlates?view=related&outcome=TIME_MEDIA&wave=MY')
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
+    const request = calls.find((url) => url.includes('/v1/correlates')) as string
+    expect(request).toContain('outcome=TIME_MEDIA&wave=MY')
+    expect(request).toContain('other_wave=Y1')
+    const svgText = figure.querySelector('svg')?.textContent ?? ''
+    expect(svgText).toContain('Loneliness (2023)')
+    expect(svgText).toContain('Service attendance (2023)')
+    expect(
+      screen.getByText(
+        'United States · Midyear survey, with 2023 answers from the same people · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+    // Its picker tags the others by their answers' year.
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Daily social media time' }))
+    const picker = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(picker).getByRole('searchbox'), { target: { value: 'lonel' } })
+    expect(
+      within(picker).getByRole('option', { name: 'Loneliness, 2023 answers' }),
+    ).toBeInTheDocument()
+  })
+
+  test('a link to a midyear question at 2023 lands at Midyear', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA')
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
+  })
+})
+
 describe('Correlates view', () => {
   test('a first visit lands on Compare two with the default pair, one chart and no causes', async () => {
     const calls = mockFetch(tier)
@@ -1254,8 +1412,9 @@ describe('Correlates view', () => {
     expect(screen.queryByRole('button', { name: /^Method/ })).toBeNull()
     // The reason a wave is unavailable is one line under the whole row,
     // not inside the Wave column; the disabled options point to it.
+    // (Midyear is never unavailable: its questions come from any wave.)
     const note = screen.getByText(
-      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+      "2024 isn't available: the two questions weren't both asked in Wave 2.",
     )
     expect(wave).not.toContainElement(note)
     expect(note.previousElementSibling).toContainElement(type)
@@ -1331,22 +1490,24 @@ describe('Correlates view', () => {
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
   })
 
-  test('a wave the questions were not asked in is unavailable, and the line under the row says why', async () => {
-    const calls = mockFetch(tier)
-    await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
-    expect(await screen.findByText(/wasn't asked in Midyear survey/)).toBeInTheDocument()
-    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
-    const midyear = screen.getByLabelText('Midyear')
-    expect(midyear).toBeDisabled()
-    expect(midyear).toHaveAccessibleDescription(
-      "Midyear isn't available: this question wasn't asked in the midyear survey.",
-    )
-    // Compare two: the pair's waves.
+  test('a wave the questions were not asked in is unavailable, and the line under the row says why — never Midyear', async () => {
+    mockFetch(tier)
+    // Compare two: the pair's waves; Midyear stays open (ADR-0020).
     await renderAt('/correlates?a=HAPPY&b=LONELY')
     await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
-    expect(screen.getAllByLabelText('2024').at(-1)).toHaveAccessibleDescription(
-      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
+    expect(within(wave).getByLabelText('2024')).toBeDisabled()
+    expect(within(wave).getByLabelText('2024')).toHaveAccessibleDescription(
+      "2024 isn't available: the two questions weren't both asked in Wave 2.",
     )
+    // A link at Midyear with no midyear question in view shows the other
+    // answers' wave instead, and says so.
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('wave='))
+    expect(
+      await screen.findByText('No midyear question is left, so the page now shows 2023.'),
+    ).toBeInTheDocument()
   })
 
   test('choosing a country changes the request; the default country never reaches the URL', async () => {

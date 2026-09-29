@@ -22,6 +22,9 @@ export interface PairRequest {
   /** One country, or every country pooled (ADR-0020). */
   country: CountryScope
   method?: CorrelationMethod
+  /** At the midyear survey, when a question is from another wave: the
+   * wave its answers come from (ADR-0020). */
+  otherWave?: 'Y1' | 'Y2'
 }
 
 /** Canonical query string: stable order in, stable cache keys out. */
@@ -32,6 +35,7 @@ export function canonicalPairParams(request: PairRequest): URLSearchParams {
   params.set('wave', request.wave)
   appendScope(params, request.country)
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   return params
 }
 
@@ -67,6 +71,8 @@ export interface TableRequest {
   /** One country, or every country pooled (ADR-0020). */
   country: CountryScope
   method?: CorrelationMethod
+  /** At the midyear survey, as PairRequest's. */
+  otherWave?: 'Y1' | 'Y2'
 }
 
 export function canonicalTableParams(request: TableRequest): URLSearchParams {
@@ -75,6 +81,7 @@ export function canonicalTableParams(request: TableRequest): URLSearchParams {
   params.set('wave', request.wave)
   appendScope(params, request.country)
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   return params
 }
 

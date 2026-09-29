@@ -9,7 +9,7 @@
 // tint runs on a fixed −1 to 1, so a shade means the same number in every
 // table. A cell opens Compare two with the pair.
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
@@ -32,7 +32,6 @@ import {
   tableRequest,
   type CorrelatesOrder,
 } from '../../state/search'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
   CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
@@ -44,7 +43,22 @@ import {
   withCoverage,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
-import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
+import {
+  otherWaveOf,
+  requestOther,
+  waveName,
+  waveTitle,
+  yearTagged,
+  type OtherWave,
+} from './midyear'
+import {
+  DivergingLegend,
+  Failure,
+  orderedAt,
+  pickerTag,
+  questionReason,
+  type ViewProps,
+} from './shared'
 import styles from '../AtlasView.module.css'
 import own from './Correlates.module.css'
 
@@ -74,13 +88,26 @@ export function CompareSeveral({
   countryName,
   apiReachable,
   controls,
+  onTable,
 }: ViewProps) {
   const a = firstQuestion(search)
   const b = secondQuestion(search)
+  // At Midyear another wave's question reads the same people's answers
+  // from the other answers' wave (ADR-0020).
+  const otherAnswers = otherWaveOf(search)
   // The default table needs the first question's ranked list.
-  const seeded = search.vars === undefined && orderedAt(variables.byName[a], search.wave)
+  const seeded =
+    search.vars === undefined && orderedAt(variables.byName[a], search.wave, otherAnswers)
   const ranked = useCorrelates(
-    seeded && country !== undefined ? correlatesRequest(search, a, country) : null,
+    seeded && country !== undefined
+      ? correlatesRequest(
+          search,
+          a,
+          country,
+          undefined,
+          search.wave === 'MY' ? otherAnswers : undefined,
+        )
+      : null,
   )
   const rankedResponse = ranked.data
   const tableVars = useMemo(() => {
@@ -90,18 +117,25 @@ export function CompareSeveral({
     return [a, b, ...related.slice(0, DEFAULT_RELATED)]
   }, [search.vars, rankedResponse, a, b])
   const usableVars = useMemo(
-    () => tableVars.filter((name) => orderedAt(variables.byName[name], search.wave)),
-    [tableVars, variables.byName, search.wave],
+    () => tableVars.filter((name) => orderedAt(variables.byName[name], search.wave, otherAnswers)),
+    [tableVars, variables.byName, search.wave, otherAnswers],
   )
+  // The wave row reads the default table's questions from here.
+  const reported = search.vars === undefined ? usableVars.join(',') : ''
+  useEffect(() => {
+    if (onTable && reported) onTable(reported.split(','))
+  }, [onTable, reported])
+  const otherWave = requestOther(search, usableVars, variables.byName)
   const leftOut = tableVars.filter((name) => !usableVars.includes(name))
   const table = useCorrelationTable(
     country !== undefined && usableVars.length >= TABLE_MIN
-      ? tableRequest(search, usableVars, country)
+      ? tableRequest(search, usableVars, country, otherWave)
       : null,
   )
+  // A question by its short name — at Midyear, another wave's with its year.
   const nameOf = (name: string) => {
     const variable = variables.byName[name]
-    return variable ? shortName(variable) : name
+    return variable ? yearTagged(shortName(variable), variable, search.wave, otherWave) : name
   }
   const shown = displayOrder(usableVars, search.order, table.data?.similar_order)
 
@@ -114,11 +148,13 @@ export function CompareSeveral({
           variables={variables.list}
           wave={search.wave}
           unavailable={(variable) => questionReason(variable, search.wave)}
+          countable={(variable) => questionReason(variable, search.wave) === undefined}
+          tagOf={(variable) => pickerTag(variable, search)}
           onChange={(vars) => setSearch({ vars })}
           note={
             leftOut.length > 0 ? (
               <span className={styles.reason}>
-                Left out, not asked in {WAVE_TITLES[search.wave] ?? search.wave}:{' '}
+                Left out, not asked in {waveTitle(search.wave, otherWave)}:{' '}
                 {leftOut.map(nameOf).join(', ')}.
               </span>
             ) : undefined
@@ -145,8 +181,8 @@ export function CompareSeveral({
       ) : usableVars.length < TABLE_MIN ? (
         <EmptyState title="Pick two questions or more">
           <p>
-            A table needs at least two questions asked in {WAVE_TITLES[search.wave] ?? search.wave}{' '}
-            — add them with “Add questions”.
+            A table needs at least two questions asked in {waveTitle(search.wave, otherWave)} — add
+            them with “Add questions”.
           </p>
         </EmptyState>
       ) : table.isPending ? (
@@ -160,6 +196,7 @@ export function CompareSeveral({
           nameOf={nameOf}
           countryName={countryName}
           wave={search.wave}
+          other={otherWave}
           method={search.method}
           isRefreshing={table.isPlaceholderData}
           served={served}
@@ -184,6 +221,7 @@ function TableFigure({
   nameOf,
   countryName,
   wave,
+  other,
   method,
   isRefreshing,
   served,
@@ -195,6 +233,8 @@ function TableFigure({
   nameOf: (name: string) => string
   countryName: string
   wave: Wave
+  /** At Midyear with another wave's question: that wave (ADR-0020). */
+  other: OtherWave | undefined
   method: CorrelationMethod | undefined
   isRefreshing: boolean
   served: Meta
@@ -210,7 +250,7 @@ function TableFigure({
   const name: ExportName = {
     measure: `Correlations among ${order.length} questions`,
     view: 'Compare several',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
   // The data table: one row per pair with a correlation, named in words.
@@ -251,7 +291,7 @@ function TableFigure({
   return (
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
-      subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={`Correlations among ${order.length} questions in ${pooled ? 'all countries combined' : countryName}, as a table: ${order
         .map(nameOf)
         .join('; ')}.${

@@ -66,7 +66,7 @@ from flourish_api.queries import (
     parse_pair_query,
     shares_answers,
 )
-from flourish_api.routes.correlates import pooled_meta
+from flourish_api.routes.correlates import midyear_meta, pooled_meta
 from flourish_api.schemas import (
     CorrelationPairModel,
     CorrelationsMeta,
@@ -422,6 +422,12 @@ def run_pair(
             **{item.column: list(item.values) for item in query.filters},
         },
         **pooled_meta(store, query.pooled, [mask]),
+        **midyear_meta(
+            query.wave,
+            query.other_wave,
+            [query.x.name, query.y.name],
+            {query.x.name: query.x, query.y.name: query.y},
+        ),
     )
     return PairResponse(
         x=query.x.name,
@@ -469,6 +475,10 @@ def correlation_pair(
             )
         ),
     ] = None,
+    other_wave: Annotated[
+        str | None,
+        Query(description="At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020)."),
+    ] = None,
 ) -> PairResponse:
     """Both items must be ordered (a 0–10 scale, an ordered or yes/no
     answer, a count), asked at the wave and not built from the same
@@ -490,10 +500,19 @@ def correlation_pair(
     interval. ``pooled=population`` pools every country, each weighted to
     its adult population: ``shares.meta.countries`` lists the countries
     with people who answered both, and ``correlation.n_countries`` counts
-    them."""
+    them. At ``wave=MY`` one question at least must be a midyear
+    question; the other reads its midyear answers or the same people's
+    ``other_wave`` answers (``shares.meta.answer_waves``)."""
     assert store.catalog is not None
     query = parse_pair_query(
-        store.catalog, y=y, x=x, wave=wave, method=method, filters=filter or [], pooled=pooled
+        store.catalog,
+        y=y,
+        x=x,
+        wave=wave,
+        method=method,
+        filters=filter or [],
+        pooled=pooled,
+        other_wave=other_wave,
     )
     return run_pair(store, query, policy, flags, min_n)
 
@@ -548,11 +567,11 @@ def precomputed_pairs(
     does not hold)."""
     if table is None or not query.pooled or query.filters:
         return None
-    config = (query.wave, None)
+    config = (query.wave, query.other_wave)
     facts = table.frame(config)
     if facts is None:
         return None
-    weight = correlation_spec(query.wave).weight
+    weight = correlation_spec(query.wave, query.other_wave).weight
     rows: dict[tuple[str, str], EstimateRow] = {}
     masks: dict[tuple[str, str], int] = {}
     variables = list(query.variables)
@@ -612,7 +631,7 @@ def run_matrix(
                     else row
                 )
                 masks[(a.name, b)] = mask
-    spec = correlation_spec(query.wave)
+    spec = correlation_spec(query.wave, query.other_wave)
     pairs: list[CorrelationPairModel] = []
     for i, a in enumerate(variables[:-1]):
         for b in variables[i + 1 :]:
@@ -642,6 +661,12 @@ def run_matrix(
         },
         min_n=min_n,
         **pooled_meta(store, query.pooled, list(masks.values())),
+        **midyear_meta(
+            query.wave,
+            query.other_wave,
+            [v.name for v in variables],
+            {v.name: v for v in variables},
+        ),
     )
     names = [v.name for v in variables]
     return CorrelationsResponse(meta=meta, pairs=pairs, similar_order=similar_order(names, pairs))
@@ -679,6 +704,10 @@ def correlations(
             )
         ),
     ] = None,
+    other_wave: Annotated[
+        str | None,
+        Query(description="At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020)."),
+    ] = None,
 ) -> CorrelationsResponse:
     """Associations, not causes. Every pair i < j of the questions named,
     in the order named: the weighted Pearson or Spearman correlation over
@@ -695,9 +724,18 @@ def correlations(
     ties broken toward the order asked. ``pooled=population`` pools every
     country, each weighted to its adult population: each correlation's
     ``n_countries`` counts the countries behind it and ``meta.countries``
-    lists every country behind at least one."""
+    lists every country behind at least one. At ``wave=MY`` the table
+    holds one midyear question at least; the questions the midyear survey
+    did not ask read the same people's ``other_wave`` answers, and every
+    pair — two such questions included — is taken on the same people."""
     assert store.catalog is not None
     query = parse_matrix_query(
-        store.catalog, names=names, wave=wave, method=method, filters=filter or [], pooled=pooled
+        store.catalog,
+        names=names,
+        wave=wave,
+        method=method,
+        filters=filter or [],
+        pooled=pooled,
+        other_wave=other_wave,
     )
     return run_matrix(store, query, policy, min_n, pooled_table)

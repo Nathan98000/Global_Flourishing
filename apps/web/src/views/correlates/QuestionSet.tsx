@@ -26,6 +26,8 @@ export function QuestionSet({
   variables,
   wave,
   unavailable,
+  countable,
+  tagOf,
   onChange,
   note,
 }: {
@@ -36,6 +38,9 @@ export function QuestionSet({
   variables: readonly VariableSummary[]
   wave: Wave
   unavailable: (variable: VariableSummary) => string | undefined
+  /** The picker's topic counts and tags (ADR-0020). */
+  countable?: (variable: VariableSummary) => boolean
+  tagOf?: (variable: VariableSummary) => string | undefined
   onChange: (names: string[]) => void
   /** A line under the chips (what the wave left out). */
   note?: ReactNode
@@ -147,6 +152,8 @@ export function QuestionSet({
             max={TABLE_MAX}
             disabled={names.length >= TABLE_MAX}
             unavailable={unavailable}
+            countable={countable}
+            tagOf={tagOf}
             onAdd={(added) => onChange([...names, ...added])}
           />
         </li>

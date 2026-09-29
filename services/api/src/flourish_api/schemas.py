@@ -265,6 +265,11 @@ class ResponseMeta(BaseModel):
     pooled: str | None = None
     countries: list[int] | None = None
     population_source: str | None = None
+    #: correlations at the midyear survey only (ADR-0020): the wave the
+    #: questions it did not ask read the same people's answers from, and
+    #: which wave each question's answers came from. Null elsewhere.
+    other_wave: str | None = None
+    answer_waves: dict[str, str] | None = None
 
 
 class EstimateResponse(BaseModel):
@@ -390,6 +395,9 @@ class CorrelationsMeta(BaseModel):
     pooled: str | None = None
     countries: list[int] | None = None
     population_source: str | None = None
+    #: tables at the midyear survey only (ADR-0020), as in ``ResponseMeta``
+    other_wave: str | None = None
+    answer_waves: dict[str, str] | None = None
 
 
 class CorrelationsResponse(BaseModel):

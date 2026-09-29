@@ -44,7 +44,9 @@ from flourish_api.queries import (
     CORRELATES_DEFAULT_LIMIT,
     ORDERED_SCALE_TYPES,
     CorrelatesQuery,
+    answer_wave,
     answers_of,
+    is_midyear,
     parse_correlates_query,
     shares_answers,
 )
@@ -114,7 +116,10 @@ def drop_overlaps(
 
 def candidate_predictors(catalog: Catalog, query: CorrelatesQuery) -> list[VariableInfo]:
     """Every other servable ordered item asked at the wave, minus those
-    built from the same answers as the outcome."""
+    built from the same answers as the outcome. At the midyear survey
+    (ADR-0020): for a midyear question, every midyear question and every
+    question asked at ``other_wave`` (read there); for any other question,
+    the midyear questions only."""
     candidates: list[VariableInfo] = []
     for name in catalog.outcome_names:
         info = catalog.outcome(name)
@@ -122,11 +127,35 @@ def candidate_predictors(catalog: Catalog, query: CorrelatesQuery) -> list[Varia
             info is not None
             and info.name != query.outcome.name
             and info.scale_type in ORDERED_SCALE_TYPES
-            and query.wave in info.waves
+            and asked_beside(info, query)
             and not shares_answers(info, query.outcome)
         ):
             candidates.append(info)
     return candidates
+
+
+def asked_beside(info: VariableInfo, query: CorrelatesQuery) -> bool:
+    """Whether ``info`` can be correlated with the query's outcome at its
+    wave — at the midyear survey, a midyear question always, another one
+    at ``other_wave`` beside a midyear outcome only."""
+    if query.wave != "MY":
+        return query.wave in info.waves
+    if is_midyear(info):
+        return True
+    return is_midyear(query.outcome) and query.other_wave in info.waves
+
+
+def midyear_meta(
+    wave: str, other_wave: str | None, names: list[str], infos: dict[str, VariableInfo]
+) -> dict[str, Any]:
+    """What a correlation at the midyear survey says about its answers
+    (ADR-0020): the other questions' wave and each question's own."""
+    if wave != "MY":
+        return {}
+    return {
+        "other_wave": other_wave,
+        "answer_waves": {name: answer_wave(infos[name], wave, other_wave) for name in names},
+    }
 
 
 def effective_controls(query: CorrelatesQuery) -> list[str]:
@@ -220,11 +249,11 @@ def precomputed_rows(
     whole — a breakdown, a domain, a pair it does not hold."""
     if table is None or not query.pooled or query.by or query.filters or query.adjusted:
         return None
-    config = (query.wave, None)
+    config = (query.wave, query.other_wave)
     facts = table.frame(config)
     if facts is None:
         return None
-    weight = correlation_spec(query.wave).weight
+    weight = correlation_spec(query.wave, query.other_wave).weight
     rows: dict[str, list[EstimateRow]] = {}
     masks: dict[str, int] = {}
     for predictor in predictors:
@@ -272,7 +301,7 @@ def run_correlates(
 ) -> EstimateResponse:
     assert store.catalog is not None
     predictors = list(query.against) or candidate_predictors(store.catalog, query)
-    spec = correlation_spec(query.wave)
+    spec = correlation_spec(query.wave, query.other_wave)
     masks: dict[str, int] = {}
     served = precomputed_rows(pooled, query, predictors, policy)
     if served is not None:
@@ -329,6 +358,12 @@ def run_correlates(
         n_excluded=n_excluded,
         dropped_overlap=dropped,
         **pooled_meta(store, query.pooled, [masks.get(name, 0) for name, _ in estimated]),
+        **midyear_meta(
+            query.wave,
+            query.other_wave,
+            [query.outcome.name, *(name for name, _ in estimated)],
+            {query.outcome.name: query.outcome, **{p.name: p for p in predictors}},
+        ),
     )
     return EstimateResponse(meta=meta, rows=rows)
 
@@ -374,6 +409,15 @@ def correlates(
             )
         ),
     ] = None,
+    other_wave: Annotated[
+        str | None,
+        Query(
+            description=(
+                "At wave=MY: Y1 (default) or Y2 — the wave every question the midyear "
+                "survey did not ask reads the same people's answers from (ADR-0020)."
+            )
+        ),
+    ] = None,
 ) -> EstimateResponse:
     """Associations, not causes. Rows are weighted Pearson or Spearman
     coefficients with no interval (``ci_method = "none"``). Omit
@@ -396,6 +440,15 @@ def correlates(
     ask leaves that country out). The ranking floor and the dedupe are
     unchanged.
 
+    At ``wave=MY`` a midyear question reads its midyear answers and any
+    other question the same respondents' ``other_wave`` answers (Y1 by
+    default: every midyear respondent, ``w_l1m``; Y2: those who also did
+    Wave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear
+    outcome is ranked against every midyear question and every question
+    asked at ``other_wave``; any other outcome against the midyear
+    questions only. Two questions neither of which the midyear survey
+    asked belong at their own wave: 422.
+
     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
     regression under the fixed control set (``stat = "beta"``, plus a
     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
@@ -412,6 +465,7 @@ def correlates(
         filters=filter or [],
         limit=limit,
         pooled=pooled,
+        other_wave=other_wave,
     )
     if query.adjusted and query.pooled:
         raise HTTPException(

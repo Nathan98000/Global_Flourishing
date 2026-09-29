@@ -48,7 +48,7 @@ import {
   type CorrelatesScope,
 } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
+import { WAVE_TITLES } from '../../waves'
 import {
   CORRELATES_NOTE,
   CORRELATION_SCALE,
@@ -63,10 +63,20 @@ import {
   statisticPhrase,
 } from '../correlatesRows'
 import {
+  otherWaveOf,
+  requestOther,
+  waveName,
+  waveTitle,
+  yearTagged,
+  type OtherWave,
+} from './midyear'
+import {
   Failure,
   orderedAt,
   pairReason,
+  pickerTag,
   questionReason,
+  triggerTag,
   useSharesAnswers,
   type ViewProps,
 } from './shared'
@@ -91,9 +101,13 @@ export function ComparePair({
   const sameAnswers = aName !== bName && shares(aName, bName)
   // A score's components decide whether the pair can be asked for at all.
   const waiting = !settled && (a?.is_derived === true || b?.is_derived === true)
+  // At Midyear another wave's question reads the same people's answers
+  // from the other answers' wave (ADR-0020).
+  const otherAnswers = otherWaveOf(search)
+  const otherWave = requestOther(search, [aName, bName], variables.byName)
   const ready =
-    orderedAt(a, search.wave) &&
-    orderedAt(b, search.wave) &&
+    orderedAt(a, search.wave, otherAnswers) &&
+    orderedAt(b, search.wave, otherAnswers) &&
     aName !== bName &&
     !sameAnswers &&
     !waiting
@@ -101,15 +115,20 @@ export function ComparePair({
   // One chart at a time: the grid in one country, or the pair's
   // correlation in every country.
   const pair = usePair(
-    ready && country !== undefined ? pairRequest(search, { a: aName, b: bName }, country) : null,
+    ready && country !== undefined
+      ? pairRequest(search, { a: aName, b: bName }, country, otherWave)
+      : null,
     { enabled: !everywhere },
   )
-  const across = useCorrelates(ready ? correlatesAcrossCountries(search, aName, [bName]) : null, {
-    enabled: everywhere,
-  })
+  const across = useCorrelates(
+    ready ? correlatesAcrossCountries(search, aName, [bName], otherWave) : null,
+    {
+      enabled: everywhere,
+    },
+  )
   // All countries, country by country: the strip reads the pooled pair.
   const pooledPair = useCorrelates(
-    ready ? correlatesRequest(search, aName, 'all', [bName]) : null,
+    ready ? correlatesRequest(search, aName, 'all', [bName], otherWave) : null,
     { enabled: everywhere && country === 'all' },
   )
   const aDetail = useVariable(ready ? aName : null).data?.detail
@@ -167,6 +186,9 @@ export function ComparePair({
             unavailable={(variable) =>
               pairReason(variable, b, 'second question', search.wave, shares)
             }
+            countable={(variable) => questionReason(variable, search.wave) === undefined}
+            tagOf={(variable) => pickerTag(variable, search)}
+            triggerTag={triggerTag(a, search)}
             onPick={(name) => setSearch({ a: name })}
           />{' '}
           relate to{' '}
@@ -179,6 +201,9 @@ export function ComparePair({
               unavailable={(variable) =>
                 pairReason(variable, a, 'first question', search.wave, shares)
               }
+              countable={(variable) => questionReason(variable, search.wave) === undefined}
+              tagOf={(variable) => pickerTag(variable, search)}
+              triggerTag={triggerTag(b, search)}
               onPick={(name) => setSearch({ b: name })}
             />
             ?
@@ -210,6 +235,7 @@ export function ComparePair({
             chosen={country === 'all' ? undefined : country}
             countryName={countryName}
             wave={search.wave}
+            other={otherWave}
             method={search.method}
             isRefreshing={across.isPlaceholderData}
             served={served}
@@ -237,10 +263,11 @@ export function ComparePair({
           pair={pair.data}
           a={a}
           b={b}
-          aTitle={pairAxisTitle(a, aDetail)}
-          bTitle={pairAxisTitle(b, bDetail)}
+          aTitle={pairAxisTitle(a, aDetail, yearTagged(shortName(a), a, search.wave, otherWave))}
+          bTitle={pairAxisTitle(b, bDetail, yearTagged(shortName(b), b, search.wave, otherWave))}
           countryName={countryName}
           wave={search.wave}
+          other={otherWave}
           isRefreshing={pair.isPlaceholderData}
           served={served}
           header={
@@ -306,6 +333,7 @@ function PairFigure({
   bTitle,
   countryName,
   wave,
+  other,
   isRefreshing,
   served,
   header,
@@ -317,12 +345,14 @@ function PairFigure({
   bTitle: string
   countryName: string
   wave: Wave
+  /** At Midyear with another wave's question: that wave (ADR-0020). */
+  other: OtherWave | undefined
   isRefreshing: boolean
   served: Meta
   header: ReactNode
 }) {
-  const aShort = shortName(a)
-  const bShort = shortName(b)
+  const aShort = yearTagged(shortName(a), a, wave, other)
+  const bShort = yearTagged(shortName(b), b, wave, other)
   const columnLabel = useMemo(
     () => new Map(pair.columns.map((column) => [column.code, column.label])),
     [pair],
@@ -384,7 +414,7 @@ function PairFigure({
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,
     view: 'Compare two',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
@@ -408,7 +438,7 @@ function PairFigure({
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`${place} · ${WAVE_TITLES[wave] ?? wave}`}
+      subtitle={`${place} · ${waveTitle(wave, other)}`}
       ariaLabel={ariaLabel}
       marks="table"
       intro={
@@ -427,7 +457,11 @@ function PairFigure({
       isRefreshing={isRefreshing}
       groupLabel={label}
       columnName={(column) =>
-        column === pair.x ? a.display_name : column === pair.y ? b.display_name : undefined
+        column === pair.x
+          ? yearTagged(a.display_name, a, wave, other)
+          : column === pair.y
+            ? yearTagged(b.display_name, b, wave, other)
+            : undefined
       }
       note={CORRELATES_NOTE}
     >
@@ -452,6 +486,7 @@ function EveryCountry({
   chosen,
   countryName,
   wave,
+  other,
   method,
   isRefreshing,
   served,
@@ -463,6 +498,7 @@ function EveryCountry({
   chosen: number | undefined
   countryName: string
   wave: Wave
+  other: OtherWave | undefined
   method: 'spearman' | undefined
   isRefreshing: boolean
   served: Meta
@@ -487,10 +523,10 @@ function EveryCountry({
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,
     view: 'Compare two country by country',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    waves: waveName(wave, other),
   }
-  const aShort = shortName(a)
-  const bShort = shortName(b)
+  const aShort = yearTagged(shortName(a), a, wave, other)
+  const bShort = yearTagged(shortName(b), b, wave, other)
   const top = sorted.rows[0]
   const bottom = sorted.rows[sorted.rows.length - 1]
   const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1${chosen !== undefined ? `; ${countryName} is picked out` : ''}.${
@@ -501,7 +537,7 @@ function EveryCountry({
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`Country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
       marks="dots"
       intro={header}
@@ -513,7 +549,9 @@ function EveryCountry({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      predictorLabel={(predictor) => (predictor === b.name ? b.display_name : undefined)}
+      predictorLabel={(predictor) =>
+        predictor === b.name ? yearTagged(b.display_name, b, wave, other) : undefined
+      }
       note={CORRELATES_NOTE}
     >
       <RankedBar

@@ -82,6 +82,18 @@ function pooledLines(
   ]
 }
 
+/** A correlation at the midyear survey says where each question's
+ * answers came from (ADR-0020): `# other_wave` and `# answer_waves`. */
+function midyearLines(
+  meta: Pick<EstimateResponse['meta'], 'other_wave' | 'answer_waves'>,
+): string[] {
+  if (!meta.other_wave) return []
+  const waves = Object.entries(meta.answer_waves ?? {})
+    .map(([name, wave]) => `${name}:${wave}`)
+    .join(',')
+  return [`# other_wave: ${meta.other_wave}`, `# answer_waves: ${waves}`]
+}
+
 /** Pooled rows carry how many countries are behind each: one more
  * column, last, only then. */
 function countriesColumn(rows: readonly (EstimateRow | null | undefined)[]): boolean {
@@ -96,7 +108,7 @@ export function responseToCsv(response: EstimateResponse): string {
     const rendered = Array.isArray(value) ? value.map(String).join(',') : pythonStr(value)
     lines.push(`# ${field}: ${rendered}`)
   }
-  lines.push(...pooledLines(meta))
+  lines.push(...pooledLines(meta), ...midyearLines(meta))
   if (meta.suppression.threshold === 0 && meta.suppression.flag_below === 0) {
     // ADR-0011 default: every cell is shown (byte-identical to the API).
     lines.push('# suppression: none (all cells shown)')
@@ -158,6 +170,7 @@ export function correlationTableToCsv(table: CorrelationsResponse): string {
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
     ...pooledLines(meta),
+    ...midyearLines(meta),
   ]
   const countries = countriesColumn(table.pairs.map((pair) => pair.correlation))
   lines.push(
@@ -220,6 +233,7 @@ export function pairToCsv(pair: PairResponse): string {
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
     ...pooledLines(meta),
+    ...midyearLines(meta),
   ]
   const countries = countriesColumn(pair.shares.rows)
   lines.push(

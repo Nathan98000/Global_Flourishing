@@ -685,6 +685,9 @@ export interface CorrelatesSearch {
   country?: CountryScope
   /** Rank correlation instead of Pearson. */
   method?: 'spearman'
+  /** At Midyear: the wave the other questions' answers come from, the
+   * same people's (ADR-0020); absent = 2023. */
+  other?: 'Y1' | 'Y2'
   invalid?: string[]
   invalidRaw?: RawParams
 }
@@ -804,6 +807,7 @@ export function parseCorrelatesSearch(raw: Raw): CorrelatesSearch {
     wave: collect.take('wave', raw, parseWave, CORRELATES_DEFAULTS.wave),
     country: collect.take('country', raw, parseCountryScope, undefined),
     method: collect.take('method', raw, parseEnum('spearman'), undefined),
+    other: collect.take('other', raw, parseEnum<'Y1' | 'Y2'>('Y1', 'Y2'), undefined),
   }
   // The adjusted models are no longer offered (ADR-0018).
   collect.take('adjusted', raw, parseRetired, undefined)
@@ -832,6 +836,7 @@ export function correlatesSearchParams(search: Partial<CorrelatesSearch>): Recor
       wave: search.wave === CORRELATES_DEFAULTS.wave ? undefined : search.wave,
       country: search.country,
       method: search.method,
+      other: search.other === 'Y2' ? 'Y2' : undefined,
     },
     search.invalidRaw,
   )
@@ -844,6 +849,7 @@ export function correlatesRequest(
   outcome: string,
   country: CountryScope,
   against?: readonly string[],
+  otherWave?: 'Y1' | 'Y2',
 ): CorrelatesRequest {
   return {
     outcome,
@@ -852,6 +858,7 @@ export function correlatesRequest(
     by: [],
     ...(country === 'all' ? { pooled: true } : { countries: [country] }),
     method: search.method,
+    ...(otherWave ? { otherWave } : {}),
   }
 }
 
@@ -861,6 +868,7 @@ export function pairRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   pair: { a: string; b: string },
   country: CountryScope,
+  otherWave?: 'Y1' | 'Y2',
 ): PairRequest {
   return {
     y: pair.b,
@@ -868,6 +876,7 @@ export function pairRequest(
     wave: search.wave,
     country,
     method: search.method,
+    ...(otherWave ? { otherWave } : {}),
   }
 }
 
@@ -876,8 +885,15 @@ export function tableRequest(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   vars: readonly string[],
   country: CountryScope,
+  otherWave?: 'Y1' | 'Y2',
 ): TableRequest {
-  return { vars, wave: search.wave, country, method: search.method }
+  return {
+    vars,
+    wave: search.wave,
+    country,
+    method: search.method,
+    ...(otherWave ? { otherWave } : {}),
+  }
 }
 
 /** A question's ranked list, across every country. */
@@ -885,6 +901,7 @@ export function correlatesAcrossCountries(
   search: Pick<CorrelatesSearch, 'wave' | 'method'>,
   outcome: string,
   predictors: readonly string[],
+  otherWave?: 'Y1' | 'Y2',
 ): CorrelatesRequest {
   return {
     outcome,
@@ -892,5 +909,6 @@ export function correlatesAcrossCountries(
     against: predictors,
     by: ['country_code'],
     method: search.method,
+    ...(otherWave ? { otherWave } : {}),
   }
 }

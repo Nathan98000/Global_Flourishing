@@ -284,6 +284,36 @@ def resolve(waves: Waves, scope: str = "global") -> WeightSpec:
     raise KeyError(f"no weight spec for waves={tuple(waves)!r} in scope {scope!r}")
 
 
+#: A midyear answer correlated with the same respondent's answer from
+#: another wave (ADR-0020): which spec — weight and people — each pairing
+#: takes. Both weights calibrate to the Wave 1 population.
+PAIRINGS: dict[str, str] = {"Y1": "y1_my", "Y2": "y1_my_y2"}
+
+
+def pairing_spec(other_wave: str) -> WeightSpec:
+    """The spec a correlation between midyear answers and the same
+    people's answers from ``other_wave`` is taken on:
+
+    - ``Y1`` → ``y1_my``: every midyear respondent (``w_l1m``; 131,487),
+      their Wave 1 answers usually given 8–12 months before;
+    - ``Y2`` → ``y1_my_y2``: those who also did Wave 2 (``w_l1m2``;
+      116,038) — for two in three the same interview (``midyear_type =
+      2``: the midyear items were asked in the Wave 2 interview, as
+      everywhere in China, Hong Kong, Israel, Japan, Sweden and the
+      United States), about six months apart for the rest.
+
+    Never ``my_y2``: its ``midyear_type = 1`` restriction exists because
+    same-day answers are not *change*; for a correlation, answers given
+    the same day are fine.
+    """
+    try:
+        return get(PAIRINGS[other_wave])
+    except KeyError:
+        raise KeyError(
+            f"midyear answers pair with {sorted(PAIRINGS)} only, got {other_wave!r}"
+        ) from None
+
+
 def weight_table_json() -> str:
     """The full table as JSON, for the Phase 3 API to serve from /v1/meta."""
     rows = [asdict(spec) | {"waves": list(spec.waves)} for spec in WEIGHT_TABLE]

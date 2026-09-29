@@ -385,8 +385,11 @@ def test_correlates_validation(client: TestClient) -> None:
     assert any(
         "has no order" in m for m in detail(outcome="URBAN_RURAL", wave="Y1", by="country_code")
     )
+    # At the midyear survey a question it did not ask reads the same
+    # people's other-wave answers (ADR-0020); one asked in neither is refused.
     assert any(
-        "not asked at MY" in m for m in detail(outcome="HAPPY", wave="MY", by="country_code")
+        "was not asked in the midyear survey or at Y2" in m
+        for m in detail(outcome="LONELY", wave="MY", other_wave="Y2", by="country_code")
     )
     assert any("wave must be" in m for m in detail(outcome="HAPPY", wave="Y9", by="country_code"))
     assert any(

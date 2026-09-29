@@ -322,6 +322,15 @@ REQUESTS = [
     ("/v1/correlates", {"outcome": "sfi", "wave": "Y1"}),
     ("/v1/correlates", {"outcome": "INCOME_FEELINGS", "wave": "Y2"}),
     ("/v1/correlates", {"outcome": "MONEY", "wave": "MY", "against": ["BALANCE"]}),
+    # Midyear pairs (ADR-0020): with 2023 answers, and with 2024's.
+    ("/v1/correlates", {"outcome": "MONEY", "wave": "MY"}),
+    ("/v1/correlates", {"outcome": "MONEY", "wave": "MY", "other_wave": "Y2"}),
+    ("/v1/correlates", {"outcome": "HAPPY", "wave": "MY", "other_wave": "Y2"}),
+    ("/v1/correlations", {"vars": ["MONEY", "HAPPY", "WB_TODAY", "BALANCE"], "wave": "MY"}),
+    (
+        "/v1/correlations",
+        {"vars": ["BALANCE", "INCOME_FEELINGS", "HAPPY"], "wave": "MY", "other_wave": "Y2"},
+    ),
     ("/v1/correlates", {"outcome": "HAPPY", "wave": "Y1", "against": ["LONELY", "sfi_health"]}),
     (
         "/v1/correlations",

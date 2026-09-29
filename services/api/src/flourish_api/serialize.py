@@ -31,6 +31,8 @@ _CORRELATES_META = (
     "pooled",
     "countries",
     "population_source",
+    "other_wave",
+    "answer_waves",
 )
 
 

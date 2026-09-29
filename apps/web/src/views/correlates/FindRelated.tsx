@@ -29,7 +29,7 @@ import {
   type CorrelatesScope,
 } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
+import { WAVE_TITLES } from '../../waves'
 import {
   CORRELATES_NOTE,
   CORRELATION_SCALE,
@@ -52,11 +52,13 @@ import {
   statisticPhrase,
   tintExtent,
 } from '../correlatesRows'
+import { otherWaveOf, requestOther, waveName, waveTitle, yearTagged } from './midyear'
 import {
   DivergingLegend,
   Failure,
   Turns,
   orderedAt,
+  pickerTag,
   questionReason,
   type ViewProps,
 } from './shared'
@@ -75,11 +77,16 @@ export function FindRelated({
 }: ViewProps) {
   const name = relatedQuestion(search)
   const variable = variables.byName[name]
-  const ready = orderedAt(variable, search.wave)
+  const ready = orderedAt(variable, search.wave, otherWaveOf(search))
+  // At Midyear the list ranks other waves' questions too, read from the
+  // other answers' wave (ADR-0020).
+  const otherWave = requestOther(search, [name], variables.byName)
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const detail = useVariable(ready ? name : null).data?.detail
   const ranked = useCorrelates(
-    ready && country !== undefined ? correlatesRequest(search, name, country) : null,
+    ready && country !== undefined
+      ? correlatesRequest(search, name, country, undefined, otherWave)
+      : null,
   )
   const rankedResponse = ranked.data
   const predictors = useMemo(
@@ -87,18 +94,27 @@ export function FindRelated({
     [rankedResponse],
   )
   const across = useCorrelates(
-    ready && predictors.length > 0 ? correlatesAcrossCountries(search, name, predictors) : null,
+    ready && predictors.length > 0
+      ? correlatesAcrossCountries(search, name, predictors, otherWave)
+      : null,
     { enabled: search.scope === 'all' },
   )
   const acrossResponse = across.data
   const acrossRows = useMemo(() => acrossResponse?.rows ?? [], [acrossResponse])
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
 
-  const nameOf = (entry: string) => variables.byName[entry]?.display_name ?? entry
+  // A question by its name — at Midyear, another wave's with its year.
+  const nameOf = (entry: string) =>
+    yearTagged(
+      variables.byName[entry]?.display_name ?? entry,
+      variables.byName[entry],
+      search.wave,
+      otherWave,
+    )
   const title = variable?.display_name ?? name
   const short = variable ? shortName(variable) : title
   const rankedRows = rankedResponse?.rows ?? []
-  const waves = WAVE_CHIPS[search.wave] ?? search.wave
+  const waves = waveName(search.wave, otherWave)
   const rankedName: ExportName = {
     measure: title,
     view: 'Correlates',
@@ -124,7 +140,7 @@ export function FindRelated({
   // Where, in a sentence: a country, or every country pooled.
   const where = pooled ? 'all countries combined' : countryName
   const total = served.countries.length
-  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
+  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${waveTitle(search.wave, otherWave)}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
@@ -151,6 +167,8 @@ export function FindRelated({
               wave={search.wave}
               value={name}
               unavailable={(candidate) => questionReason(candidate, search.wave)}
+              countable={(candidate) => questionReason(candidate, search.wave) === undefined}
+              tagOf={(candidate) => pickerTag(candidate, search)}
               onPick={(picked) =>
                 // The question seeds Compare two's first; a second question
                 // that is now the same one gives way to the default.
@@ -199,6 +217,7 @@ export function FindRelated({
                 pooled ? pooledPlace(rankedResponse.meta.countries, served.countries) : countryName,
                 search.method,
                 search.wave,
+                otherWave,
               )}
               ariaLabel={rankedAria}
               marks="dots"
@@ -284,7 +303,13 @@ export function FindRelated({
         ) : acrossResponse ? (
           <ChartFigure
             title={`What goes with ${title}, country by country`}
-            subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
+            subtitle={acrossSubtitle(
+              predictors.length,
+              countryName,
+              search.wave,
+              search.method,
+              otherWave,
+            )}
             ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}

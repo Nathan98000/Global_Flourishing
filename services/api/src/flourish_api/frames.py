@@ -26,6 +26,7 @@ from flourish_stats import (
     Design,
     WeightSpec,
     eligibility_expr,
+    pairing_spec,
     pooled_population_weights,
     resolve,
     validate_frame,
@@ -42,6 +43,7 @@ from flourish_api.queries import (
     DomainFilter,
     MatrixQuery,
     PairQuery,
+    answer_wave,
 )
 
 VALUE_COLUMN = "value"
@@ -247,10 +249,50 @@ def assemble_change_frame(store: DataStore, query: ChangeQuery) -> AssembledFram
     )
 
 
-def correlation_spec(wave: str) -> WeightSpec:
-    """The weight a correlation at ``wave`` is taken on: the wave's
-    cross-section (``flourish_stats.weights``)."""
+def correlation_spec(wave: str, other_wave: str | None = None) -> WeightSpec:
+    """The weight a correlation at ``wave`` is taken on (``flourish_stats.
+    weights``): the wave's cross-section — or, at the midyear survey, the
+    frame of its answers beside the same people's ``other_wave`` answers
+    (``pairing_spec``: every midyear respondent for 2023, those who also
+    did Wave 2 for 2024)."""
+    if wave == "MY":
+        return pairing_spec(other_wave or "Y1")
     return resolve((wave,), "global")
+
+
+def answer_frame(
+    store: DataStore,
+    variables: Sequence[VariableInfo],
+    wave: str,
+    other_wave: str | None,
+    *,
+    extra_columns: tuple[str, ...],
+    country_codes: Sequence[int] | None,
+) -> pl.DataFrame:
+    """One row per respondent, a column per question, each question's
+    answers from its answer wave (ADR-0020): at the midyear survey, the
+    midyear questions' own answers beside the same respondents' answers
+    from ``other_wave`` for every other question, joined on the person;
+    at any other wave, one wide frame."""
+    by_wave: dict[str, list[VariableInfo]] = {}
+    for variable in variables:
+        by_wave.setdefault(answer_wave(variable, wave, other_wave), []).append(variable)
+    frame: pl.DataFrame | None = None
+    for answers_at, group in by_wave.items():
+        piece = store.wide_frame(
+            group,
+            answers_at,
+            extra_columns=extra_columns if frame is None else (),
+            country_codes=country_codes,
+        )
+        if frame is None:
+            frame = piece
+        else:
+            frame = frame.join(
+                piece.select("id", *(variable.name for variable in group)), on="id", how="left"
+            )
+    assert frame is not None, "a correlation frame needs at least one question"
+    return frame
 
 
 def assemble_correlates_frame(
@@ -266,16 +308,18 @@ def assemble_correlates_frame(
     the variance design. Binary items become indicators of :data:`BINARY_EVENT_CODE`.
     The adjusted models' control columns ride along when ``adjusted``.
     """
-    spec = correlation_spec(query.wave)
+    spec = correlation_spec(query.wave, query.other_wave)
     extra: list[str] = [c for c in query.by if c != "country_code"]
     extra.extend(item.column for item in query.filters)
     extra.append(spec.weight)
     if query.adjusted:
         extra.extend(c for c in DEFAULT_CONTROLS if c != "country_code")
     variables = [query.outcome, *predictors]
-    frame = store.wide_frame(
+    frame = answer_frame(
+        store,
         variables,
         query.wave,
+        query.other_wave,
         extra_columns=tuple(dict.fromkeys(extra)),
         country_codes=query.countries or None,
     )
@@ -337,12 +381,14 @@ def assemble_pair_frame(store: DataStore, query: PairQuery) -> AssembledFrame:
     answered both count: both columns are null for anyone else, who stays
     in the design. A non-country filter nulls Y outside its domain first.
     """
-    spec = correlation_spec(query.wave)
+    spec = correlation_spec(query.wave, query.other_wave)
     extra: list[str] = [item.column for item in query.filters]
     extra.append(spec.weight)
-    frame = store.wide_frame(
+    frame = answer_frame(
+        store,
         [query.y, query.x],
         query.wave,
+        query.other_wave,
         extra_columns=tuple(dict.fromkeys(extra)),
         country_codes=query.countries or None,
     )
@@ -387,12 +433,14 @@ def assemble_matrix_frame(store: DataStore, query: MatrixQuery) -> AssembledFram
     carries the sign the ranked list would give it. A non-country filter
     nulls every question outside its domain: each pair's complete cases
     lie in the domain, while the rows stay in the design."""
-    spec = correlation_spec(query.wave)
+    spec = correlation_spec(query.wave, query.other_wave)
     extra: list[str] = [item.column for item in query.filters]
     extra.append(spec.weight)
-    frame = store.wide_frame(
+    frame = answer_frame(
+        store,
         list(query.variables),
         query.wave,
+        query.other_wave,
         extra_columns=tuple(dict.fromkeys(extra)),
         country_codes=query.countries or None,
     )

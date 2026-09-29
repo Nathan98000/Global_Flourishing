@@ -216,3 +216,45 @@ def test_the_pooled_precompute_equals_the_on_demand_estimator_on_the_release(
         )
         for a, b in zip(got.json()["rows"], want.json()["rows"], strict=True):
             assert abs(a["estimate"] - b["estimate"]) <= 1e-12 and a["n"] == b["n"]
+
+
+# --- midyear pairs (ADR-0020) ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("other", "people", "weight"), [("Y1", 131_487, "w_l1m"), ("Y2", 116_038, "w_l1m2")]
+)
+def test_each_midyear_pairing_is_its_own_frame_on_the_release(
+    built_client: TestClient, other: str, people: int, weight: str
+) -> None:
+    body = built_client.get(
+        "/v1/correlations/pair",
+        params={
+            "y": "WB_TODAY",
+            "x": "TIME_MEDIA",
+            "wave": "MY",
+            "other_wave": other,
+            "pooled": "population",
+        },
+    ).json()
+    meta = body["shares"]["meta"]
+    assert meta["n_frame"] == people
+    assert meta["weight"] == weight
+    assert meta["answer_waves"] == {"TIME_MEDIA": "MY", "WB_TODAY": other}
+
+
+def test_six_countries_answer_the_2024_pairing_in_one_interview(built_client: TestClient) -> None:
+    """ADR-0020's note: in China, Hong Kong, Israel, Japan, Sweden and the
+    United States every midyear respondent who also did Wave 2 answered
+    the midyear items in the Wave 2 interview (midyear_type 2); two in
+    three of the 116,038 did overall."""
+    store = built_client.app.state.store  # type: ignore[attr-defined]
+    rows = store.con.execute(
+        "SELECT c.iso3, count(*) FILTER (WHERE midyear_type = 2), count(*) "
+        "FROM respondents r JOIN countries c ON c.code = r.country_code "
+        "WHERE has_midyear AND retained_y2 GROUP BY 1"
+    ).fetchall()
+    same_day = {iso3 for iso3, type_2, total in rows if type_2 == total}
+    assert same_day == {"CHN", "HKG", "ISR", "JPN", "SWE", "USA"}
+    share = sum(type_2 for _, type_2, _ in rows) / sum(total for _, _, total in rows)
+    assert 0.64 < share < 0.68

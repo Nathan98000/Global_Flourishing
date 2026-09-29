@@ -2,13 +2,21 @@
 // Nothing here computes a statistic — the rows arrive ranked and
 // estimated; this file only names, keys and scales them for display.
 
-import type { Country, EstimateRow, Meta, VariableDetail, VariableSummary } from '../api/types'
+import type {
+  Country,
+  EstimateRow,
+  Meta,
+  VariableDetail,
+  VariableSummary,
+  Wave,
+} from '../api/types'
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
 import { shareLabel } from '../charts/CrossTab'
 import { formatEstimate } from '../format'
 import { endpointsClause, shortName } from '../labels'
-import { WAVE_CHIPS, WAVE_NAMES, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_NAMES } from '../waves'
+import { waveTitle, type OtherWave } from './correlates/midyear'
 
 /** The country a URL without one shows: the United States (by its
  * ISO code in meta — the front end owns no country list), else the
@@ -135,12 +143,13 @@ export function legendEnds(extent: number, stat: string): [string, string] {
 export function acrossSubtitle(
   count: number,
   countryName: string,
-  wave: string,
+  wave: Wave,
   method?: CorrelationMethod,
+  other?: OtherWave,
 ): string {
   const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
   const place = countryName === ALL_COUNTRIES ? 'all countries combined' : countryName
-  return `${questions} ranked for ${place}, country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
+  return `${questions} ranked for ${place}, country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`
 }
 
 /** Whether a correlation rests on fewer people than the ranking floor
@@ -221,13 +230,15 @@ export function statisticPhrase(method: CorrelationMethod | undefined): string {
   return method === 'spearman' ? 'correlation by rank, −1 to 1' : 'correlation, −1 to 1'
 }
 
-/** Subtitle for the ranked list: where, when, what. */
+/** Subtitle for the ranked list: where, when (at Midyear, beside which
+ * year's answers), what. */
 export function rankedSubtitle(
   countryName: string,
   method: CorrelationMethod | undefined,
-  wave: string,
+  wave: Wave,
+  other?: OtherWave,
 ): string {
-  return `${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
+  return `${countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`
 }
 
 /** The ranked list's fixed window: a correlation always spans −1 to 1,
@@ -257,15 +268,16 @@ export function rankedTip(
 
 // --- Compare two ------------------------------------------------------------
 
-/** An axis title: the question's short name and, when the axis shows
+/** An axis title: the question's short name (at Midyear with the year
+ * another wave's answers come from — `short`) and, when the axis shows
  * numbers (a 0–10 or count item's answers), its ends in the item's own
  * words — "Life evaluation today · 0 = Worst possible, 10 = Best
  * possible". An axis of worded answers, or a score's bins, needs none. */
 export function pairAxisTitle(
   variable: Pick<VariableSummary, 'display_name' | 'scale_type' | 'is_derived'>,
   detail: VariableDetail | undefined,
+  short: string = shortName(variable),
 ): string {
-  const short = shortName(variable)
   const numbered =
     !variable.is_derived &&
     (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
