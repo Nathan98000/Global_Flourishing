@@ -128,26 +128,30 @@ export function FindRelated({
 
   return (
     <>
-      <p className={own.sentence}>
-        What goes with{' '}
-        <QuestionPicker
-          label="Question"
-          variables={variables.list}
-          wave={search.wave}
-          value={name}
-          unavailable={(candidate) => questionReason(candidate, search.wave)}
-          onPick={(picked) =>
-            // The question seeds Compare two's first; a second question
-            // that is now the same one gives way to the default.
-            setSearch({
-              outcome: picked,
-              a: undefined,
-              b: search.b === picked ? undefined : search.b,
-            })
-          }
-        />
-        ?
-      </p>
+      <div className={own.sentenceRow}>
+        <p className={own.sentence}>
+          What goes with{' '}
+          <span className={own.sentenceEnd}>
+            <QuestionPicker
+              label="Question"
+              variables={variables.list}
+              wave={search.wave}
+              value={name}
+              unavailable={(candidate) => questionReason(candidate, search.wave)}
+              onPick={(picked) =>
+                // The question seeds Compare two's first; a second question
+                // that is now the same one gives way to the default.
+                setSearch({
+                  outcome: picked,
+                  a: undefined,
+                  b: search.b === picked ? undefined : search.b,
+                })
+              }
+            />
+            ?
+          </span>
+        </p>
+      </div>
       {controls}
       <div className={own.scopeRow}>
         <RadioRow<CorrelatesScope>

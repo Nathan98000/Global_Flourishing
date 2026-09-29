@@ -144,36 +144,42 @@ export function ComparePair({
 
   return (
     <>
-      <p className={own.sentence}>
-        How do answers to{' '}
-        <QuestionPicker
-          label="First question"
-          variables={variables.list}
-          wave={search.wave}
-          value={aName}
-          unavailable={(variable) =>
-            pairReason(variable, b, 'second question', search.wave, shares)
-          }
-          onPick={(name) => setSearch({ a: name })}
-        />{' '}
-        relate to{' '}
-        <QuestionPicker
-          label="Second question"
-          variables={variables.list}
-          wave={search.wave}
-          value={bName}
-          unavailable={(variable) => pairReason(variable, a, 'first question', search.wave, shares)}
-          onPick={(name) => setSearch({ b: name })}
-        />
-        ?{' '}
+      <div className={own.sentenceRow}>
+        <p className={own.sentence}>
+          How do answers to{' '}
+          <QuestionPicker
+            label="First question"
+            variables={variables.list}
+            wave={search.wave}
+            value={aName}
+            unavailable={(variable) =>
+              pairReason(variable, b, 'second question', search.wave, shares)
+            }
+            onPick={(name) => setSearch({ a: name })}
+          />{' '}
+          relate to{' '}
+          <span className={own.sentenceEnd}>
+            <QuestionPicker
+              label="Second question"
+              variables={variables.list}
+              wave={search.wave}
+              value={bName}
+              unavailable={(variable) =>
+                pairReason(variable, a, 'first question', search.wave, shares)
+              }
+              onPick={(name) => setSearch({ b: name })}
+            />
+            ?
+          </span>
+        </p>
         <button
           type="button"
-          className={styles.swap}
+          className={own.swap}
           onClick={() => setSearch({ a: bName, b: aName })}
         >
           <span aria-hidden="true">⇄ </span>Swap
         </button>
-      </p>
+      </div>
       {controls}
       {problem || !a || !b ? (
         <EmptyState title="Pick two questions to compare">

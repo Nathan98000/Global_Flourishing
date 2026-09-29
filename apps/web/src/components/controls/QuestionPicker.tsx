@@ -226,7 +226,9 @@ export function QuestionPicker(props: QuestionPickerProps) {
           <>
             <span className={styles.triggerText}>{name}</span>
             <span className={styles.chevron} aria-hidden="true">
-              ▾
+              <svg viewBox="0 0 12 12" focusable="false">
+                <path d="M2.25 4.5 6 8.25 9.75 4.5" />
+              </svg>
             </span>
           </>
         )}

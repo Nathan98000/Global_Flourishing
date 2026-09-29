@@ -90,7 +90,7 @@ describe('QuestionPicker', () => {
     const { dialog } = openSingle()
     const trigger = screen.getByRole('button', { name: 'First question: Life evaluation today' })
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(trigger).toHaveTextContent('Life evaluation today▾')
+    expect(trigger).toHaveTextContent(/^Life evaluation today$/)
     const search = within(dialog).getByRole('searchbox')
     expect(search).toHaveFocus()
     // Only servable questions are counted and listed.
