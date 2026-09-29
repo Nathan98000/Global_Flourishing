@@ -21,7 +21,9 @@ names the weight it used, alongside the unweighted number of respondents
 
 Weights are normalised to mean 1 **within** each country, so pooling
 countries without re-scaling would count Türkiye's 1,473 respondents the
-same as the United States' 38,312. Figures are per-country.
+same as the United States' 38,312. Figures are per-country — except the
+Correlates page's **All countries**, which re-scales each country to its
+adult population first ([below](#all-countries-pooled-by-adult-population)).
 
 ## Which weight, when
 
@@ -57,6 +59,39 @@ them:
   the same day. Any midyear → Wave 2 comparison is therefore restricted
   to the 54,358 standalone midyear interviews, and the engine applies
   that restriction itself.
+
+## All countries: pooled by adult population
+
+On the Correlates page, **All countries** puts every country's people
+into one estimate. Pooling needs a common scale: each respondent's weight
+is multiplied by their country's adult population over the sum of that
+country's weights, so each country's weights sum to its adults. A pooled
+estimate therefore describes the 3.67 billion adults of the 23 countries
+together, each country counting as many times as it has adults — which
+means **China and India, 58% of those adults between them, dominate every
+pooled figure** (China alone 31%, India 27%; the next largest, the United
+States, 7%). It is an all-countries figure, not a typical country's.
+
+The adult populations are the United Nations' *World Population Prospects
+2024* estimates of the population aged 18 and over on 1 July 2023, summed
+from the UN's single-year-of-age file by `scripts/adult_population.py`
+into `flourish_stats/data/adult_population.csv` (one row per country;
+Hong Kong separately from China, as the UN reports it). The table is
+public UN data; it is the one weight fact the app takes from outside the
+study.
+
+The rescaling happens on each wave's whole eligible frame, before anyone
+is dropped for a missing answer, so a country that did not ask a question
+simply has no one behind that estimate: it drops out, and the chart says
+so ("21 of 23 countries (not China or Egypt), combined by adult
+population"), as does any row or cell covering fewer countries than all
+("Asked in 21 of 23 countries."). Scaling one country's weights by a
+constant changes none of its own estimates, so a question asked in one
+country alone gives that country's number. The interval of a pooled share
+(Compare two's grid) is the usual design-based one over the pooled
+design, taking the populations as known. Pooled correlations are computed
+when the app is built, by the same estimator the API runs on demand, and
+checked equal to it within 10⁻¹².
 
 ## Confidence intervals: the survey design matters
 
@@ -254,7 +289,9 @@ other correlates rules in the engine). This is a deliberate exception to
 the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
 matrix shows each with its value and an asterisk (see "Few people behind
-an estimate" below).
+an estimate" below). Pooled across all countries the floor is the same
+100 people, so a question asked in only one or a few countries can rank
+on those countries' answers; its row says how many countries asked it.
 
 **One construct, once.** A score and the questions it is built from are
 associated by construction, so a ranked list never holds two measures
@@ -262,9 +299,10 @@ that share answers: of two such measures in the list, only the one built
 from more answers stays (the PHQ-2 depression score over its two
 questions), and of two built from as many, the score over its yes/no
 screen flag. The list then fills up again from further down the ranking,
-so it always holds as many measures as it shows, and the footnote names
-what stood in for what. Only measures that made the list compete: a score
-ranked below the cut never displaces its own question.
+so it always holds as many measures as it shows; the response names what
+stood in for what (`meta.dropped_overlap`). Only measures that made the
+list compete: a score ranked below the cut never displaces its own
+question.
 
 **Two questions side by side** (Compare two). For two questions in one
 country, the view shows a weighted cross-tab of their answers: each
@@ -285,7 +323,7 @@ their labels say so. Both axes run from least to most of what the
 question's label names, the most of the second question at the top. The
 tints use fixed steps (0, 5, 10, 20, 30, 45 and 60% or more), so a shade
 means the same share in every pair. Only shares of people are shown; no
-individual's answers ever are. "In every country" shows the pair's
+individual's answers ever are. "Country by country" shows the pair's
 correlation in each country instead.
 
 **A table of several** (Compare several) sets 2 to 10 questions against
@@ -299,12 +337,39 @@ distance 0, a pair with no estimate as 1), ties broken toward the order
 the questions were added.
 
 **Few people behind an estimate.** Every estimate is shown; one that
-rests on few people wears an asterisk and a dashed outline, and its
-tooltip says it is less reliable. In Compare two a cell is flagged when
+rests on few people wears an asterisk ("* small sample size") and a
+dashed outline, in the chart and in its tooltip. In Compare two a cell is
+flagged when
 fewer than 30 people gave that pair of answers or its column holds fewer
 than 100 (`FA_PAIR_CELL_FLAG_BELOW`, `FA_PAIR_COLUMN_FLAG_BELOW`); a
 correlation — a matrix cell, a ranked row — when fewer than 100 people
 answered both (`FA_CORRELATES_MIN_N`).
+
+**The midyear survey beside another wave.** The midyear survey's
+questions were asked only then, so a correlation between one of them and
+another question uses the same people's answers from two interviews:
+the midyear question's own answers, and the other question's answers from
+2023 or from 2024 (the reader chooses). The pairing decides who is in the
+estimate and how they are weighted — both weights calibrate to the Wave 1
+population:
+
+| Paired with | People | Weight | Time between the two answers |
+|---|---|---|---|
+| 2023 | the 131,487 midyear respondents | `w_l1m` | usually 8–12 months |
+| 2024 | the 116,038 who also did Wave 2 | `w_l1m2` | the same interview for two in three; about six months for the rest |
+
+For the 2024 pairing, every respondent in China, Hong Kong, Israel,
+Japan, Sweden and the United States answered the midyear questions inside
+their Wave 2 interview. That is why the midyear → Wave 2 *change* is
+restricted to standalone midyear interviews (above), and why a
+*correlation* is not: two answers given the same day go together or not
+like any others. A table of several questions at the midyear survey takes
+every pair on the same people — two questions from another wave included
+— so such a pair can differ slightly from the same pair at its own wave,
+which counts everyone asked then. A pair or table needs at least one
+midyear question; Find related ranks, for a midyear question, every
+midyear question and every question from the chosen year, and for any
+other question the midyear questions only.
 
 ## Adjusted and unadjusted associations
 

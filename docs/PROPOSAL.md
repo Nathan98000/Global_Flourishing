@@ -317,6 +317,8 @@ Implement Change (paired shift with CI, histogram of individual change, transiti
 
 *Revised 23 September 2026 ([ADR-0013](adr/ADR-0013-phase-5-serving-and-display.md)):* the exit criterion is narrowed — retention is for the maths, not the interface. No coverage or follow-up figure is displayed with Wave 2 or midyear estimates; the interval and the unweighted n carry the signal, and a single plain sentence appears only where a country's follow-up group is small. The population-rescaled "all countries" option is deferred until the owner decides it.
 
+*Revised 29 September 2026 ([ADR-0020](adr/ADR-0020-correlates-all-countries-and-midyear-pairs.md)):* the owner decided it — the Correlates page's **All countries** pools every country, each weighted to its adult population (UN World Population Prospects 2024, ages 18+, 1 July 2023), with its label and coverage stated on every pooled chart; and the midyear survey's questions are reachable there, paired with the same people's 2023 or 2024 answers.
+
 ### Phase 6 — Correlates and modelling (weeks 12–14)
 
 Add weighted correlations and adjusted associations (weighted OLS/logit with the fixed control set and country fixed effects) to the engine and API; build the Correlates view with a per-country heatmap and a ranked list; write model cards describing specification, controls, and limitations; place "associations, not causes" copy in the UI and expand the Methods page. **Exit:** view live; methods reviewed by at least one person with a statistics background.

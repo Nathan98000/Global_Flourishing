@@ -203,7 +203,10 @@ gate — CI has no R), and uploads everything under
 `gs://$BUCKET/builds/<data_version>/` with `builds/latest.txt` pointing at
 it. The next `make deploy TAG=…` bakes that build into the image and the
 Pages assets; until the bucket variable exists, deploys stay green and
-ship a data-less API that says so at `/health`.
+ship a data-less API that says so at `/health`. Building the image also
+precomputes the pooled "All countries" correlations from the staged data
+(`python -m flourish_api.pooled`, ADR-0020) — a few minutes of the deploy
+job, nothing to set up; the API reads the file at start.
 
 ## 8. Optional: Sentry (API error reporting)
 
