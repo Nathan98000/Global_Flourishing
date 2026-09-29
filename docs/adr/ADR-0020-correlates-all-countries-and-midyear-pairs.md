@@ -81,7 +81,13 @@ the plain average of the countries, which reads +0.10.
    missing countries named when three or fewer, the count alone
    otherwise); a row or cell covering fewer than all adds "Asked in 12 of
    23 countries." to its tooltip, and nothing else marks it; data tables
-   and CSVs gain a Countries column.
+   and CSVs gain a Countries column. The strip above each Compare two
+   chart names its scope ("United States: +0.54", "All countries:
+   +0.10"). Country by country, Compare two draws the All countries
+   average as a dashed rule labelled "All countries +0.10" at its top, in
+   ink, whatever country is chosen (the chosen one stays picked out), and
+   a country that wasn't asked has no row. A value that shows as 0.00
+   wears neutral ink — dot, value and strip — never rust or teal.
 
 2. **Every country's correlations are precomputed when the image is
    built.** On demand, Find related's All countries sweep — about 100

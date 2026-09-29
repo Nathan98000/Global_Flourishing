@@ -50,6 +50,7 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
+  ALL_COUNTRIES,
   CORRELATES_NOTE,
   CORRELATION_SCALE,
   averagedOver,
@@ -127,10 +128,12 @@ export function ComparePair({
       enabled: everywhere,
     },
   )
-  // All countries, country by country: the strip reads the average.
+  // Country by country, whatever country is chosen: the All countries
+  // average, as the chart's labelled rule (and, All countries chosen, as
+  // the strip).
   const pooledPair = useCorrelates(
     ready ? correlatesRequest(search, aName, 'all', [bName], otherWave) : null,
-    { enabled: everywhere && country === 'all' },
+    { enabled: everywhere },
   )
   const aDetail = useVariable(ready ? aName : null).data?.detail
   const bDetail = useVariable(ready ? bName : null).data?.detail
@@ -233,6 +236,7 @@ export function ComparePair({
             a={a}
             b={b}
             response={acrossResponse}
+            average={pooledPair.data?.rows[0]}
             chosen={country === 'all' ? undefined : country}
             countryName={countryName}
             wave={search.wave}
@@ -246,6 +250,7 @@ export function ComparePair({
                   chosenRow ? (
                     <CorrelationStrip
                       row={chosenRow}
+                      scope={countryName}
                       flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
                     />
                   ) : null
@@ -276,6 +281,7 @@ export function ComparePair({
               strip={
                 <CorrelationStrip
                   row={pair.data.correlation}
+                  scope={countryName}
                   flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
                 />
               }
@@ -478,12 +484,14 @@ function PairFigure({
   )
 }
 
-/** The pair's correlation in every country: one dot per country on a
- * fixed −1 to 1 axis, strongest first, the chosen country picked out. */
+/** The pair's correlation in every country that asked both: one dot per
+ * country on a fixed −1 to 1 axis, strongest first, the chosen country
+ * picked out, and the All countries average as a labelled rule. */
 function EveryCountry({
   a,
   b,
   response,
+  average,
   chosen,
   countryName,
   wave,
@@ -496,6 +504,8 @@ function EveryCountry({
   a: VariableSummary
   b: VariableSummary
   response: EstimateResponse
+  /** The All countries average (drawn whatever country is chosen). */
+  average: EstimateRow | undefined
   chosen: number | undefined
   countryName: string
   wave: Wave
@@ -514,11 +524,14 @@ function EveryCountry({
       groupValueLabel('country_code', row.group['country_code'] ?? null, served)
     return {
       ...response,
-      rows: [...response.rows].sort(
-        (left, right) =>
-          (right.estimate ?? -Infinity) - (left.estimate ?? -Infinity) ||
-          nameOf(left).localeCompare(nameOf(right)),
-      ),
+      // A country with nobody behind the pair wasn't asked: no row.
+      rows: response.rows
+        .filter((row) => row.n > 0)
+        .sort(
+          (left, right) =>
+            (right.estimate ?? -Infinity) - (left.estimate ?? -Infinity) ||
+            nameOf(left).localeCompare(nameOf(right)),
+        ),
     }
   }, [response, served])
   const name: ExportName = {
@@ -530,11 +543,15 @@ function EveryCountry({
   const bShort = yearTagged(shortName(b), b, wave, other)
   const top = sorted.rows[0]
   const bottom = sorted.rows[sorted.rows.length - 1]
+  const averageText =
+    average && average.estimate !== null
+      ? `${formatEstimate(average.estimate, average.stat)}${fewPeople(average, minN) ? '*' : ''}`
+      : undefined
   const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1${chosen !== undefined ? `; ${countryName} is picked out` : ''}.${
     top && bottom
       ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''
-  } The data table below carries every number.`
+  }${averageText ? ` A dashed line marks the All countries average, ${averageText}.` : ''} The data table below carries every number.`
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
@@ -563,6 +580,15 @@ function EveryCountry({
         color={signMark(1)}
         colorOf={(row) => signMark(row.estimate)}
         highlightOf={(row) => row.group['country_code'] === chosen}
+        {...(average && average.estimate !== null && averageText
+          ? {
+              reference: {
+                value: average.estimate,
+                label: `${ALL_COUNTRIES} ${averageText}`,
+                atTop: true,
+              },
+            }
+          : {})}
         zeroRule
         labelFontSize={narrow ? 12 : 13.5}
         fixedScale={CORRELATION_SCALE}

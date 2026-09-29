@@ -7,7 +7,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciText, formatEstimate, isShareChangeStat, isShareStat } from '../format'
+import { ciText, formatEstimate, isShareChangeStat, isShareStat, roundsToZero } from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
@@ -92,6 +92,8 @@ export const DIVERGING_STEPS = 5
 /** Mark-grade hues for a negative / positive association (dots, bars). */
 export const NEGATIVE_MARK = 'var(--div-neg-mark)'
 export const POSITIVE_MARK = 'var(--div-pos-mark)'
+/** A signed value that shows as 0.00: neutral ink, neither sign's hue. */
+export const ZERO_MARK = INK_SECONDARY
 
 /** The diverging tint for a value in [−extent, extent], quantized onto
  * the eleven ramp tokens (no interpolation, no resolved colors — the
@@ -141,9 +143,12 @@ export function whiskerOverBars<Datum>(
   ]
 }
 
-/** The hue a signed mark wears. */
+/** The hue a signed mark wears: rust below zero, teal above — and a
+ * value that shows as 0.00 neutral ink (it has no sign on the page). */
 export function signMark(value: number | null | undefined): string {
-  return value !== null && value !== undefined && value < 0 ? NEGATIVE_MARK : POSITIVE_MARK
+  if (value === null || value === undefined) return POSITIVE_MARK
+  if (roundsToZero(value)) return ZERO_MARK
+  return value < 0 ? NEGATIVE_MARK : POSITIVE_MARK
 }
 
 /** The one hue an outcome's marks wear, everywhere. */

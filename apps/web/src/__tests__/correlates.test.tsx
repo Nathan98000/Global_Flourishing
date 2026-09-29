@@ -577,6 +577,8 @@ describe('All countries (ADR-0020)', () => {
     expect(figure.innerHTML).not.toContain('var(--control-selected)')
     const strip = screen.getByText('Correlation').parentElement as HTMLElement
     expect(within(strip).getByText('+0.27')).toBeInTheDocument()
+    expect(within(strip).getByText('All countries:')).toBeInTheDocument()
+    expect(figure.querySelector('svg')?.textContent).toContain('All countries +0.27')
   })
 
   test('Compare several, All countries: the averaged table, coverage in the tooltips, a Countries column', async () => {
@@ -1077,7 +1079,7 @@ describe('Correlates view', () => {
   })
 
   test('Compare two in every country: the pair’s correlation in each, the chosen one picked out', async () => {
-    const calls = mockFetch(tier)
+    const calls = mockFetch(pooledTier)
     const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
     await screen.findByRole('img', {
       name: /Service attendance and Feelings about household income in/,
@@ -1109,9 +1111,34 @@ describe('Correlates view', () => {
         (node) => node.textContent,
       ),
     ).toEqual(['higher', 'lower', 'higher', 'higher'])
-    // The strip still reads the chosen country's correlation.
+    // The All countries average as a labelled rule, whatever country is
+    // chosen (the zero rule is the other).
+    expect(ruleLines(figure)).toBe(2)
+    expect(svgText).toContain('All countries +0.27')
+    expect(figure.getAttribute('aria-label')).toContain(
+      'A dashed line marks the All countries average, +0.27.',
+    )
+    // The strip still reads the chosen country's correlation, and names it.
     const strip = screen.getByText('Correlation').parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
+    expect(within(strip).getByText('United States:')).toBeInTheDocument()
+  })
+
+  test('Compare two country by country: a country that was not asked has no row', async () => {
+    mockFetch({
+      ...pooledTier,
+      'against=INCOME_FEELINGS&by=country_code': {
+        ...pairAcross,
+        rows: pairAcross.rows.map((row) =>
+          row.group['country_code'] === 1 ? { ...row, estimate: null, n: 0, sum_w: 0 } : row,
+        ),
+      },
+    })
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&scope=all')
+    const figure = await screen.findByRole('img', {
+      name: /their correlation in each of 1 countries/,
+    })
+    expect(figure.querySelector('svg')?.textContent ?? '').not.toContain('Testland')
   })
 
   test('Compare two: pick either question, and Swap exchanges the two', async () => {
@@ -1539,6 +1566,12 @@ describe('correlates helpers', () => {
     expect(signMark(-0.1)).toBe('var(--div-neg-mark)')
     expect(signMark(0.1)).toBe('var(--div-pos-mark)')
     expect(signMark(null)).toBe('var(--div-pos-mark)')
+    // A value that shows as 0.00 has no sign on the page: neutral ink.
+    expect(signMark(0.004)).toBe('var(--ink-secondary)')
+    expect(signMark(-0.004)).toBe('var(--ink-secondary)')
+    expect(signMark(0)).toBe('var(--ink-secondary)')
+    expect(signMark(-0.005)).toBe('var(--div-neg-mark)')
+    expect(formatEstimate(-0.004, 'pearson_r')).toBe('0.00')
   })
 
   test('predictor order, the cell lookup, countries by name', () => {

@@ -12,8 +12,10 @@
 
 .line {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  /* A wrapped value clears the track's tick labels. */
+  gap: 22px var(--space-3);
   /* Room under the track for its tick labels. */
   padding-bottom: 14px;
 }
@@ -60,4 +62,9 @@
   font-size: var(--text-base);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+/* The scope, "United States:", in the value's own line but lighter. */
+.scope {
+  font-weight: 400;
 }
