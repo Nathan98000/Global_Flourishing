@@ -304,13 +304,13 @@ function HeaderRow({ strip, toggle }: { strip: ReactNode; toggle: ReactNode }) {
   )
 }
 
-/** The key to the grid: its fixed bins in the ramp's own tokens, and the
- * asterisk. */
+/** The key to the grid: how to read it, its fixed bins in the ramp's own
+ * tokens, and the asterisk. */
 function ShareLegend() {
   return (
     <p className={`${styles.legend} ${own.shareLegend}`}>
       <span className={own.shareKey}>
-        <span>Share of each column</span>
+        <span>Share of each column (columns add to 100%)</span>
         <span className={own.bins} aria-hidden="true">
           {SEQUENTIAL_RAMP.map((token, index) => (
             <span key={token} className={own.bin}>

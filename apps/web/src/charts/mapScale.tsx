@@ -1,5 +1,5 @@
 // The choropleth's scale and legend: a sequential scale *quantized* onto
-// the seven discrete ramp tokens (no color interpolation — the SVG stays
+// the nine discrete ramp tokens (no color interpolation — the SVG stays
 // var()-themed), anchored to the observed range, and the discrete legend
 // that names the window's ends. Shared by the US States map and the What
 // Matters matrix; the world map that first used it was dropped in the

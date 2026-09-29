@@ -527,7 +527,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(
     page.getByRole('img', { name: /their correlation in each of 2 countries/ }),
   ).toBeVisible()
-  await expect(page.getByText('Share of each column')).toBeHidden()
+  await expect(page.getByText('Share of each column (columns add to 100%)')).toBeHidden()
   await page.getByText('In United States', { exact: true }).click()
   await expect(page).not.toHaveURL(/scope=/)
 

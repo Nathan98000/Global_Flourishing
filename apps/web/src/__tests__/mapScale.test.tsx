@@ -8,13 +8,13 @@ import { MapLegend, mapDomain, quantizeColor } from '../charts/mapScale'
 import { testResponseMeta, testRow } from '../test-utils/fixtures'
 
 describe('quantized token colors', () => {
-  test('the ramp is the seven tokens, lightest to darkest, clamped', () => {
+  test('the ramp is the nine tokens, lightest to darkest, clamped', () => {
     const color = quantizeColor([0, 10])
     expect(color(-1)).toBe('var(--seq-100)')
     expect(color(0)).toBe('var(--seq-100)')
-    expect(color(9.99)).toBe('var(--seq-700)')
-    expect(color(10)).toBe('var(--seq-700)')
-    expect(color(5)).toBe('var(--seq-400)')
+    expect(color(9.99)).toBe('var(--seq-900)')
+    expect(color(10)).toBe('var(--seq-900)')
+    expect(color(5)).toBe('var(--seq-500)')
   })
 
   test('the ramp anchors to the observed range, not the item scale (F1)', () => {

@@ -2,8 +2,9 @@
 // questions in one Observable Plot SVG, so the PNG export carries all of
 // it. Columns are the first question's answers, least to most; rows are
 // the second's, the most at the top. Each cell is the share of its
-// column's people who gave the row's answer ("57%", "<1%"), tinted on the
-// sequential ramp in fixed bins — the same shade is the same share in
+// column's people who gave the row's answer ("57%", "<1%"; the "%" left
+// to the key in a column under 44px), tinted on the sequential ramp in
+// nine fixed bins that reach 90% — the same shade is the same share in
 // every pair — its ink the ramp step's own. A cell few people are behind
 // wears an asterisk and a dashed inner outline. Above the grid, one bar
 // per column, aligned to it, shows the share of respondents who gave that
@@ -31,10 +32,16 @@ import {
 import { tintInk } from './TransitionTable'
 import { chartWidth, usePlot } from './usePlot'
 
-/** The tint bins' lower edges, in percent: 0, 5, 10, 20, 30, 45, 60+. */
-export const SHARE_BINS = [0, 5, 10, 20, 30, 45, 60] as const
+/** The tint bins' lower edges, in percent: 0, 5, 10, 20, 30, 45, 60, 75,
+ * 90+ — reaching the top, so a yes/no answer most people give still
+ * shows its differences (84% and 93% are two steps). */
+export const SHARE_BINS = [0, 5, 10, 20, 30, 45, 60, 75, 90] as const
 
-/** A column share onto the seven sequential ramp tokens, in fixed bins
+/** A column narrower than this writes its shares without "%" (the key
+ * says it); the asterisk stays. */
+export const PERCENT_BELOW = 44
+
+/** A column share onto the nine sequential ramp tokens, in fixed bins
  * (never fitted to the pair). No share: no tint. */
 export function shareTint(share: number | null): string {
   if (share === null) return 'transparent'
@@ -47,11 +54,12 @@ export function shareTint(share: number | null): string {
 }
 
 /** A share as the grid writes it: "57%"; "<1%" for a sliver, so nothing
- * above zero reads 0%. */
-export function shareLabel(share: number): string {
+ * above zero reads 0%; without the sign in a narrow column ("57", "<1"). */
+export function shareLabel(share: number, sign = true): string {
   const percent = share * 100
-  if (percent > 0 && percent < 1) return '<1%'
-  return `${Math.round(percent)}%`
+  const unit = sign ? '%' : ''
+  if (percent > 0 && percent < 1) return `<1${unit}`
+  return `${Math.round(percent)}${unit}`
 }
 
 export interface CrossTabColumn {
@@ -116,6 +124,8 @@ export interface CrossTabLayout {
   marginRight: number
   plotWidth: number
   columnWidth: number
+  /** Whether the shares carry "%": a column of PERCENT_BELOW or wider. */
+  percent: boolean
   /** The cells' share labels and the bars' labels: the largest size at
    * which the widest of them fits its column (a cell's inside its
    * flagged outline, whose inset tightens in a narrow column). */
@@ -215,8 +225,17 @@ export function crossTabLayout({
   const plotWidth = width - marginLeft - marginRight
   const columnWidth = plotWidth / Math.max(1, columns.length)
   const flagInset = columnWidth < 40 ? 2 : 4
-  const cellFontSize = fittedSize(cellTexts, columnWidth - 2 * flagInset - 4, CELL_SIZES, measurer)
-  const barFontSize = fittedSize(barTexts, columnWidth - 4, BAR_SIZES, measurer)
+  // A narrow column leaves "%" to the key: the labels are fitted without it.
+  const percent = columnWidth >= PERCENT_BELOW
+  const drawn = (texts: readonly string[]) =>
+    percent ? texts : texts.map((text) => text.replace('%', ''))
+  const cellFontSize = fittedSize(
+    drawn(cellTexts),
+    columnWidth - 2 * flagInset - 4,
+    CELL_SIZES,
+    measurer,
+  )
+  const barFontSize = fittedSize(drawn(barTexts), columnWidth - 4, BAR_SIZES, measurer)
   if (stacked) rowLines = rows.map((row) => wrapLabel(row.label, plotWidth, measureLabel, Infinity))
 
   const caption = block(barCaption, measurer(12), {
@@ -305,6 +324,7 @@ export function crossTabLayout({
     marginRight,
     plotWidth,
     columnWidth,
+    percent,
     cellFontSize,
     barFontSize,
     flagInset,
@@ -370,9 +390,12 @@ export function CrossTab({
     (available) => {
       const laidOut = available !== null
       const star = (text: string, flagged: boolean) => (flagged ? `${text}*` : text)
-      const cellText = (cell: CrossTabCell) =>
-        cell.share === null ? '' : star(shareLabel(cell.share), cell.flagged)
-      const barText = (bar: CrossTabColumn) => star(shareLabel(bar.share), bar.flagged)
+      const labels = (sign: boolean) => ({
+        cell: (cell: CrossTabCell) =>
+          cell.share === null ? '' : star(shareLabel(cell.share, sign), cell.flagged),
+        bar: (bar: CrossTabColumn) => star(shareLabel(bar.share, sign), bar.flagged),
+      })
+      const measured = labels(true)
       const layout = crossTabLayout({
         width: chartWidth(660, available),
         columns,
@@ -380,10 +403,11 @@ export function CrossTab({
         xTitle,
         yTitle,
         barCaption,
-        cellTexts: cells.map(cellText),
-        barTexts: columns.map(barText),
+        cellTexts: cells.map(measured.cell),
+        barTexts: columns.map(measured.bar),
         measurer: (size, weight) => textMeasurer(size, laidOut, weight),
       })
+      const { cell: cellText, bar: barText } = labels(layout.percent)
       const { width, height, marginLeft, marginRight, barTop, barBase, rowTops, cellHeight } =
         layout
       const barHeight = barBase - barTop

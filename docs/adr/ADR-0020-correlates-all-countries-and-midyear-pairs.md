@@ -203,7 +203,13 @@ the plain average of the countries, which reads +0.10.
    the PNG carries them, `<em>` in the HTML keys. Compare two's bars'
    caption and rows' title run on their own lines from the chart's left
    edge; the gutter holds only row labels; no text block is capped at a
-   line count; cell and bar labels are sized to fit their columns.
+   line count; cell and bar labels are sized to fit their columns. The
+   grid's fixed bins reach the top — 0, 5, 10, 20, 30, 45, 60, 75 and
+   90%+ on a nine-step sequential ramp, so "Yes" at 84% and at 93% are two
+   shades (the US States map and the What Matters matrix share the ramp
+   and step in nine too); its key reads "Share of each column (columns
+   add to 100%)"; a column under 44px writes its shares without "%" (the
+   key says it; the asterisk stays).
 
 Standing rules, unchanged: no generated takeaways; one chart on screen at
 a time; no cause-and-effect reminder; no small-group cutoffs; no adjusted

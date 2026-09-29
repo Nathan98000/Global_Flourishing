@@ -1,6 +1,6 @@
 // Chart theme: every color is a `var(--token)` string straight into the
 // SVG, so charts re-theme live with tokens.css and no hex ever exists in
-// chart code. The map's sequential scale is *quantized* onto the seven
+// chart code. The map's sequential scale is *quantized* onto the nine
 // discrete ramp tokens for the same reason (no interpolation, no
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
 // (≤ 24px), hairline solid grid, 2px surface gaps and rings.
@@ -53,9 +53,11 @@ export const SEQUENTIAL_RAMP = [
   'var(--seq-500)',
   'var(--seq-600)',
   'var(--seq-700)',
+  'var(--seq-800)',
+  'var(--seq-900)',
 ] as const
 
-/** A value in [lo, hi] onto the seven sequential ramp tokens (the map's
+/** A value in [lo, hi] onto the nine sequential ramp tokens (the map's
  * quantized scale; the What Matters matrix uses the same). */
 export function quantizeSequential(domain: [number, number]): (value: number) => string {
   const [lo, hi] = domain

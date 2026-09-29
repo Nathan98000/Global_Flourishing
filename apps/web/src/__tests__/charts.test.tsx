@@ -732,10 +732,13 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
           }
         })
         // Every share fits its cell, inside a flagged cell's outline, and
-        // every bar's label its column.
+        // every bar's label its column — as drawn: a column under 44px
+        // leaves the "%" to the key (the asterisk stays).
+        expect(layout.percent).toBe(layout.columnWidth >= 44)
         const inCell = measurer(layout.cellFontSize)
         const onBar = measurer(layout.barFontSize)
-        for (const text of cellTexts) {
+        const drawn = cellTexts.map((text) => (layout.percent ? text : text.replace('%', '')))
+        for (const text of drawn) {
           expect(inCell(text)).toBeLessThanOrEqual(layout.columnWidth - 2 * layout.flagInset - 2)
           expect(onBar(text)).toBeLessThanOrEqual(layout.columnWidth - 2)
         }

@@ -430,13 +430,13 @@ describe('What Matters view', () => {
     // end of Good relationships (7–8) and the high end of Money (6–7).
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
     expect(cells[1]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
-    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-900)')
+    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-900)')
     // The number wears the ink its tint step names (light ink on the
     // deep teal), never the page ink at 1.9:1.
-    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
+    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-900-ink)')
     expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
-    // A legend replaces the caption: the seven ramp tokens, lower to
+    // A legend replaces the caption: the nine ramp tokens, lower to
     // higher (so it reads true in either theme), and the column rule.
     const legend = within(ranking).getByText(/· each column shaded on its own range/)
     expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
@@ -684,7 +684,7 @@ describe('What Matters view', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual(['5.22', '5.22', '6.22', '6.22'])
     // Shaded per column across the groups.
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-900)')
     within(split).getByText(/each column shaded on its own range/)
     // The country select starts on the United States: no "Choose a
     // country…" option, no hint; one figure on screen.

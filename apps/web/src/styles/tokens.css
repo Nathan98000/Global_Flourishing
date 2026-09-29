@@ -130,6 +130,8 @@
   --seq-500: #598e84;
   --seq-600: #356a65;
   --seq-700: #1e4a48;
+  --seq-800: #163b3a;
+  --seq-900: #0e2c2b;
   --map-empty: #dedad1;
   --map-empty-outline: #8f8a7e;
   /* Text over a tint (the tinted matrices): dark ink on the light steps,
@@ -144,6 +146,8 @@
   --seq-500-ink: var(--tint-ink-dark);
   --seq-600-ink: var(--tint-ink-light);
   --seq-700-ink: var(--tint-ink-light);
+  --seq-800-ink: var(--tint-ink-light);
+  --seq-900-ink: var(--tint-ink-light);
 
   /* Diverging ramp (correlates matrix): rust ← page tone → teal, five
      tints per sign with a stronger end step, every one keeping ink text
@@ -232,6 +236,8 @@
     --seq-500: #83a596;
     --seq-600: #b3c0a4;
     --seq-700: #d9cfb0;
+    --seq-800: #e7ddc1;
+    --seq-900: #f4ebd3;
     --map-empty: #34322c;
     --map-empty-outline: #6d6960;
     --tint-ink-dark: #1b1a16;
@@ -243,6 +249,8 @@
     --seq-500-ink: var(--tint-ink-dark);
     --seq-600-ink: var(--tint-ink-dark);
     --seq-700-ink: var(--tint-ink-dark);
+    --seq-800-ink: var(--tint-ink-dark);
+    --seq-900-ink: var(--tint-ink-dark);
 
     /* Diverging, dark (widened in ADR-0018): each step climbs about 9 L*
        (the end step 16), so neighbouring tints stay apart on the dark
@@ -335,6 +343,8 @@
   --seq-500: #83a596;
   --seq-600: #b3c0a4;
   --seq-700: #d9cfb0;
+  --seq-800: #e7ddc1;
+  --seq-900: #f4ebd3;
   --map-empty: #34322c;
   --map-empty-outline: #6d6960;
   --tint-ink-dark: #1b1a16;
@@ -346,6 +356,8 @@
   --seq-500-ink: var(--tint-ink-dark);
   --seq-600-ink: var(--tint-ink-dark);
   --seq-700-ink: var(--tint-ink-dark);
+  --seq-800-ink: var(--tint-ink-dark);
+  --seq-900-ink: var(--tint-ink-dark);
 
   /* Diverging, dark: as in the media block above (ADR-0018). */
   --div-n5: #b97a56;

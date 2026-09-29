@@ -1025,8 +1025,8 @@ describe('Correlates view', () => {
     expect(screen.getByText('+0.31')).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
     expect(screen.getByLabelText('Country by country')).not.toBeChecked()
-    // The legend: fixed bins, and the asterisk.
-    expect(screen.getByText('Share of each column')).toBeInTheDocument()
+    // The legend: how to read it, the fixed bins, and the asterisk.
+    expect(screen.getByText('Share of each column (columns add to 100%)')).toBeInTheDocument()
     expect(screen.getByText('* small sample size')).toBeInTheDocument()
     // One SVG: the bars, the grid and every label (so the PNG carries them).
     const svgs = figure.querySelectorAll('svg')
@@ -1090,7 +1090,7 @@ describe('Correlates view', () => {
       name: /their correlation in each of 2 countries/,
     })
     // Only this chart: the grid has left.
-    expect(screen.queryByText('Share of each column')).toBeNull()
+    expect(screen.queryByText('Share of each column (columns add to 100%)')).toBeNull()
     expect(
       screen.getByText('Country by country · Wave 1, 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
@@ -1734,8 +1734,12 @@ describe('correlates helpers', () => {
     expect(shareLabel(0.57)).toBe('57%')
     expect(shareLabel(0.004)).toBe('<1%')
     expect(shareLabel(0)).toBe('0%')
-    // Fixed bins at 0/5/10/20/30/45/60%, onto the seven ramp tokens.
-    expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 1].map(shareTint)).toEqual([
+    // A narrow column leaves the "%" to the key.
+    expect(shareLabel(0.57, false)).toBe('57')
+    expect(shareLabel(0.004, false)).toBe('<1')
+    // Fixed bins at 0/5/10/20/30/45/60/75/90%, onto the nine ramp tokens:
+    // they reach the top.
+    expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map(shareTint)).toEqual([
       SEQUENTIAL_RAMP[0],
       SEQUENTIAL_RAMP[0],
       SEQUENTIAL_RAMP[1],
@@ -1744,8 +1748,13 @@ describe('correlates helpers', () => {
       SEQUENTIAL_RAMP[4],
       SEQUENTIAL_RAMP[5],
       SEQUENTIAL_RAMP[6],
-      SEQUENTIAL_RAMP[6],
+      SEQUENTIAL_RAMP[7],
+      SEQUENTIAL_RAMP[8],
+      SEQUENTIAL_RAMP[8],
     ])
+    // "Yes" at 84% and at 93% (review H3): two different steps.
+    expect(shareTint(0.84)).not.toBe(shareTint(0.93))
+    expect(SEQUENTIAL_RAMP).toHaveLength(9)
     expect(shareTint(null)).toBe('transparent')
   })
 

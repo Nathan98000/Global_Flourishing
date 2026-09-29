@@ -82,7 +82,8 @@ const MARKS = [
   '--div-pos-mark',
 ]
 
-/** The sequential ramp (the map and the What Matters matrix), light → dark. */
+/** The sequential ramp (the map, the What Matters matrix and Compare two's
+ * grid), light → dark: nine steps, so the grid's bins reach 90%. */
 const SEQUENTIAL = [
   '--seq-100',
   '--seq-200',
@@ -91,6 +92,8 @@ const SEQUENTIAL = [
   '--seq-500',
   '--seq-600',
   '--seq-700',
+  '--seq-800',
+  '--seq-900',
 ]
 
 /** The diverging tints (Phase 6), negative → neutral → positive: five
@@ -147,12 +150,17 @@ describe.each([
 
   test('the sequential ramp reads against the surface', () => {
     // The deep end carries the high values: full non-text contrast.
-    assertContrast(vars, '--seq-700', '--surface', 3, theme)
+    assertContrast(vars, '--seq-900', '--surface', 3, theme)
     // The light end must be a *visible tint* on the surface — the floor
     // that rejected a blue ramp indistinguishable on off-white paper —
     // and a visible step away from the next bin.
     assertContrast(vars, '--seq-100', '--surface', 1.25, theme)
     assertContrast(vars, '--seq-100', '--seq-200', 1.1, theme)
+    // Every step a visible step from the next, the two added at the top
+    // included (84% and 93% must read apart).
+    for (let index = 0; index + 1 < SEQUENTIAL.length; index += 1) {
+      assertContrast(vars, SEQUENTIAL[index] as string, SEQUENTIAL[index + 1] as string, 1.1, theme)
+    }
   })
 
   test('"no estimate" is a neutral with an outline, apart from the lowest bin', () => {
