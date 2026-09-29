@@ -503,10 +503,27 @@ describe('Correlates view', () => {
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
     // The key and the axis ends say "a higher/lower" question.
-    expect(screen.getByText('Goes with a higher Happiness')).toBeInTheDocument()
-    expect(screen.getByText('Goes with a lower Happiness')).toBeInTheDocument()
+    // "higher" and "lower" set apart: <em> in the key, bold italic
+    // tspans in ink under the axis (so the PNG carries them).
+    // (The key's words are one inline run: the <em> sits inside it.)
+    const inKey = (words: string) =>
+      screen.getByText(
+        (_, node) =>
+          node?.textContent === words &&
+          node.querySelector('em') !== null &&
+          !node.querySelector('span'),
+      )
+    expect(inKey('Goes with a higher Happiness').querySelector('em')).toHaveTextContent(/^higher$/)
+    expect(inKey('Goes with a lower Happiness').querySelector('em')).toHaveTextContent(/^lower$/)
     expect(svgText).toContain('← goes with a lower Happiness')
     expect(svgText).toContain('goes with a higher Happiness →')
+    const turns = [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style]')]
+    expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
+    for (const node of turns) {
+      expect(node.getAttribute('font-style')).toBe('italic')
+      expect(node.getAttribute('font-weight')).toBe('600')
+      expect(node.getAttribute('fill')).toBe('var(--ink)')
+    }
     // Every row is a real button (label and dot alike); its tooltip is
     // the value and the question — never the n.
     const rowButtons = within(figure).getAllByRole('button')
@@ -545,12 +562,12 @@ describe('Correlates view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.click(screen.getByLabelText('In every country'))
+    fireEvent.click(screen.getByLabelText('Country by country'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
     expect(screen.queryByRole('group', { name: /most strongly associated with it/ })).toBeNull()
-    expect(screen.getByText('What goes with Happiness, in every country')).toBeInTheDocument()
+    expect(screen.getByText('What goes with Happiness, country by country')).toBeInTheDocument()
     const table = within(matrix).getByRole('table')
     const headers = within(table).getAllByRole('columnheader')
     expect(headers.map((th) => th.textContent)).toEqual([
@@ -578,6 +595,17 @@ describe('Correlates view', () => {
     fireEvent.pointerLeave(cells[2] as HTMLElement)
     expect(within(matrix).getByText('* small sample size')).toBeInTheDocument()
     expect(figureNote(matrix)).toBe(CORRELATES_NOTE)
+    // The legend's turning words, in <em>.
+    const legendWords = within(matrix).getByText(
+      (_, node) =>
+        node?.tagName === 'SPAN' &&
+        node.textContent ===
+          'rust: goes with a lower Happiness · teal: goes with a higher Happiness',
+    )
+    expect([...legendWords.querySelectorAll('em')].map((node) => node.textContent)).toEqual([
+      'lower',
+      'higher',
+    ])
     expect(within(matrix).queryByText(/— too few/)).toBeNull()
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
@@ -639,7 +667,7 @@ describe('Correlates view', () => {
     expect(screen.getByText('Correlation')).toBeInTheDocument()
     expect(screen.getByText('+0.31')).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
-    expect(screen.getByLabelText('In every country')).not.toBeChecked()
+    expect(screen.getByLabelText('Country by country')).not.toBeChecked()
     // The legend: fixed bins, and the asterisk.
     expect(screen.getByText('Share of each column')).toBeInTheDocument()
     expect(screen.getByText('* small sample size')).toBeInTheDocument()
@@ -699,7 +727,7 @@ describe('Correlates view', () => {
     await screen.findByRole('img', {
       name: /Service attendance and Feelings about household income in/,
     })
-    fireEvent.click(screen.getByLabelText('In every country'))
+    fireEvent.click(screen.getByLabelText('Country by country'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const figure = await screen.findByRole('img', {
       name: /their correlation in each of 2 countries/,
@@ -707,7 +735,7 @@ describe('Correlates view', () => {
     // Only this chart: the grid has left.
     expect(screen.queryByText('Share of each column')).toBeNull()
     expect(
-      screen.getByText('Every country · Wave 1, 2023 · correlation, −1 to 1'),
+      screen.getByText('Country by country · Wave 1, 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const request = calls.find((url) => url.includes('by=country_code')) as string
     expect(request).toContain('outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&by=country_code')
@@ -720,6 +748,12 @@ describe('Correlates view', () => {
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
     expect(figure.innerHTML).toContain('var(--control-selected)')
+    // The axis ends' turning words, set apart in the SVG itself.
+    expect(
+      [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style="italic"]')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['higher', 'lower', 'higher', 'higher'])
     // The strip still reads the chosen country's correlation.
     const strip = screen.getByText('Correlation').parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
@@ -1167,7 +1201,7 @@ describe('correlates helpers', () => {
     expect(tintExtent([])).toBe(1)
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
-      'The 20 questions ranked for Japan, in every country · Wave 2, 2024 · correlation, −1 to 1',
+      'The 20 questions ranked for Japan, country by country · Wave 2, 2024 · correlation, −1 to 1',
     )
     expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 question ranked for Japan')
     const countries = [

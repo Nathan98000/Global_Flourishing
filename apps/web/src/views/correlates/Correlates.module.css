@@ -67,7 +67,15 @@
   outline-offset: 2px;
 }
 
-/* Find related's In {country} · In every country, above its chart. */
+/* "higher" and "lower", wherever the page says them in HTML (ADR-0020):
+   italic, 600, in ink — the words a signed reading turns on. */
+.turn {
+  color: var(--ink);
+  font-style: italic;
+  font-weight: 600;
+}
+
+/* Find related's In {country} · Country by country, above its chart. */
 .scopeRow {
   margin: 0 0 var(--space-4);
 }
@@ -135,7 +143,7 @@
 }
 
 /* Compare two's header row: the correlation strip on the left, In
-   {country} · In every country on the right. */
+   {country} · Country by country on the right. */
 .headerRow {
   display: flex;
   flex-wrap: wrap;

@@ -14,6 +14,7 @@ import type { CorrelatesSearch } from '../../state/search'
 import { WAVE_CHIPS } from '../../waves'
 import { FEW_PEOPLE_KEY, legendEnds } from '../correlatesRows'
 import styles from '../AtlasView.module.css'
+import own from './Correlates.module.css'
 
 /** What the page shell hands each view. */
 export interface ViewProps {
@@ -107,6 +108,25 @@ export function useSharesAnswers(list: readonly VariableSummary[]): {
   return { shares, settled: !isPending }
 }
 
+/** "higher" and "lower" set apart in a line of words (ADR-0020): each an
+ * <em> in one shared style — italic, 600, in ink — the rest untouched.
+ * (The charts' SVG does the same with styled tspans.) */
+export function Turns({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/\b(higher|lower)\b/).map((part, index) =>
+        index % 2 === 1 ? (
+          <em key={index} className={own.turn}>
+            {part}
+          </em>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  )
+}
+
 /** A failed request: offline in words when the data service is down,
  * else the shared error state. */
 export function Failure({ error, apiReachable }: { error: unknown; apiReachable: boolean }) {
@@ -163,7 +183,11 @@ export function DivergingLegend({
         </span>
         <span>{hi}</span>
       </span>
-      {words && <span>{words}</span>}
+      {words && (
+        <span>
+          <Turns text={words} />
+        </span>
+      )}
       <span>{flagKey}</span>
       {extra && <span>{extra}</span>}
     </span>

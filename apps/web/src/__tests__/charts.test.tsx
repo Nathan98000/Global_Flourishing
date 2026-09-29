@@ -236,13 +236,17 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     // Never fitted: a +0.12 list and a +0.76 list share one window.
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
     // (Each end holds to half the plot, wrapping rather than meeting.)
+    // (A line is a positioned tspan; "higher" and "lower" ride inside
+    // their line as styled tspans of their own.)
     const words = [...svg.querySelectorAll('text')].map(
       (node) =>
-        [...node.querySelectorAll('tspan')].map((line) => line.textContent).join(' ') ||
+        [...node.querySelectorAll(':scope > tspan[x]')].map((line) => line.textContent).join(' ') ||
         node.textContent,
     )
     expect(words).toContain('← goes with lower Happiness')
     expect(words).toContain('goes with higher Happiness →')
+    const turns = [...svg.querySelectorAll('g[aria-description="axis end"] tspan:not([x])')]
+    expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
     // The long label wraps to two lines; every word is still there.
     const labels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
     const long = labels.find((node) => node.textContent?.startsWith('Christian'))

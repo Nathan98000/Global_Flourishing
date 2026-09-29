@@ -48,7 +48,14 @@ import {
   statisticPhrase,
   tintExtent,
 } from '../correlatesRows'
-import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
+import {
+  DivergingLegend,
+  Failure,
+  Turns,
+  orderedAt,
+  questionReason,
+  type ViewProps,
+} from './shared'
 import styles from '../AtlasView.module.css'
 import own from './Correlates.module.css'
 
@@ -94,7 +101,7 @@ export function FindRelated({
     waves,
     ...(countryName ? { country: countryName } : {}),
   }
-  const acrossName: ExportName = { measure: title, view: 'Correlates across countries', waves }
+  const acrossName: ExportName = { measure: title, view: 'Correlates country by country', waves }
   const csvFor = (response: EstimateResponse, exportName: ExportName) => ({
     kind: 'client' as const,
     onDownload: () => downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
@@ -158,7 +165,7 @@ export function FindRelated({
           name="scope"
           options={[
             { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
-            { value: 'all', label: 'In every country' },
+            { value: 'all', label: 'Country by country' },
           ]}
           value={search.scope}
           onChange={(scope) => setSearch({ scope })}
@@ -199,7 +206,9 @@ export function FindRelated({
                         style={{ background: signMark(1) }}
                         aria-hidden="true"
                       />
-                      Goes with a higher {short}
+                      <span>
+                        <Turns text={`Goes with a higher ${short}`} />
+                      </span>
                     </span>
                     <span>
                       <span
@@ -207,7 +216,9 @@ export function FindRelated({
                         style={{ background: signMark(-1) }}
                         aria-hidden="true"
                       />
-                      Goes with a lower {short}
+                      <span>
+                        <Turns text={`Goes with a lower ${short}`} />
+                      </span>
                     </span>
                   </p>
                 </>
@@ -257,7 +268,7 @@ export function FindRelated({
           <Failure error={across.error} apiReachable={apiReachable} />
         ) : acrossResponse ? (
           <ChartFigure
-            title={`What goes with ${title}, in every country`}
+            title={`What goes with ${title}, country by country`}
             subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
             ariaLabel={`${title}: the ${predictors.length} questions ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
             marks="table"

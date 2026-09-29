@@ -80,7 +80,7 @@ export function legendEnds(extent: number, stat: string): [string, string] {
   return [formatEstimate(-extent, stat), formatEstimate(extent, stat)]
 }
 
-/** Find related's subtitle in every country: which questions, where,
+/** Find related's subtitle country by country: which questions, where,
  * when, what. */
 export function acrossSubtitle(
   count: number,
@@ -89,7 +89,7 @@ export function acrossSubtitle(
   method?: CorrelationMethod,
 ): string {
   const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
-  return `${questions} ranked for ${countryName}, in every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
+  return `${questions} ranked for ${countryName}, country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`
 }
 
 /** Whether a correlation rests on fewer people than the ranking floor

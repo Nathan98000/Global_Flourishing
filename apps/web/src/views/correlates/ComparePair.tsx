@@ -4,7 +4,7 @@
 // A is the columns, B the rows. Its chart is a column-percent heat grid
 // (each column adds to 100%) under bars of who gave each of A's answers;
 // a header row holds the pair's correlation strip and the scope toggle —
-// In {country} · In every country, where the grid gives way to the
+// In {country} · Country by country, where the grid gives way to the
 // pair's correlation in each country. One chart at a time. Every number
 // is the server's.
 
@@ -134,7 +134,7 @@ export function ComparePair({
       name="pair-scope"
       options={[
         { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
-        { value: 'all', label: 'In every country' },
+        { value: 'all', label: 'Country by country' },
       ]}
       value={search.scope}
       onChange={(scope) => setSearch({ scope })}
@@ -188,7 +188,7 @@ export function ComparePair({
         </EmptyState>
       ) : everywhere ? (
         waiting || across.isPending ? (
-          <LoadingBlock height={520} label="Loading the pair in every country" />
+          <LoadingBlock height={520} label="Loading the pair country by country" />
         ) : across.isError ? (
           <Failure error={across.error} apiReachable={apiReachable} />
         ) : acrossResponse ? (
@@ -473,7 +473,7 @@ function EveryCountry({
   }, [response, served])
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,
-    view: 'Compare two in every country',
+    view: 'Compare two country by country',
     waves: WAVE_CHIPS[wave] ?? wave,
   }
   const aShort = shortName(a)
@@ -488,7 +488,7 @@ function EveryCountry({
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`Every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      subtitle={`Country by country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
       marks="dots"
       intro={header}

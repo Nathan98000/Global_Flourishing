@@ -352,6 +352,7 @@ export function RankedBar({
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
           ],
         })
+        emphasizeTurns(plot)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -476,6 +477,7 @@ export function RankedBar({
             ...referenceMarks,
           ],
         })
+        emphasizeTurns(plot)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -576,9 +578,19 @@ function pointerTip(entries: Entry[], tip: (entry: Entry) => string, fallback: n
   )
 }
 
+/** The words a signed reading turns on: set apart wherever the page
+ * says them (ADR-0020). */
+const TURN_WORDS = /\b(higher|lower)\b/
+
+/** The description of the marks the axis ends' words are drawn in (how
+ * they are found again once the plot is built, to set their turning
+ * words apart). */
+const AXIS_END = 'axis end'
+
 /** The words under the axis's two ends, each held to half the plot's
- * width (wrapping to a second line rather than meeting in the middle),
- * and the room they take below the plot. */
+ * width (wrapping to a second line rather than meeting in the middle —
+ * "higher" and "lower" measured in their own bold italic), and the room
+ * they take below the plot. */
 function axisEndMarks(
   ends: [string, string] | undefined,
   [lo, hi]: [number, number],
@@ -586,9 +598,16 @@ function axisEndMarks(
   laidOut: boolean,
 ): { marks: Plot.Markish[]; room: number } {
   if (!ends) return { marks: [], room: 0 }
-  const measure = textMeasurer(11, laidOut)
+  const regular = textMeasurer(11, laidOut)
+  const bold = textMeasurer(11, laidOut, 600)
+  const measure = (text: string) =>
+    text
+      .split(TURN_WORDS)
+      .reduce((width, part, index) => width + (index % 2 === 1 ? bold(part) : regular(part)), 0)
   const half = Math.max(80, plotWidth / 2 - 8)
-  const [low, high] = ends.map((text) => wrapLabel(text, half, measure))
+  // No cap on the lines: a capped wrap keeps the leftovers on its last
+  // line, which then runs into the other end's words.
+  const [low, high] = ends.map((text) => wrapLabel(text, half, measure, Infinity))
   const lines = Math.max(low?.length ?? 1, high?.length ?? 1)
   const end = {
     frameAnchor: 'bottom',
@@ -596,6 +615,7 @@ function axisEndMarks(
     lineAnchor: 'top',
     fill: INK_SECONDARY,
     fontSize: 11,
+    ariaDescription: AXIS_END,
   } as const
   return {
     marks: [
@@ -614,6 +634,33 @@ function axisEndMarks(
     ],
     // 16px down to the first line, 13px a line, a little air under the last.
     room: 16 + lines * 13 + 6,
+  }
+}
+
+/** "higher" and "lower" in the axis ends' words: italic, 600, in ink —
+ * styled tspans inside each line, so the PNG export carries them; the
+ * rest of each line keeps its own style. */
+function emphasizeTurns(plot: Element): void {
+  const svgNs = 'http://www.w3.org/2000/svg'
+  for (const text of plot.querySelectorAll(`g[aria-description="${AXIS_END}"] text`)) {
+    const lines = [...text.querySelectorAll('tspan')]
+    for (const holder of lines.length > 0 ? lines : [text]) {
+      const content = holder.textContent ?? ''
+      if (!TURN_WORDS.test(content)) continue
+      holder.textContent = ''
+      content.split(TURN_WORDS).forEach((part, index) => {
+        if (index % 2 === 0) {
+          if (part) holder.append(document.createTextNode(part))
+          return
+        }
+        const word = document.createElementNS(svgNs, 'tspan')
+        word.setAttribute('font-style', 'italic')
+        word.setAttribute('font-weight', '600')
+        word.setAttribute('fill', INK)
+        word.textContent = part
+        holder.append(word)
+      })
+    }
   }
 }
 
