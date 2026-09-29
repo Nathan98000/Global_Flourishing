@@ -106,6 +106,18 @@ export interface HeatAxis {
   /** A column headed by a short label (a number): its full name, as the
    * header's tooltip and accessible name. */
   title?: string
+  /** A small muted tag after the label ("Midyear", ADR-0020). */
+  tag?: string
+}
+
+/** A label and its tag, when it has one. */
+function AxisLabel({ axis }: { axis: HeatAxis }) {
+  return (
+    <>
+      {axis.label}
+      {axis.tag && <span className={styles.tag}>{axis.tag}</span>}
+    </>
+  )
 }
 
 /** A fixed-width column's side padding (--space-2 in
@@ -390,7 +402,7 @@ export function HeatTable({
                       }
                     >
                       <span className={styles.head}>
-                        {column.label}
+                        <AxisLabel axis={column} />
                         {dir && (
                           <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
                         )}
@@ -403,7 +415,9 @@ export function HeatTable({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
+                  <th scope="row">
+                    <AxisLabel axis={row} />
+                  </th>
                   {columns.map((column) => {
                     const cell = cellAt(row, column)
                     const marked = column.key === highlight || undefined

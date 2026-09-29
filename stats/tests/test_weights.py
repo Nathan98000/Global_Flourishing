@@ -214,3 +214,29 @@ def test_midyear_answers_pair_with_either_wave_on_its_own_frame() -> None:
     assert not y2.requires_midyear_type_1
     with pytest.raises(KeyError, match="pair with"):
         weights.pairing_spec("MY")
+
+
+def test_midyear_timing_counts_each_pairings_people_by_type() -> None:
+    """ADR-0020: the facts the page words the time between two answers
+    from — per country and pairing, standalone midyear interviews (type 1)
+    and midyear items asked in the Wave 2 interview (type 2)."""
+    frame = pl.DataFrame(
+        {
+            "country_code": [1, 1, 1, 2, 2, 3],
+            "has_midyear": [True, True, False, True, True, True],
+            "retained_y2": [True, False, True, True, True, False],
+            "midyear_type": [2, 1, None, 2, 2, 1],
+        }
+    )
+    rows = weights.midyear_timing(frame)
+    by_key = {
+        (row["other_wave"], row["country_code"]): (row["type_1"], row["type_2"]) for row in rows
+    }
+    # 2023: every midyear respondent.
+    assert by_key[("Y1", 1)] == (1, 1)
+    assert by_key[("Y1", 2)] == (0, 2)
+    assert by_key[("Y1", 3)] == (1, 0)
+    # 2024: only those who also did Wave 2 (country 3's one did not).
+    assert by_key[("Y2", 1)] == (0, 1)
+    assert by_key[("Y2", 2)] == (0, 2)
+    assert ("Y2", 3) not in by_key

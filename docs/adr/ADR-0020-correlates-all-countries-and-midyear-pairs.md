@@ -166,18 +166,33 @@ the plain average of the countries, which reads +0.10.
    Compare two's A (B stays if asked in the other answers' wave, else
    *Life evaluation today*), Find related's question, or the first of
    Compare several's table (its last dropped at ten). A link lands the
-   same way. "Other questions' answers from: 2023 · 2024" sits under the
-   Wave chips when another wave's question is in view at Midyear (always
-   in Find related; `other=Y2`, 2023 omitted from the URL; 2024 disabled
-   when a question in view wasn't asked then), and the row note says whose
-   answers and when. One polite line under the row announces any automatic
-   change ("Daily social media time was asked only in the midyear survey,
-   so Life evaluation today took its place."). The picker tags midyear
+   same way. When another wave's question is in view at Midyear (always in
+   Find related), the row note says whose answers and when, and holds the
+   choice itself (no second row of year buttons): "The other question
+   uses the same people's [2023 ▾] answers, usually given 8–12 months
+   earlier." ("The other questions use" in Compare several and Find
+   related; `other=Y2`, 2023 omitted from the URL; 2024 disabled, and the
+   note saying why, when a question in view wasn't asked then). The
+   timing is worded for the country on screen from each country's served
+   split of how its people took the midyear survey (`meta.midyear_timing`,
+   per pairing: standalone midyear interviews, midyear items asked in the
+   Wave 2 interview — `flourish_stats.weights.midyear_timing`, never a
+   list of countries): with 2024 answers "from the same interview",
+   "given about six months later", or "from the same interview for some
+   people, about six months later for others" (All countries: "… for two
+   in three people, about six months later for the rest"); with 2023
+   answers "given about 12 months earlier", "given about 8 months
+   earlier" or "usually given 8–12 months earlier". One polite line under
+   the row announces any automatic change, saying only what changed
+   ("Daily social media time is a midyear question, so the page switched
+   to Midyear."), never repeating the note. The picker tags midyear
    questions "Midyear" and, at Midyear, the others "2023 answers" or "2024
    answers"; a trigger holding one of them shows "2023" or "2024";
    subtitles read "… · Midyear survey, with 2024 answers from the same
-   people"; axis titles, table headers and list rows of the other
-   questions add "(2023)" or "(2024)". A question asked in the midyear
+   people". Compare two's titles of the other question add "(2023)" or
+   "(2024)"; Compare several's chips and labels and Find related's rows
+   carry no year, and tag a midyear question with a small muted
+   "Midyear" instead (text alone — a data table, a CSV — says "(Midyear)"). A question asked in the midyear
    survey *and* at the current wave (none in this release; one in the
    synthetic data) stays where it is: only a question the current wave
    did not ask pulls the page to Midyear.

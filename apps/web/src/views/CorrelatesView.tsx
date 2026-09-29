@@ -47,15 +47,15 @@ import { FindRelated } from './correlates/FindRelated'
 import {
   chooseWave,
   no2024Note,
-  otherNote,
+  otherNoteParts,
   otherOpen,
   otherWaveOf,
   questionsInView,
   reconcile,
   showsOther,
+  timingPhrase,
   waveOpen,
   type Change,
-  type OtherWave,
 } from './correlates/midyear'
 import type { ViewProps } from './correlates/shared'
 import styles from './AtlasView.module.css'
@@ -83,11 +83,6 @@ const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
 ]
 
 /** Where the other questions' answers come from, at Midyear. */
-const OTHER_OPTIONS: { value: OtherWave; label: string }[] = [
-  { value: 'Y1', label: '2023' },
-  { value: 'Y2', label: '2024' },
-]
-
 export function CorrelatesView() {
   useWarmApi()
   const search = route.useSearch()
@@ -170,47 +165,52 @@ export function CorrelatesView() {
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: known && !open(wave),
   }))
-  // At Midyear with another wave's question in view: where its answers
-  // come from, a small control under the wave chips, and the row note
-  // saying which people and when.
+  // At Midyear with another wave's question in view, the row note says
+  // whose answers and when — for the country on screen — and holds the
+  // choice of year itself (review M3): no second row of year buttons.
   const withOther = known && showsOther(search, byName, shown)
   const other = otherWaveOf(search)
-  const otherOptions: RadioOption<OtherWave>[] = OTHER_OPTIONS.map((option) => ({
-    ...option,
-    disabled: option.value === 'Y2' && !otherOpen(search, byName, 'Y2', shown),
-  }))
-  const note = !known
-    ? undefined
-    : withOther
-      ? [otherNote(other), no2024Note(search, byName, shown)].filter(Boolean).join(' ')
-      : waveNote(WAVES.filter(open), inView.who)
+  const parts = otherNoteParts(
+    search.view !== 'pair',
+    timingPhrase(other, country, served.midyear_timing),
+  )
+  const no2024 = withOther ? no2024Note(search, byName, shown) : undefined
+  const note = !known ? undefined : withOther ? (
+    <>
+      {parts.before}{' '}
+      <select
+        className={own.inlineSelect}
+        aria-label="Year of the other answers"
+        value={other}
+        onChange={(event) =>
+          apply({ patch: { other: event.target.value === 'Y2' ? 'Y2' : undefined } })
+        }
+      >
+        <option value="Y1">2023</option>
+        <option value="Y2" disabled={!otherOpen(search, byName, 'Y2', shown)}>
+          2024
+        </option>
+      </select>{' '}
+      {parts.after}
+      {no2024 ? ` ${no2024}` : ''}
+    </>
+  ) : (
+    waveNote(WAVES.filter(open), inView.who)
+  )
 
   // One row — Wave · Country · Correlation type, each under its label —
   // and, under the whole row, why a wave is unavailable.
   const controls = (
     <div className={own.controlRow}>
       <div className={own.controlCells}>
-        <div className={own.waveCell}>
-          <RadioRow
-            legend="Wave"
-            name="wave"
-            options={waveOptions}
-            value={search.wave}
-            onChange={(wave) => apply(chooseWave(search, wave, byName, shown))}
-            noteId={note ? noteId : undefined}
-          />
-          {withOther && (
-            <RadioRow<OtherWave>
-              legend="Other questions’ answers from"
-              name="other"
-              size="small"
-              options={otherOptions}
-              value={other}
-              onChange={(value) => apply({ patch: { other: value === 'Y2' ? 'Y2' : undefined } })}
-              noteId={note ? noteId : undefined}
-            />
-          )}
-        </div>
+        <RadioRow
+          legend="Wave"
+          name="wave"
+          options={waveOptions}
+          value={search.wave}
+          onChange={(wave) => apply(chooseWave(search, wave, byName, shown))}
+          noteId={note ? noteId : undefined}
+        />
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Country</span>
           <select

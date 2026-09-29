@@ -45,11 +45,12 @@ import {
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
 import {
+  midyearTag,
   otherWaveOf,
   requestOther,
   waveName,
   waveTitle,
-  yearTagged,
+  withTag,
   type OtherWave,
 } from './midyear'
 import {
@@ -133,11 +134,13 @@ export function CompareSeveral({
       ? tableRequest(search, usableVars, country, otherWave)
       : null,
   )
-  // A question by its short name — at Midyear, another wave's with its year.
+  // A question by its short name; at Midyear a midyear question wears a
+  // small tag (the subtitle names the other answers' year).
   const nameOf = (name: string) => {
     const variable = variables.byName[name]
-    return variable ? yearTagged(shortName(variable), variable, search.wave, otherWave) : name
+    return variable ? shortName(variable) : name
   }
+  const tagOf = (name: string) => midyearTag(variables.byName[name], search.wave)
   const shown = displayOrder(usableVars, search.order, table.data?.similar_order)
 
   return (
@@ -151,6 +154,7 @@ export function CompareSeveral({
           unavailable={(variable) => questionReason(variable, search.wave)}
           countable={(variable) => questionReason(variable, search.wave) === undefined}
           tagOf={(variable) => pickerTag(variable, search)}
+          chipTagOf={tagOf}
           onChange={(vars) => setSearch({ vars })}
           note={
             leftOut.length > 0 ? (
@@ -195,6 +199,7 @@ export function CompareSeveral({
           table={table.data}
           order={shown}
           nameOf={nameOf}
+          tagOf={tagOf}
           countryName={countryName}
           wave={search.wave}
           other={otherWave}
@@ -220,6 +225,7 @@ function TableFigure({
   table,
   order,
   nameOf,
+  tagOf,
   countryName,
   wave,
   other,
@@ -232,6 +238,8 @@ function TableFigure({
   /** The questions in the order shown. */
   order: readonly string[]
   nameOf: (name: string) => string
+  /** A question's small tag ("Midyear" at the midyear survey). */
+  tagOf: (name: string) => string | undefined
   countryName: string
   wave: Wave
   /** At Midyear with another wave's question: that wave (ADR-0020). */
@@ -312,7 +320,9 @@ function TableFigure({
       exportName={name}
       isRefreshing={isRefreshing}
       groupLabel={(column, value) =>
-        column === 'question' || column === 'with' ? nameOf(String(value)) : undefined
+        column === 'question' || column === 'with'
+          ? withTag(nameOf(String(value)), tagOf(String(value)))
+          : undefined
       }
       columnName={(column) =>
         column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
@@ -330,8 +340,12 @@ function TableFigure({
           />
         }
         corner="Question ↓ · with →"
-        rows={order.slice(1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
-        columns={order.slice(0, -1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
+        rows={order
+          .slice(1)
+          .map((entry) => ({ key: entry, label: nameOf(entry), tag: tagOf(entry) }))}
+        columns={order
+          .slice(0, -1)
+          .map((entry) => ({ key: entry, label: nameOf(entry), tag: tagOf(entry) }))}
         columnWidth={TABLE_COLUMN}
         angled
         cellAt={(row, column) => {

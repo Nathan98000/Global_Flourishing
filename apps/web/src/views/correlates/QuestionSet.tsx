@@ -28,6 +28,7 @@ export function QuestionSet({
   unavailable,
   countable,
   tagOf,
+  chipTagOf,
   onChange,
   note,
 }: {
@@ -41,6 +42,8 @@ export function QuestionSet({
   /** The picker's topic counts and tags (ADR-0020). */
   countable?: (variable: VariableSummary) => boolean
   tagOf?: (variable: VariableSummary) => string | undefined
+  /** A chip's small muted tag ("Midyear" at the midyear survey). */
+  chipTagOf?: (name: string) => string | undefined
   onChange: (names: string[]) => void
   /** A line under the chips (what the wave left out). */
   note?: ReactNode
@@ -129,7 +132,10 @@ export function QuestionSet({
             >
               <span aria-hidden="true">⠿</span>
             </button>
-            <span className={own.chipName}>{nameOf(name)}</span>
+            <span className={own.chipName}>
+              {nameOf(name)}
+              {chipTagOf?.(name) && <span className={own.chipTag}>{chipTagOf(name)}</span>}
+            </span>
             <button
               type="button"
               className={own.remove}

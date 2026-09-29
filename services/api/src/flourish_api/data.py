@@ -129,6 +129,7 @@ class DataStore:
         self.data_version: str | None = None
         self.con: duckdb.DuckDBPyConnection | None = None
         self.catalog: Catalog | None = None
+        self._midyear: pl.DataFrame | None = None
         if not self.present:
             return
         self.con = duckdb.connect(str(settings.data_path), read_only=True)
@@ -146,6 +147,23 @@ class DataStore:
             manifest: dict[str, Any] = json.loads(settings.manifest_path.read_text())
             version = manifest.get("data_version")
             self.data_version = str(version) if version is not None else None
+        # How each respondent took the midyear survey, for /v1/meta's
+        # midyear timing (ADR-0020): four small columns, read once.
+        self._midyear = self._query(
+            "SELECT country_code, has_midyear, retained_y2, midyear_type FROM respondents"
+        )
+
+    def midyear_types(self) -> pl.DataFrame:
+        """Each respondent's country, midyear and Wave 2 flags and midyear
+        type (``flourish_stats.weights.midyear_timing`` reads them)."""
+        assert self._midyear is not None
+        return self._midyear
+
+    def _query(self, sql: str) -> pl.DataFrame:
+        assert self.con is not None
+        frame = pl.from_arrow(self.con.execute(sql).arrow())
+        assert isinstance(frame, pl.DataFrame)
+        return frame
 
     def _table(self, name: str) -> pl.DataFrame:
         assert self.con is not None

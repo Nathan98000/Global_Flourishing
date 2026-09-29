@@ -374,7 +374,9 @@ population:
 
 For the 2024 pairing, every respondent in China, Hong Kong, Israel,
 Japan, Sweden and the United States answered the midyear questions inside
-their Wave 2 interview. That is why the midyear → Wave 2 *change* is
+their Wave 2 interview, and in ten other countries every one answered them
+about six months before it; the page words the time between the two
+answers for the country on screen, from each country's own split. That is why the midyear → Wave 2 *change* is
 restricted to standalone midyear interviews (above), and why a
 *correlation* is not: two answers given the same day go together or not
 like any others. A table of several questions at the midyear survey takes

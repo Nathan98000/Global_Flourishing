@@ -74,6 +74,20 @@ class StateLabelModel(BaseModel):
     members: list[str]
 
 
+class MidyearTimingModel(BaseModel):
+    """How one country's people in one midyear pairing took the midyear
+    survey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a
+    standalone midyear interview (``type_1``) or inside their Wave 2
+    interview (``type_2``) — the page words the time between the two
+    answers from it."""
+
+    country_code: int
+    #: the pairing: the wave the other questions' answers come from
+    other_wave: str
+    type_1: int
+    type_2: int
+
+
 class MetaResponse(BaseModel):
     data_version: str | None
     #: Absent from the static tier's meta.json (a build artefact has no
@@ -90,6 +104,9 @@ class MetaResponse(BaseModel):
     #: US state codes → display names (the US States view owns no
     #: state name); pooled groups read "A, B & C (pooled)"
     state_labels: dict[str, StateLabelModel]
+    #: per country and midyear pairing, how its people took the midyear
+    #: survey (ADR-0020); empty in a tier baked before it
+    midyear_timing: list[MidyearTimingModel] = []
 
 
 class VariableSummary(BaseModel):

@@ -716,6 +716,14 @@
             ],
             "title": "Git Sha"
           },
+          "midyear_timing": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MidyearTimingModel"
+            },
+            "title": "Midyear Timing",
+            "type": "array"
+          },
           "state_labels": {
             "additionalProperties": {
               "$ref": "#/components/schemas/StateLabelModel"
@@ -754,6 +762,35 @@
           "state_labels"
         ],
         "title": "MetaResponse",
+        "type": "object"
+      },
+      "MidyearTimingModel": {
+        "description": "How one country's people in one midyear pairing took the midyear\nsurvey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a\nstandalone midyear interview (``type_1``) or inside their Wave 2\ninterview (``type_2``) — the page words the time between the two\nanswers from it.",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "integer"
+          },
+          "other_wave": {
+            "title": "Other Wave",
+            "type": "string"
+          },
+          "type_1": {
+            "title": "Type 1",
+            "type": "integer"
+          },
+          "type_2": {
+            "title": "Type 2",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "country_code",
+          "other_wave",
+          "type_1",
+          "type_2"
+        ],
+        "title": "MidyearTimingModel",
         "type": "object"
       },
       "MissingnessRow": {

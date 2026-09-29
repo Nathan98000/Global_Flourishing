@@ -246,3 +246,31 @@ def test_six_countries_answer_the_2024_pairing_in_one_interview(built_client: Te
     assert same_day == {"CHN", "HKG", "ISR", "JPN", "SWE", "USA"}
     share = sum(type_2 for _, type_2, _ in rows) / sum(total for _, _, total in rows)
     assert 0.64 < share < 0.68
+
+
+def test_the_midyear_timing_the_page_words_on_the_release(built_client: TestClient) -> None:
+    """The review's facts (M4), as /v1/meta serves them: with 2024 answers,
+    six countries took the midyear items inside the Wave 2 interview, ten
+    in a standalone interview about six months before it, seven both ways;
+    two in three people in all, the All countries wording."""
+    meta = built_client.get("/v1/meta").json()
+    names = {row["code"]: row["name"] for row in meta["countries"]}
+    rows = [row for row in meta["midyear_timing"] if row["other_wave"] == "Y2"]
+    same = {names[row["country_code"]] for row in rows if row["type_1"] == 0}
+    separate = {names[row["country_code"]] for row in rows if row["type_2"] == 0}
+    assert same == {"China", "Hong Kong", "Israel", "Japan", "Sweden", "United States"}
+    assert separate == {
+        "Australia",
+        "Egypt",
+        "India",
+        "Indonesia",
+        "Kenya",
+        "Philippines",
+        "Poland",
+        "South Africa",
+        "Tanzania",
+        "Türkiye",
+    }
+    assert len(rows) == 23
+    share = sum(row["type_2"] for row in rows) / sum(row["type_1"] + row["type_2"] for row in rows)
+    assert 0.64 < share < 0.68

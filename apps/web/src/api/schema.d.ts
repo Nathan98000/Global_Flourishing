@@ -544,6 +544,11 @@ export interface components {
             families: string[];
             /** Git Sha */
             git_sha?: string | null;
+            /**
+             * Midyear Timing
+             * @default []
+             */
+            midyear_timing: components["schemas"]["MidyearTimingModel"][];
             /** State Labels */
             state_labels: {
                 [key: string]: components["schemas"]["StateLabelModel"];
@@ -553,6 +558,24 @@ export interface components {
             waves: string[];
             /** Weight Table */
             weight_table: components["schemas"]["WeightSpecModel"][];
+        };
+        /**
+         * MidyearTimingModel
+         * @description How one country's people in one midyear pairing took the midyear
+         *     survey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a
+         *     standalone midyear interview (``type_1``) or inside their Wave 2
+         *     interview (``type_2``) — the page words the time between the two
+         *     answers from it.
+         */
+        MidyearTimingModel: {
+            /** Country Code */
+            country_code: number;
+            /** Other Wave */
+            other_wave: string;
+            /** Type 1 */
+            type_1: number;
+            /** Type 2 */
+            type_2: number;
         };
         /**
          * MissingnessRow

@@ -309,6 +309,42 @@ def pairing_spec(other_wave: str) -> WeightSpec:
         ) from None
 
 
+#: How the midyear survey was administered (``midyear_type``): 1, a
+#: standalone midyear interview about six months after Wave 1; 2, the
+#: midyear items asked inside the Wave 2 interview.
+MIDYEAR_STANDALONE = 1
+MIDYEAR_IN_WAVE_2 = 2
+
+
+def midyear_timing(respondents: pl.DataFrame | pa.Table) -> list[dict[str, int | str]]:
+    """Per country and pairing (ADR-0020), how many of the pairing's people
+    answered the midyear questions in a standalone midyear interview
+    (``type_1``) and how many inside their Wave 2 interview (``type_2``):
+    the facts the Correlates page words the time between a midyear answer
+    and the same person's 2023 or 2024 answer from, country by country
+    (never a hard-coded list). One row per (``other_wave``, country), each
+    pairing's people by its own spec (:func:`pairing_spec`)."""
+    df = pl.from_arrow(respondents) if isinstance(respondents, pa.Table) else respondents
+    if not isinstance(df, pl.DataFrame):  # pl.from_arrow can return a Series
+        raise TypeError("respondents must convert to a polars DataFrame")
+    rows: list[dict[str, int | str]] = []
+    for other in sorted(PAIRINGS):
+        counts = (
+            df.filter(eligibility_expr(pairing_spec(other)))
+            .group_by("country_code")
+            .agg(
+                (pl.col("midyear_type") == MIDYEAR_STANDALONE).sum().alias("type_1"),
+                (pl.col("midyear_type") == MIDYEAR_IN_WAVE_2).sum().alias("type_2"),
+            )
+            .sort("country_code")
+        )
+        rows.extend(
+            {"country_code": int(code), "other_wave": other, "type_1": int(one), "type_2": int(two)}
+            for code, one, two in counts.iter_rows()
+        )
+    return rows
+
+
 def weight_table_json() -> str:
     """The full table as JSON, for the Phase 3 API to serve from /v1/meta."""
     rows = [asdict(spec) | {"waves": list(spec.waves)} for spec in WEIGHT_TABLE]

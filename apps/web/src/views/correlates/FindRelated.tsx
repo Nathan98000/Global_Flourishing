@@ -52,7 +52,7 @@ import {
   statisticPhrase,
   tintExtent,
 } from '../correlatesRows'
-import { otherWaveOf, requestOther, waveName, waveTitle, yearTagged } from './midyear'
+import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
 import {
   DivergingLegend,
   Failure,
@@ -103,14 +103,12 @@ export function FindRelated({
   const acrossRows = useMemo(() => acrossResponse?.rows ?? [], [acrossResponse])
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
 
-  // A question by its name — at Midyear, another wave's with its year.
-  const nameOf = (entry: string) =>
-    yearTagged(
-      variables.byName[entry]?.display_name ?? entry,
-      variables.byName[entry],
-      search.wave,
-      otherWave,
-    )
+  // A question by its name; at Midyear a midyear question wears a small
+  // tag (the subtitle names the other answers' year), and in text alone —
+  // the data table — says it in words.
+  const nameOf = (entry: string) => variables.byName[entry]?.display_name ?? entry
+  const tagOf = (entry: string) => midyearTag(variables.byName[entry], search.wave)
+  const textName = (entry: string) => withTag(nameOf(entry), tagOf(entry))
   const title = variable?.display_name ?? name
   const short = variable ? shortName(variable) : title
   const rankedRows = rankedResponse?.rows ?? []
@@ -259,7 +257,7 @@ export function FindRelated({
               csv={csvFor(rankedResponse, rankedName)}
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
-              predictorLabel={nameOf}
+              predictorLabel={textName}
               note={CORRELATES_NOTE}
             >
               <RankedBar
@@ -285,6 +283,7 @@ export function FindRelated({
                 flagOf={(row) => fewPeople(row, rankedResponse.meta.min_n)}
                 onSelectRow={openPair}
                 rowName={rowName}
+                tagOf={(row) => tagOf(row.predictor ?? '')}
               />
               <p className={styles.hint}>Select a row to see the two questions together.</p>
             </ChartFigure>
@@ -317,7 +316,7 @@ export function FindRelated({
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
-            predictorLabel={nameOf}
+            predictorLabel={textName}
             note={CORRELATES_NOTE}
             wide
           >
@@ -327,6 +326,7 @@ export function FindRelated({
               cells={cells}
               minN={acrossResponse.meta.min_n}
               nameOf={nameOf}
+              tagOf={tagOf}
               countries={pinnedFirst(served.countries, country)}
               chosen={pooled ? undefined : country}
               short={short}
@@ -344,6 +344,7 @@ function CountryMatrix({
   cells,
   minN,
   nameOf,
+  tagOf,
   countries,
   chosen,
   short,
@@ -354,6 +355,8 @@ function CountryMatrix({
   /** The server's ranking floor: a cell below it wears an asterisk. */
   minN: number | null | undefined
   nameOf: (name: string) => string
+  /** A question's small tag ("Midyear" at the midyear survey). */
+  tagOf: (name: string) => string | undefined
   /** The columns: the chosen country, then the rest A–Z. */
   countries: readonly Country[]
   chosen: number | undefined
@@ -368,7 +371,7 @@ function CountryMatrix({
     <HeatTable
       caption={<DivergingLegend extent={extent} stat={stat} short={short} />}
       corner="Question ↓ · country →"
-      rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
+      rows={predictors.map((name) => ({ key: name, label: nameOf(name), tag: tagOf(name) }))}
       columns={countries.map((country) => ({
         key: String(country.code),
         label: country.name,

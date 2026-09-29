@@ -320,3 +320,11 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
+
+/* A label's tag ("Midyear", ADR-0020): small, in secondary ink, after it. */
+.tag {
+  margin-left: 0.4em;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}

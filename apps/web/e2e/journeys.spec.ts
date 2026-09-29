@@ -657,9 +657,18 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       exact: true,
     }),
   ).toBeVisible()
-  const other = page.getByRole('group', { name: 'Other questions’ answers from' })
-  await other.getByText('2024', { exact: true }).click()
+  // The year of the other answers is chosen in the note's own sentence,
+  // worded for the country on screen (the synthetic US took the midyear
+  // survey both ways).
+  const other = page.getByRole('combobox', { name: 'Year of the other answers' })
+  await expect(page.getByText(/^The other question uses the same people’s/)).toContainText(
+    'answers, usually given 8–12 months earlier.',
+  )
+  await other.selectOption('Y2')
   await expect(page).toHaveURL(/other=Y2/)
+  await expect(page.getByText(/^The other question uses the same people’s/)).toContainText(
+    'answers, from the same interview for some people, about six months later for others.',
+  )
   await expect(
     page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
       exact: true,
@@ -690,7 +699,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(page).toHaveURL(new RegExp(`outcome=${plan.midyear.name}&wave=MY`))
   await expect(
     page.getByText(
-      `${plan.midyear.display_name} was asked only in the midyear survey, so the page now shows Midyear, with the same people’s 2023 answers to the other questions.`,
+      `${plan.midyear.display_name} is a midyear question, so the page switched to Midyear.`,
     ),
   ).toBeVisible()
   await expect(

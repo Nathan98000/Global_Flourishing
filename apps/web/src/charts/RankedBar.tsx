@@ -191,6 +191,7 @@ export function RankedBar({
   highlightOf,
   onSelectRow,
   rowName,
+  tagOf,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -238,10 +239,19 @@ export function RankedBar({
   onSelectRow?: (row: EstimateRow) => void
   /** A row button's accessible name. */
   rowName?: (row: EstimateRow, label: string) => string
+  /** A small muted tag after a row's label ("Midyear", ADR-0020). */
+  tagOf?: (row: EstimateRow) => string | undefined
 }) {
   const container = usePlot(
     (available) => {
       const entries = rankEntries(rows, meta, labelColumn, labelOf)
+      // A row's label as drawn: with its tag, when it has one (the entry's
+      // label stays the row's key and its tooltip's name).
+      const drawnLabel = (entry: Entry) => {
+        const tag = tagOf?.(entry.row)
+        return tag ? `${entry.label} ${tag}` : entry.label
+      }
+      const tags = new Set(entries.flatMap((entry) => tagOf?.(entry.row) ?? []))
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
       const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
       const tip = (entry: Entry) =>
@@ -311,7 +321,7 @@ export function RankedBar({
         const [lo, hi] = fixedScale.domain
         const labelRoom = width - 8 - 44
         const lines = new Map(
-          entries.map((entry) => [entry.label, wrapLabel(entry.label, labelRoom, measure)]),
+          entries.map((entry) => [entry.label, wrapLabel(drawnLabel(entry), labelRoom, measure)]),
         )
         const wrapped = [...lines.values()].some((text) => text.length > 1)
         const rowHeight = wrapped ? 62 : 46
@@ -389,6 +399,7 @@ export function RankedBar({
           ],
         })
         emphasizeTurns(plot)
+        muteTags(plot, tags)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -399,7 +410,7 @@ export function RankedBar({
       if (fitLabels) {
         let widest = 0
         for (const entry of entries) {
-          const text = wrapLabel(entry.label, LABEL_CAP - LABEL_PAD, measure)
+          const text = wrapLabel(drawnLabel(entry), LABEL_CAP - LABEL_PAD, measure)
           lines.set(entry.label, text)
           for (const line of text) widest = Math.max(widest, measure(line))
         }
@@ -417,7 +428,14 @@ export function RankedBar({
         fill: INK,
         ...(fitLabels
           ? { tickFormat: (label: string) => (lines.get(label) ?? [label]).join('\n') }
-          : {}),
+          : tags.size > 0
+            ? {
+                tickFormat: (label: string) => {
+                  const entry = entries.find((candidate) => candidate.label === label)
+                  return entry ? drawnLabel(entry) : label
+                },
+              }
+            : {}),
       })
 
       if (!isShare) {
@@ -514,6 +532,7 @@ export function RankedBar({
           ],
         })
         emphasizeTurns(plot)
+        muteTags(plot, tags)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -596,6 +615,7 @@ export function RankedBar({
       highlightOf,
       onSelectRow,
       rowName,
+      tagOf,
     ],
   )
 
@@ -671,6 +691,32 @@ function axisEndMarks(
     ],
     // 16px down to the first line, 13px a line, a little air under the last.
     room: 16 + lines * 13 + 6,
+  }
+}
+
+/** A row label's tag ("Midyear"): its last word, set smaller in
+ * secondary ink by a styled tspan, so the PNG export carries it. */
+function muteTags(plot: Element, tags: ReadonlySet<string>): void {
+  if (tags.size === 0) return
+  const svgNs = 'http://www.w3.org/2000/svg'
+  for (const text of plot.querySelectorAll(
+    'g[aria-label="y-axis tick label"] text, g[aria-label="text"] text',
+  )) {
+    const lines = [...text.querySelectorAll(':scope > tspan')]
+    const holder = lines.length > 0 ? lines[lines.length - 1] : text
+    if (!holder) continue
+    const content = holder.textContent ?? ''
+    const tag = [...tags].find(
+      (candidate) => content === candidate || content.endsWith(` ${candidate}`),
+    )
+    if (!tag) continue
+    holder.textContent = content.slice(0, content.length - tag.length)
+    const word = document.createElementNS(svgNs, 'tspan')
+    word.setAttribute('fill', INK_SECONDARY)
+    word.setAttribute('font-size', '11')
+    word.setAttribute('font-weight', '400')
+    word.textContent = tag
+    holder.append(word)
   }
 }
 

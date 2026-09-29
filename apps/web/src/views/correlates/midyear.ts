@@ -6,7 +6,7 @@
 // change and the one sentence that announces it. The page shell runs
 // every change through these; the views only label.
 
-import type { VariableSummary, Wave } from '../../api/types'
+import type { Meta, VariableSummary, Wave } from '../../api/types'
 import {
   DEFAULT_PAIR,
   TABLE_MAX,
@@ -150,8 +150,24 @@ export function waveName(wave: Wave, other: OtherWave | undefined): string {
   return wave === 'MY' && other ? `${chip} with ${WAVE_CHIPS[other]}` : chip
 }
 
+/** A midyear question's small tag at Midyear, where the page mixes
+ * waves (Compare several's chips and labels, Find related's rows — the
+ * subtitle names the other answers' year); none elsewhere. */
+export function midyearTag(
+  variable: Pick<VariableSummary, 'waves_available'> | undefined,
+  wave: Wave,
+): string | undefined {
+  return wave === 'MY' && isMidyear(variable) ? 'Midyear' : undefined
+}
+
+/** A label with its tag, where text is all there is (a data table, a
+ * CSV): "Daily social media time (Midyear)". */
+export function withTag(label: string, tag: string | undefined): string {
+  return tag ? `${label} (${tag})` : label
+}
+
 /** A question's label with the year its answers come from, where the page
- * mixes waves: "Life evaluation today (2023)". */
+ * mixes waves: "Life evaluation today (2023)" (Compare two's titles). */
 export function yearTagged(
   label: string,
   variable: Pick<VariableSummary, 'waves_available'> | undefined,
@@ -162,11 +178,53 @@ export function yearTagged(
   return `${label} (${WAVE_CHIPS[other]})`
 }
 
-/** The row note at Midyear, by the other answers' wave. */
-export function otherNote(other: OtherWave): string {
-  return other === 'Y2'
-    ? 'The other questions use the same people’s 2024 answers: from the same interview for two in three people, about six months later for the rest.'
-    : 'The other questions use the same people’s 2023 answers, usually given 8–12 months earlier.'
+/** One country's people in one pairing, by how they took the midyear
+ * survey (the server's `meta.midyear_timing`). */
+export type MidyearTiming = Meta['midyear_timing'][number]
+
+/** How long between a midyear answer and the same person's other answer,
+ * in words, for the country on screen (review M4): from the served split
+ * of standalone midyear interviews (type 1) and midyear items asked in
+ * the Wave 2 interview (type 2) — never a list of countries. All
+ * countries reads for the release as a whole. */
+export function timingPhrase(
+  other: OtherWave,
+  country: number | 'all' | undefined,
+  timing: readonly MidyearTiming[] | undefined,
+): string {
+  const row =
+    typeof country === 'number'
+      ? timing?.find((entry) => entry.country_code === country && entry.other_wave === other)
+      : undefined
+  const every =
+    row && row.type_1 === 0 && row.type_2 > 0
+      ? 'same'
+      : row && row.type_2 === 0 && row.type_1 > 0
+        ? 'separate'
+        : 'mixed'
+  if (other === 'Y2') {
+    if (country === 'all')
+      return 'from the same interview for two in three people, about six months later for the rest'
+    if (every === 'same') return 'from the same interview'
+    if (every === 'separate') return 'given about six months later'
+    return 'from the same interview for some people, about six months later for others'
+  }
+  if (every === 'same') return 'given about 12 months earlier'
+  if (every === 'separate') return 'given about 8 months earlier'
+  return 'usually given 8–12 months earlier'
+}
+
+/** The standing note at Midyear, around its inline choice of year (review
+ * M3): "The other question uses the same people’s [2023 ▾] answers,
+ * usually given 8–12 months earlier." — "The other questions use" where
+ * a view lists several (Compare several, Find related). */
+export function otherNoteParts(plural: boolean, phrase: string): { before: string; after: string } {
+  return {
+    before: plural
+      ? 'The other questions use the same people’s'
+      : 'The other question uses the same people’s',
+    after: `answers, ${phrase}.`,
+  }
 }
 
 /** Why the 2024 choice is closed, in a sentence. */
@@ -305,21 +363,18 @@ export function reconcile(
   if (next.wave !== 'MY') {
     const pulling = names.filter((name) => onlyAtMidyear(byName[name], next.wave))
     if (pulling.length === 0) return { patch: {} }
-    const year = WAVE_CHIPS[next.wave] ?? next.wave
+    // Only what changed: the standing note says whose answers and when.
     const picked = displayName(pulling[0] as string, byName)
     return {
       patch: { wave: 'MY', other: next.wave === 'Y2' ? 'Y2' : undefined },
-      notice:
-        others.length > 0 || next.view === 'related'
-          ? `${picked} was asked only in the midyear survey, so the page now shows Midyear, with the same people’s ${year} answers to the other questions.`
-          : `${picked} was asked only in the midyear survey, so the page now shows Midyear.`,
+      notice: `${picked} is a midyear question, so the page switched to Midyear.`,
     }
   }
   const other = otherWaveOf(next)
   if (midyear.length === 0 && names.length > 0) {
     return {
       patch: { wave: other, other: undefined },
-      notice: `No midyear question is left, so the page now shows ${WAVE_CHIPS[other]}.`,
+      notice: `No midyear question is left, so the page switched to ${WAVE_CHIPS[other]}.`,
     }
   }
   if (other === 'Y2') {

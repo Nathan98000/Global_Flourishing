@@ -9,7 +9,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { predictorOrder } from '../api/correlates'
 import { resetNegativePathCache } from '../api/estimates'
@@ -24,6 +24,7 @@ import type {
 import { footnoteCopy } from '../charts/ChartFigure'
 import { shareLabel, shareTint } from '../charts/CrossTab'
 import { DIVERGING_RAMP, SEQUENTIAL_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
+import { RankedBar } from '../charts/RankedBar'
 import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
@@ -34,10 +35,12 @@ import {
   sfiVariable,
   testMeta,
   testResponse,
+  testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
 import {
   CORRELATES_NOTE,
+  CORRELATION_SCALE,
   axisEnds,
   belowFloor,
   averagedOver,
@@ -659,6 +662,18 @@ const midyearTier: Routes = {
   },
 }
 
+/** The row note at Midyear as a reader hears it: its inline choice of
+ * year read as the year chosen, "[2023]". */
+function noteSentence(): string {
+  const select = screen.getByRole('combobox', {
+    name: 'Year of the other answers',
+  }) as HTMLSelectElement
+  const note = select.closest('p') as HTMLElement
+  const clone = note.cloneNode(true) as HTMLElement
+  clone.querySelector('select')?.replaceWith(`[${select.value === 'Y2' ? '2024' : '2023'}]`)
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
 describe('Midyear (ADR-0020)', () => {
   test('the Midyear chip is open; chosen, Compare two takes a midyear question beside 2023 answers', async () => {
     const calls = mockFetch(midyearTier)
@@ -666,7 +681,7 @@ describe('Midyear (ADR-0020)', () => {
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
     const wave = screen.getByRole('group', { name: 'Wave' })
     expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
-    expect(screen.queryByRole('group', { name: 'Other questions’ answers from' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Year of the other answers' })).toBeNull()
     fireEvent.click(within(wave).getByText('Midyear', { exact: true }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
     expect(
@@ -674,13 +689,13 @@ describe('Midyear (ADR-0020)', () => {
         'Daily social media time, from the midyear survey, took the place of Life evaluation today.',
       ),
     ).toHaveAttribute('role', 'status')
-    const other = screen.getByRole('group', { name: 'Other questions’ answers from' })
-    expect(within(other).getByLabelText('2023')).toBeChecked()
-    expect(
-      screen.getByText(
-        'The other questions use the same people’s 2023 answers, usually given 8–12 months earlier.',
-      ),
-    ).toBeInTheDocument()
+    // No second row of year buttons: the choice is in the note's sentence,
+    // worded for the country on screen (every US midyear respondent
+    // answered inside the Wave 2 interview).
+    expect(screen.getByRole('combobox', { name: 'Year of the other answers' })).toHaveValue('Y1')
+    expect(noteSentence()).toBe(
+      'The other question uses the same people’s [2023] answers, given about 12 months earlier.',
+    )
     await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
     const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
     expect(request).toContain('y=INCOME_FEELINGS&x=TIME_MEDIA&wave=MY')
@@ -699,23 +714,21 @@ describe('Midyear (ADR-0020)', () => {
     ).toBeVisible()
   })
 
-  test('2024 answers: the control switches the request, the note and the subtitle', async () => {
+  test('2024 answers: the note’s choice switches the request, the note and the subtitle', async () => {
     const calls = mockFetch(midyearTier)
     const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
     await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
-    const other = screen.getByRole('group', { name: 'Other questions’ answers from' })
-    fireEvent.click(within(other).getByText('2024', { exact: true }))
+    const other = screen.getByRole('combobox', { name: 'Year of the other answers' })
+    fireEvent.change(other, { target: { value: 'Y2' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('other=Y2'))
     await waitFor(() =>
       expect(
         calls.some((url) => url.includes('/v1/correlations/pair') && url.includes('other_wave=Y2')),
       ).toBe(true),
     )
-    expect(
-      screen.getByText(
-        'The other questions use the same people’s 2024 answers: from the same interview for two in three people, about six months later for the rest.',
-      ),
-    ).toBeInTheDocument()
+    expect(noteSentence()).toBe(
+      'The other question uses the same people’s [2024] answers, from the same interview.',
+    )
     expect(
       await screen.findByText(
         'United States · Midyear survey, with 2024 answers from the same people',
@@ -750,14 +763,15 @@ describe('Midyear (ADR-0020)', () => {
     await waitFor(() =>
       expect(router.state.location.searchStr).toBe('?view=related&outcome=TIME_MEDIA&wave=MY'),
     )
+    // Only what changed: the note under the row says whose answers and when.
     expect(
       screen.getByText(
-        'Daily social media time was asked only in the midyear survey, so the page now shows Midyear, with the same people’s 2023 answers to the other questions.',
+        'Daily social media time is a midyear question, so the page switched to Midyear.',
       ),
     ).toBeInTheDocument()
   })
 
-  test('Find related at Midyear ranks other waves’ questions with their year', async () => {
+  test('Find related at Midyear ranks other waves’ questions; the note, not each row, names their year', async () => {
     const calls = mockFetch(midyearTier)
     await renderAt('/correlates?view=related&outcome=TIME_MEDIA&wave=MY')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
@@ -765,8 +779,11 @@ describe('Midyear (ADR-0020)', () => {
     expect(request).toContain('outcome=TIME_MEDIA&wave=MY')
     expect(request).toContain('other_wave=Y1')
     const svgText = figure.querySelector('svg')?.textContent ?? ''
-    expect(svgText).toContain('Loneliness (2023)')
-    expect(svgText).toContain('Service attendance (2023)')
+    expect(svgText).toContain('Loneliness')
+    expect(svgText).not.toContain('(2023)')
+    expect(noteSentence()).toBe(
+      'The other questions use the same people’s [2023] answers, given about 12 months earlier.',
+    )
     expect(
       screen.getByText(
         'United States · Midyear survey, with 2023 answers from the same people · correlation, −1 to 1',
@@ -1530,7 +1547,7 @@ describe('Correlates view', () => {
     const router = await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('wave='))
     expect(
-      await screen.findByText('No midyear question is left, so the page now shows 2023.'),
+      await screen.findByText('No midyear question is left, so the page switched to 2023.'),
     ).toBeInTheDocument()
   })
 
@@ -1828,6 +1845,42 @@ describe('correlates helpers', () => {
     expect(screen.getByRole('table')).not.toHaveAttribute('data-fixed')
     const row: EstimateRow = plainRow('LONELY', 0.2)
     expect(row.ci_method).toBe('none')
+  })
+
+  test('a midyear question wears its small tag: a heat table’s headers, a ranked row', () => {
+    render(
+      <HeatTable
+        caption="cap"
+        corner="rows ↓ · cols →"
+        rows={[{ key: 'a', label: 'Daily social media time', tag: 'Midyear' }]}
+        columns={[{ key: 'x', label: 'Loneliness' }]}
+        cellAt={() => ({ text: '+0.10', title: 'tip', tint: 'var(--div-p1)' })}
+      />,
+    )
+    const header = screen.getByRole('rowheader')
+    expect(header.textContent).toBe('Daily social media timeMidyear')
+    expect(within(header).getByText('Midyear').tagName).toBe('SPAN')
+    cleanup()
+    const figure = render(
+      <RankedBar
+        rows={[plainRow('TIME_MEDIA', 0.3), plainRow('LONELY', -0.2)]}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'pearson_r' })}
+        variable={happyVariable}
+        color="var(--div-pos-mark)"
+        labelOf={(row) =>
+          row.predictor === 'TIME_MEDIA' ? 'Daily social media time' : 'Loneliness'
+        }
+        fixedScale={CORRELATION_SCALE}
+        fitLabels
+        tagOf={(row) => (row.predictor === 'TIME_MEDIA' ? 'Midyear' : undefined)}
+      />,
+    ).container
+    const tags = [...figure.querySelectorAll('tspan[font-size="11"]')].map(
+      (node) => node.textContent,
+    )
+    expect(tags).toEqual(['Midyear'])
+    expect(figure.querySelector('svg')?.textContent).toContain('Daily social media time Midyear')
   })
 
   test('HeatTable: past the edge, "N more →" is a button that pages the box beside its sticky column', () => {

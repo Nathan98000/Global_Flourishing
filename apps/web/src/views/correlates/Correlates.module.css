@@ -116,12 +116,16 @@
   font-size: var(--text-xs);
 }
 
-/* The wave chips, and — at Midyear — where the other questions' answers
-   come from, directly under them (ADR-0020). */
-.waveCell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+/* At Midyear, the year of the other answers is chosen inside the row
+   note's sentence (review M3): a select in the note's own type. */
+.inlineSelect {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
 }
 
 /* What changed on its own: one line under the row, in ink, polite. */
@@ -273,6 +277,13 @@
 
 .chipName {
   padding: 4px 2px;
+}
+
+/* A midyear question's chip says so, small and muted (ADR-0020). */
+.chipTag {
+  margin-left: 0.4em;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
 }
 
 .remove {

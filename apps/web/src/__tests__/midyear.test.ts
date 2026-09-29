@@ -13,7 +13,8 @@ import {
   chooseWave,
   isMidyear,
   no2024Note,
-  otherNote,
+  otherNoteParts,
+  timingPhrase,
   otherOpen,
   questionsInView,
   reconcile,
@@ -115,12 +116,42 @@ describe('which answers, which waves', () => {
       'Daily social media time',
     )
     expect(yearTagged('Happiness', byName['HAPPY'], 'Y1', undefined)).toBe('Happiness')
-    expect(otherNote('Y1')).toBe(
-      'The other questions use the same people’s 2023 answers, usually given 8–12 months earlier.',
+    // The standing note, around its inline choice of year (review M3).
+    expect(otherNoteParts(false, 'usually given 8–12 months earlier')).toEqual({
+      before: 'The other question uses the same people’s',
+      after: 'answers, usually given 8–12 months earlier.',
+    })
+    expect(otherNoteParts(true, 'from the same interview').before).toBe(
+      'The other questions use the same people’s',
     )
-    expect(otherNote('Y2')).toBe(
-      'The other questions use the same people’s 2024 answers: from the same interview for two in three people, about six months later for the rest.',
+  })
+
+  test('the time between the two answers, worded for the country on screen (review M4)', () => {
+    const timing = [
+      // Every midyear respondent answered inside the Wave 2 interview.
+      { country_code: 22, other_wave: 'Y1', type_1: 0, type_2: 900 },
+      { country_code: 22, other_wave: 'Y2', type_1: 0, type_2: 900 },
+      // Every one in a standalone midyear interview.
+      { country_code: 6, other_wave: 'Y1', type_1: 700, type_2: 0 },
+      { country_code: 6, other_wave: 'Y2', type_1: 500, type_2: 0 },
+      // Some each way.
+      { country_code: 1, other_wave: 'Y1', type_1: 40, type_2: 20 },
+      { country_code: 1, other_wave: 'Y2', type_1: 10, type_2: 20 },
+    ]
+    expect(timingPhrase('Y2', 22, timing)).toBe('from the same interview')
+    expect(timingPhrase('Y2', 6, timing)).toBe('given about six months later')
+    expect(timingPhrase('Y2', 1, timing)).toBe(
+      'from the same interview for some people, about six months later for others',
     )
+    expect(timingPhrase('Y2', 'all', timing)).toBe(
+      'from the same interview for two in three people, about six months later for the rest',
+    )
+    expect(timingPhrase('Y1', 22, timing)).toBe('given about 12 months earlier')
+    expect(timingPhrase('Y1', 6, timing)).toBe('given about 8 months earlier')
+    expect(timingPhrase('Y1', 1, timing)).toBe('usually given 8–12 months earlier')
+    expect(timingPhrase('Y1', 'all', timing)).toBe('usually given 8–12 months earlier')
+    // A tier baked before the split: the general wording.
+    expect(timingPhrase('Y1', 22, undefined)).toBe('usually given 8–12 months earlier')
   })
 })
 
@@ -219,14 +250,14 @@ describe('choosing a wave', () => {
 describe('the wave follows the question', () => {
   test('a midyear question picked at 2023 or 2024 switches to Midyear, that year the other answers', () => {
     const picked = settle(at({ wave: 'Y2', b: 'HAPPY' }), { a: MIDYEAR_QUESTION })
+    // The notice says only what changed; the standing note says the rest.
     expect(reconcile(picked, byName)).toEqual({
       patch: { wave: 'MY', other: 'Y2' },
-      notice:
-        'Daily social media time was asked only in the midyear survey, so the page now shows Midyear, with the same people’s 2024 answers to the other questions.',
+      notice: 'Daily social media time is a midyear question, so the page switched to Midyear.',
     })
     const both = settle(at({ b: 'DILIGENT' }), { a: MIDYEAR_QUESTION })
     expect(reconcile(both, byName).notice).toBe(
-      'Daily social media time was asked only in the midyear survey, so the page now shows Midyear.',
+      'Daily social media time is a midyear question, so the page switched to Midyear.',
     )
     expect(reconcile(at({ a: 'HAPPY' }), byName)).toEqual({ patch: {} })
   })
@@ -235,7 +266,7 @@ describe('the wave follows the question', () => {
     const left = settle(at({ wave: 'MY', other: 'Y2', a: MIDYEAR_QUESTION }), { a: 'HAPPY' })
     expect(reconcile(left, byName)).toEqual({
       patch: { wave: 'Y2', other: undefined },
-      notice: 'No midyear question is left, so the page now shows 2024.',
+      notice: 'No midyear question is left, so the page switched to 2024.',
     })
   })
 
