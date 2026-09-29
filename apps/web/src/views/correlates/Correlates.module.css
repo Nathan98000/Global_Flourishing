@@ -95,6 +95,42 @@
   margin-bottom: var(--space-5);
 }
 
+/* A phone's shared row, folded (review M9): what Wave, Country and the
+   correlation type are set to, in one line, and "Change" to open them. */
+.summaryLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.change {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.change:hover {
+  color: var(--accent-hover);
+}
+
+.change:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.controlCells[hidden] {
+  display: none;
+}
+
 .controlCells {
   display: flex;
   flex-wrap: wrap;

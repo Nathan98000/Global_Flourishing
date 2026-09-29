@@ -721,10 +721,15 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
         const ticksBottom = Math.max(...ticks.map((tick) => tick.top + tick.lines.length * 13))
         expect(xTitle.top).toBeGreaterThanOrEqual(ticksBottom)
         expect(xTitle.top + xTitle.lines.length * LINE).toBeLessThanOrEqual(layout.height)
-        // Row labels keep to their own rows.
+        // Row labels keep to their own rows — on a phone, nearer their own
+        // row than the one before (review M9).
         rowLabels.forEach((label, index) => {
           const top = layout.rowTops[index] ?? 0
           const bottom = label.top + label.lines.length * LINE
+          if (layout.stacked && index > 0) {
+            const before = (layout.rowTops[index - 1] ?? 0) + layout.cellHeight
+            expect(label.top - before).toBeGreaterThan(top - bottom)
+          }
           if (layout.stacked) expect(bottom).toBeLessThanOrEqual(top)
           else {
             expect(label.top).toBeGreaterThanOrEqual(top)

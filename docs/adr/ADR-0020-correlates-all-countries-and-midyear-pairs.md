@@ -249,7 +249,12 @@ the plain average of the countries, which reads +0.10.
    and +0.7 read clearly apart in both themes (2:1 at least), and Find
    related's country-by-country table takes the same fixed −1 to 1
    window, not one fitted to its largest value: one colour scale for both
-   tables.
+   tables. On a phone (under 40rem) the shared row — Wave, Country,
+   Correlation type — folds into one line, "2023 · United States ·
+   Straight-line", with a "Change" button that opens it in place (the row
+   note, with its choice of year, and the notice stay in view), so the
+   chart starts on the first screen; a phone's grid gives each row label
+   more room above it than below it, so it reads with its own row.
 
 Standing rules, unchanged: no generated takeaways; one chart on screen at
 a time; no cause-and-effect reminder; no small-group cutoffs; no adjusted

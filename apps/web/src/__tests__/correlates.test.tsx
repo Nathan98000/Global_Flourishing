@@ -1365,6 +1365,34 @@ describe('Correlates view', () => {
     )
   })
 
+  test('on a phone the shared row folds into one line; Change opens it in place', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('40rem'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+    mockFetch(tier)
+    await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    expect(screen.getByText('2023 · United States · Straight-line')).toBeVisible()
+    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+    const change = screen.getByRole('button', { name: 'Change wave, country and correlation type' })
+    expect(change).toHaveTextContent('Change')
+    expect(change).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(change)
+    expect(screen.getByRole('group', { name: 'Wave' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Correlation type' })).toBeInTheDocument()
+    const done = screen.getByRole('button', { name: 'Done changing' })
+    expect(done).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(done)
+    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+  })
+
   test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('40rem'),

@@ -97,6 +97,11 @@ const EDGE = 4
 const LABEL_GAP = 8
 /** Room above the tallest bar for its value label (11px, 4px above it). */
 export const BAR_LABEL_ROOM = 22
+/** A phone's row label, over its row: more room above it (from the row
+ * before) than below it (to its own row), so it reads with its row
+ * (review M9). */
+export const STACKED_LABEL_ABOVE = 10
+export const STACKED_LABEL_BELOW = 2
 const BAR_HEIGHT = 72
 const BAR_HEIGHT_NARROW = 60
 const TITLE_SIZE = 12.5
@@ -268,6 +273,7 @@ export function crossTabLayout({
   rows.forEach((_, index) => {
     const lines = rowLines[index] ?? []
     if (stacked) {
+      if (index > 0) y += STACKED_LABEL_ABOVE
       rowLabels.push({
         left: marginLeft,
         top: y,
@@ -277,7 +283,7 @@ export function crossTabLayout({
         lineHeight: LINE,
         anchor: 'start',
       })
-      y += lines.length * LINE + 4
+      y += lines.length * LINE + STACKED_LABEL_BELOW
       rowTops.push(y)
     } else {
       rowTops.push(y)

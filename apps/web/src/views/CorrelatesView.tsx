@@ -27,6 +27,7 @@ import { Disclosure } from '../components/controls/Disclosure'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { groupValueLabel } from '../labels'
 import { searchNavigation } from '../state/navigate'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import {
   correlatesSearchParams,
   viewPatch,
@@ -82,7 +83,6 @@ const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
   { value: 'spearman', label: 'By rank' },
 ]
 
-/** Where the other questions' answers come from, at Midyear. */
 export function CorrelatesView() {
   useWarmApi()
   const search = route.useSearch()
@@ -95,6 +95,11 @@ export function CorrelatesView() {
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
+  const cellsId = useId()
+  // On a phone the shared row folds into one summary line (review M9);
+  // "Change" opens it in place.
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const [changing, setChanging] = useState(false)
   // What changed without being chosen (ADR-0020), until the next change.
   const [notice, setNotice] = useState<string | undefined>()
   // The table Compare several shows before one is named (its default).
@@ -199,10 +204,31 @@ export function CorrelatesView() {
   )
 
   // One row — Wave · Country · Correlation type, each under its label —
-  // and, under the whole row, why a wave is unavailable.
+  // and, under the whole row, why a wave is unavailable. On a phone, one
+  // line says what the three are set to, with "Change" to open them.
+  const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
+  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, countryName, method?.label]
+    .filter(Boolean)
+    .join(' · ')
+  const folded = narrow && !changing
   const controls = (
     <div className={own.controlRow}>
-      <div className={own.controlCells}>
+      {narrow && (
+        <p className={own.summaryLine}>
+          <span>{summary}</span>
+          <button
+            type="button"
+            className={own.change}
+            aria-expanded={changing}
+            aria-controls={cellsId}
+            aria-label={changing ? 'Done changing' : 'Change wave, country and correlation type'}
+            onClick={() => setChanging((open) => !open)}
+          >
+            {changing ? 'Done' : 'Change'}
+          </button>
+        </p>
+      )}
+      <div id={cellsId} className={own.controlCells} hidden={folded}>
         <RadioRow
           legend="Wave"
           name="wave"
