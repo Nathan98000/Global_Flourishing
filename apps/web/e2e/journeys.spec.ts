@@ -955,13 +955,23 @@ test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook
 // table cannot be narrower than its longest label, and some have nowhere
 // to break: words joined by slashes, as country-specific answers are.
 const UNBREAKABLE_LABEL = 'Single/Separated/Divorced/Widowed/Unmarried/Unpartnered'
+// A select is as wide as its longest option: an answer a sentence long,
+// or a question named as long.
+const LONG_ANSWER =
+  'Every week, or more often than that, at a church, a mosque, a temple, a shrine or another place of worship or prayer'
+const LONG_NAME = 'Marital status, or the living arrangement nearest to one, when interviewed'
 
-test('12 — nor does a phone scroll sideways for a label with nowhere to break: a codebook entry, from 320 to 390 px in both fonts', async ({
+test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments with its options open and Change, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
   page,
 }) => {
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
-  // The fixture's Marital status entry, its first label made one no
-  // phone is wide enough for — a fixture row, never real data.
+  await page.route(`${API}/v1/change**`, (route) =>
+    route.fulfill({ json: apiFixture('change-ATTEND_SVCS-Y1-Y2.json') }),
+  )
+  // Fixture rows made too wide for a phone — never real data. The Marital
+  // status entry's first label has nowhere to break, and its name in the
+  // catalog is a sentence; Service attendance's first answer is one too,
+  // in a list long enough (more than six) to be a select at every width.
   const entry = tierFile('v1/MARITAL_STATUS/variable.json') as {
     value_labels: { label: string }[]
   }
@@ -971,19 +981,61 @@ test('12 — nor does a phone scroll sideways for a label with nowhere to break:
   await page.route('**/data/v1/MARITAL_STATUS/variable.json', (route) =>
     route.fulfill({ json: entry }),
   )
+  const catalog = tierFile('variables.json') as {
+    variables: { name: string; display_name: string }[]
+  }
+  catalog.variables = catalog.variables.map((variable) =>
+    variable.name === 'MARITAL_STATUS' ? { ...variable, display_name: LONG_NAME } : variable,
+  )
+  await page.route('**/data/variables.json', (route) => route.fulfill({ json: catalog }))
+  const answers = tierFile('v1/ATTEND_SVCS/variable.json') as {
+    value_labels: { code: number; label: string; is_nonresponse: boolean }[]
+  }
+  const [first, ...rest] = answers.value_labels
+  answers.value_labels = [
+    { ...first!, label: LONG_ANSWER },
+    ...rest,
+    ...[4, 5, 6, 7].map((code) => ({ ...first!, code, label: `Answer ${code}` })),
+  ]
+  await page.route('**/data/v1/ATTEND_SVCS/variable.json', (route) =>
+    route.fulfill({ json: answers }),
+  )
   const softly = expect.configure({ soft: true })
-  // The entry's value labels scroll in a box of their own.
-  const path = '/codebook/MARITAL_STATUS'
-  for (const font of PHONE_FONTS) {
-    for (const width of PHONE_WIDTHS) {
-      await page.setViewportSize({ width, height: 844 })
-      await page.goto(path)
-      await expect(page.getByRole('cell', { name: UNBREAKABLE_LABEL })).toBeVisible()
-      if (font.css) await page.addStyleTag({ content: font.css })
-      softly(
-        await sideways(page),
-        `${path} at ${width}px in ${font.name}: px of sideways scroll`,
-      ).toBe(0)
+  // Each stop with what shows it has rendered, a fold to open before it
+  // is measured, and its widths where a phone's are not all.
+  const stops: { path: string; rendered: Locator; open?: string; widths?: number[] }[] = [
+    // The entry's value labels scroll in a box of their own.
+    {
+      path: '/codebook/MARITAL_STATUS',
+      rendered: page.getByRole('cell', { name: UNBREAKABLE_LABEL }),
+    },
+    // Segments' second breakdown lists every categorical question by
+    // name, inside "More options".
+    {
+      path: '/segments',
+      rendered: page.locator('main figure').first(),
+      open: 'More options — split, sort, countries',
+    },
+    // Change's answer level stands in the control row itself — tried on a
+    // phone turned on its side too (680 px), where that row wraps rather
+    // than stacks.
+    {
+      path: '/change?outcome=ATTEND_SVCS',
+      rendered: page.getByRole('combobox', { name: 'Answer level' }),
+      widths: [...PHONE_WIDTHS, 680],
+    },
+  ]
+  for (const { path, rendered, open, widths = PHONE_WIDTHS } of stops) {
+    for (const font of PHONE_FONTS) {
+      for (const width of widths) {
+        const where = `${path} at ${width}px in ${font.name}`
+        await page.setViewportSize({ width, height: 844 })
+        await page.goto(path)
+        await expect(rendered).toBeVisible()
+        if (font.css) await page.addStyleTag({ content: font.css })
+        if (open) await page.getByText(open, { exact: true }).click()
+        softly(await sideways(page), `${where}: px of sideways scroll`).toBe(0)
+      }
     }
   }
 })
