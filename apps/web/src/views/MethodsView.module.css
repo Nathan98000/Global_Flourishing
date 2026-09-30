@@ -49,6 +49,13 @@
   margin-top: 0;
 }
 
+/* A heading a link lands on (each carries GitHub's id) keeps some air
+   above it rather than meeting the window's top edge — less than the
+   gap above a heading, so the last line before it stays out of view. */
+.prose [id] {
+  scroll-margin-top: var(--space-5);
+}
+
 .prose p,
 .prose li {
   line-height: 1.62;
