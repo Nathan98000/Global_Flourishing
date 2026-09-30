@@ -84,7 +84,7 @@ Wave 1 fieldwork dates in the file run January–June 2023; the midyear survey r
 | `ANNUAL_STATE_WEIGHT_*`, `RETENTION_STATE_WEIGHT_*`, `*_ADJ_*` | US file only: the same weights calibrated to state populations, plus adjusted variants. |
 | `STRATA`, `PSU` | 411 strata and 136,781 primary sampling units for design-based standard errors. |
 
-Because weights are normalized to mean 1 **within** each country, pooling countries into a "global" figure requires rescaling by adult population; otherwise Türkiye and the US count equally. The app will show per-country estimates by default and offer a population-rescaled "all countries" figure only with an explicit label.
+Because weights are normalized to mean 1 **within** each country, pooling countries into a "global" figure requires rescaling by adult population; otherwise Türkiye and the US count equally. The app will show per-country estimates by default and offer a population-rescaled "all countries" figure only with an explicit label. *(Replaced by [ADR-0020](adr/ADR-0020-correlates-all-countries-and-midyear-pairs.md): "All countries" is the plain average of the countries' own estimates, not a population-rescaled pool.)*
 
 ### 3.4 Retention
 
@@ -316,6 +316,8 @@ Define design tokens and the chart component library (ranked bar with CI, dot pl
 Implement Change (paired shift with CI, histogram of individual change, transition matrix, retention banner; wave pairs Y1→Y2 and, for standalone-midyear respondents, Y1→MY→Y2), Compare (2–5 countries or segments across domains), What Matters (midyear importance rankings by country and age; priorities × Wave 2 flourishing; social media time × mental health; food insecurity × financial domain), and US States (state choropleth using state weights for annual and midyear items). Add the population-rescaled "all countries" option with its warning label. **Exit:** every Y1, MY, and Y2 variable can be reached through at least one view; coverage is displayed wherever Wave 2 or midyear data appear.
 
 *Revised 23 September 2026 ([ADR-0013](adr/ADR-0013-phase-5-serving-and-display.md)):* the exit criterion is narrowed — retention is for the maths, not the interface. No coverage or follow-up figure is displayed with Wave 2 or midyear estimates; the interval and the unweighted n carry the signal, and a single plain sentence appears only where a country's follow-up group is small. The population-rescaled "all countries" option is deferred until the owner decides it.
+
+*Revised 29 September 2026 ([ADR-0020](adr/ADR-0020-correlates-all-countries-and-midyear-pairs.md)):* the owner decided it — the Correlates page's **All countries** is the plain average of the countries' own estimates (every country counts the same; one that wasn't asked drops out), with its label and coverage stated on every chart; and the midyear survey's questions are reachable there, paired with the same people's 2023 or 2024 answers.
 
 ### Phase 6 — Correlates and modelling (weeks 12–14)
 

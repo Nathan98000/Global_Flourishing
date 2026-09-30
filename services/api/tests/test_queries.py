@@ -121,7 +121,7 @@ def test_filter_rejections(catalog: Catalog) -> None:
 
 def test_global_scope_needs_a_country(catalog: Catalog) -> None:
     found = messages(catalog, by=["age_band"])
-    assert any("Phase 5" in m and "country" in m for m in found)
+    assert any("pooling countries is not meaningful" in m and "country" in m for m in found)
     # …satisfied by either grouping or filtering.
     parse(catalog, by=["country_code", "age_band"])
     parse(catalog, by=["age_band"], filters=["country_code:22"])

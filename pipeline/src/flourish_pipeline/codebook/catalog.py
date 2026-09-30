@@ -406,7 +406,9 @@ def build_catalog(
                 name=base,
                 display_name=override.display_name,
                 label=_flatten(first.variable_label) if first else None,
-                wording=_flatten(first.wording) if first else None,
+                # Overrides > the codebook (a placeholder the survey filled
+                # in per country is worded for the page, review H2).
+                wording=override.wording or (_flatten(first.wording) if first else None),
                 section=first.section if first else None,
                 family=override.family,
                 scale_type=scale,

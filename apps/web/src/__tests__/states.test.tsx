@@ -194,6 +194,10 @@ describe('the states topology', () => {
     expect(html).toContain('var(--seq-')
     expect(html).toContain('var(--map-empty)')
     expect(html).not.toMatch(/#[0-9a-f]{6}/i)
+    // Seven shades: the highest state wears the ramp's seventh step, and
+    // nothing the two deeper ones (Compare two's grid's alone).
+    expect(html).toContain('var(--seq-700)')
+    expect(html).not.toMatch(/--seq-[89]00/)
     expect(svg?.querySelectorAll('path').length).toBeGreaterThanOrEqual(51)
     // The four pooled members wear a dashed outline on top of the fill
     // (Plot sets a mark's constant stroke on its group).

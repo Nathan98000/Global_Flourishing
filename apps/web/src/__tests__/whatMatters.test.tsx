@@ -445,6 +445,11 @@ describe('What Matters view', () => {
     expect(
       [...legend.querySelectorAll('span[style]')].map((swatch) => swatch.getAttribute('style')),
     ).toEqual(SEQUENTIAL_RAMP.map((token) => `background: ${token};`))
+    // Seven steps, the deepest --seq-700: the two deeper shades are
+    // Compare two's grid's alone, in the key and in every cell.
+    expect(SEQUENTIAL_RAMP).toHaveLength(7)
+    expect(SEQUENTIAL_RAMP.at(-1)).toBe('var(--seq-700)')
+    expect(ranking.innerHTML).not.toMatch(/--seq-[89]00/)
     expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
     expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
     // The sort control, always in view: country name or one of the items.

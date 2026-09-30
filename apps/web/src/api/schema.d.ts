@@ -99,6 +99,32 @@ export interface paths {
          *     what stands in for it. Binary items enter as indicators of code 1
          *     (Yes / screen positive). Global scope only.
          *
+         *     ``pooled=average`` — in place of a country filter — takes each
+         *     country's own correlation and their plain mean: every country counts
+         *     the same, and one with no estimate (it did not ask a question) drops
+         *     out. Each row's ``n`` is the complete cases summed over the countries
+         *     in its average (the ranking floor reads it), ``n_countries`` counts
+         *     them, and ``flagged`` says every one of them rests on fewer than
+         *     ``meta.min_n`` people; ``meta.countries`` lists every country in at
+         *     least one average, whether or not it is ranked. The ranked sweep keeps
+         *     only the candidates whose average covers at least
+         *     ``meta.min_countries`` countries — half of those /v1/meta lists,
+         *     rounded up — before ranking and cutting, so the list fills with
+         *     candidates that do (``meta.n_excluded_coverage`` covered fewer;
+         *     ``meta.n_excluded`` counts those below the floor among the rest). An
+         *     outcome itself asked in fewer has no rows, and ``meta.countries``
+         *     shorter than ``meta.min_countries`` says why. Named predictors
+         *     (``against``) are always served. The dedupe is unchanged.
+         *
+         *     At ``wave=MY`` a midyear question reads its midyear answers and any
+         *     other question the same respondents' ``other_wave`` answers (Y1 by
+         *     default: every midyear respondent, ``w_l1m``; Y2: those who also did
+         *     Wave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear
+         *     outcome is ranked against every midyear question and every question
+         *     asked at ``other_wave``; any other outcome against the midyear
+         *     questions only. Two questions neither of which the midyear survey
+         *     asked belong at their own wave: 422.
+         *
          *     ``adjusted=true`` — the predictor's coefficient in a survey-weighted
          *     regression under the fixed control set (``stat = "beta"``, plus a
          *     ``beta_per_sd`` row) with a design-based CI — is disabled unless the
@@ -134,7 +160,15 @@ export interface paths {
          *     signs are the ranked list's. ``similar_order`` lists the questions
          *     with those that go together side by side: average-linkage clustering
          *     on 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),
-         *     ties broken toward the order asked.
+         *     ties broken toward the order asked. ``pooled=average`` takes each
+         *     pair's correlation in each country and their plain mean: each
+         *     correlation's ``n_countries`` counts the countries in it, ``n`` sums
+         *     their people, ``below_min_n`` says every one rests on fewer than
+         *     ``meta.min_n``, and ``meta.countries`` lists every country in at least
+         *     one. At ``wave=MY`` the table
+         *     holds one midyear question at least; the questions the midyear survey
+         *     did not ask read the same people's ``other_wave`` answers, and every
+         *     pair — two such questions included — is taken on the same people.
          */
         get: operations["correlations_v1_correlations_get"];
         put?: never;
@@ -171,7 +205,17 @@ export interface paths {
          *     ``column_flag_below`` (flagged, never withheld). ``correlation`` is the
          *     weighted Pearson or Spearman coefficient over the people who answered
          *     both — the number /v1/correlates reports for the pair, with no
-         *     interval.
+         *     interval. ``pooled=average`` takes each country on its own and their
+         *     plain mean: of the correlations (``correlation.n_countries`` counts
+         *     the countries in it; ``flagged`` when every one rests on fewer than
+         *     ``min_n`` people), of the shares who gave each of x's answers, and of
+         *     each column's shares over the countries with people in that column —
+         *     so every column still adds to 1 — each with SE √(Σ se²) / K and a
+         *     normal interval, and ``n`` summed over the countries (the flags read
+         *     it); ``shares.meta.countries`` lists the countries with people who
+         *     answered both. At ``wave=MY`` one question at least must be a midyear
+         *     question; the other reads its midyear answers or the same people's
+         *     ``other_wave`` answers (``shares.meta.answer_waves``).
          */
         get: operations["correlation_pair_v1_correlations_pair_get"];
         put?: never;
@@ -340,8 +384,14 @@ export interface components {
          * @description What a correlation table says about itself.
          */
         CorrelationsMeta: {
+            /** Answer Waves */
+            answer_waves?: {
+                [key: string]: string;
+            } | null;
             /** Ci Level */
             ci_level: number;
+            /** Countries */
+            countries?: number[] | null;
             /** Data Version */
             data_version: string | null;
             /** Filters */
@@ -352,6 +402,10 @@ export interface components {
             min_n: number;
             /** N Frame */
             n_frame: number;
+            /** Other Wave */
+            other_wave?: string | null;
+            /** Pooled */
+            pooled?: string | null;
             /** Stat */
             stat: string;
             suppression: components["schemas"]["SuppressionModel"];
@@ -432,6 +486,8 @@ export interface components {
             measure?: string | null;
             /** N */
             n: number;
+            /** N Countries */
+            n_countries?: number | null;
             /** N Psu */
             n_psu: number | null;
             /** N Strata */
@@ -496,6 +552,11 @@ export interface components {
             families: string[];
             /** Git Sha */
             git_sha?: string | null;
+            /**
+             * Midyear Timing
+             * @default []
+             */
+            midyear_timing: components["schemas"]["MidyearTimingModel"][];
             /** State Labels */
             state_labels: {
                 [key: string]: components["schemas"]["StateLabelModel"];
@@ -505,6 +566,24 @@ export interface components {
             waves: string[];
             /** Weight Table */
             weight_table: components["schemas"]["WeightSpecModel"][];
+        };
+        /**
+         * MidyearTimingModel
+         * @description How one country's people in one midyear pairing took the midyear
+         *     survey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a
+         *     standalone midyear interview (``type_1``) or inside their Wave 2
+         *     interview (``type_2``) — the page words the time between the two
+         *     answers from it.
+         */
+        MidyearTimingModel: {
+            /** Country Code */
+            country_code: number;
+            /** Other Wave */
+            other_wave: string;
+            /** Type 1 */
+            type_1: number;
+            /** Type 2 */
+            type_2: number;
         };
         /**
          * MissingnessRow
@@ -619,12 +698,18 @@ export interface components {
         ResponseMeta: {
             /** Adjusted */
             adjusted?: boolean | null;
+            /** Answer Waves */
+            answer_waves?: {
+                [key: string]: string;
+            } | null;
             /** By */
             by: string[];
             /** Ci Level */
             ci_level: number;
             /** Controls */
             controls?: string[] | null;
+            /** Countries */
+            countries?: number[] | null;
             /** Data Version */
             data_version: string | null;
             /** Direction */
@@ -637,20 +722,28 @@ export interface components {
             filters: {
                 [key: string]: (string | number | boolean | null)[];
             };
+            /** Min Countries */
+            min_countries?: number | null;
             /** Min N */
             min_n?: number | null;
             /** Model */
             model?: string | null;
             /** N Excluded */
             n_excluded?: number | null;
+            /** N Excluded Coverage */
+            n_excluded_coverage?: number | null;
             /** N Frame */
             n_frame: number;
             /** N Valid */
             n_valid: number;
             /** Oriented */
             oriented: boolean;
+            /** Other Wave */
+            other_wave?: string | null;
             /** Outcome */
             outcome: string;
+            /** Pooled */
+            pooled?: string | null;
             /** Scale Type */
             scale_type: string;
             /** Scope */
@@ -940,6 +1033,10 @@ export interface operations {
                 by?: string[] | null;
                 filter?: string[] | null;
                 limit?: number;
+                /** @description average: each country's own estimate, and their plain average — every country counts the same (ADR-0020) — in place of a country filter. */
+                pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — the wave every question the midyear survey did not ask reads the same people's answers from (ADR-0020). */
+                other_wave?: string | null;
                 /** @description The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422. */
                 adjusted?: boolean;
             };
@@ -975,10 +1072,14 @@ export interface operations {
                 /** @description 2 to 10 ordered questions asked at the wave, repeatable, in table order. */
                 vars: string[];
                 wave: string;
-                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                /** @description Exactly one country_code:N (none when pooled), plus optional demographic domains. */
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
+                /** @description average: each country's own correlations, and their plain average (ADR-0020), in place of the country filter. */
+                pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
+                other_wave?: string | null;
             };
             header?: never;
             path?: never;
@@ -1014,10 +1115,14 @@ export interface operations {
                 /** @description The question on the columns. */
                 x: string;
                 wave: string;
-                /** @description Exactly one country_code:N, plus optional demographic domains. */
+                /** @description Exactly one country_code:N (none when pooled), plus optional demographic domains. */
                 filter?: string[] | null;
                 /** @description pearson (default) or spearman. */
                 method?: string;
+                /** @description average: each country's own cross-tab and correlation, and their plain average (ADR-0020), in place of the country filter. */
+                pooled?: string | null;
+                /** @description At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020). */
+                other_wave?: string | null;
             };
             header?: never;
             path?: never;

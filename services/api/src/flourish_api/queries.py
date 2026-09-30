@@ -234,8 +234,7 @@ def parse_aggregate_query(
         problems.add(
             "global-scope estimates must group by country (by=country_code) or "
             "filter to countries (filter=country_code:N) — weights are "
-            "normalised within country, so pooling countries is not "
-            "meaningful until the population-rescaled option (Phase 5)"
+            "normalised within country, so pooling countries is not meaningful"
         )
     if scope != "global" and countries and countries != [22]:
         problems.add(f"scope {scope!r} is US-only; drop the country filter {countries}")
@@ -423,6 +422,14 @@ def parse_change_query(
 # --- /v1/correlates ---------------------------------------------------------
 
 CORRELATION_METHODS = ("pearson", "spearman")
+#: How a correlation may take every country in place of a country filter
+#: (ADR-0020): ``average`` — each country's own estimate, and their plain
+#: mean (every country counts the same; one that did not ask drops out).
+POOLINGS = ("average",)
+#: The waves a midyear question's answers can be set beside (ADR-0020):
+#: at wave=MY every other question reads the same respondent's answers
+#: from one of these (``other_wave``, default Y1).
+OTHER_WAVES = ("Y1", "Y2")
 #: A ranked sweep returns this many predictors unless `limit` says otherwise.
 CORRELATES_DEFAULT_LIMIT = 20
 CORRELATES_MAX_LIMIT = 200
@@ -451,11 +458,32 @@ class CorrelatesQuery:
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
     limit: int
+    #: every country, each on its own, and their plain average (ADR-0020)
+    pooled: bool = False
+    #: at wave=MY: the wave every question not asked in the midyear survey
+    #: reads the same respondents' answers from (ADR-0020); None elsewhere
+    other_wave: str | None = None
 
     @property
     def family(self) -> str:
         """The adjusted model's family, from the catalog's scale_type."""
         return "binomial" if self.outcome.scale_type == "binary" else "gaussian"
+
+
+def is_midyear(info: VariableInfo) -> bool:
+    """A question asked in the midyear survey: at wave=MY it reads its
+    midyear answers (every other question, the same people's answers
+    from ``other_wave``)."""
+    return "MY" in info.waves
+
+
+def answer_wave(info: VariableInfo, wave: str, other_wave: str | None) -> str:
+    """The wave a question's answers come from in a correlation at
+    ``wave`` (ADR-0020): its own wave, except that at the midyear survey a
+    question it did not ask reads ``other_wave``."""
+    if wave != "MY" or is_midyear(info):
+        return wave
+    return other_wave or OTHER_WAVES[0]
 
 
 def answers_of(info: VariableInfo) -> set[str]:
@@ -480,6 +508,73 @@ def _ordered_item(problems: _Problems, info: VariableInfo, role: str) -> None:
             f"{role} {info.name!r} has scale_type {info.scale_type!r}, which has no "
             f"order; associations need one of {sorted(ORDERED_SCALE_TYPES)}"
         )
+
+
+def _pooling(problems: _Problems, pooled: str | None) -> bool:
+    """Whether the request averages every country (``pooled=average``)."""
+    if pooled is None:
+        return False
+    if pooled not in POOLINGS:
+        problems.add(f"pooled must be one of {list(POOLINGS)}, got {pooled!r}")
+        return False
+    return True
+
+
+def _other_wave(problems: _Problems, wave: str, other_wave: str | None) -> str | None:
+    """The resolved answer wave for the questions the midyear survey did
+    not ask: ``other_wave`` (default Y1) at wave=MY, None elsewhere."""
+    if other_wave is None:
+        return OTHER_WAVES[0] if wave == "MY" else None
+    if wave != "MY":
+        problems.add(
+            f"other_wave applies at wave=MY only (the midyear survey's questions beside "
+            f"the same people's answers from another wave), got wave={wave!r}"
+        )
+        return None
+    if other_wave not in OTHER_WAVES:
+        problems.add(f"other_wave must be one of {list(OTHER_WAVES)}, got {other_wave!r}")
+        return None
+    return other_wave
+
+
+def _asked_for(
+    problems: _Problems, info: VariableInfo, wave: str, other_wave: str | None, role: str
+) -> bool:
+    """Whether a question can be correlated at ``wave``: asked there — or,
+    at the midyear survey, asked in it or at ``other_wave`` (whose answers
+    it then reads); a problem saying why not otherwise."""
+    if wave not in WAVES or wave in info.waves:
+        return True
+    if wave == "MY" and other_wave is not None and other_wave in info.waves:
+        return True
+    available = ", ".join(info.waves)
+    if wave == "MY":
+        problems.add(
+            f"{role}={info.name!r} was not asked in the midyear survey or at {other_wave}: at "
+            f"wave=MY a question from another wave reads the same people's other_wave answers "
+            f"(available: {available})"
+        )
+    else:
+        problems.add(f"{role}={info.name!r} is not asked at {wave} (available: {available})")
+    return False
+
+
+def _needs_midyear(problems: _Problems, names: list[str], other_wave: str | None) -> None:
+    """At wave=MY a pair or a table must hold a midyear question: two
+    questions from another wave belong at that wave."""
+    problems.add(
+        f"none of {', '.join(names)} was asked in the midyear survey: use wave={other_wave} "
+        f"directly (at wave=MY at least one question must be a midyear question)"
+    )
+
+
+#: What a correlation needs in place of one country: weights are
+#: normalised within each country, so the countries never share one
+#: estimate — "all countries" is the average of theirs.
+_ONE_COUNTRY = (
+    "weights are normalised within country, so countries share no estimate; "
+    "all countries is the plain average of the countries' own (pooled=average)"
+)
 
 
 def _parse_country_and_domain_filters(
@@ -527,10 +622,14 @@ def parse_correlates_query(
     by: list[str],
     filters: list[str],
     limit: int,
+    pooled: str | None = None,
+    other_wave: str | None = None,
 ) -> CorrelatesQuery:
     """Validate a correlates request; every problem is reported at once
     as a 422, in the same shape as the other routes."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
+    other = _other_wave(problems, wave, other_wave)
 
     info = catalog.outcome(outcome)
     if info is None:
@@ -544,6 +643,8 @@ def parse_correlates_query(
 
     if wave not in WAVES:
         problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    elif wave == "MY":
+        _asked_for(problems, info, wave, other, "outcome")
     elif wave not in info.waves:
         problems.add(
             f"{info.name} is not asked at {wave}; it is available at {', '.join(info.waves)}"
@@ -565,6 +666,13 @@ def parse_correlates_query(
         _ordered_item(problems, predictor, "against")
         if predictor.name == info.name:
             problems.add("against= cannot be the outcome itself")
+        elif wave == "MY":
+            if not _asked_for(problems, predictor, wave, other, "against"):
+                continue
+            if not is_midyear(info) and not is_midyear(predictor):
+                _needs_midyear(problems, [info.name, predictor.name], other)
+            else:
+                predictors.append(predictor)
         elif wave in WAVES and wave not in predictor.waves:
             problems.add(
                 f"against={name!r} is not asked at {wave} (available: {', '.join(predictor.waves)})"
@@ -594,12 +702,21 @@ def parse_correlates_query(
     countries, domain_filters = _parse_country_and_domain_filters(
         catalog, filters, set(BREAKDOWNS), problems
     )
-    if "country_code" not in seen and not countries:
+    if pools:
+        if countries:
+            problems.add(
+                "pooled=average averages every country: drop the country filter "
+                "(filter=country_code:N)"
+            )
+        if "country_code" in seen:
+            problems.add(
+                "pooled=average averages every country into one estimate: drop "
+                "by=country_code (country by country is by=country_code without pooled)"
+            )
+    elif "country_code" not in seen and not countries:
         problems.add(
-            "global-scope estimates must group by country (by=country_code) or "
-            "filter to countries (filter=country_code:N) — weights are "
-            "normalised within country, so pooling countries is not "
-            "meaningful until the population-rescaled option (Phase 5)"
+            "global-scope estimates must group by country (by=country_code), filter "
+            f"to countries (filter=country_code:N) or average them — {_ONE_COUNTRY}"
         )
 
     problems.raise_if_any()
@@ -615,6 +732,8 @@ def parse_correlates_query(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
         limit=limit,
+        pooled=pools,
+        other_wave=other,
     )
 
 
@@ -624,8 +743,9 @@ def parse_correlates_query(
 @dataclass(frozen=True)
 class PairQuery:
     """A validated /v1/correlations/pair request: two ordered items at one
-    wave, in one country (the global weights are normalised within
-    country, so a pair is never pooled across countries)."""
+    wave, in one country — or in every country, each on its own and
+    averaged (the global weights are normalised within country, so
+    countries share no one estimate, ADR-0020)."""
 
     y: VariableInfo
     x: VariableInfo
@@ -633,12 +753,24 @@ class PairQuery:
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
+    #: every country, each on its own, and their plain average (ADR-0020)
+    pooled: bool = False
+    #: at wave=MY: the wave the questions the midyear survey did not ask
+    #: read their answers from (ADR-0020); None elsewhere
+    other_wave: str | None = None
 
 
 def _ordered_at_wave(
-    catalog: Catalog, problems: _Problems, name: str, wave: str, role: str
+    catalog: Catalog,
+    problems: _Problems,
+    name: str,
+    wave: str,
+    role: str,
+    other_wave: str | None = None,
 ) -> VariableInfo | None:
-    """A servable ordered item asked at ``wave``, or a problem saying why not."""
+    """A servable ordered item asked at ``wave`` (at the midyear survey,
+    or at ``other_wave`` for a question it did not ask), or a problem
+    saying why not."""
     info = catalog.outcome(name)
     if info is None:
         problems.add(
@@ -649,22 +781,28 @@ def _ordered_at_wave(
     if info.scale_type not in ORDERED_SCALE_TYPES:
         _ordered_item(problems, info, role)
         return None
-    if wave in WAVES and wave not in info.waves:
-        problems.add(f"{role}={name!r} is not asked at {wave} (available: {', '.join(info.waves)})")
+    if not _asked_for(problems, info, wave, other_wave, role):
         return None
     return info
 
 
 def _one_country(
-    catalog: Catalog, filters: list[str], problems: _Problems
+    catalog: Catalog, filters: list[str], problems: _Problems, pools: bool = False
 ) -> tuple[list[int], dict[str, list[str | int]]]:
+    """Exactly one country — or, averaged, none named at all."""
     countries, domain_filters = _parse_country_and_domain_filters(
         catalog, filters, set(BREAKDOWNS), problems
     )
-    if len(countries) != 1:
+    if pools:
+        if countries:
+            problems.add(
+                "pooled=average averages every country: drop the country filter "
+                "(filter=country_code:N)"
+            )
+    elif len(countries) != 1:
         problems.add(
-            "filter to exactly one country (filter=country_code:N) — weights are "
-            "normalised within country, so a correlation is taken one country at a time"
+            "filter to exactly one country (filter=country_code:N) or average every "
+            f"country (pooled=average) — {_ONE_COUNTRY}"
         )
     return countries, domain_filters
 
@@ -677,14 +815,20 @@ def parse_pair_query(
     wave: str,
     method: str,
     filters: list[str],
+    pooled: str | None = None,
+    other_wave: str | None = None,
 ) -> PairQuery:
     """Validate a pair request; every problem is reported at once as a 422."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
     if wave not in WAVES:
         problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
-    y_info = _ordered_at_wave(catalog, problems, y, wave, "y")
-    x_info = _ordered_at_wave(catalog, problems, x, wave, "x")
+    other = _other_wave(problems, wave, other_wave)
+    y_info = _ordered_at_wave(catalog, problems, y, wave, "y", other)
+    x_info = _ordered_at_wave(catalog, problems, x, wave, "x", other)
     if y_info is not None and x_info is not None:
+        if wave == "MY" and not is_midyear(y_info) and not is_midyear(x_info):
+            _needs_midyear(problems, [x_info.name, y_info.name], other)
         if y_info.name == x_info.name:
             problems.add("x and y must be two different questions")
         elif shares_answers(y_info, x_info):
@@ -695,7 +839,7 @@ def parse_pair_query(
             )
     if method not in CORRELATION_METHODS:
         problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
-    countries, domain_filters = _one_country(catalog, filters, problems)
+    countries, domain_filters = _one_country(catalog, filters, problems, pools)
     problems.raise_if_any()
     assert y_info is not None and x_info is not None
     return PairQuery(
@@ -707,6 +851,8 @@ def parse_pair_query(
         filters=tuple(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
+        pooled=pools,
+        other_wave=other,
     )
 
 
@@ -718,13 +864,18 @@ MATRIX_MAX_VARS = 10
 @dataclass(frozen=True)
 class MatrixQuery:
     """A validated /v1/correlations request: 2–10 ordered items at one
-    wave, in one country."""
+    wave, in one country or every country averaged."""
 
     variables: tuple[VariableInfo, ...]
     wave: str
     method: str
     countries: tuple[int, ...]
     filters: tuple[DomainFilter, ...]
+    #: every country, each on its own, and their plain average (ADR-0020)
+    pooled: bool = False
+    #: at wave=MY: the wave the questions the midyear survey did not ask
+    #: read their answers from (ADR-0020); None elsewhere
+    other_wave: str | None = None
 
 
 def parse_matrix_query(
@@ -734,11 +885,15 @@ def parse_matrix_query(
     wave: str,
     method: str,
     filters: list[str],
+    pooled: str | None = None,
+    other_wave: str | None = None,
 ) -> MatrixQuery:
     """Validate a correlation-table request; every problem at once, 422."""
     problems = _Problems()
+    pools = _pooling(problems, pooled)
     if wave not in WAVES:
         problems.add(f"wave must be one of {list(WAVES)}, got {wave!r}")
+    other = _other_wave(problems, wave, other_wave)
     if not MATRIX_MIN_VARS <= len(names) <= MATRIX_MAX_VARS:
         problems.add(
             f"vars must name {MATRIX_MIN_VARS} to {MATRIX_MAX_VARS} questions, got {len(names)}"
@@ -748,12 +903,14 @@ def parse_matrix_query(
         if any(v.name == name for v in variables):
             problems.add(f"duplicate vars={name!r}")
             continue
-        info = _ordered_at_wave(catalog, problems, name, wave, "vars")
+        info = _ordered_at_wave(catalog, problems, name, wave, "vars", other)
         if info is not None:
             variables.append(info)
+    if wave == "MY" and variables and not any(is_midyear(v) for v in variables):
+        _needs_midyear(problems, [v.name for v in variables], other)
     if method not in CORRELATION_METHODS:
         problems.add(f"method must be one of {list(CORRELATION_METHODS)}, got {method!r}")
-    countries, domain_filters = _one_country(catalog, filters, problems)
+    countries, domain_filters = _one_country(catalog, filters, problems, pools)
     problems.raise_if_any()
     return MatrixQuery(
         variables=tuple(variables),
@@ -763,4 +920,6 @@ def parse_matrix_query(
         filters=tuple(
             DomainFilter(column, tuple(values)) for column, values in domain_filters.items()
         ),
+        pooled=pools,
+        other_wave=other,
     )

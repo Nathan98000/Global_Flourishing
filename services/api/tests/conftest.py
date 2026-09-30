@@ -47,18 +47,11 @@ def synthetic_data_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return directory
 
 
-#: The synthetic countries hold 60 people, so the ranked sweep's floor
-#: (100 in serving) is lowered here; EDUCATION_3, which has no rows, is
-#: the candidate it excludes.
-SYNTHETIC_MIN_N = 20
-
-
 @pytest.fixture(scope="session")
 def api_app(synthetic_data_dir: Path):
-    settings = Settings(
-        data_path=synthetic_data_dir / "flourish.duckdb", correlates_min_n=SYNTHETIC_MIN_N
-    )
-    return create_app(settings)
+    from synthetic_db import synthetic_settings
+
+    return create_app(synthetic_settings(synthetic_data_dir))
 
 
 @pytest.fixture(scope="session")
@@ -70,12 +63,9 @@ def client(api_app) -> TestClient:
 def adjusted_client(synthetic_data_dir: Path) -> TestClient:
     """The synthetic API with the adjusted models switched on
     (FA_ADJUSTED_ENABLED) — off by default since ADR-0018, kept tested."""
-    settings = Settings(
-        data_path=synthetic_data_dir / "flourish.duckdb",
-        correlates_min_n=SYNTHETIC_MIN_N,
-        adjusted_enabled=True,
-    )
-    return TestClient(create_app(settings))
+    from synthetic_db import synthetic_settings
+
+    return TestClient(create_app(synthetic_settings(synthetic_data_dir, adjusted_enabled=True)))
 
 
 @pytest.fixture(scope="session")

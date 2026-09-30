@@ -20,8 +20,10 @@ names the weight it used, alongside the unweighted number of respondents
 (n) behind it.
 
 Weights are normalised to mean 1 **within** each country, so pooling
-countries without re-scaling would count Türkiye's 1,473 respondents the
-same as the United States' 38,312. Figures are per-country.
+countries would count Türkiye's 1,473 respondents the same as the United
+States' 38,312. Figures are per-country — and the Correlates page's **All
+countries** is the average of the countries' own figures, never one figure
+over everyone ([below](#all-countries-the-average-of-the-countries)).
 
 ## Which weight, when
 
@@ -58,6 +60,60 @@ them:
   to the 54,358 standalone midyear interviews, and the engine applies
   that restriction itself.
 
+## All countries: the average of the countries
+
+On the Correlates page, **All countries** is the plain average of the
+countries' own numbers. Each country's estimate is taken on its own
+people and its own weights, exactly as when that country is chosen, and
+the results are averaged with every country counting the same: Hong Kong
+as much as China. The average is of the unrounded numbers on their own
+scale (a correlation is not transformed first), so it is exactly what you
+get by averaging the dots on the country-by-country chart.
+
+Why not put every country's people into one estimate? Because a
+correlation over everyone mixes two things: how answers go together
+*within* countries, and how the countries differ *from each other*.
+Religious service attendance and life evaluation go together in 20 of the
+23 countries, but the countries where more people attend services also
+report lower life evaluations on average. One estimate over everyone,
+each country weighted to its adult population, reads 0.00; the average of
+the countries reads +0.10. The average answers what readers ask of "All
+countries": how the relationship typically looks inside a country.
+
+A country that wasn't asked a question drops out of every average that
+involves it, and out of the country-by-country chart. The subtitle says
+so ("Average of 21 countries (not asked in China or Egypt)", naming the
+countries when three or fewer are missing), as does the tooltip of any
+row or cell that covers fewer countries than all ("Asked in 21 of 23
+countries.").
+
+In Compare two's grid, each cell is the average, over the countries, of
+the share of that column's people who gave the row's answer. A country
+where nobody gave the column's answer drops out of that column, so every
+column still adds to 100%. The bars above the grid are the average of the
+countries' shares. The countries are independent samples, so an average
+of K countries' estimates has standard error √(Σ SE²) ⁄ K, and its
+interval is the usual 95% normal one.
+
+An average's **n** is the complete cases summed over its countries.
+Find related ranks a question for All countries when that total reaches
+the floor (100) and the average covers at least half the countries: 12 of
+the 23, or half of however many a release holds, rounded up. A question
+asked in fewer countries cannot stand in a list that speaks for all of
+them, but it is never out of reach: it has its list in each country that
+asked it, and its average wherever a reader names it (Compare two,
+Compare several). Chosen in Find related for All countries, a question
+that was itself asked in fewer than half the countries gets a line saying
+how many asked it, in place of a list.
+
+The small-sample asterisk marks an average of correlations only when
+*every* country in it rests on few people; a grid cell is starred on the
+same thresholds as a country's, applied to the summed counts. Each
+country's correlation for every pair of questions the views can ask for
+is computed when the app is built, by the same estimator the API runs on
+demand, and checked equal to it within 10⁻¹²; the averages and both
+country-by-country views are read from that file.
+
 ## Confidence intervals: the survey design matters
 
 The GFS did not sample individuals independently. In eleven countries,
@@ -88,7 +144,8 @@ a conservative, standard choice. The parity suite pins this behaviour to
 R exactly, including its subtleties for subgroups.
 
 Intervals shown are **95% confidence intervals**, estimate ± 1.96
-standard errors (normal-based, like R's `confint` on a `svymean`). With
+standard errors (normal-based, like R's `confint` on a `svymean`); the
+Correlates page's tooltips call the interval the *likely range*. With
 the study's sample sizes the normal approximation is comfortable for
 typical cells; in the very small cells the app now shows (see below),
 read the interval — and the n — with care, and a cell resting on a
@@ -254,7 +311,11 @@ other correlates rules in the engine). This is a deliberate exception to
 the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
 matrix shows each with its value and an asterisk (see "Few people behind
-an estimate" below).
+an estimate" below). For All countries the floor reads the complete cases
+summed over the countries in the average, and the list ranks only
+questions whose average covers at least half the countries
+([above](#all-countries-the-average-of-the-countries)); a ranked row
+that covers fewer countries than all says how many asked it.
 
 **One construct, once.** A score and the questions it is built from are
 associated by construction, so a ranked list never holds two measures
@@ -262,9 +323,10 @@ that share answers: of two such measures in the list, only the one built
 from more answers stays (the PHQ-2 depression score over its two
 questions), and of two built from as many, the score over its yes/no
 screen flag. The list then fills up again from further down the ranking,
-so it always holds as many measures as it shows, and the footnote names
-what stood in for what. Only measures that made the list compete: a score
-ranked below the cut never displaces its own question.
+so it always holds as many measures as it shows; the response names what
+stood in for what (`meta.dropped_overlap`). Only measures that made the
+list compete: a score ranked below the cut never displaces its own
+question.
 
 **Two questions side by side** (Compare two). For two questions in one
 country, the view shows a weighted cross-tab of their answers: each
@@ -283,10 +345,10 @@ and 99th percentiles — ten ranges for a score, whole-number ranges for a
 count — the two end ranges taking in the few people beyond them, and
 their labels say so. Both axes run from least to most of what the
 question's label names, the most of the second question at the top. The
-tints use fixed steps (0, 5, 10, 20, 30, 45 and 60% or more), so a shade
-means the same share in every pair. Only shares of people are shown; no
-individual's answers ever are. "In every country" shows the pair's
-correlation in each country instead.
+tints use fixed steps (0, 5, 10, 20, 30, 45, 60, 75 and 90% or more), so
+a shade means the same share in every pair. Only shares of people are
+shown; no individual's answers ever are. "Country by country" shows the
+pair's correlation in each country instead.
 
 **A table of several** (Compare several) sets 2 to 10 questions against
 each other in one country: every pair's weighted correlation, as the
@@ -299,12 +361,41 @@ distance 0, a pair with no estimate as 1), ties broken toward the order
 the questions were added.
 
 **Few people behind an estimate.** Every estimate is shown; one that
-rests on few people wears an asterisk and a dashed outline, and its
-tooltip says it is less reliable. In Compare two a cell is flagged when
+rests on few people wears an asterisk ("* small sample size") and a
+dashed outline, in the chart and in its tooltip. In Compare two a cell is
+flagged when
 fewer than 30 people gave that pair of answers or its column holds fewer
 than 100 (`FA_PAIR_CELL_FLAG_BELOW`, `FA_PAIR_COLUMN_FLAG_BELOW`); a
 correlation — a matrix cell, a ranked row — when fewer than 100 people
 answered both (`FA_CORRELATES_MIN_N`).
+
+**The midyear survey beside another wave.** The midyear survey's
+questions were asked only then, so a correlation between one of them and
+another question uses the same people's answers from two interviews:
+the midyear question's own answers, and the other question's answers from
+2023 or from 2024 (the reader chooses). The pairing decides who is in the
+estimate and how they are weighted — both weights calibrate to the Wave 1
+population:
+
+| Paired with | People | Weight | Time between the two answers |
+|---|---|---|---|
+| 2023 | the 131,487 midyear respondents | `w_l1m` | usually 8–12 months |
+| 2024 | the 116,038 who also did Wave 2 | `w_l1m2` | the same interview for two in three; about six months for the rest |
+
+For the 2024 pairing, every respondent in China, Hong Kong, Israel,
+Japan, Sweden and the United States answered the midyear questions inside
+their Wave 2 interview, and in ten other countries every one answered them
+about six months before it; the page words the time between the two
+answers for the country on screen, from each country's own split. That is why the midyear → Wave 2 *change* is
+restricted to standalone midyear interviews (above), and why a
+*correlation* is not: two answers given the same day go together or not
+like any others. A table of several questions at the midyear survey takes
+every pair on the same people — two questions from another wave included
+— so such a pair can differ slightly from the same pair at its own wave,
+which counts everyone asked then. A pair or table needs at least one
+midyear question; Find related ranks, for a midyear question, every
+midyear question and every question from the chosen year, and for any
+other question the midyear questions only.
 
 ## Adjusted and unadjusted associations
 

@@ -3,7 +3,10 @@
 // country, the same questions as a matrix with the chosen country pinned
 // first. The server sweeps every other ordered question, ranks by
 // strength and cuts the list; correlations are point estimates, drawn
-// without an interval. A row opens Compare two with the pair.
+// without an interval. A row opens Compare two with the pair. An All
+// countries list holds only questions asked in at least half the
+// countries (the server's rule, ADR-0020); a question itself asked in
+// fewer gets an empty state in the list's place.
 
 import { useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
@@ -29,27 +32,40 @@ import {
   type CorrelatesScope,
 } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
+import { WAVE_TITLES } from '../../waves'
 import {
+  CORRELATES_NOTE,
   CORRELATION_SCALE,
-  FEW_PEOPLE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   acrossSubtitle,
+  askedInTooFew,
   axisEnds,
   belowFloor,
   fewPeople,
   heatCells,
   heatKey,
-  overlapNote,
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
+  coverageLine,
+  pooledPlace,
+  scopeLabel,
+  withCoverage,
   starred,
   statisticPhrase,
-  tintExtent,
+  tableCaption,
+  tooFewCountries,
 } from '../correlatesRows'
-import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
+import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
+import {
+  DivergingLegend,
+  Failure,
+  orderedAt,
+  pickerTag,
+  questionReason,
+  type ViewProps,
+} from './shared'
 import styles from '../AtlasView.module.css'
 import own from './Correlates.module.css'
 
@@ -65,11 +81,16 @@ export function FindRelated({
 }: ViewProps) {
   const name = relatedQuestion(search)
   const variable = variables.byName[name]
-  const ready = orderedAt(variable, search.wave)
+  const ready = orderedAt(variable, search.wave, otherWaveOf(search))
+  // At Midyear the list ranks other waves' questions too, read from the
+  // other answers' wave (ADR-0020).
+  const otherWave = requestOther(search, [name], variables.byName)
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const detail = useVariable(ready ? name : null).data?.detail
   const ranked = useCorrelates(
-    ready && country !== undefined ? correlatesRequest(search, name, country) : null,
+    ready && country !== undefined
+      ? correlatesRequest(search, name, country, undefined, otherWave)
+      : null,
   )
   const rankedResponse = ranked.data
   const predictors = useMemo(
@@ -77,25 +98,32 @@ export function FindRelated({
     [rankedResponse],
   )
   const across = useCorrelates(
-    ready && predictors.length > 0 ? correlatesAcrossCountries(search, name, predictors) : null,
+    ready && predictors.length > 0
+      ? correlatesAcrossCountries(search, name, predictors, otherWave)
+      : null,
     { enabled: search.scope === 'all' },
   )
   const acrossResponse = across.data
   const acrossRows = useMemo(() => acrossResponse?.rows ?? [], [acrossResponse])
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
 
+  // A question by its name; at Midyear a midyear question wears a small
+  // tag (the subtitle names the other answers' year), and in text alone —
+  // the data table — says it in words.
   const nameOf = (entry: string) => variables.byName[entry]?.display_name ?? entry
+  const tagOf = (entry: string) => midyearTag(variables.byName[entry], search.wave)
+  const textName = (entry: string) => withTag(nameOf(entry), tagOf(entry))
   const title = variable?.display_name ?? name
   const short = variable ? shortName(variable) : title
   const rankedRows = rankedResponse?.rows ?? []
-  const waves = WAVE_CHIPS[search.wave] ?? search.wave
+  const waves = waveName(search.wave, otherWave)
   const rankedName: ExportName = {
     measure: title,
     view: 'Correlates',
     waves,
     ...(countryName ? { country: countryName } : {}),
   }
-  const acrossName: ExportName = { measure: title, view: 'Correlates across countries', waves }
+  const acrossName: ExportName = { measure: title, view: 'Correlates country by country', waves }
   const csvFor = (response: EstimateResponse, exportName: ExportName) => ({
     kind: 'client' as const,
     onDownload: () => downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
@@ -109,9 +137,15 @@ export function FindRelated({
   const colorOfRow = (row: EstimateRow) => signMark(row.estimate)
   const rowName = (row: EstimateRow, label: string) =>
     `${label}, ${formatEstimate(row.estimate, row.stat)}: see it beside ${title}`
-  const overlap = overlapNote(rankedResponse?.meta.dropped_overlap, variables.byName)
   const strongest = rankedRows.find((row) => row.estimate !== null)
-  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${countryName}, ${WAVE_TITLES[search.wave] ?? search.wave}, ${statisticPhrase(search.method)}.${
+  const pooled = country === 'all'
+  // Where, in a sentence: a country, or the average of every country.
+  const where = pooled ? 'all countries (their average)' : countryName
+  const total = served.countries.length
+  // All countries, and the question was asked in fewer than half of them:
+  // no list (nor its country-by-country table), and the page says why.
+  const askedIn = pooled && rankedResponse ? askedInTooFew(rankedResponse) : undefined
+  const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${waveTitle(search.wave, otherWave)}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
@@ -128,26 +162,32 @@ export function FindRelated({
 
   return (
     <>
-      <p className={own.sentence}>
-        What goes with{' '}
-        <QuestionPicker
-          label="Question"
-          variables={variables.list}
-          wave={search.wave}
-          value={name}
-          unavailable={(candidate) => questionReason(candidate, search.wave)}
-          onPick={(picked) =>
-            // The question seeds Compare two's first; a second question
-            // that is now the same one gives way to the default.
-            setSearch({
-              outcome: picked,
-              a: undefined,
-              b: search.b === picked ? undefined : search.b,
-            })
-          }
-        />
-        ?
-      </p>
+      <div className={own.sentenceRow}>
+        <p className={own.sentence}>
+          What goes with{' '}
+          <span className={own.sentenceEnd}>
+            <QuestionPicker
+              label="Question"
+              variables={variables.list}
+              wave={search.wave}
+              value={name}
+              unavailable={(candidate) => questionReason(candidate, search.wave)}
+              countable={(candidate) => questionReason(candidate, search.wave) === undefined}
+              tagOf={(candidate) => pickerTag(candidate, search)}
+              onPick={(picked) =>
+                // The question seeds Compare two's first; a second question
+                // that is now the same one gives way to the default.
+                setSearch({
+                  outcome: picked,
+                  a: undefined,
+                  b: search.b === picked ? undefined : search.b,
+                })
+              }
+            />
+            ?
+          </span>
+        </p>
+      </div>
       {controls}
       <div className={own.scopeRow}>
         <RadioRow<CorrelatesScope>
@@ -155,8 +195,8 @@ export function FindRelated({
           legendHidden
           name="scope"
           options={[
-            { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
-            { value: 'all', label: 'In every country' },
+            { value: 'country', label: scopeLabel(countryName) },
+            { value: 'all', label: 'Country by country' },
           ]}
           value={search.scope}
           onChange={(scope) => setSearch({ scope })}
@@ -171,14 +211,32 @@ export function FindRelated({
       ) : ranked.isError ? (
         <Failure error={ranked.error} apiReachable={apiReachable} />
       ) : rankedResponse && variable ? (
-        search.scope === 'country' ? (
+        askedIn !== undefined ? (
+          // (While another question's request is in flight, the response
+          // held is the one before's: it says nothing about this question.)
+          ranked.isPlaceholderData ? (
+            <LoadingBlock height={520} label="Loading the ranked list" />
+          ) : (
+            <EmptyState title="No All countries list">
+              <p>
+                <em>{title}</em>
+                {tooFewCountries(askedIn, total)}
+              </p>
+            </EmptyState>
+          )
+        ) : search.scope === 'country' ? (
           <>
             <p role="status" className="visually-hidden">
-              Updated: {title}, {predictors.length} questions ranked for {countryName}.
+              Updated: {title}, {predictors.length} questions ranked for {where}.
             </p>
             <ChartFigure
               title={`What goes with ${title}`}
-              subtitle={rankedSubtitle(countryName, search.method, search.wave)}
+              subtitle={rankedSubtitle(
+                pooled ? pooledPlace(rankedResponse.meta.countries, served.countries) : countryName,
+                search.method,
+                search.wave,
+                otherWave,
+              )}
               ariaLabel={rankedAria}
               marks="dots"
               interactive
@@ -189,25 +247,6 @@ export function FindRelated({
                       <WordingPanel detail={detail} />
                     </div>
                   )}
-                  {/* The two hues, said before the rows that wear them. */}
-                  <p className={styles.signKey}>
-                    <span>
-                      <span
-                        className={styles.keyDot}
-                        style={{ background: signMark(1) }}
-                        aria-hidden="true"
-                      />
-                      Goes with a higher {short}
-                    </span>
-                    <span>
-                      <span
-                        className={styles.keyDot}
-                        style={{ background: signMark(-1) }}
-                        aria-hidden="true"
-                      />
-                      Goes with a lower {short}
-                    </span>
-                  </p>
                 </>
               }
               response={rankedResponse}
@@ -215,8 +254,11 @@ export function FindRelated({
               csv={csvFor(rankedResponse, rankedName)}
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
-              predictorLabel={nameOf}
-              footnote={overlap ? `${overlap} ` : undefined}
+              predictorLabel={textName}
+              tableCaption={tableCaption(pooled)}
+              predictorHeader="Question"
+              estimateHeader="Correlation"
+              note={CORRELATES_NOTE}
             >
               <RankedBar
                 rows={rankedRows}
@@ -233,11 +275,15 @@ export function FindRelated({
                 fitLabels
                 stackOnNarrow
                 tipOf={(row, label) =>
-                  rankedTip(row, label, fewPeople(row, rankedResponse.meta.min_n))
+                  withCoverage(
+                    rankedTip(row, label, fewPeople(row, rankedResponse.meta.min_n)),
+                    coverageLine(row, total),
+                  )
                 }
                 flagOf={(row) => fewPeople(row, rankedResponse.meta.min_n)}
                 onSelectRow={openPair}
                 rowName={rowName}
+                tagOf={(row) => tagOf(row.predictor ?? '')}
               />
               <p className={styles.hint}>Select a row to see the two questions together.</p>
             </ChartFigure>
@@ -245,8 +291,8 @@ export function FindRelated({
         ) : predictors.length === 0 ? (
           <EmptyState title="Nothing ranked">
             <p>
-              No question has enough respondents in {countryName} to rank against {title}, so there
-              is nothing to set across countries.
+              No question has enough respondents in {where} to rank against {title}, so there is
+              nothing to set across countries.
             </p>
           </EmptyState>
         ) : across.isPending ? (
@@ -255,17 +301,26 @@ export function FindRelated({
           <Failure error={across.error} apiReachable={apiReachable} />
         ) : acrossResponse ? (
           <ChartFigure
-            title={`What goes with ${title}, in every country`}
-            subtitle={acrossSubtitle(predictors.length, countryName, search.wave, search.method)}
-            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${countryName}, in each of ${served.countries.length} countries, as a matrix — ${countryName} first, the rest A to Z. Rust cells go with a lower ${short}, teal cells with a higher one; the data table below carries every number.`}
+            title={`What goes with ${title}, country by country`}
+            subtitle={acrossSubtitle(
+              predictors.length,
+              countryName,
+              search.wave,
+              search.method,
+              otherWave,
+            )}
+            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones; the data table below carries every number.`}
             marks="table"
             response={acrossResponse}
             meta={served}
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
-            predictorLabel={nameOf}
-            footnote={overlap ? `${overlap} ` : undefined}
+            predictorLabel={textName}
+            tableCaption={tableCaption(pooled)}
+            predictorHeader="Question"
+            estimateHeader="Correlation"
+            note={CORRELATES_NOTE}
             wide
           >
             <CountryMatrix
@@ -274,8 +329,9 @@ export function FindRelated({
               cells={cells}
               minN={acrossResponse.meta.min_n}
               nameOf={nameOf}
+              tagOf={tagOf}
               countries={pinnedFirst(served.countries, country)}
-              chosen={country}
+              chosen={pooled ? undefined : country}
               short={short}
             />
           </ChartFigure>
@@ -291,6 +347,7 @@ function CountryMatrix({
   cells,
   minN,
   nameOf,
+  tagOf,
   countries,
   chosen,
   short,
@@ -301,21 +358,24 @@ function CountryMatrix({
   /** The server's ranking floor: a cell below it wears an asterisk. */
   minN: number | null | undefined
   nameOf: (name: string) => string
+  /** A question's small tag ("Midyear" at the midyear survey). */
+  tagOf: (name: string) => string | undefined
   /** The columns: the chosen country, then the rest A–Z. */
   countries: readonly Country[]
   chosen: number | undefined
   short: string
 }) {
-  // The tint window fits the cells at or above the floor; a cell below
-  // it is shown all the same, tinted, with its asterisk.
-  const ranked = rows.filter((row) => !belowFloor(row, minN))
-  const extent = tintExtent(ranked)
+  // One colour scale for both tables (review M8): a correlation's fixed
+  // window, −1 to 1, on the one diverging ramp — the same tint is the same
+  // value here and in Compare several. A cell below the floor is shown all
+  // the same, tinted, with its asterisk.
+  const extent = 1
   const stat = rows[0]?.stat ?? 'pearson_r'
   return (
     <HeatTable
-      caption={<DivergingLegend extent={extent} stat={stat} short={short} />}
+      caption={<DivergingLegend extent={extent} stat={stat} short={short} ends={['−1', '+1']} />}
       corner="Question ↓ · country →"
-      rows={predictors.map((name) => ({ key: name, label: nameOf(name) }))}
+      rows={predictors.map((name) => ({ key: name, label: nameOf(name), tag: tagOf(name) }))}
       columns={countries.map((country) => ({
         key: String(country.code),
         label: country.name,
@@ -337,10 +397,9 @@ function CountryMatrix({
         }
         const flagged = belowFloor(cell, minN)
         const value = formatEstimate(cell.estimate, cell.stat)
-        const tip = `${value}  ${row.label} · ${column.label}\n${intervalText(cell)}`
         return {
           text: starred(value, flagged),
-          title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
+          title: `${starred(value, flagged)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
           tint: divergingTint(cell.estimate, extent),
           hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
           flagged,

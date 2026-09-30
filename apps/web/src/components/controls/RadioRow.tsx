@@ -35,6 +35,7 @@ export function RadioRow<T extends string>({
   note,
   noteId: outsideNote,
   legendHidden = false,
+  size,
 }: {
   legend: string
   name: string
@@ -54,6 +55,9 @@ export function RadioRow<T extends string>({
   /** The group still has its name, but the row stands without a visible
    * label (a view switcher directly under a lede). */
   legendHidden?: boolean
+  /** A compact row, subordinate to the one above it (Correlates' other
+   * answers' wave, under the wave chips). */
+  size?: 'small'
 }) {
   const narrow = useMediaQuery(SELECT_VIEWPORT)
   const noteId = useId()
@@ -100,6 +104,7 @@ export function RadioRow<T extends string>({
         className={styles.row}
         style={{ '--options': options.length } as CSSProperties}
         data-wide={wide || undefined}
+        data-size={size}
       >
         {options.map((option) => (
           <label

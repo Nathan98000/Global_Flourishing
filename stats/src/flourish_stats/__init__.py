@@ -7,6 +7,7 @@ verified against R's ``survey`` package. See ``docs/METHODS.md`` for the
 plain-language account and ADR-0005/0006 for the design decisions.
 """
 
+from .averaging import average_countries, ranking_min_countries
 from .correlations import adjusted_association, weighted_correlation, weighted_correlations
 from .design import Design
 from .estimators import (
@@ -30,7 +31,8 @@ from .weights import (
     WeightSpec,
     eligibility_expr,
     get,
-    pooled_population_weights,
+    midyear_timing,
+    pairing_spec,
     resolve,
     validate_frame,
     weight_table_json,
@@ -45,13 +47,16 @@ __all__ = [
     "SuppressionPolicy",
     "WeightSpec",
     "adjusted_association",
+    "average_countries",
     "eligibility_expr",
     "get",
     "kish_n_eff",
+    "midyear_timing",
     "paired_change",
     "paired_change_distribution",
     "paired_share_change",
-    "pooled_population_weights",
+    "pairing_spec",
+    "ranking_min_countries",
     "resolve",
     "suppress",
     "three_point_panel",

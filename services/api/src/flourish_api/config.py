@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # data=absent, and /v1/* return 503 (see flourish_api.data).
     data_path: Path = Path("data/flourish.duckdb")
 
+    # Every country's correlations, precomputed when the image is built
+    # (flourish_api.country_correlations, ADR-0020); None means the default
+    # file beside the DuckDB. Absent, every request is estimated on demand.
+    country_correlations_path: Path | None = None
+
     # DuckDB tuning for the 512 MiB / 1 CPU Cloud Run shape. Values are
     # config, not code, so ADR-0007's measured tuning is an env change.
     duckdb_threads: int = 2
@@ -73,3 +78,9 @@ class Settings(BaseSettings):
     @property
     def manifest_path(self) -> Path:
         return self.data_path.parent / "manifest.json"
+
+    @property
+    def country_correlations_file(self) -> Path:
+        return (
+            self.country_correlations_path or self.data_path.parent / "country_correlations.parquet"
+        )

@@ -24,6 +24,11 @@ Two facts of the release make this table load-bearing:
   carry all of them. Each state-scope spec therefore names its
   ``state_column``: eligibility, validation and grouping read that one,
   never a fixed ``state``.
+
+No weight pools the countries: every weight has mean 1 within its
+country, so "All countries" is the plain average of the countries' own
+estimates (:mod:`flourish_stats.averaging`, ADR-0020), never one
+estimate over every country's people.
 """
 
 # polars' expression API ships partially-unknown signatures, so this one
@@ -274,24 +279,76 @@ def resolve(waves: Waves, scope: str = "global") -> WeightSpec:
     raise KeyError(f"no weight spec for waves={tuple(waves)!r} in scope {scope!r}")
 
 
+#: A midyear answer correlated with the same respondent's answer from
+#: another wave (ADR-0020): which spec — weight and people — each pairing
+#: takes. Both weights calibrate to the Wave 1 population.
+PAIRINGS: dict[str, str] = {"Y1": "y1_my", "Y2": "y1_my_y2"}
+
+
+def pairing_spec(other_wave: str) -> WeightSpec:
+    """The spec a correlation between midyear answers and the same
+    people's answers from ``other_wave`` is taken on:
+
+    - ``Y1`` → ``y1_my``: every midyear respondent (``w_l1m``; 131,487),
+      their Wave 1 answers usually given 8–12 months before;
+    - ``Y2`` → ``y1_my_y2``: those who also did Wave 2 (``w_l1m2``;
+      116,038) — for two in three the same interview (``midyear_type =
+      2``: the midyear items were asked in the Wave 2 interview, as
+      everywhere in China, Hong Kong, Israel, Japan, Sweden and the
+      United States), about six months apart for the rest.
+
+    Never ``my_y2``: its ``midyear_type = 1`` restriction exists because
+    same-day answers are not *change*; for a correlation, answers given
+    the same day are fine.
+    """
+    try:
+        return get(PAIRINGS[other_wave])
+    except KeyError:
+        raise KeyError(
+            f"midyear answers pair with {sorted(PAIRINGS)} only, got {other_wave!r}"
+        ) from None
+
+
+#: How the midyear survey was administered (``midyear_type``): 1, a
+#: standalone midyear interview about six months after Wave 1; 2, the
+#: midyear items asked inside the Wave 2 interview.
+MIDYEAR_STANDALONE = 1
+MIDYEAR_IN_WAVE_2 = 2
+
+
+def midyear_timing(respondents: pl.DataFrame | pa.Table) -> list[dict[str, int | str]]:
+    """Per country and pairing (ADR-0020), how many of the pairing's people
+    answered the midyear questions in a standalone midyear interview
+    (``type_1``) and how many inside their Wave 2 interview (``type_2``):
+    the facts the Correlates page words the time between a midyear answer
+    and the same person's 2023 or 2024 answer from, country by country
+    (never a hard-coded list). One row per (``other_wave``, country), each
+    pairing's people by its own spec (:func:`pairing_spec`)."""
+    df = pl.from_arrow(respondents) if isinstance(respondents, pa.Table) else respondents
+    if not isinstance(df, pl.DataFrame):  # pl.from_arrow can return a Series
+        raise TypeError("respondents must convert to a polars DataFrame")
+    rows: list[dict[str, int | str]] = []
+    for other in sorted(PAIRINGS):
+        counts = (
+            df.filter(eligibility_expr(pairing_spec(other)))
+            .group_by("country_code")
+            .agg(
+                (pl.col("midyear_type") == MIDYEAR_STANDALONE).sum().alias("type_1"),
+                (pl.col("midyear_type") == MIDYEAR_IN_WAVE_2).sum().alias("type_2"),
+            )
+            .sort("country_code")
+        )
+        rows.extend(
+            {"country_code": int(code), "other_wave": other, "type_1": int(one), "type_2": int(two)}
+            for code, one, two in counts.iter_rows()
+        )
+    return rows
+
+
 def weight_table_json() -> str:
     """The full table as JSON, for the Phase 3 API to serve from /v1/meta."""
     rows = [asdict(spec) | {"waves": list(spec.waves)} for spec in WEIGHT_TABLE]
     return json.dumps(rows, indent=2, ensure_ascii=False) + "\n"
-
-
-def pooled_population_weights(
-    frame: pl.DataFrame | pa.Table, populations: dict[int, float]
-) -> pl.DataFrame:
-    """Rescale within-country weights by adult population for pooling.
-
-    Phase 5 (proposal §3.3, §7): every GFS weight has mean 1 within its
-    country, so pooling countries without rescaling counts Türkiye and the
-    US equally. This will multiply each row's weight by its country's adult
-    population share (``populations``: country_code → adult population) to
-    produce the explicitly-labelled "all countries" estimates.
-    """
-    raise NotImplementedError("Not implemented: Phase 5")
 
 
 def eligibility_expr(spec: WeightSpec) -> pl.Expr:

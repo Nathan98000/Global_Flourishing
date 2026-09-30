@@ -22,7 +22,6 @@ import {
 import type { EstimateRow } from '../api/types'
 import { ciText, formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
-import { textMeasurer } from './RankedBar'
 import { TIP_OPTIONS } from './theme'
 import styles from './TransitionTable.module.css'
 
@@ -106,6 +105,18 @@ export interface HeatAxis {
   /** A column headed by a short label (a number): its full name, as the
    * header's tooltip and accessible name. */
   title?: string
+  /** A small muted tag after the label ("Midyear", ADR-0020). */
+  tag?: string
+}
+
+/** A label and its tag, when it has one. */
+function AxisLabel({ axis }: { axis: HeatAxis }) {
+  return (
+    <>
+      {axis.label}
+      {axis.tag && <span className={styles.tag}>{axis.tag}</span>}
+    </>
+  )
 }
 
 /** A fixed-width column's side padding (--space-2 in
@@ -138,32 +149,6 @@ interface TipAnchor {
 
 /** The room between a cell and its tooltip. */
 const TIP_GAP = 6
-
-/** Angled column headers (Compare several) rise at this angle. */
-const HEADER_ANGLE = (38 * Math.PI) / 180
-/** An angled header's line height, and the font size it is measured at. */
-const HEADER_LINE = 16
-const HEADER_SIZE = 13
-
-/** Angled headers' room, from their labels' widths: how tall the header
- * row must be for the longest to rise in, and how far past the table's
- * right edge the last ones reach — pure, so it is testable. */
-export function angledRoom(
-  widths: readonly number[],
-  column: number,
-): { rise: number; reach: number } {
-  const rise = Math.max(
-    0,
-    ...widths.map((width) => width * Math.sin(HEADER_ANGLE) + HEADER_LINE * Math.cos(HEADER_ANGLE)),
-  )
-  const reach = Math.max(
-    0,
-    ...widths.map(
-      (width, index) => width * Math.cos(HEADER_ANGLE) - (widths.length - 1 - index + 0.5) * column,
-    ),
-  )
-  return { rise: Math.ceil(rise) + 10, reach: Math.ceil(reach) + 8 }
-}
 
 /** How many columns lie past the visible edge of a scroll container:
  * those whose right edge sits beyond the container's, given each
@@ -198,12 +183,13 @@ export function HeatTable({
   sort,
   highlight,
   wide = false,
-  angled = false,
+  rowsWrap = false,
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
-  /** The corner label naming both axes ("First answer ↓ · later answer →"). */
-  corner: string
+  /** The corner label naming both axes ("First answer ↓ · later answer →");
+   * absent, the corner is empty and unshaded (Compare several, review M7). */
+  corner?: string
   rows: readonly HeatAxis[]
   columns: readonly HeatAxis[]
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
@@ -215,10 +201,9 @@ export function HeatTable({
   highlight?: string
   /** From 1200px: out of the text column, up to 1216px, upright headers. */
   wide?: boolean
-  /** Column headers angled up at 38° (long names over narrow columns);
-   * with `columnWidth`, the header row and the box's right edge make
-   * room for them. */
-  angled?: boolean
+  /** On a phone the row labels wrap (Compare several's numbered table),
+   * so more of its columns fit beside them before the box scrolls. */
+  rowsWrap?: boolean
 }) {
   const captionId = useId()
   const matrix = useRef<HTMLDivElement | null>(null)
@@ -227,16 +212,6 @@ export function HeatTable({
   const [hiddenColumns, setHiddenColumns] = useState(0)
   const [tip, setTip] = useState<TipAnchor | null>(null)
   const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
-  const [room, setRoom] = useState<{ rise: number; reach: number } | null>(null)
-  // Angled headers: measured in the header's size once the table is laid
-  // out (estimated before, and under jsdom).
-  const labels = columns.map((column) => column.label).join('\n')
-  useLayoutEffect(() => {
-    if (!angled) return
-    const laidOut = (scroller.current?.getBoundingClientRect().width ?? 0) > 0
-    const measure = textMeasurer(HEADER_SIZE, laidOut)
-    setRoom(angledRoom(labels.split('\n').map(measure), columnWidth ?? 64))
-  }, [angled, labels, columnWidth])
   const anchor = (element: Element, key: string, text: string, pinned: boolean) => {
     const box = matrix.current?.getBoundingClientRect()
     if (!box) return null
@@ -283,7 +258,7 @@ export function HeatTable({
     if (!element || typeof ResizeObserver === 'undefined') return
     const measure = () => {
       const edge = element.getBoundingClientRect().right
-      const rights = [...element.querySelectorAll('thead th')]
+      const rights = [...element.querySelectorAll('thead tr > *')]
         .slice(1)
         .map((th) => th.getBoundingClientRect().right)
       setHiddenColumns(columnsPastEdge(rights, edge))
@@ -304,7 +279,7 @@ export function HeatTable({
     const element = scroller.current
     const index = columns.findIndex((column) => column.key === sortColumn)
     if (!element || index < 0) return
-    const [sticky, ...headers] = element.querySelectorAll('thead th')
+    const [sticky, ...headers] = element.querySelectorAll('thead tr > *')
     const target = headers[index]?.getBoundingClientRect()
     const stickyRight = sticky?.getBoundingClientRect().right ?? 0
     const edge = element.getBoundingClientRect().right
@@ -320,7 +295,7 @@ export function HeatTable({
     const element = scroller.current
     if (!element) return
     const edge = element.getBoundingClientRect().right
-    const [sticky, ...headers] = element.querySelectorAll('thead th')
+    const [sticky, ...headers] = element.querySelectorAll('thead tr > *')
     const stickyRight = sticky?.getBoundingClientRect().right ?? 0
     const next = headers.find((th) => th.getBoundingClientRect().right > edge + 1)
     const left = next ? next.getBoundingClientRect().left - stickyRight : element.clientWidth
@@ -337,27 +312,27 @@ export function HeatTable({
           className={styles.scroll}
           ref={scroller}
           data-overflow={hiddenColumns > 0 || undefined}
-          style={
-            angled && room ? ({ paddingRight: `${room.reach}px` } as CSSProperties) : undefined
-          }
         >
           <table
             className={styles.table}
             aria-labelledby={captionId}
             data-fixed={columnWidth !== undefined || undefined}
-            data-angled={angled || undefined}
+            data-rows-wrap={rowsWrap || undefined}
             style={
-              {
-                ...(columnWidth !== undefined ? { '--heat-column': `${columnWidth}px` } : {}),
-                ...(angled && room ? { '--angled-rise': `${room.rise}px` } : {}),
-              } as CSSProperties
+              columnWidth !== undefined
+                ? ({ '--heat-column': `${columnWidth}px` } as CSSProperties)
+                : undefined
             }
           >
             <thead>
               <tr>
-                <th scope="col" className={styles.corner}>
-                  <span className={styles.axis}>{corner}</span>
-                </th>
+                {corner ? (
+                  <th scope="col" className={styles.corner}>
+                    <span className={styles.axis}>{corner}</span>
+                  </th>
+                ) : (
+                  <td className={`${styles.corner} ${styles.cornerBlank}`} aria-hidden="true" />
+                )}
                 {columns.map((column) => {
                   const dir = sort?.column === column.key ? sort.dir : undefined
                   return (
@@ -390,7 +365,7 @@ export function HeatTable({
                       }
                     >
                       <span className={styles.head}>
-                        {column.label}
+                        <AxisLabel axis={column} />
                         {dir && (
                           <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
                         )}
@@ -403,7 +378,9 @@ export function HeatTable({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
+                  <th scope="row">
+                    <AxisLabel axis={row} />
+                  </th>
                   {columns.map((column) => {
                     const cell = cellAt(row, column)
                     const marked = column.key === highlight || undefined

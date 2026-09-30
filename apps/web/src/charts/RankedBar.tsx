@@ -69,11 +69,20 @@ export function rankEntries(
 }
 
 /** A reference estimate drawn as a dashed rule with its label (the US
- * overall figure behind the states). */
+ * overall figure behind the states; the All countries average across the
+ * countries). */
 export interface Reference {
   value: number
   label: string
+  /** The label at the rule's top, above the axis, in ink (the label sits
+   * under the chart otherwise). */
+  atTop?: boolean
 }
+
+/** Room above the top axis for a reference label at the rule's top, and
+ * where it sits: its baseline clears the axis's tick labels. */
+const REFERENCE_TOP_ROOM = 18
+const REFERENCE_TOP_DY = -26
 
 /** A window that is not fitted to the data: its edges, its ticks, and
  * fewer ticks on a phone. */
@@ -90,18 +99,27 @@ const LABEL_PAD = 12
 /** Under jsdom nothing is laid out: a label's width is estimated. */
 const CHAR_EM = 0.55
 
-/** The chart's text measurer: canvas in the chart's own face once the
- * page is laid out; an estimate before (and under jsdom, which has no
- * canvas). */
-export function textMeasurer(fontSize: number, laidOut: boolean): (text: string) => number {
+/** A bold face runs this much wider than the regular one (the estimate's
+ * allowance, before layout). */
+const BOLD_EM = 1.08
+
+/** The chart's text measurer: canvas in the chart's own face (and
+ * weight) once the page is laid out; an estimate before (and under
+ * jsdom, which has no canvas). */
+export function textMeasurer(
+  fontSize: number,
+  laidOut: boolean,
+  weight = 400,
+): (text: string) => number {
   if (laidOut && typeof document !== 'undefined') {
     const context = document.createElement('canvas').getContext('2d')
     if (context) {
-      context.font = `${fontSize}px ${FONT_FAMILY}`
+      context.font = `${weight} ${fontSize}px ${FONT_FAMILY}`
       return (text) => context.measureText(text).width
     }
   }
-  return (text) => text.length * fontSize * CHAR_EM
+  const em = CHAR_EM * (weight >= 600 ? BOLD_EM : 1)
+  return (text) => text.length * fontSize * em
 }
 
 /** A label broken at word boundaries into lines no wider than `width`,
@@ -173,6 +191,7 @@ export function RankedBar({
   highlightOf,
   onSelectRow,
   rowName,
+  tagOf,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -220,27 +239,62 @@ export function RankedBar({
   onSelectRow?: (row: EstimateRow) => void
   /** A row button's accessible name. */
   rowName?: (row: EstimateRow, label: string) => string
+  /** A small muted tag after a row's label ("Midyear", ADR-0020). */
+  tagOf?: (row: EstimateRow) => string | undefined
 }) {
   const container = usePlot(
     (available) => {
       const entries = rankEntries(rows, meta, labelColumn, labelOf)
+      // A row's label as drawn: with its tag, when it has one (the entry's
+      // label stays the row's key and its tooltip's name).
+      const drawnLabel = (entry: Entry) => {
+        const tag = tagOf?.(entry.row)
+        return tag ? `${entry.label} ${tag}` : entry.label
+      }
+      const tags = new Set(entries.flatMap((entry) => tagOf?.(entry.row) ?? []))
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
       const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
       const tip = (entry: Entry) =>
         tipOf ? tipOf(entry.row, entry.label) : tipText(entry.row, entry.label)
-      const referenceMarks = reference
-        ? [
-            Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
-            Plot.text([reference.value], {
-              x: (value: number) => value,
-              text: () => reference.label,
-              frameAnchor: 'bottom',
-              dy: 14,
-              fill: INK_SECONDARY,
-              fontSize: 11,
-            }),
-          ]
-        : []
+      const topLabel = reference?.atTop === true
+      // A label at the top anchors toward the middle near either end of a
+      // fixed window, so it never runs off the chart.
+      const topAnchor = (domain: [number, number]) => {
+        if (!reference) return 'middle'
+        const t = (reference.value - domain[0]) / (domain[1] - domain[0])
+        return t > 0.75 ? 'end' : t < 0.25 ? 'start' : 'middle'
+      }
+      const referenceMarks = (domain: [number, number]) =>
+        reference
+          ? [
+              Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
+              Plot.text(
+                [reference.value],
+                topLabel
+                  ? {
+                      x: (value: number) => value,
+                      text: () => reference.label,
+                      frameAnchor: 'top',
+                      dy: REFERENCE_TOP_DY,
+                      lineAnchor: 'bottom',
+                      textAnchor: topAnchor(domain),
+                      fill: INK,
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }
+                  : {
+                      x: (value: number) => value,
+                      text: () => reference.label,
+                      frameAnchor: 'bottom',
+                      dy: 14,
+                      fill: INK_SECONDARY,
+                      fontSize: 11,
+                    },
+              ),
+            ]
+          : []
+      const topRoom = topLabel ? REFERENCE_TOP_ROOM : 0
+      const bottomRoom = reference && !topLabel ? 18 : 0
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -267,17 +321,17 @@ export function RankedBar({
         const [lo, hi] = fixedScale.domain
         const labelRoom = width - 8 - 44
         const lines = new Map(
-          entries.map((entry) => [entry.label, wrapLabel(entry.label, labelRoom, measure)]),
+          entries.map((entry) => [entry.label, wrapLabel(drawnLabel(entry), labelRoom, measure)]),
         )
         const wrapped = [...lines.values()].some((text) => text.length > 1)
         const rowHeight = wrapped ? 62 : 46
         const ends = axisEndMarks(axisEnds, fixedScale.domain, width - 16, available !== null)
         const plot = Plot.plot({
           width,
-          height: 42 + ends.room + Math.max(entries.length, MIN_ROWS) * rowHeight,
+          height: 42 + topRoom + ends.room + Math.max(entries.length, MIN_ROWS) * rowHeight,
           marginLeft: 6,
           marginRight: 10,
-          marginTop: 34,
+          marginTop: 34 + topRoom,
           marginBottom: axisEnds ? ends.room : 8,
           style,
           x: {
@@ -341,8 +395,11 @@ export function RankedBar({
             }),
             ...ends.marks,
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
+            ...referenceMarks(fixedScale.domain),
           ],
         })
+        emphasizeTurns(plot)
+        muteTags(plot, tags)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -353,7 +410,7 @@ export function RankedBar({
       if (fitLabels) {
         let widest = 0
         for (const entry of entries) {
-          const text = wrapLabel(entry.label, LABEL_CAP - LABEL_PAD, measure)
+          const text = wrapLabel(drawnLabel(entry), LABEL_CAP - LABEL_PAD, measure)
           lines.set(entry.label, text)
           for (const line of text) widest = Math.max(widest, measure(line))
         }
@@ -371,7 +428,14 @@ export function RankedBar({
         fill: INK,
         ...(fitLabels
           ? { tickFormat: (label: string) => (lines.get(label) ?? [label]).join('\n') }
-          : {}),
+          : tags.size > 0
+            ? {
+                tickFormat: (label: string) => {
+                  const entry = entries.find((candidate) => candidate.label === label)
+                  return entry ? drawnLabel(entry) : label
+                },
+              }
+            : {}),
       })
 
       if (!isShare) {
@@ -402,12 +466,12 @@ export function RankedBar({
           available !== null,
         )
         const plot = Plot.plot({
-          height: height + 16 + (reference ? 18 : 0) + (axisEnds ? ends.room - 8 : 0),
+          height: height + 16 + bottomRoom + topRoom + (axisEnds ? ends.room - 8 : 0),
           width,
           marginLeft,
           marginRight,
           // A fixed window without an axis title needs no room for one.
-          marginTop: fixedScale && !axisTitle ? 34 : 60,
+          marginTop: (fixedScale && !axisTitle ? 34 : 60) + topRoom,
           ...(axisEnds ? { marginBottom: ends.room } : {}),
           style,
           x: {
@@ -464,9 +528,11 @@ export function RankedBar({
             }),
             ...ends.marks,
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
-            ...referenceMarks,
+            ...referenceMarks(scale.domain),
           ],
         })
+        emphasizeTurns(plot)
+        muteTags(plot, tags)
         return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
       }
 
@@ -477,7 +543,8 @@ export function RankedBar({
         (reference?.value ?? 0) * 1.05,
       )
       return Plot.plot({
-        height: height + (reference ? 18 : 0),
+        height: height + bottomRoom + topRoom,
+        ...(topRoom ? { marginTop: 30 + topRoom } : {}),
         width,
         marginLeft,
         marginRight,
@@ -520,7 +587,7 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
-          ...referenceMarks,
+          ...referenceMarks([0, xMax]),
         ],
       })
     },
@@ -548,6 +615,7 @@ export function RankedBar({
       highlightOf,
       onSelectRow,
       rowName,
+      tagOf,
     ],
   )
 
@@ -567,9 +635,19 @@ function pointerTip(entries: Entry[], tip: (entry: Entry) => string, fallback: n
   )
 }
 
+/** The words a signed reading turns on: set apart wherever the page
+ * says them (ADR-0020). */
+const TURN_WORDS = /\b(higher|lower)\b/
+
+/** The description of the marks the axis ends' words are drawn in (how
+ * they are found again once the plot is built, to set their turning
+ * words apart). */
+const AXIS_END = 'axis end'
+
 /** The words under the axis's two ends, each held to half the plot's
- * width (wrapping to a second line rather than meeting in the middle),
- * and the room they take below the plot. */
+ * width (wrapping to a second line rather than meeting in the middle —
+ * "higher" and "lower" measured in their own bold italic), and the room
+ * they take below the plot. */
 function axisEndMarks(
   ends: [string, string] | undefined,
   [lo, hi]: [number, number],
@@ -577,9 +655,16 @@ function axisEndMarks(
   laidOut: boolean,
 ): { marks: Plot.Markish[]; room: number } {
   if (!ends) return { marks: [], room: 0 }
-  const measure = textMeasurer(11, laidOut)
+  const regular = textMeasurer(11, laidOut)
+  const bold = textMeasurer(11, laidOut, 600)
+  const measure = (text: string) =>
+    text
+      .split(TURN_WORDS)
+      .reduce((width, part, index) => width + (index % 2 === 1 ? bold(part) : regular(part)), 0)
   const half = Math.max(80, plotWidth / 2 - 8)
-  const [low, high] = ends.map((text) => wrapLabel(text, half, measure))
+  // No cap on the lines: a capped wrap keeps the leftovers on its last
+  // line, which then runs into the other end's words.
+  const [low, high] = ends.map((text) => wrapLabel(text, half, measure, Infinity))
   const lines = Math.max(low?.length ?? 1, high?.length ?? 1)
   const end = {
     frameAnchor: 'bottom',
@@ -587,6 +672,7 @@ function axisEndMarks(
     lineAnchor: 'top',
     fill: INK_SECONDARY,
     fontSize: 11,
+    ariaDescription: AXIS_END,
   } as const
   return {
     marks: [
@@ -605,6 +691,59 @@ function axisEndMarks(
     ],
     // 16px down to the first line, 13px a line, a little air under the last.
     room: 16 + lines * 13 + 6,
+  }
+}
+
+/** A row label's tag ("Midyear"): its last word, set smaller in
+ * secondary ink by a styled tspan, so the PNG export carries it. */
+function muteTags(plot: Element, tags: ReadonlySet<string>): void {
+  if (tags.size === 0) return
+  const svgNs = 'http://www.w3.org/2000/svg'
+  for (const text of plot.querySelectorAll(
+    'g[aria-label="y-axis tick label"] text, g[aria-label="text"] text',
+  )) {
+    const lines = [...text.querySelectorAll(':scope > tspan')]
+    const holder = lines.length > 0 ? lines[lines.length - 1] : text
+    if (!holder) continue
+    const content = holder.textContent ?? ''
+    const tag = [...tags].find(
+      (candidate) => content === candidate || content.endsWith(` ${candidate}`),
+    )
+    if (!tag) continue
+    holder.textContent = content.slice(0, content.length - tag.length)
+    const word = document.createElementNS(svgNs, 'tspan')
+    word.setAttribute('fill', INK_SECONDARY)
+    word.setAttribute('font-size', '11')
+    word.setAttribute('font-weight', '400')
+    word.textContent = tag
+    holder.append(word)
+  }
+}
+
+/** "higher" and "lower" in the axis ends' words: italic, 600, in ink —
+ * styled tspans inside each line, so the PNG export carries them; the
+ * rest of each line keeps its own style. */
+function emphasizeTurns(plot: Element): void {
+  const svgNs = 'http://www.w3.org/2000/svg'
+  for (const text of plot.querySelectorAll(`g[aria-description="${AXIS_END}"] text`)) {
+    const lines = [...text.querySelectorAll('tspan')]
+    for (const holder of lines.length > 0 ? lines : [text]) {
+      const content = holder.textContent ?? ''
+      if (!TURN_WORDS.test(content)) continue
+      holder.textContent = ''
+      content.split(TURN_WORDS).forEach((part, index) => {
+        if (index % 2 === 0) {
+          if (part) holder.append(document.createTextNode(part))
+          return
+        }
+        const word = document.createElementNS(svgNs, 'tspan')
+        word.setAttribute('font-style', 'italic')
+        word.setAttribute('font-weight', '600')
+        word.setAttribute('fill', INK)
+        word.textContent = part
+        holder.append(word)
+      })
+    }
   }
 }
 

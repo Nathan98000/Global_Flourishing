@@ -22,10 +22,16 @@ export function isShareStat(stat: string): boolean {
   )
 }
 
+/** Whether a signed value shows as 0.00 at two places — neither sign's
+ * (it carries no sign, and wears neutral ink, never rust or teal). */
+export function roundsToZero(value: number): boolean {
+  return two.format(Math.abs(value)) === '0.00'
+}
+
 /** A within-person change carries its sign: +0.12, −0.30, 0.00. */
 export function formatChange(value: number): string {
   const rendered = two.format(Math.abs(value))
-  if (rendered === '0.00') return rendered
+  if (roundsToZero(value)) return rendered
   return value > 0 ? `+${rendered}` : `−${rendered}`
 }
 

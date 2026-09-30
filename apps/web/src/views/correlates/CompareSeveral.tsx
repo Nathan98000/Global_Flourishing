@@ -5,18 +5,21 @@
 // question's top four correlates (after the ranking's overlap dedupe), so
 // it is never empty. Its order is as added, or similar together — the
 // server's clustering; the page only reorders. Rows are questions 2…n and
-// columns 1…n−1, named by their short names (the columns angled); the
-// tint runs on a fixed −1 to 1, so a shade means the same number in every
-// table. A cell opens Compare two with the pair.
+// columns 1…n−1, named by their short names, the headings horizontal over
+// columns wide enough for three lines — or, past six questions or on a
+// phone, numbered, every question a numbered row; the tint runs on a fixed
+// −1 to 1, so a shade means the same number in every table. A cell opens
+// Compare two with the pair.
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
 import type { CorrelationsResponse, EstimateResponse, Meta, Wave } from '../../api/types'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { textMeasurer, wrapLabel } from '../../charts/RankedBar'
 import { divergingTint } from '../../charts/theme'
-import { HeatTable } from '../../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable } from '../../charts/TransitionTable'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { RadioRow } from '../../components/controls/RadioRow'
@@ -24,6 +27,7 @@ import { correlationTableToCsv, downloadTextFile } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
 import { shortName } from '../../labels'
+import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import {
   TABLE_MIN,
   correlatesRequest,
@@ -32,16 +36,36 @@ import {
   tableRequest,
   type CorrelatesOrder,
 } from '../../state/search'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
 import {
-  FEW_PEOPLE,
+  CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
+  averagedOver,
+  coverageLine,
+  pooledPlace,
   starred,
   statisticPhrase,
+  tableCaption,
+  withCoverage,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
-import { DivergingLegend, Failure, orderedAt, questionReason, type ViewProps } from './shared'
+import {
+  midyearTag,
+  otherWaveOf,
+  requestOther,
+  waveName,
+  waveTitle,
+  withTag,
+  type OtherWave,
+} from './midyear'
+import {
+  DivergingLegend,
+  Failure,
+  orderedAt,
+  pickerTag,
+  questionReason,
+  type ViewProps,
+} from './shared'
 import styles from '../AtlasView.module.css'
 import own from './Correlates.module.css'
 
@@ -49,6 +73,28 @@ import own from './Correlates.module.css'
 const DEFAULT_RELATED = 4
 /** The table's columns: wide enough for "+0.68*". */
 const TABLE_COLUMN = 60
+/** Column headings wrap to this many lines at most (review M7). */
+const HEADER_LINES = 3
+/** A column never grows past this to fit its heading. */
+const TABLE_COLUMN_MAX = 150
+/** More questions than this — or a phone — and the columns are numbered,
+ * the rows' labels prefixed with the same numbers (review M7). */
+const NUMBERED_ABOVE = 6
+
+/** The column width at which every heading wraps to three lines at most:
+ * the narrowest from TABLE_COLUMN up, capped at TABLE_COLUMN_MAX (a
+ * heading still too long there takes more lines — nothing is cut). */
+export function headingColumnWidth(
+  labels: readonly string[],
+  measure: (text: string) => number,
+): number {
+  for (let width = TABLE_COLUMN; width < TABLE_COLUMN_MAX; width += 4) {
+    const room = width - 2 * HEAT_CELL_PAD
+    if (labels.every((label) => wrapLabel(label, room, measure, Infinity).length <= HEADER_LINES))
+      return width
+  }
+  return TABLE_COLUMN_MAX
+}
 
 /** The questions in the order the table shows them: as added, or the
  * server's similar-together order when it is for these questions. */
@@ -71,13 +117,26 @@ export function CompareSeveral({
   countryName,
   apiReachable,
   controls,
+  onTable,
 }: ViewProps) {
   const a = firstQuestion(search)
   const b = secondQuestion(search)
+  // At Midyear another wave's question reads the same people's answers
+  // from the other answers' wave (ADR-0020).
+  const otherAnswers = otherWaveOf(search)
   // The default table needs the first question's ranked list.
-  const seeded = search.vars === undefined && orderedAt(variables.byName[a], search.wave)
+  const seeded =
+    search.vars === undefined && orderedAt(variables.byName[a], search.wave, otherAnswers)
   const ranked = useCorrelates(
-    seeded && country !== undefined ? correlatesRequest(search, a, country) : null,
+    seeded && country !== undefined
+      ? correlatesRequest(
+          search,
+          a,
+          country,
+          undefined,
+          search.wave === 'MY' ? otherAnswers : undefined,
+        )
+      : null,
   )
   const rankedResponse = ranked.data
   const tableVars = useMemo(() => {
@@ -87,19 +146,28 @@ export function CompareSeveral({
     return [a, b, ...related.slice(0, DEFAULT_RELATED)]
   }, [search.vars, rankedResponse, a, b])
   const usableVars = useMemo(
-    () => tableVars.filter((name) => orderedAt(variables.byName[name], search.wave)),
-    [tableVars, variables.byName, search.wave],
+    () => tableVars.filter((name) => orderedAt(variables.byName[name], search.wave, otherAnswers)),
+    [tableVars, variables.byName, search.wave, otherAnswers],
   )
+  // The wave row reads the default table's questions from here.
+  const reported = search.vars === undefined ? usableVars.join(',') : ''
+  useEffect(() => {
+    if (onTable && reported) onTable(reported.split(','))
+  }, [onTable, reported])
+  const otherWave = requestOther(search, usableVars, variables.byName)
   const leftOut = tableVars.filter((name) => !usableVars.includes(name))
   const table = useCorrelationTable(
     country !== undefined && usableVars.length >= TABLE_MIN
-      ? tableRequest(search, usableVars, country)
+      ? tableRequest(search, usableVars, country, otherWave)
       : null,
   )
+  // A question by its short name; at Midyear a midyear question wears a
+  // small tag (the subtitle names the other answers' year).
   const nameOf = (name: string) => {
     const variable = variables.byName[name]
     return variable ? shortName(variable) : name
   }
+  const tagOf = (name: string) => midyearTag(variables.byName[name], search.wave)
   const shown = displayOrder(usableVars, search.order, table.data?.similar_order)
 
   return (
@@ -111,11 +179,14 @@ export function CompareSeveral({
           variables={variables.list}
           wave={search.wave}
           unavailable={(variable) => questionReason(variable, search.wave)}
+          countable={(variable) => questionReason(variable, search.wave) === undefined}
+          tagOf={(variable) => pickerTag(variable, search)}
+          chipTagOf={tagOf}
           onChange={(vars) => setSearch({ vars })}
           note={
             leftOut.length > 0 ? (
               <span className={styles.reason}>
-                Left out, not asked in {WAVE_TITLES[search.wave] ?? search.wave}:{' '}
+                Left out, not asked in {waveTitle(search.wave, otherWave)}:{' '}
                 {leftOut.map(nameOf).join(', ')}.
               </span>
             ) : undefined
@@ -142,8 +213,8 @@ export function CompareSeveral({
       ) : usableVars.length < TABLE_MIN ? (
         <EmptyState title="Pick two questions or more">
           <p>
-            A table needs at least two questions asked in {WAVE_TITLES[search.wave] ?? search.wave}{' '}
-            — add them with “Add questions”.
+            A table needs at least two questions asked in {waveTitle(search.wave, otherWave)} — add
+            them with “Add questions”.
           </p>
         </EmptyState>
       ) : table.isPending ? (
@@ -155,8 +226,10 @@ export function CompareSeveral({
           table={table.data}
           order={shown}
           nameOf={nameOf}
+          tagOf={tagOf}
           countryName={countryName}
           wave={search.wave}
+          other={otherWave}
           method={search.method}
           isRefreshing={table.isPlaceholderData}
           served={served}
@@ -179,8 +252,10 @@ function TableFigure({
   table,
   order,
   nameOf,
+  tagOf,
   countryName,
   wave,
+  other,
   method,
   isRefreshing,
   served,
@@ -190,13 +265,51 @@ function TableFigure({
   /** The questions in the order shown. */
   order: readonly string[]
   nameOf: (name: string) => string
+  /** A question's small tag ("Midyear" at the midyear survey). */
+  tagOf: (name: string) => string | undefined
   countryName: string
   wave: Wave
+  /** At Midyear with another wave's question: that wave (ADR-0020). */
+  other: OtherWave | undefined
   method: CorrelationMethod | undefined
   isRefreshing: boolean
   served: Meta
   onOpenPair: (row: string, column: string) => void
 }) {
+  const pooled = table.meta.pooled === 'average'
+  // The table's axes (review M7): horizontal headings over columns wide
+  // enough for three lines; past six questions, or on a phone, numbered
+  // columns and the same numbers before the rows' labels — every question
+  // then has a row, so each number has its name.
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const numbered = narrow || order.length > NUMBERED_ABOVE
+  const numberOf = (entry: string) => order.indexOf(entry) + 1
+  const rows = (numbered ? order : order.slice(1)).map((entry) => ({
+    key: entry,
+    label: numbered ? `${numberOf(entry)}. ${nameOf(entry)}` : nameOf(entry),
+    tag: tagOf(entry),
+  }))
+  const columns = order.slice(0, -1).map((entry) =>
+    numbered
+      ? {
+          key: entry,
+          label: String(numberOf(entry)),
+          title: withTag(nameOf(entry), tagOf(entry)),
+        }
+      : { key: entry, label: nameOf(entry), tag: tagOf(entry) },
+  )
+  const columnWidth = useMemo(
+    () =>
+      numbered
+        ? TABLE_COLUMN
+        : headingColumnWidth(
+            columns.map((column) => (column.tag ? `${column.label} ${column.tag}` : column.label)),
+            textMeasurer(13, typeof window !== 'undefined', 500),
+          ),
+    // The headings are the columns' labels: they change with the order.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [numbered, columns.map((column) => column.label).join('|')],
+  )
   const pairs = new Map(table.pairs.map((pair) => [`${pair.a}|${pair.b}`, pair]))
   const pairOf = (one: string, other: string) =>
     pairs.get(`${one}|${other}`) ?? pairs.get(`${other}|${one}`)
@@ -206,7 +319,7 @@ function TableFigure({
   const name: ExportName = {
     measure: `Correlations among ${order.length} questions`,
     view: 'Compare several',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
   // The data table: one row per pair with a correlation, named in words.
@@ -247,8 +360,8 @@ function TableFigure({
   return (
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
-      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
-      ariaLabel={`Correlations among ${order.length} questions in ${countryName}, as a table: ${order
+      subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
+      ariaLabel={`Correlations among ${order.length} questions ${pooled ? averagedOver(table.meta.countries, served.countries) : `in ${countryName}`}, as a table: ${order
         .map(nameOf)
         .join('; ')}.${
         strongestPair && strongest
@@ -267,11 +380,16 @@ function TableFigure({
       exportName={name}
       isRefreshing={isRefreshing}
       groupLabel={(column, value) =>
-        column === 'question' || column === 'with' ? nameOf(String(value)) : undefined
+        column === 'question' || column === 'with'
+          ? withTag(nameOf(String(value)), tagOf(String(value)))
+          : undefined
       }
       columnName={(column) =>
         column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
       }
+      tableCaption={tableCaption(pooled)}
+      estimateHeader="Correlation"
+      note={CORRELATES_NOTE}
     >
       <HeatTable
         caption={
@@ -280,15 +398,13 @@ function TableFigure({
             stat={table.meta.stat}
             ends={['−1', '+1']}
             hues={null}
-            flagKey="* few people behind this estimate"
             extra="· built from the same answers"
           />
         }
-        corner="Question ↓ · with →"
-        rows={order.slice(1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
-        columns={order.slice(0, -1).map((entry) => ({ key: entry, label: nameOf(entry) }))}
-        columnWidth={TABLE_COLUMN}
-        angled
+        rows={rows}
+        columns={columns}
+        columnWidth={columnWidth}
+        rowsWrap={numbered}
         cellAt={(row, column) => {
           if (order.indexOf(column.key) >= order.indexOf(row.key))
             return { text: '', title: '', tint: 'transparent', blank: true }
@@ -316,10 +432,12 @@ function TableFigure({
           }
           const value = formatEstimate(correlation.estimate, correlation.stat)
           const flagged = pair.below_min_n
-          const tip = `${value} · ${rowName} with ${columnName}`
           return {
             text: starred(value, flagged),
-            title: flagged ? `${tip}\n${FEW_PEOPLE}` : tip,
+            title: withCoverage(
+              `${starred(value, flagged)} · ${rowName} with ${columnName}`,
+              coverageLine(correlation, served.countries.length),
+            ),
             tint: divergingTint(correlation.estimate, 1),
             flagged,
             hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,

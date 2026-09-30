@@ -63,3 +63,26 @@ def test_meta_names_the_us_states_and_pooled_groups(client: TestClient) -> None:
         "members": ["ND", "SD", "WY"],
     }
     assert labels["ME_NH_RI_VT"]["name"] == "Maine, New Hampshire, Rhode Island & Vermont (pooled)"
+
+
+def test_meta_serves_each_countrys_midyear_timing(client: TestClient, store) -> None:
+    """ADR-0020: per country and pairing, how its people took the midyear
+    survey — the page words the time between two answers from it, never
+    from a hard-coded list of countries."""
+    import polars as pl
+
+    timing = client.get("/v1/meta").json()["midyear_timing"]
+    people = store.midyear_types()
+    for row in timing:
+        eligible = pl.col("has_midyear") & (pl.col("country_code") == row["country_code"])
+        if row["other_wave"] == "Y2":
+            eligible = eligible & pl.col("retained_y2")
+        chosen = people.filter(eligible)
+        assert row["type_1"] == chosen.filter(pl.col("midyear_type") == 1).height
+        assert row["type_2"] == chosen.filter(pl.col("midyear_type") == 2).height
+    assert {(row["other_wave"], row["country_code"]) for row in timing} == {
+        ("Y1", 1),
+        ("Y1", 22),
+        ("Y2", 1),
+        ("Y2", 22),
+    }

@@ -1,19 +1,24 @@
 // A correlation in a line (ADR-0019): "Correlation", a 220px track from
-// −1 to 1 with ticks at −1, 0 and +1, a dot in the sign's hue, and the
-// signed value — the same encoding as the Find related rows, and no
-// strength word. Few people behind it: an asterisk. HTML, not a plot: it
-// sits in Compare two's header row, beside the scope toggle.
+// −1 to 1 with ticks at −1, 0 and +1, a dot in the sign's hue (neutral
+// ink at 0.00), and the value named by its scope — "United States:
+// +0.54", "All countries: +0.10" — the same encoding as the Find related
+// rows, and no strength word. Few people behind it: an asterisk. HTML,
+// not a plot: it heads Compare two's chart.
 
 import type { EstimateRow } from '../api/types'
 import { formatEstimate } from '../format'
+import { FEW_PEOPLE_HIDDEN } from '../views/correlatesRows'
 import styles from './CorrelationStrip.module.css'
 import { signMark } from './theme'
 
 export function CorrelationStrip({
   row,
+  scope,
   flagged = false,
 }: {
   row: Pick<EstimateRow, 'estimate' | 'stat'>
+  /** Where the number is taken: a country's name, or "All countries". */
+  scope: string
   flagged?: boolean
 }) {
   const value = row.estimate
@@ -41,8 +46,8 @@ export function CorrelationStrip({
           </span>
         </span>
         <span className={styles.value}>
-          {text}
-          {flagged && <span className="visually-hidden">, few people behind this estimate</span>}
+          <span className={styles.scope}>{scope}:</span> {text}
+          {flagged && <span className="visually-hidden">{FEW_PEOPLE_HIDDEN}</span>}
         </span>
       </span>
     </div>

@@ -199,3 +199,44 @@ def test_state_scopes_name_the_state_their_weight_is_calibrated_to() -> None:
     with pytest.raises(ValueError, match="not eligible"):
         validate_frame(frame, y2)
     assert json.loads(weight_table_json())[0]["state_column"] is None
+
+
+def test_midyear_answers_pair_with_either_wave_on_its_own_frame() -> None:
+    """ADR-0020: 2023 answers on the Wave 1 → midyear frame, 2024 answers
+    on the three-point frame — never my_y2, whose type-1 restriction is
+    about change, not correlation."""
+    y1 = weights.pairing_spec("Y1")
+    assert (y1.key, y1.weight) == ("y1_my", "w_l1m")
+    assert y1.requires_has_midyear and not y1.requires_retained_y2
+    y2 = weights.pairing_spec("Y2")
+    assert (y2.key, y2.weight) == ("y1_my_y2", "w_l1m2")
+    assert y2.requires_has_midyear and y2.requires_retained_y2
+    assert not y2.requires_midyear_type_1
+    with pytest.raises(KeyError, match="pair with"):
+        weights.pairing_spec("MY")
+
+
+def test_midyear_timing_counts_each_pairings_people_by_type() -> None:
+    """ADR-0020: the facts the page words the time between two answers
+    from — per country and pairing, standalone midyear interviews (type 1)
+    and midyear items asked in the Wave 2 interview (type 2)."""
+    frame = pl.DataFrame(
+        {
+            "country_code": [1, 1, 1, 2, 2, 3],
+            "has_midyear": [True, True, False, True, True, True],
+            "retained_y2": [True, False, True, True, True, False],
+            "midyear_type": [2, 1, None, 2, 2, 1],
+        }
+    )
+    rows = weights.midyear_timing(frame)
+    by_key = {
+        (row["other_wave"], row["country_code"]): (row["type_1"], row["type_2"]) for row in rows
+    }
+    # 2023: every midyear respondent.
+    assert by_key[("Y1", 1)] == (1, 1)
+    assert by_key[("Y1", 2)] == (0, 2)
+    assert by_key[("Y1", 3)] == (1, 0)
+    # 2024: only those who also did Wave 2 (country 3's one did not).
+    assert by_key[("Y2", 1)] == (0, 1)
+    assert by_key[("Y2", 2)] == (0, 2)
+    assert ("Y2", 3) not in by_key

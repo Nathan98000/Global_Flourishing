@@ -7,7 +7,15 @@
 // eight items, the secondary four behind "More" on a phone.
 
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
-import { useEffect, useRef, type ReactNode } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import { useBootStatus } from '../api/meta'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView } from '../nav'
 import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -60,24 +68,48 @@ function NavLink({ to, label }: { to: string; label: string }) {
 
 /** The phone nav: the primary four inline, the rest behind "More". The
  * disclosure closes on navigation and on Escape; its summary reads as
- * active when the current view lives inside it. */
+ * active when the current view lives inside it. The row never pushes the
+ * page sideways: a stretch of space follows each link, giving way before
+ * the row wraps (AppShell.module.css). */
 function NarrowNav({ pathname }: { pathname: string }) {
   const details = useRef<HTMLDetailsElement | null>(null)
+  const panel = useRef<HTMLDivElement | null>(null)
+  // The open panel hangs from "More"'s right edge, moved right by however
+  // far that would run past the row's left edge — which it does once the
+  // row has wrapped "More" to its start. Measured on each open and when
+  // the window resizes, like the question picker's.
+  const [shift, setShift] = useState(0)
   const primary = NAV_ITEMS.slice(0, NAV_PRIMARY_COUNT)
   const secondary = NAV_ITEMS.slice(NAV_PRIMARY_COUNT)
   const insideMore = secondary.some((item) => pathname.startsWith(item.to))
   useEffect(() => {
     if (details.current) details.current.open = false
   }, [pathname])
+  const place = useCallback(() => {
+    const host = details.current
+    const box = panel.current
+    const row = host?.parentElement
+    if (!host?.open || !box || !row) return
+    const left = host.getBoundingClientRect().right - box.getBoundingClientRect().width
+    setShift(Math.max(0, row.getBoundingClientRect().left - left))
+  }, [])
+  useEffect(() => {
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [place])
   return (
     <>
       {primary.map((item) => (
-        <NavLink key={item.to} {...item} />
+        <Fragment key={item.to}>
+          <NavLink {...item} />
+          <span className={styles.navGap} />
+        </Fragment>
       ))}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <details
         ref={details}
         className={styles.more}
+        onToggle={place}
         onKeyDown={(event) => {
           if (event.key === 'Escape' && details.current?.open) details.current.open = false
         }}
@@ -85,7 +117,11 @@ function NarrowNav({ pathname }: { pathname: string }) {
         <summary className={styles.moreSummary} data-status={insideMore ? 'active' : undefined}>
           More
         </summary>
-        <div className={styles.morePanel}>
+        <div
+          ref={panel}
+          className={styles.morePanel}
+          style={{ '--panel-shift': `${shift}px` } as CSSProperties}
+        >
           {secondary.map((item) => (
             <NavLink key={item.to} {...item} />
           ))}

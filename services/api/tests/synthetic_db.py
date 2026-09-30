@@ -26,10 +26,13 @@ Wave 2 state only (so no Wave 1 state weight).
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import polars as pl
+from flourish_api.config import Settings
 
 AGE_BANDS = ("18-24", "25-29", "30-39", "40-49")
 US_STATES = ("CA", "NY", "TX")
@@ -64,6 +67,19 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
         False,
     ),
     ("CHILD_MEM", "Childhood memory", "childhood", "ordinal", "none", 1, 4, ["Y1"], False),
+    # The midyear question the Correlates page brings in at Midyear
+    # (ADR-0020): five ordered answers, asked only in the midyear survey.
+    (
+        "TIME_MEDIA",
+        "Daily social media time",
+        "midyear",
+        "ordinal",
+        "none",
+        1,
+        5,
+        ["MY"],
+        False,
+    ),
     # The Correlates page's default pair (ADR-0019): a 0–10 item and a
     # four-answer descending one that goes with it.
     (
@@ -115,6 +131,15 @@ VARIABLES: tuple[tuple[str, str, str, str, str, int, int, list[str], bool], ...]
 #: INCOME_FEELINGS 1 = Living comfortably … 4 = Finding it very difficult.
 #: Everything else is ascending.
 DESCENDING: frozenset[str] = frozenset({"ATTEND_SVCS", "INCOME_FEELINGS"})
+
+#: TIME_MEDIA's answers (the release's wording).
+TIME_MEDIA_LABELS: tuple[str, ...] = (
+    "None/I don't use social media",
+    "Less than 30 minutes",
+    "30 minutes to less than an hour",
+    "1 to 2 hours",
+    "More than 2 hours",
+)
 
 #: INCOME_FEELINGS' answers (the release's wording).
 INCOME_FEELINGS_LABELS: tuple[str, ...] = (
@@ -263,6 +288,8 @@ def _responses(respondents: pl.DataFrame) -> pl.DataFrame:
         if person["has_midyear"]:
             add(person, "MY", "MONEY", (i * 5) % 11, None)
             add(person, "MY", "BALANCE", (i * 2 + 1) % 11, None)
+            # More time for those less at ease with their income.
+            add(person, "MY", "TIME_MEDIA", 1 + (income_feelings(i, today) + i) % 5, None)
     # Every row decides the columns' types (the first "skipped" comes
     # well after the first hundred rows).
     return pl.DataFrame(rows, infer_schema_length=None).sort("variable", "wave", "id")
@@ -358,14 +385,18 @@ def _value_labels() -> pl.DataFrame:
     )
     rows.extend(
         {
-            "variable": "INCOME_FEELINGS",
+            "variable": variable,
             "wave": None,
             "country_code": None,
             "code": code,
             "label": label,
             "is_nonresponse": False,
         }
-        for code, label in enumerate(INCOME_FEELINGS_LABELS, start=1)
+        for variable, labels in (
+            ("INCOME_FEELINGS", INCOME_FEELINGS_LABELS),
+            ("TIME_MEDIA", TIME_MEDIA_LABELS),
+        )
+        for code, label in enumerate(labels, start=1)
     )
     rows.append(
         {
@@ -417,6 +448,12 @@ def _coverage(responses: pl.DataFrame, respondents: pl.DataFrame) -> pl.DataFram
     )
 
 
+#: The synthetic countries hold 60 people, so the ranked sweep's floor
+#: (100 in serving) is lowered for the test app; EDUCATION_3, which has no
+#: rows, is the candidate it excludes.
+SYNTHETIC_MIN_N = 20
+
+
 def build_synthetic_db(directory: Path) -> Path:
     """Write flourish.duckdb + manifest.json into ``directory``."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -457,3 +494,66 @@ def build_synthetic_db(directory: Path) -> Path:
         con.close()
     (directory / "manifest.json").write_text(json.dumps({"data_version": "synthetic.0.0.1"}))
     return db_path
+
+
+def add_countries(
+    db_path: Path, countries: Sequence[tuple[int, str, str]], *, like: int = 1
+) -> None:
+    """Further countries — (code, name, iso3) — in a built synthetic
+    database, each holding country ``like``'s people again (their design,
+    weights, answers and scores) under new ids: for the rules that read
+    how many countries the release holds (ADR-0020's coverage rule)."""
+    con = duckdb.connect(str(db_path))
+    try:
+        for index, (code, name, iso3) in enumerate(countries, start=1):
+            shift = 1000 * index
+            people = f"SELECT id FROM respondents WHERE country_code = {like}"
+            for table in ("responses_long", "derived"):
+                con.execute(
+                    f"INSERT INTO {table} SELECT * REPLACE (id + {shift} AS id) "
+                    f"FROM {table} WHERE id IN ({people})"
+                )
+            # Strata nest within countries, and PSUs within strata.
+            con.execute(
+                f"INSERT INTO respondents SELECT * REPLACE (id + {shift} AS id, "
+                f"{code} AS country_code, strata + {shift} AS strata, psu + {100 * shift} AS psu) "
+                f"FROM respondents WHERE country_code = {like}"
+            )
+            con.execute(
+                f"INSERT INTO coverage SELECT * REPLACE ({code} AS country_code) "
+                f"FROM coverage WHERE country_code = {like}"
+            )
+            con.execute("INSERT INTO countries VALUES (?, ?, ?)", [code, name, iso3])
+    finally:
+        con.close()
+
+
+def unask(db_path: Path, variable: str, wave: str, countries: Sequence[int]) -> None:
+    """Take a question's answers at a wave out of some countries of a built
+    synthetic database: it was never asked there."""
+    if not countries:
+        return
+    codes = ", ".join(str(code) for code in countries)
+    con = duckdb.connect(str(db_path))
+    try:
+        con.execute(
+            "DELETE FROM responses_long WHERE variable = ? AND wave = ? AND id IN "
+            f"(SELECT id FROM respondents WHERE country_code IN ({codes}))",
+            [variable, wave],
+        )
+        con.execute(
+            f"DELETE FROM coverage WHERE variable = ? AND wave = ? AND country_code IN ({codes})",
+            [variable, wave],
+        )
+    finally:
+        con.close()
+
+
+def synthetic_settings(directory: Path, **overrides: Any) -> Settings:
+    """The synthetic API's settings: the DuckDB in ``directory`` and the
+    lowered ranking floor; ``overrides`` are further settings."""
+    return Settings(
+        data_path=directory / "flourish.duckdb",
+        correlates_min_n=SYNTHETIC_MIN_N,
+        **overrides,
+    )

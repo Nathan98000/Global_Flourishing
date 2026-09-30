@@ -1,4 +1,4 @@
-"""Weighted correlations, adjusted associations and the Phase 5 stub."""
+"""Weighted correlations and adjusted associations."""
 
 import math
 
@@ -9,7 +9,6 @@ from flourish_stats import (
     Design,
     SuppressionPolicy,
     adjusted_association,
-    pooled_population_weights,
     weighted_correlation,
     weighted_correlations,
 )
@@ -172,11 +171,6 @@ def test_sweep_undefined_and_empty_cells() -> None:
         weighted_correlations(TOY, "y", ["y"], TAYLOR)
     with pytest.raises(ValueError, match="method"):
         weighted_correlations(TOY, "y", ["x2"], TAYLOR, method="kendall")  # type: ignore[arg-type]
-
-
-def test_phase_5_stub_raises_loudly() -> None:
-    with pytest.raises(NotImplementedError, match="Not implemented: Phase 5"):
-        pooled_population_weights(TOY, {22: 258e6})
 
 
 # --- adjusted associations -----------------------------------------------

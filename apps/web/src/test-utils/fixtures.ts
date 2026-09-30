@@ -48,6 +48,14 @@ export const testMeta: Meta = {
     },
   },
   families: ['demographics', 'wellbeing'],
+  // Testland took the midyear survey both ways; the United States inside
+  // the Wave 2 interview only (ADR-0020's timing note).
+  midyear_timing: [
+    { country_code: 1, other_wave: 'Y1', type_1: 15, type_2: 45 },
+    { country_code: 1, other_wave: 'Y2', type_1: 10, type_2: 45 },
+    { country_code: 22, other_wave: 'Y1', type_1: 0, type_2: 60 },
+    { country_code: 22, other_wave: 'Y2', type_1: 0, type_2: 60 },
+  ],
   state_labels: {
     CA: { name: 'California', members: ['CA'] },
     NY: { name: 'New York', members: ['NY'] },

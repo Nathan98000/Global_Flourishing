@@ -143,6 +143,12 @@
   text-align: left;
 }
 
+/* No corner label: nothing in the corner, on the page's own tone — never
+   an empty shaded block (review M7). */
+.table .cornerBlank {
+  background: var(--page);
+}
+
 /* Fixed-width columns: the header text wraps over the column (bottom
    aligned, so short labels sit on the rule), and header and number are
    centred so each value stands under its label. */
@@ -255,31 +261,10 @@
   outline-offset: -4px;
 }
 
-/* Angled headers (Compare several): each short name rises at 38° from
-   its column's bottom centre, the header row as tall as the longest
-   needs (--angled-rise, measured by the component); the box's right
-   padding makes room for the last ones. */
-.table[data-angled] thead th:not(.corner) {
-  position: relative;
-  height: var(--angled-rise, 7rem);
-  padding: 0;
-  vertical-align: bottom;
-}
-
-.table[data-angled] thead th:not(.corner) .head {
-  position: absolute;
-  left: 50%;
-  bottom: 6px;
-  transform: rotate(-38deg);
-  transform-origin: 0 100%;
-  white-space: nowrap;
-  text-align: left;
-}
-
-/* On a phone an angled table's row labels wrap, so more of its columns
-   fit beside them before the box scrolls. */
+/* On a phone a numbered table's row labels wrap (Compare several), so
+   more of its columns fit beside them before the box scrolls. */
 @media (max-width: 40rem) {
-  .table[data-angled] th[scope='row'] {
+  .table[data-rows-wrap] th[scope='row'] {
     min-width: 7.5rem;
     max-width: 9rem;
     white-space: normal;
@@ -319,4 +304,12 @@
 .cellButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+/* A label's tag ("Midyear", ADR-0020): small, in secondary ink, after it. */
+.tag {
+  margin-left: 0.4em;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
 }

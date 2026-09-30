@@ -2,11 +2,12 @@
 // role="img" chart node whose aria-label states what it shows and its
 // extremes, a <details> data table with the same numbers (the
 // screen-reader and copy-paste path), a one-line footnote linked to
-// Methods, and CSV/PNG export. Charts render inside; this never fetches.
+// Methods (or, on the Correlates page, one plain note in its place), and
+// CSV/PNG export. Charts render inside; this never fetches.
 
 import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
-import type { EstimateResponse, Meta, ResponseMeta } from '../api/types'
+import type { EstimateResponse, EstimateRow, Meta, ResponseMeta } from '../api/types'
 import { EstimateTable } from '../components/EstimateTable'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { exportFilename, type ExportName } from '../export/filename'
@@ -69,7 +70,13 @@ export function ChartFigure({
   groupLabel,
   predictorLabel,
   columnName,
+  tableCaption,
+  estimateHeader,
+  predictorHeader,
+  smallSampleOf,
+  dataTable,
   footnote,
+  note,
   unit,
   wide = false,
   interactive = false,
@@ -98,9 +105,20 @@ export function ChartFigure({
   groupLabel?: (column: string, value: string | number) => string | undefined
   predictorLabel?: (name: string) => string | undefined
   columnName?: (column: string) => string | undefined
+  tableCaption?: string
+  estimateHeader?: string
+  predictorHeader?: string
+  smallSampleOf?: (row: EstimateRow) => boolean
+  /** The data table's contents in place of the one table of `response`
+   * (Compare two: its bars, its grid and its correlation). */
+  dataTable?: React.ReactNode
   /** Extra plain sentences in the footnote, before the Methods link (a
    * caveat the view owes its reader — never a callout box). */
   footnote?: React.ReactNode
+  /** The whole line under the chart, in place of the provenance line —
+   * its interval clause, where the n lives, the footnote and the Methods
+   * link (the Correlates page's one note, ADR-0020). */
+  note?: string
   /** Whose sample the weights stand for (a state view's chart is
    * weighted by state whatever mark it draws). */
   unit?: 'country' | 'state'
@@ -192,18 +210,28 @@ export function ChartFigure({
       </div>
       <details className={styles.details}>
         <summary>Data table</summary>
-        <EstimateTable
-          response={response}
-          meta={meta}
-          levelLabel={levelLabel}
-          groupLabel={groupLabel}
-          predictorLabel={predictorLabel}
-          columnName={columnName}
-        />
+        {dataTable ?? (
+          <EstimateTable
+            response={response}
+            meta={meta}
+            levelLabel={levelLabel}
+            groupLabel={groupLabel}
+            predictorLabel={predictorLabel}
+            columnName={columnName}
+            weightCaption={tableCaption}
+            estimateHeader={estimateHeader}
+            predictorHeader={predictorHeader}
+            smallSampleOf={smallSampleOf}
+          />
+        )}
       </details>
       <p className={styles.provenance}>
-        {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
-        <Link to="/methods">How these numbers are made</Link>
+        {note ?? (
+          <>
+            {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
+            <Link to="/methods">How these numbers are made</Link>
+          </>
+        )}
       </p>
     </figure>
   )

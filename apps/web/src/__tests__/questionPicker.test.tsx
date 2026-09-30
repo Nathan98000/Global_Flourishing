@@ -90,7 +90,7 @@ describe('QuestionPicker', () => {
     const { dialog } = openSingle()
     const trigger = screen.getByRole('button', { name: 'First question: Life evaluation today' })
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(trigger).toHaveTextContent('Life evaluation today▾')
+    expect(trigger).toHaveTextContent(/^Life evaluation today$/)
     const search = within(dialog).getByRole('searchbox')
     expect(search).toHaveFocus()
     // Only servable questions are counted and listed.
@@ -108,7 +108,8 @@ describe('QuestionPicker', () => {
       'Wellbeing2',
       'Mental health1',
       'Religion & spirituality2',
-      'What matters to people0',
+      // The Correlates picker's own name for the midyear topic (review L4).
+      'Midyear survey0',
     ])
     const wellbeing = within(topics).getByRole('option', { name: /Wellbeing/ })
     expect(wellbeing).toHaveAttribute('aria-selected', 'true')

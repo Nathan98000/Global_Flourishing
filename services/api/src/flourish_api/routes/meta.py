@@ -6,7 +6,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from flourish_stats import weight_table_json
+from flourish_stats import midyear_timing, weight_table_json
 from flourish_stats.breakdowns import breakdown_labels
 from flourish_stats.states import state_labels
 
@@ -16,6 +16,7 @@ from flourish_api.schemas import (
     BreakdownLabelsModel,
     CountryModel,
     MetaResponse,
+    MidyearTimingModel,
     StateLabelModel,
     SuppressionModel,
     WeightSpecModel,
@@ -57,4 +58,7 @@ def meta(request: Request, store: Annotated[DataStore, Depends(require_data)]) -
         state_labels={
             code: StateLabelModel.model_validate(entry) for code, entry in state_labels().items()
         },
+        midyear_timing=[
+            MidyearTimingModel.model_validate(row) for row in midyear_timing(store.midyear_types())
+        ],
     )

@@ -74,6 +74,20 @@ class StateLabelModel(BaseModel):
     members: list[str]
 
 
+class MidyearTimingModel(BaseModel):
+    """How one country's people in one midyear pairing took the midyear
+    survey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a
+    standalone midyear interview (``type_1``) or inside their Wave 2
+    interview (``type_2``) — the page words the time between the two
+    answers from it."""
+
+    country_code: int
+    #: the pairing: the wave the other questions' answers come from
+    other_wave: str
+    type_1: int
+    type_2: int
+
+
 class MetaResponse(BaseModel):
     data_version: str | None
     #: Absent from the static tier's meta.json (a build artefact has no
@@ -90,6 +104,9 @@ class MetaResponse(BaseModel):
     #: US state codes → display names (the US States view owns no
     #: state name); pooled groups read "A, B & C (pooled)"
     state_labels: dict[str, StateLabelModel]
+    #: per country and midyear pairing, how its people took the midyear
+    #: survey (ADR-0020); empty in a tier baked before it
+    midyear_timing: list[MidyearTimingModel] = []
 
 
 class VariableSummary(BaseModel):
@@ -208,6 +225,10 @@ class EstimateRow(BaseModel):
     weight: str
     suppressed: bool
     flagged: bool
+    #: averages over the countries only (``pooled=average``, ADR-0020): how
+    #: many countries are in it — a question one country did not ask leaves
+    #: that country out; null on every other response
+    n_countries: int | None = None
 
 
 class ResponseMeta(BaseModel):
@@ -254,6 +275,24 @@ class ResponseMeta(BaseModel):
     #: each mapped to the one that stands in for it; empty when nothing
     #: overlapped, null on every other response.
     dropped_overlap: dict[str, str] | None = None
+    #: averages over the countries only (ADR-0020): ``average`` — each
+    #: country's own estimate, and their plain mean — and every country in
+    #: at least one of the averages. Null on every other response.
+    pooled: str | None = None
+    countries: list[int] | None = None
+    #: /v1/correlates ranked sweeps averaged over the countries only
+    #: (ADR-0020): how many countries a candidate's average must cover to
+    #: be ranked — half the release's countries, rounded up
+    #: (``flourish_stats.averaging.ranking_min_countries``) — and how many
+    #: candidates the sweep left out for covering fewer (they are not
+    #: counted in ``n_excluded``). Null on every other response.
+    min_countries: int | None = None
+    n_excluded_coverage: int | None = None
+    #: correlations at the midyear survey only (ADR-0020): the wave the
+    #: questions it did not ask read the same people's answers from, and
+    #: which wave each question's answers came from. Null elsewhere.
+    other_wave: str | None = None
+    answer_waves: dict[str, str] | None = None
 
 
 class EstimateResponse(BaseModel):
@@ -375,6 +414,12 @@ class CorrelationsMeta(BaseModel):
     filters: dict[str, list[GroupValue]]
     #: the floor below which a pair is flagged (``FA_CORRELATES_MIN_N``)
     min_n: int
+    #: tables averaged over the countries only (ADR-0020), as in ``ResponseMeta``
+    pooled: str | None = None
+    countries: list[int] | None = None
+    #: tables at the midyear survey only (ADR-0020), as in ``ResponseMeta``
+    other_wave: str | None = None
+    answer_waves: dict[str, str] | None = None
 
 
 class CorrelationsResponse(BaseModel):

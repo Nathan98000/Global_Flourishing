@@ -9,7 +9,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { predictorOrder } from '../api/correlates'
 import { resetNegativePathCache } from '../api/estimates'
@@ -23,30 +23,47 @@ import type {
 } from '../api/types'
 import { footnoteCopy } from '../charts/ChartFigure'
 import { shareLabel, shareTint } from '../charts/CrossTab'
-import { DIVERGING_RAMP, SEQUENTIAL_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
-import { HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
+import {
+  DIVERGING_RAMP,
+  SEQUENTIAL_RAMP,
+  SHARE_RAMP,
+  divergingTint,
+  signMark,
+  tipText,
+} from '../charts/theme'
+import { RankedBar, wrapLabel } from '../charts/RankedBar'
+import { HEAT_CELL_PAD, HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
+import { headingColumnWidth } from '../views/correlates/CompareSeveral'
 import {
   attendVariable,
   happyVariable,
   sfiVariable,
   testMeta,
   testResponse,
+  testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
 import {
+  CORRELATES_NOTE,
+  CORRELATION_SCALE,
+  askedInTooFew,
   axisEnds,
   belowFloor,
+  averagedOver,
+  coverageLine,
+  pooledPlace,
+  scopeLabel,
   countriesByName,
   fewPeople,
   defaultCountry,
   heatCells,
   acrossSubtitle,
   legendEnds,
-  overlapNote,
   pairAxisTitle,
+  likelyRange,
   pairBarTip,
   pairCellTip,
   pinnedFirst,
@@ -55,7 +72,7 @@ import {
   starred,
   shortName,
   statisticPhrase,
-  tintExtent,
+  tooFewCountries,
   waveNote,
 } from '../views/correlatesRows'
 
@@ -358,6 +375,12 @@ function visibleText(element: HTMLElement): string {
   return clone.textContent ?? ''
 }
 
+/** The line after a chart's data table: on this page, its one note. */
+function figureNote(chart: HTMLElement): string {
+  const details = chart.closest('figure')?.querySelector(':scope > details')
+  return details?.nextElementSibling?.textContent ?? ''
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   resetNegativePathCache()
@@ -423,6 +446,464 @@ async function renderAt(path: string) {
 
 const ruleLines = (figure: HTMLElement) =>
   figure.querySelectorAll('svg [aria-label="rule"] line').length
+
+// --- All countries: the plain average of the countries (ADR-0020) ---
+
+const POOLED_META = { pooled: 'average', countries: [1, 22] } as const
+
+const pairPooled: PairResponse = {
+  ...pairFixture,
+  correlation: { ...pairFixture.correlation, n_countries: 2 },
+  shares: {
+    meta: { ...pairFixture.shares.meta, filters: {}, ...POOLED_META, countries: [1, 22] },
+    rows: pairFixture.shares.rows.map((row) => ({ ...row, n_countries: 2 })),
+  },
+}
+
+/** Pooled: LONELY was asked in one of the two countries only. */
+const rankedPooled = testResponse(
+  [
+    { ...plainRow('LONELY', -0.48, undefined, 900), n_countries: 1 },
+    { ...plainRow('ATTEND_SVCS', 0.28, undefined, 1800), n_countries: 2 },
+  ],
+  {
+    outcome: 'HAPPY',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: [],
+    filters: {},
+    adjusted: false,
+    controls: [],
+    model: null,
+    min_n: 20,
+    n_excluded: 0,
+    dropped_overlap: {},
+    ...POOLED_META,
+    countries: [1, 22],
+  },
+)
+
+const tablePooled: CorrelationsResponse = {
+  ...tableFixture,
+  meta: { ...tableFixture.meta, filters: {}, ...POOLED_META, countries: [1, 22] },
+  pairs: tableFixture.pairs.map((pair) =>
+    pair.correlation
+      ? { ...pair, correlation: { ...pair.correlation, n_countries: pair.b === 'LONELY' ? 1 : 2 } }
+      : pair,
+  ),
+}
+
+const pooledPairRow = testResponse(
+  [{ ...plainRow('INCOME_FEELINGS', 0.27, undefined, 120), n_countries: 2 }],
+  {
+    outcome: 'ATTEND_SVCS',
+    stat: 'pearson_r',
+    se_method: 'none',
+    by: [],
+    filters: {},
+    min_n: 20,
+    ...POOLED_META,
+    countries: [1, 22],
+  },
+)
+
+/** The pooled requests first: a route matches on its first needle. */
+const pooledTier: Routes = {
+  'pair?y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&pooled=average': pairPooled,
+  'outcome=HAPPY&wave=Y1&pooled=average': rankedPooled,
+  'vars=ATTEND_SVCS&wave=Y1&pooled=average': tablePooled,
+  'outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&pooled=average': pooledPairRow,
+  ...tier,
+}
+
+/** A release of four countries, one of which asked Loneliness: the server
+ * ranks only questions asked in at least half of them (two), so its All
+ * countries list is empty, and its meta says where it was asked. */
+const rankedTooFew = testResponse([], {
+  outcome: 'LONELY',
+  stat: 'pearson_r',
+  se_method: 'none',
+  by: [],
+  filters: {},
+  adjusted: false,
+  controls: [],
+  model: null,
+  min_n: 20,
+  n_excluded: 0,
+  dropped_overlap: {},
+  pooled: 'average',
+  countries: [1],
+  min_countries: 2,
+  n_excluded_coverage: 5,
+})
+
+const tooFewTier: Routes = {
+  'outcome=LONELY&wave=Y1&pooled=average': rankedTooFew,
+  ...tier,
+  '/data/meta.json': {
+    ...testMeta,
+    countries: [
+      ...testMeta.countries,
+      { code: 9, name: 'Japan', iso3: 'JPN' },
+      { code: 23, name: 'Sweden', iso3: 'SWE' },
+    ],
+  },
+}
+
+describe('All countries (ADR-0020)', () => {
+  test('the Country select offers All countries first; chosen, Compare two averages every country', async () => {
+    const calls = mockFetch(pooledTier)
+    const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    await screen.findByRole('img', { name: /in United States: for each of 3 answers/ })
+    const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
+    expect(select.options[0]?.text).toBe('All countries')
+    expect(select.value).toBe('22')
+    fireEvent.change(select, { target: { value: 'all' } })
+    await waitFor(() => expect(router.state.location.searchStr).toContain('country=all'))
+    const figure = await screen.findByRole('img', {
+      name: /, averaged over 2 countries: for each of 3 answers/,
+    })
+    const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
+    expect(request).toContain('pooled=average')
+    expect(request).not.toContain('filter=country_code')
+    expect(screen.getByText('All countries (average of 2) · Wave 1, 2023')).toBeInTheDocument()
+    // The toggle's first choice names the scope.
+    expect(screen.getByLabelText('All countries')).toBeChecked()
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    // The data table gains a Countries column.
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table')[0] as HTMLElement
+    expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
+    // Back to one country: the URL drops the average.
+    fireEvent.change(select, { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
+  })
+
+  test('Find related, All countries: the averaged list; a row asked in fewer countries says so', async () => {
+    const calls = mockFetch(pooledTier)
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=all')
+    const figure = await screen.findByRole('group', {
+      name: /most strongly associated with it in all countries \(their average\)/,
+    })
+    expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=average'))).toBe(true)
+    expect(
+      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
+    ).toBeInTheDocument()
+    const [lonely, attend] = within(figure).getAllByRole('button')
+    fireEvent.focus(lonely as HTMLElement)
+    expect(within(figure).getByRole('tooltip').textContent).toBe(
+      '−0.48 · Loneliness\nAsked in 1 of 2 countries.',
+    )
+    fireEvent.blur(lonely as HTMLElement)
+    fireEvent.focus(attend as HTMLElement)
+    expect(within(figure).getByRole('tooltip').textContent).toBe('+0.28 · Service attendance')
+  })
+
+  test('Find related country by country, All countries: every country A–Z, none pinned', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=all&scope=all')
+    const matrix = await screen.findByRole('img', {
+      name: /ranked for all countries \(their average\)/,
+    })
+    const headers = within(matrix).getAllByRole('columnheader')
+    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Testland', 'United States'])
+    expect(headers.some((th) => th.hasAttribute('data-highlight'))).toBe(false)
+    expect(
+      screen.getByText(
+        'The 2 questions ranked for all countries, country by country · Wave 1, 2023 · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('Compare two country by country, All countries: nothing picked out; the strip reads the average', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=all&scope=all')
+    const figure = await screen.findByRole('img', {
+      name: /their correlation in each of 2 countries, strongest first, on a fixed scale from −1 to 1\. /,
+    })
+    expect(figure.innerHTML).not.toContain('var(--control-selected)')
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
+    expect(within(strip).getByText('+0.27')).toBeInTheDocument()
+    expect(within(strip).getByText('All countries:')).toBeInTheDocument()
+    expect(figure.querySelector('svg')?.textContent).toContain('All countries +0.27')
+  })
+
+  test('Compare several, All countries: the averaged table, coverage in the tooltips, a Countries column', async () => {
+    mockFetch(pooledTier)
+    await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS&country=all')
+    const figure = await screen.findByRole('group', {
+      name: /Correlations among 3 questions averaged over 2 countries/,
+    })
+    expect(
+      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
+    ).toBeInTheDocument()
+    const lonely = within(figure).getByRole('button', {
+      name: 'Loneliness with Happiness, −0.52: see the two questions together',
+    })
+    fireEvent.focus(lonely)
+    expect(within(figure).getByRole('tooltip').textContent).toBe(
+      '−0.52 · Loneliness with Happiness\nAsked in 1 of 2 countries.',
+    )
+    fireEvent.blur(lonely)
+    fireEvent.click(screen.getByText('Data table'))
+    const data = screen.getAllByRole('table').at(-1) as HTMLElement
+    expect(within(data).getByRole('columnheader', { name: 'Countries' })).toBeInTheDocument()
+  })
+
+  test('where an average over the countries stands, in words', () => {
+    const countries = [
+      ...testMeta.countries,
+      { code: 25, name: 'China', iso3: 'CHN' },
+      { code: 4, name: 'Egypt', iso3: 'EGY' },
+      { code: 9, name: 'Japan', iso3: 'JPN' },
+      { code: 23, name: 'Sweden', iso3: 'SWE' },
+    ]
+    const everyone = countries.map((country) => country.code)
+    expect(pooledPlace(everyone, countries)).toBe('All countries (average of 6)')
+    expect(pooledPlace(undefined, countries)).toBe('All countries (average of 6)')
+    expect(pooledPlace([1, 22, 9, 23], countries)).toBe(
+      'Average of 4 countries (not asked in China or Egypt)',
+    )
+    // More than three left out: the count alone.
+    expect(pooledPlace([1, 22], countries)).toBe('Average of 2 countries')
+    expect(pooledPlace([22], countries)).toBe('Average of 1 country')
+    expect(averagedOver([1, 22, 9, 23], countries)).toBe('averaged over 4 countries')
+    expect(coverageLine({ n_countries: 21 }, 23)).toBe('Asked in 21 of 23 countries.')
+    expect(coverageLine({ n_countries: 23 }, 23)).toBeUndefined()
+    expect(coverageLine({ n_countries: null }, 23)).toBeUndefined()
+    expect(scopeLabel('All countries')).toBe('All countries')
+    expect(scopeLabel('Japan')).toBe('In Japan')
+  })
+
+  test('Find related, All countries, a question asked in fewer than half the countries: an empty state, no list', async () => {
+    const calls = mockFetch(tooFewTier)
+    const router = await renderAt('/correlates?view=related&outcome=LONELY&country=all')
+    const title = await screen.findByText('No All countries list')
+    const sentence = title.nextElementSibling as HTMLElement
+    // The owner's words, with the server's numbers: where it was asked, of
+    // how many, the rule, and what to do.
+    expect(sentence.textContent).toBe(
+      'Loneliness was asked in 1 of 4 countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.',
+    )
+    expect(sentence.querySelector('em')?.textContent).toBe('Loneliness')
+    // An empty state in the list's place: no chart, no note under one, no
+    // data table — and the question can still be changed.
+    const main = screen.getByRole('main')
+    expect(main.querySelector('figure')).toBeNull()
+    expect(visibleText(main)).not.toContain(CORRELATES_NOTE)
+    expect(screen.getByRole('button', { name: 'Question: Loneliness' })).toBeInTheDocument()
+    expect(screen.getByLabelText('All countries', { selector: 'input' })).toBeChecked()
+    // Country by country follows the list: the same words, and no request
+    // for a table of nothing.
+    fireEvent.click(screen.getByLabelText('Country by country'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
+    expect(screen.getByText('No All countries list')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing ranked')).toBeNull()
+    expect(calls.some((url) => url.includes('by=country_code'))).toBe(false)
+    // Choosing a country brings that country's list: the rule is about
+    // All countries lists only.
+    fireEvent.click(screen.getByLabelText('All countries', { selector: 'input' }))
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('scope='))
+    const select = within(main).getByLabelText('Country') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: '22' } })
+    await screen.findByRole('group', {
+      name: /^Loneliness: the 2 questions most strongly associated with it in United States/,
+    })
+    expect(screen.queryByText('No All countries list')).toBeNull()
+  })
+
+  test('the empty state is for that one case: the server’s rule, the server’s numbers', () => {
+    const meta = { min_countries: 12, countries: [1, 2, 5, 6, 9, 17, 20, 22, 23] }
+    expect(askedInTooFew({ meta, rows: [] })).toBe(9)
+    expect(tooFewCountries(9, 23)).toBe(
+      ' was asked in 9 of 23 countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.',
+    )
+    // A list, however short, is a list.
+    expect(askedInTooFew({ meta, rows: [plainRow('HAPPY', 0.3)] })).toBeUndefined()
+    // Asked in enough countries, and still nothing ranked: another matter.
+    const twelve = Array.from({ length: 12 }, (_, index) => index + 1)
+    expect(askedInTooFew({ meta: { ...meta, countries: twelve }, rows: [] })).toBeUndefined()
+    // One country's sweep, or a list of named questions, carries no rule.
+    expect(
+      askedInTooFew({ meta: { min_countries: null, countries: null }, rows: [] }),
+    ).toBeUndefined()
+    expect(askedInTooFew({ meta: {}, rows: [] })).toBeUndefined()
+    // Asked nowhere at all: said as it is.
+    expect(askedInTooFew({ meta: { min_countries: 12, countries: [] }, rows: [] })).toBe(0)
+  })
+})
+
+// --- Midyear: reachable, and paired with 2023 or 2024 (ADR-0020) ----------
+
+const timeMediaVariable: VariableSummary = {
+  ...attendVariable,
+  name: 'TIME_MEDIA',
+  display_name: 'Daily social media time',
+  family: 'midyear',
+  subfamily: null,
+  waves_available: ['MY'],
+  min: 1,
+  max: 5,
+}
+
+const midyearTier: Routes = {
+  ...tier,
+  '/data/variables.json': {
+    variables: [
+      sfiVariable,
+      happyVariable,
+      attendVariable,
+      lonelyVariable,
+      urbanVariable,
+      todayVariable,
+      incomeVariable,
+      timeMediaVariable,
+    ],
+  },
+}
+
+/** The row note at Midyear as a reader hears it: its inline choice of
+ * year read as the year chosen, "[2023]". */
+function noteSentence(): string {
+  const select = screen.getByRole('combobox', {
+    name: 'Year of the other answers',
+  }) as HTMLSelectElement
+  const note = select.closest('p') as HTMLElement
+  const clone = note.cloneNode(true) as HTMLElement
+  clone.querySelector('select')?.replaceWith(`[${select.value === 'Y2' ? '2024' : '2023'}]`)
+  return (clone.textContent ?? '').replace(/\s+/g, ' ').trim()
+}
+
+describe('Midyear (ADR-0020)', () => {
+  test('the Midyear chip is open; chosen, Compare two takes a midyear question beside 2023 answers', async () => {
+    const calls = mockFetch(midyearTier)
+    const router = await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
+    expect(screen.queryByRole('combobox', { name: 'Year of the other answers' })).toBeNull()
+    fireEvent.click(within(wave).getByText('Midyear', { exact: true }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
+    expect(
+      screen.getByText(
+        'Daily social media time, from the midyear survey, took the place of Life evaluation today.',
+      ),
+    ).toHaveAttribute('role', 'status')
+    // No second row of year buttons: the choice is in the note's sentence,
+    // worded for the country on screen (every US midyear respondent
+    // answered inside the Wave 2 interview).
+    expect(screen.getByRole('combobox', { name: 'Year of the other answers' })).toHaveValue('Y1')
+    expect(noteSentence()).toBe(
+      'The other question uses the same people’s [2023] answers, given about 12 months earlier.',
+    )
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
+    expect(request).toContain('y=INCOME_FEELINGS&x=TIME_MEDIA&wave=MY')
+    expect(request).toContain('other_wave=Y1')
+    expect(
+      screen.getByText('United States · Midyear survey, with 2023 answers from the same people'),
+    ).toBeInTheDocument()
+    // The other wave's question wears its year: on its trigger, its axis.
+    expect(
+      screen.getByRole('button', {
+        name: 'Second question: Feelings about household income, 2023 answers',
+      }),
+    ).toHaveTextContent('2023')
+    expect(
+      screen.getByRole('button', { name: 'First question: Daily social media time' }),
+    ).toBeVisible()
+  })
+
+  test('2024 answers: the note’s choice switches the request, the note and the subtitle', async () => {
+    const calls = mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const other = screen.getByRole('combobox', { name: 'Year of the other answers' })
+    fireEvent.change(other, { target: { value: 'Y2' } })
+    await waitFor(() => expect(router.state.location.searchStr).toContain('other=Y2'))
+    await waitFor(() =>
+      expect(
+        calls.some((url) => url.includes('/v1/correlations/pair') && url.includes('other_wave=Y2')),
+      ).toBe(true),
+    )
+    expect(noteSentence()).toBe(
+      'The other question uses the same people’s [2024] answers, from the same interview.',
+    )
+    expect(
+      await screen.findByText(
+        'United States · Midyear survey, with 2024 answers from the same people',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('back to 2023 with a midyear question in view: the default takes its place, the line says so', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    fireEvent.click(within(wave).getByText('2023', { exact: true }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+    expect(
+      screen.getByText(
+        'Daily social media time was asked only in the midyear survey, so Life evaluation today took its place.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('picking a midyear question at 2023 switches to Midyear; the picker tags it', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    await screen.findByRole('group', { name: /most strongly associated with it/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    const picker = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(picker).getByRole('searchbox'), { target: { value: 'social' } })
+    const option = within(picker).getByRole('option', { name: 'Daily social media time, Midyear' })
+    expect(option).not.toHaveAttribute('aria-disabled')
+    fireEvent.click(option)
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?view=related&outcome=TIME_MEDIA&wave=MY'),
+    )
+    // Only what changed: the note under the row says whose answers and when.
+    expect(
+      screen.getByText(
+        'Daily social media time is a midyear question, so the page switched to Midyear.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  test('Find related at Midyear ranks other waves’ questions; the note, not each row, names their year', async () => {
+    const calls = mockFetch(midyearTier)
+    await renderAt('/correlates?view=related&outcome=TIME_MEDIA&wave=MY')
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
+    const request = calls.find((url) => url.includes('/v1/correlates')) as string
+    expect(request).toContain('outcome=TIME_MEDIA&wave=MY')
+    expect(request).toContain('other_wave=Y1')
+    const svgText = figure.querySelector('svg')?.textContent ?? ''
+    expect(svgText).toContain('Loneliness')
+    expect(svgText).not.toContain('(2023)')
+    expect(noteSentence()).toBe(
+      'The other questions use the same people’s [2023] answers, given about 12 months earlier.',
+    )
+    expect(
+      screen.getByText(
+        'United States · Midyear survey, with 2023 answers from the same people · correlation, −1 to 1',
+      ),
+    ).toBeInTheDocument()
+    // Its picker tags the others by their answers' year.
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Daily social media time' }))
+    const picker = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(picker).getByRole('searchbox'), { target: { value: 'lonel' } })
+    expect(
+      within(picker).getByRole('option', { name: 'Loneliness, 2023 answers' }),
+    ).toBeInTheDocument()
+  })
+
+  test('a link to a midyear question at 2023 lands at Midyear', async () => {
+    mockFetch(midyearTier)
+    const router = await renderAt('/correlates?a=TIME_MEDIA')
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
+  })
+})
 
 describe('Correlates view', () => {
   test('a first visit lands on Compare two with the default pair, one chart and no causes', async () => {
@@ -496,11 +977,28 @@ describe('Correlates view', () => {
       (node) => node.textContent,
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
-    // The key and the axis ends say "a higher/lower" question.
-    expect(screen.getByText('Goes with a higher Happiness')).toBeInTheDocument()
-    expect(screen.getByText('Goes with a lower Happiness')).toBeInTheDocument()
-    expect(svgText).toContain('← goes with a lower Happiness')
-    expect(svgText).toContain('goes with a higher Happiness →')
+    // No dot key above the list (review L6): the axis ends carry the
+    // direction, in answers — "higher answers to", never "a higher" (L2).
+    // "higher" and "lower" set apart: bold italic tspans in ink under the
+    // axis (so the PNG carries them).
+    expect(screen.queryByText(/^Goes with a/)).toBeNull()
+    // (Each end may wrap: read its lines as words.)
+    const ends = [...figure.querySelectorAll('g[aria-description="axis end"] text')].map((node) => {
+      const lines = [...node.querySelectorAll(':scope > tspan')]
+      return (lines.length > 0 ? lines : [node]).map((line) => line.textContent).join(' ')
+    })
+    expect(ends).toEqual([
+      '← goes with lower answers to Happiness',
+      'goes with higher answers to Happiness →',
+    ])
+    expect(svgText).not.toMatch(/with a (higher|lower)/)
+    const turns = [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style]')]
+    expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
+    for (const node of turns) {
+      expect(node.getAttribute('font-style')).toBe('italic')
+      expect(node.getAttribute('font-weight')).toBe('600')
+      expect(node.getAttribute('fill')).toBe('var(--ink)')
+    }
     // Every row is a real button (label and dot alike); its tooltip is
     // the value and the question — never the n.
     const rowButtons = within(figure).getAllByRole('button')
@@ -512,8 +1010,10 @@ describe('Correlates view', () => {
     expect(within(figure).getByRole('tooltip')).toHaveTextContent(/^−0\.52 · Loneliness$/)
     fireEvent.blur(rowButtons[0] as HTMLElement)
     const text = visibleText(screen.getByRole('main'))
-    expect(text).toContain('Dots are point estimates — no confidence interval is computed')
-    // The footnote carries the overlap sentence only: not how many went unranked.
+    // One note under the chart, and nothing else: no interval clause, no
+    // Methods link, not how many went unranked (ADR-0020).
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(text).not.toContain('Dots are point estimates')
     expect(text).not.toMatch(/not ranked|respondents are/)
     expect(text).not.toContain('95%')
     expect(text).not.toMatch(/adjusted|accounting for|model card|standard deviation|cause/i)
@@ -528,7 +1028,14 @@ describe('Correlates view', () => {
     // The data table names the question and its n on every row.
     fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
     const data = screen.getAllByRole('table')[0] as HTMLElement
-    expect(within(data).getByRole('columnheader', { name: 'Measure' })).toBeInTheDocument()
+    // Plain headings and caption: "Question", "Correlation", and the
+    // weighting in words — no weight code (review M6).
+    expect(within(data).getByRole('columnheader', { name: 'Question' })).toBeInTheDocument()
+    expect(within(data).getByRole('columnheader', { name: 'Correlation' })).toBeInTheDocument()
+    expect(
+      within(data).getByText('Weighted to each country’s adult population.'),
+    ).toBeInTheDocument()
+    expect(data.textContent).not.toContain('w_c1')
     expect(within(data).getByText('Loneliness')).toBeInTheDocument()
     expect(within(data).getAllByText('54').length).toBeGreaterThan(0)
   })
@@ -537,12 +1044,12 @@ describe('Correlates view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?view=related&outcome=HAPPY')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.click(screen.getByLabelText('In every country'))
+    fireEvent.click(screen.getByLabelText('Country by country'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
     expect(screen.queryByRole('group', { name: /most strongly associated with it/ })).toBeNull()
-    expect(screen.getByText('What goes with Happiness, in every country')).toBeInTheDocument()
+    expect(screen.getByText('What goes with Happiness, country by country')).toBeInTheDocument()
     const table = within(matrix).getByRole('table')
     const headers = within(table).getAllByRole('columnheader')
     expect(headers.map((th) => th.textContent)).toEqual([
@@ -557,20 +1064,30 @@ describe('Correlates view', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.40',
       '−0.52',
-      '+0.05*, few people behind this estimate',
+      '+0.05*, small sample size',
       '+0.31',
     ])
     expect(cells[2]).toHaveAttribute('data-flagged')
     expect(cells[2]?.getAttribute('style')).toContain('var(--div-')
     fireEvent.pointerEnter(cells[2] as HTMLElement)
     const tip = within(matrix).getByRole('tooltip').textContent ?? ''
-    expect(tip).toContain('+0.05')
-    expect(tip).toContain('Few people gave these answers, so this estimate is less reliable.')
+    expect(tip).toContain('+0.05*')
+    expect(tip).not.toMatch(/Few people|less reliable/)
     expect(tip).not.toMatch(/n =|people answered|Too few/)
     fireEvent.pointerLeave(cells[2] as HTMLElement)
-    expect(
-      within(matrix).getByText('* few people behind this estimate — less reliable'),
-    ).toBeInTheDocument()
+    expect(within(matrix).getByText('* small sample size')).toBeInTheDocument()
+    expect(figureNote(matrix)).toBe(CORRELATES_NOTE)
+    // The legend's turning words, in <em>.
+    const legendWords = within(matrix).getByText(
+      (_, node) =>
+        node?.tagName === 'SPAN' &&
+        node.textContent ===
+          'rust: goes with lower answers to Happiness · teal: goes with higher answers to Happiness',
+    )
+    expect([...legendWords.querySelectorAll('em')].map((node) => node.textContent)).toEqual([
+      'lower',
+      'higher',
+    ])
     expect(within(matrix).queryByText(/— too few/)).toBeNull()
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))
     expect(correlates).toHaveLength(2)
@@ -624,20 +1141,40 @@ describe('Correlates view', () => {
     // The rows' people on the columns' answers: the second on the rows.
     const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
     expect(pair).toContain('y=INCOME_FEELINGS&x=ATTEND_SVCS&wave=Y1&filter=country_code%3A22')
+    const caption = figure.closest('figure')?.querySelector('figcaption') as HTMLElement
     expect(
-      screen.getByText('Service attendance and Feelings about household income'),
+      within(caption).getByText('Service attendance and Feelings about household income'),
     ).toBeInTheDocument()
     expect(screen.getByText('United States · Wave 1, 2023')).toBeInTheDocument()
-    // The header row: the correlation strip, and where.
-    expect(screen.getByText('Correlation')).toBeInTheDocument()
-    expect(screen.getByText('+0.31')).toBeInTheDocument()
+    // The header: the correlation strip alone. Where is chosen outside
+    // the figure, under the shared control row, as in Find related.
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
+    expect(within(strip).getByText('+0.31')).toBeInTheDocument()
     expect(screen.getByLabelText('In United States')).toBeChecked()
-    expect(screen.getByLabelText('In every country')).not.toBeChecked()
-    // The legend: fixed bins, and the asterisk.
-    expect(screen.getByText('Share of each column')).toBeInTheDocument()
-    expect(
-      screen.getByText('* few people behind this estimate — less reliable'),
-    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Country by country')).not.toBeChecked()
+    const where = screen.getByRole('group', { name: 'Where' })
+    expect(figure.contains(where)).toBe(false)
+    const shared = screen.getByRole('group', { name: 'Correlation type' })
+    expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The legend: how to read it, the fixed bins, and the asterisk.
+    const key = screen.getByText('Share of each column (columns add to 100%)')
+    expect(screen.getByText('* small sample size')).toBeInTheDocument()
+    // Its nine steps, the grid's own ramp, each over the bin it starts at.
+    const swatches = [...(key.parentElement as HTMLElement).querySelectorAll('span[style]')]
+    expect(swatches.map((swatch) => swatch.getAttribute('style'))).toEqual(
+      SHARE_RAMP.map((token) => `background: ${token};`),
+    )
+    expect(swatches.map((swatch) => swatch.nextElementSibling?.textContent)).toEqual([
+      '0',
+      '5',
+      '10',
+      '20',
+      '30',
+      '45',
+      '60',
+      '75',
+      '90%+',
+    ])
     // One SVG: the bars, the grid and every label (so the PNG carries them).
     const svgs = figure.querySelectorAll('svg')
     expect(svgs).toHaveLength(1)
@@ -664,17 +1201,21 @@ describe('Correlates view', () => {
     expect(svg.innerHTML).toContain('var(--seq-')
     expect(svg.innerHTML).toContain('stroke-dasharray="3,2"')
     expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
-    // The footnote says how to read it; no causes.
+    // One note, after the data table; no column explanation, no causes.
     const main = visibleText(screen.getByRole('main'))
-    expect(main).toContain(
-      'Each column is the people who gave that answer to Service attendance; the shading shows how they answered Feelings about household income, adding to 100% down the column.',
-    )
-    expect(main).toContain('Hover a cell for its 95% confidence interval')
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(main).not.toContain('Each column is the people')
+    expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
-    expect(screen.getByRole('link', { name: 'How these numbers are made' })).toBeInTheDocument()
-    // The data table names both questions' answers, with every n.
+    expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
+    // The screen-reader summary ends on the stars.
+    expect(figure.getAttribute('aria-label')).toMatch(
+      / \d+ cells are starred: small sample size\.$/,
+    )
+    // The data table names both questions' answers, with every n (its
+    // second table: the grid, after the bars).
     fireEvent.click(screen.getByText('Data table'))
-    const data = screen.getAllByRole('table')[0] as HTMLElement
+    const data = screen.getAllByRole('table')[1] as HTMLElement
     expect(
       within(data).getByRole('columnheader', { name: 'Service attendance' }),
     ).toBeInTheDocument()
@@ -686,20 +1227,20 @@ describe('Correlates view', () => {
   })
 
   test('Compare two in every country: the pair’s correlation in each, the chosen one picked out', async () => {
-    const calls = mockFetch(tier)
+    const calls = mockFetch(pooledTier)
     const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
     await screen.findByRole('img', {
       name: /Service attendance and Feelings about household income in/,
     })
-    fireEvent.click(screen.getByLabelText('In every country'))
+    fireEvent.click(screen.getByLabelText('Country by country'))
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const figure = await screen.findByRole('img', {
       name: /their correlation in each of 2 countries/,
     })
     // Only this chart: the grid has left.
-    expect(screen.queryByText('Share of each column')).toBeNull()
+    expect(screen.queryByText('Share of each column (columns add to 100%)')).toBeNull()
     expect(
-      screen.getByText('Every country · Wave 1, 2023 · correlation, −1 to 1'),
+      screen.getByText('Country by country · Wave 1, 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const request = calls.find((url) => url.includes('by=country_code')) as string
     expect(request).toContain('outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&by=country_code')
@@ -712,9 +1253,83 @@ describe('Correlates view', () => {
     )
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
     expect(figure.innerHTML).toContain('var(--control-selected)')
-    // The strip still reads the chosen country's correlation.
-    const strip = screen.getByText('Correlation').parentElement as HTMLElement
+    // The axis ends' turning words, set apart in the SVG itself.
+    expect(
+      [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style="italic"]')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['higher', 'lower', 'higher', 'higher'])
+    // The All countries average as a labelled rule, whatever country is
+    // chosen (the zero rule is the other).
+    expect(ruleLines(figure)).toBe(2)
+    expect(svgText).toContain('All countries +0.27')
+    expect(figure.getAttribute('aria-label')).toContain(
+      'A dashed line marks the All countries average, +0.27.',
+    )
+    // The strip still reads the chosen country's correlation, and names it.
+    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
+    expect(within(strip).getByText('United States:')).toBeInTheDocument()
+  })
+
+  test('Compare two country by country: a country that was not asked has no row', async () => {
+    mockFetch({
+      ...pooledTier,
+      'against=INCOME_FEELINGS&by=country_code': {
+        ...pairAcross,
+        rows: pairAcross.rows.map((row) =>
+          row.group['country_code'] === 1 ? { ...row, estimate: null, n: 0, sum_w: 0 } : row,
+        ),
+      },
+    })
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&scope=all')
+    const figure = await screen.findByRole('img', {
+      name: /their correlation in each of 1 countries/,
+    })
+    expect(figure.querySelector('svg')?.textContent ?? '').not.toContain('Testland')
+  })
+
+  test('Compare two: the data table below carries every number, as the summary says', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    const figure = await screen.findByRole('img', {
+      name: /The data table below carries every number\./,
+    })
+    const holder = figure.closest('figure') as HTMLElement
+    fireEvent.click(within(holder).getByText('Data table'))
+    const tables = within(holder).getAllByRole('table')
+    const text = tables.map((table) => table.textContent ?? '').join(' ')
+    // The bars, every cell and the correlation, each value as the table
+    // prints it; the asterisks as a "Small sample" column.
+    for (const column of pairFixture.columns)
+      expect(text).toContain(formatEstimate(column.share, 'proportion'))
+    for (const row of pairFixture.shares.rows)
+      expect(text).toContain(formatEstimate(row.estimate, 'proportion'))
+    expect(text).toContain(formatEstimate(pairFixture.correlation.estimate, 'pearson_r'))
+    const headers = tables.map((table) =>
+      within(table)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    )
+    expect(headers[0]).toContain('Share')
+    expect(headers[1]).toContain('Share of column')
+    expect(headers[2]).toContain('Correlation')
+    for (const header of headers) expect(header).toContain('Small sample')
+    const flagged = pairFixture.cells.filter((cell) => cell.flagged).length
+    expect(within(tables[1] as HTMLElement).queryAllByText('Yes')).toHaveLength(flagged)
+    // The weighting in words; no weight code.
+    expect(text).toContain('Weighted to each country’s adult population.')
+    expect(text).not.toMatch(/w_c1|Weighted estimates/)
+  })
+
+  test('Swap keeps to the last picker’s line: one no-wrap group with the "?" (review L3)', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    const swap = screen.getByRole('button', { name: /Swap/ })
+    const group = swap.parentElement as HTMLElement
+    expect(within(group).getByRole('button', { name: /^Second question:/ })).toBeInTheDocument()
+    expect(group.textContent).toMatch(/\?⇄ Swap$/)
   })
 
   test('Compare two: pick either question, and Swap exchanges the two', async () => {
@@ -787,7 +1402,7 @@ describe('Correlates view', () => {
     await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&b=LONELY'))
   })
 
-  test('the footnote says which overlapping questions the ranking left out', async () => {
+  test('the ranking’s overlap is not spelled out under the chart', async () => {
     mockFetch({
       ...tier,
       'filter=country_code%3A22': {
@@ -796,11 +1411,9 @@ describe('Correlates view', () => {
       },
     })
     await renderAt('/correlates?view=related&outcome=HAPPY')
-    expect(
-      await screen.findByText(
-        /Secure Flourishing Index is shown; its individual questions are left out\./,
-      ),
-    ).toBeInTheDocument()
+    const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(screen.queryByText(/are left out/)).toBeNull()
   })
 
   test('Compare several starts from the pair and the first question’s top correlates', async () => {
@@ -832,30 +1445,29 @@ describe('Correlates view', () => {
     expect(screen.queryByText(/Start from/)).toBeNull()
     const table = within(figure).getByRole('table')
     // Rows are the questions from the second on; columns up to the last
-    // but one — by short name, with no numbers anywhere; headers angled.
+    // but one — by short name, with no numbers at six questions or fewer;
+    // headings horizontal, over an empty, unshaded corner (review M7).
     expect(
       within(table)
         .getAllByRole('rowheader')
         .map((th) => th.textContent),
     ).toEqual(['Loneliness', 'Service attendance'])
     const headers = within(table).getAllByRole('columnheader')
-    expect(headers.slice(1).map((th) => th.textContent)).toEqual(['Happiness', 'Loneliness'])
-    expect(table).toHaveAttribute('data-angled')
+    expect(headers.map((th) => th.textContent)).toEqual(['Happiness', 'Loneliness'])
+    expect(table.textContent).not.toMatch(/Question ↓|with →/)
     const cells = within(table).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.52',
       '',
       '·, built from the same answers',
-      '+0.20*, few people behind this estimate',
+      '+0.20*, small sample size',
     ])
     // The tint is on a fixed −1 to 1: −0.52 is the middle rust step, not the deepest.
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-n3)')
     // One line of legend: the ramp's ends, the asterisk, the dot — no numbers of questions.
     const legend = figure.querySelector('[class*=legendRow]') as HTMLElement
-    expect(legend.textContent).toBe(
-      '−1+1* few people behind this estimate· built from the same answers',
-    )
-    // The tooltip: the value, the row with the column; flagged, the sentence.
+    expect(legend.textContent).toBe('−1+1* small sample size· built from the same answers')
+    // The tooltip: the value (starred when flagged), the row with the column.
     const lonely = within(table).getByRole('button', {
       name: 'Loneliness with Happiness, −0.52: see the two questions together',
     })
@@ -864,6 +1476,11 @@ describe('Correlates view', () => {
       /^−0\.52 · Loneliness with Happiness$/,
     )
     fireEvent.blur(lonely)
+    const flagged = within(table).getByRole('button', { name: /\+0\.20, small sample size/ })
+    fireEvent.focus(flagged)
+    expect(within(figure).getByRole('tooltip').textContent).toMatch(/^\+0\.20\* · /)
+    fireEvent.blur(flagged)
+    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
     expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
     // A cell opens Compare two: the column first, the row second.
     fireEvent.click(lonely)
@@ -872,6 +1489,75 @@ describe('Correlates view', () => {
         '?a=HAPPY&b=LONELY&vars=HAPPY%2CLONELY%2CATTEND_SVCS',
       ),
     )
+  })
+
+  test('on a phone the shared row folds into one line; Change opens it in place', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('40rem'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+    mockFetch(tier)
+    await renderAt('/correlates')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    expect(screen.getByText('2023 · United States · Straight-line')).toBeVisible()
+    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+    const change = screen.getByRole('button', { name: 'Change wave, country and correlation type' })
+    expect(change).toHaveTextContent('Change')
+    expect(change).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(change)
+    expect(screen.getByRole('group', { name: 'Wave' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Correlation type' })).toBeInTheDocument()
+    const done = screen.getByRole('button', { name: 'Done changing' })
+    expect(done).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(done)
+    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+  })
+
+  test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('40rem'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+    mockFetch(tier)
+    await renderAt('/correlates?view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
+    const figure = await screen.findByRole('group', { name: /Correlations among 3 questions/ })
+    const table = within(figure).getByRole('table')
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.map((th) => th.textContent)).toEqual(['1', '2'])
+    // A numbered heading's full name is its accessible name.
+    expect(headers[0]).toHaveAttribute('aria-label', 'Happiness')
+    // Every question has a row, so every number has its name.
+    expect(
+      within(table)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['1. Happiness', '2. Loneliness', '3. Service attendance'])
+  })
+
+  test('a heading wraps to three lines at most: the column widens until it does', () => {
+    const measure = (text: string) => text.length * 7
+    expect(headingColumnWidth(['Happiness'], measure)).toBe(60)
+    const long = ['Feelings about household income', 'Religious service attendance']
+    const width = headingColumnWidth(long, measure)
+    expect(width).toBeGreaterThan(60)
+    for (const label of long)
+      expect(
+        wrapLabel(label, width - 2 * HEAT_CELL_PAD, measure, Infinity).length,
+      ).toBeLessThanOrEqual(3)
+    // Never past the cap: a longer heading takes more lines instead.
+    expect(headingColumnWidth(['word '.repeat(60)], measure)).toBe(150)
   })
 
   test('Compare several: similar together is the server’s order; the page only reorders', async () => {
@@ -886,7 +1572,6 @@ describe('Correlates view', () => {
       expect(
         within(table)
           .getAllByRole('columnheader')
-          .slice(1)
           .map((th) => th.textContent),
       ).toEqual(['Loneliness', 'Happiness']),
     )
@@ -1010,8 +1695,9 @@ describe('Correlates view', () => {
     expect(screen.queryByRole('button', { name: /^Method/ })).toBeNull()
     // The reason a wave is unavailable is one line under the whole row,
     // not inside the Wave column; the disabled options point to it.
+    // (Midyear is never unavailable: its questions come from any wave.)
     const note = screen.getByText(
-      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+      "2024 isn't available: the two questions weren't both asked in Wave 2.",
     )
     expect(wave).not.toContainElement(note)
     expect(note.previousElementSibling).toContainElement(type)
@@ -1021,12 +1707,22 @@ describe('Correlates view', () => {
     const info = screen.getByRole('button', { name: 'What’s the difference?' })
     expect(info).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(info)
-    expect(
-      screen.getByText('Straight-line (Pearson): how closely two answers follow a straight line.'),
-    ).toBeVisible()
-    expect(
-      screen.getByText('By rank (Spearman): how consistently one rises with the other.'),
-    ).toBeVisible()
+    // Four short paragraphs, each method named in bold.
+    const panel = document.getElementById(info.getAttribute('aria-controls') ?? '') as HTMLElement
+    expect(panel).toBeVisible()
+    expect(panel).toHaveAttribute('data-variant', 'info')
+    const paragraphs = [...panel.querySelectorAll('p')].map((p) => p.textContent)
+    expect(paragraphs).toHaveLength(4)
+    expect(paragraphs[0]).toMatch(/^Both numbers run from −1 to 1\. Near 0/)
+    expect(paragraphs[1]).toMatch(/^Straight-line \(Pearson\) treats answers as numbers/)
+    expect(paragraphs[2]).toMatch(/^By rank \(Spearman\) puts people in order/)
+    expect(paragraphs[3]).toMatch(/are pulling Straight-line\.$/)
+    // Only the method names in their own paragraphs are bold; the last
+    // sentence's "Straight-line" is plain (review L5).
+    expect([...panel.querySelectorAll('strong')].map((b) => b.textContent)).toEqual([
+      'Straight-line (Pearson)',
+      'By rank (Spearman)',
+    ])
     fireEvent.keyDown(info, { key: 'Escape' })
     expect(info).toHaveAttribute('aria-expanded', 'false')
     expect(info).toHaveFocus()
@@ -1049,7 +1745,9 @@ describe('Correlates view', () => {
     await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
+    // Every country pooled first, then each A–Z.
     expect([...select.options].map((option) => option.text)).toEqual([
+      'All countries',
       'Albania',
       'Testland',
       'United States',
@@ -1076,22 +1774,24 @@ describe('Correlates view', () => {
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
   })
 
-  test('a wave the questions were not asked in is unavailable, and the line under the row says why', async () => {
-    const calls = mockFetch(tier)
-    await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
-    expect(await screen.findByText(/wasn't asked in Midyear survey/)).toBeInTheDocument()
-    expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
-    const midyear = screen.getByLabelText('Midyear')
-    expect(midyear).toBeDisabled()
-    expect(midyear).toHaveAccessibleDescription(
-      "Midyear isn't available: this question wasn't asked in the midyear survey.",
-    )
-    // Compare two: the pair's waves.
+  test('a wave the questions were not asked in is unavailable, and the line under the row says why — never Midyear', async () => {
+    mockFetch(tier)
+    // Compare two: the pair's waves; Midyear stays open (ADR-0020).
     await renderAt('/correlates?a=HAPPY&b=LONELY')
     await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
-    expect(screen.getAllByLabelText('2024').at(-1)).toHaveAccessibleDescription(
-      "Midyear and 2024 aren't available: the two questions were both asked only in Wave 1.",
+    const wave = screen.getByRole('group', { name: 'Wave' })
+    expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
+    expect(within(wave).getByLabelText('2024')).toBeDisabled()
+    expect(within(wave).getByLabelText('2024')).toHaveAccessibleDescription(
+      "2024 isn't available: the two questions weren't both asked in Wave 2.",
     )
+    // A link at Midyear with no midyear question in view shows the other
+    // answers' wave instead, and says so.
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&wave=MY')
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('wave='))
+    expect(
+      await screen.findByText('No midyear question is left, so the page switched to 2023.'),
+    ).toBeInTheDocument()
   })
 
   test('choosing a country changes the request; the default country never reaches the URL', async () => {
@@ -1127,6 +1827,12 @@ describe('correlates helpers', () => {
     expect(signMark(-0.1)).toBe('var(--div-neg-mark)')
     expect(signMark(0.1)).toBe('var(--div-pos-mark)')
     expect(signMark(null)).toBe('var(--div-pos-mark)')
+    // A value that shows as 0.00 has no sign on the page: neutral ink.
+    expect(signMark(0.004)).toBe('var(--ink-secondary)')
+    expect(signMark(-0.004)).toBe('var(--ink-secondary)')
+    expect(signMark(0)).toBe('var(--ink-secondary)')
+    expect(signMark(-0.005)).toBe('var(--div-neg-mark)')
+    expect(formatEstimate(-0.004, 'pearson_r')).toBe('0.00')
   })
 
   test('predictor order, the cell lookup, countries by name', () => {
@@ -1144,12 +1850,10 @@ describe('correlates helpers', () => {
     expect(defaultCountry({ countries: [{ code: 3, name: 'Elsewhere', iso3: 'ELS' }] })).toBe(3)
   })
 
-  test('the tint extent fits the data; the legend and subtitle say so in words', () => {
-    expect(tintExtent(acrossPlain.rows)).toBe(0.52)
-    expect(tintExtent([])).toBe(1)
+  test('the legend and subtitle say the window in words', () => {
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
-      'The 20 questions ranked for Japan, in every country · Wave 2, 2024 · correlation, −1 to 1',
+      'The 20 questions ranked for Japan, country by country · Wave 2, 2024 · correlation, −1 to 1',
     )
     expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 question ranked for Japan')
     const countries = [
@@ -1178,9 +1882,12 @@ describe('correlates helpers', () => {
     expect(belowFloor({ n: 100 }, 100)).toBe(false)
     expect(belowFloor({ n: 7 }, null)).toBe(false)
     // An asterisk only on a value: a cell with no estimate says so instead.
-    expect(fewPeople({ estimate: 0.1, n: 7 }, 100)).toBe(true)
-    expect(fewPeople({ estimate: null, n: 7 }, 100)).toBe(false)
-    expect(fewPeople({ estimate: 0.1, n: 700 }, 100)).toBe(false)
+    expect(fewPeople({ estimate: 0.1, n: 7, flagged: false }, 100)).toBe(true)
+    expect(fewPeople({ estimate: null, n: 7, flagged: false }, 100)).toBe(false)
+    expect(fewPeople({ estimate: 0.1, n: 700, flagged: false }, 100)).toBe(false)
+    // An average: starred when the server flags every country in it
+    // below the floor, whatever the countries' total (ADR-0020).
+    expect(fewPeople({ estimate: 0.1, n: 700, flagged: true }, 100)).toBe(true)
     // Columns past the visible edge of the matrix, for the "N more" hint.
     expect(columnsPastEdge([100, 200, 300, 400], 250)).toBe(2)
     expect(columnsPastEdge([100, 200], 250)).toBe(0)
@@ -1193,14 +1900,14 @@ describe('correlates helpers', () => {
       'Japan · Wave 2, 2024 · correlation, −1 to 1',
     )
     expect(axisEnds('Happiness')).toEqual([
-      '← goes with a lower Happiness',
-      'goes with a higher Happiness →',
+      '← goes with lower answers to Happiness',
+      'goes with higher answers to Happiness →',
     ])
     // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
-    // correlation few people are behind says so in a sentence.
+    // correlation few people are behind keeps its asterisk, and no more.
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude')).toBe('+0.41 · Gratitude')
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude', true)).toBe(
-      '+0.41 · Gratitude\nFew people gave these answers, so this estimate is less reliable.',
+      '+0.41* · Gratitude',
     )
     expect(starred('+0.41', true)).toBe('+0.41*')
     expect(starred('+0.41', false)).toBe('+0.41')
@@ -1226,52 +1933,6 @@ describe('correlates helpers', () => {
     expect(waveNote(['Y1'], 'table')).toBe(
       "Midyear and 2024 aren't available: fewer than two of these questions were asked in the midyear survey and Wave 2.",
     )
-  })
-
-  test('the overlap footnote is built from what the server left out', () => {
-    const byName = {
-      phq2_score: { display_name: 'PHQ-2 depression score', is_derived: true, scale_type: 'count' },
-      gad2_score: { display_name: 'GAD-2 anxiety score', is_derived: true, scale_type: 'count' },
-      phq2_positive: {
-        display_name: 'PHQ-2 screen positive',
-        is_derived: true,
-        scale_type: 'binary',
-      },
-      gad2_positive: {
-        display_name: 'GAD-2 screen positive',
-        is_derived: true,
-        scale_type: 'binary',
-      },
-      DEPRESSED: {
-        display_name: 'Feeling down or depressed',
-        is_derived: false,
-        scale_type: 'ordinal',
-      },
-      sfi: { display_name: 'Secure Flourishing Index', is_derived: true, scale_type: 'scale_0_10' },
-      sfi_meaning: {
-        display_name: 'SFI: meaning & purpose',
-        is_derived: true,
-        scale_type: 'scale_0_10',
-      },
-    }
-    expect(
-      overlapNote(
-        {
-          DEPRESSED: 'phq2_score',
-          phq2_positive: 'phq2_score',
-          FEEL_ANXIOUS: 'gad2_score',
-          gad2_positive: 'gad2_score',
-        },
-        byName,
-      ),
-    ).toBe(
-      'PHQ-2 depression score and GAD-2 anxiety score are shown; their individual questions and screen-positive flags are left out.',
-    )
-    expect(overlapNote({ sfi_meaning: 'sfi', HAPPY: 'sfi' }, byName)).toBe(
-      'Secure Flourishing Index is shown; its individual questions and domain scores are left out.',
-    )
-    expect(overlapNote({}, byName)).toBeUndefined()
-    expect(overlapNote(null, byName)).toBeUndefined()
   })
 
   test('Compare two in words: axis titles, tooltips without n, fixed tint bins', () => {
@@ -1301,49 +1962,96 @@ describe('correlates helpers', () => {
     }
     expect(pairAxisTitle(incomeVariable, feelingsDetail)).toBe('Feelings about household income')
     expect(pairAxisTitle(sfiVariable, todayDetail)).toBe('Secure Flourishing Index')
+    // Tooltips in plain words (review M2): three lines, no asterisk, no n.
+    expect(likelyRange(0.438, 0.864)).toBe('Likely range: 44%–86%')
+    expect(likelyRange(-0.004, 0.021)).toBe('Likely range: 0%–2%')
+    expect(likelyRange(null, 0.5)).toBeUndefined()
     const tip = {
-      aLevel: '3',
+      aLevel: '0',
       aShort: 'Life evaluation today',
-      bLevel: 'Getting by on present income',
+      bLevel: 'Finding it very difficult on present income',
       bShort: 'Feelings about household income',
-      share: 0.184,
-      interval: '95% CI [15.0%, 21.8%]',
-      flagged: false,
+      share: 0.65,
+      range: likelyRange(0.438, 0.864),
     }
+    // A worded answer stands on its own after the share.
     expect(pairCellTip(tip)).toBe(
-      'Of people who answered 3 to Life evaluation today, 18% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]',
+      'Life evaluation today: 0\n65% — Finding it very difficult on present income\nLikely range: 44%–86%',
     )
-    expect(pairCellTip({ ...tip, share: 0.004, flagged: true })).toBe(
-      'Of people who answered 3 to Life evaluation today, <1% answered Getting by on present income to Feelings about household income.\n95% CI [15.0%, 21.8%]\nFew people gave these answers, so this estimate is less reliable.',
+    expect(pairCellTip({ ...tip, share: 0.004, range: undefined })).toBe(
+      'Life evaluation today: 0\n<1% — Finding it very difficult on present income',
     )
     expect(pairCellTip({ ...tip, share: null })).toBe(
-      'Nobody here answered 3 to Life evaluation today.',
+      'Life evaluation today: 0\nNobody here gave this answer.',
     )
+    // A bare number needs its question (the owner's check, 30 Sept: "20% —
+    // 10" said nothing): the first line and the likely range as before,
+    // and still no n.
+    const numbered = {
+      aLevel: 'More than once a week',
+      aShort: 'Religious service attendance',
+      bLevel: '10',
+      bShort: 'Life evaluation today',
+      share: 0.2,
+      range: likelyRange(0.171, 0.229),
+    }
+    expect(pairCellTip(numbered)).toBe(
+      'Religious service attendance: More than once a week\n20% answered 10 on Life evaluation today\nLikely range: 17%–23%',
+    )
+    expect(pairCellTip({ ...numbered, bLevel: '0', share: 0.004, range: undefined })).toBe(
+      'Religious service attendance: More than once a week\n<1% answered 0 on Life evaluation today',
+    )
+    expect(pairCellTip({ ...numbered, share: null })).toBe(
+      'Religious service attendance: More than once a week\nNobody here gave this answer.',
+    )
+    expect(pairCellTip(numbered)).not.toMatch(/n ?=|\bn\b/)
+    // Only a bare number: a range of a binned scale, or an answer that
+    // starts with a number, keeps the dash.
+    for (const bLevel of ['2.5–3.2', '10 or more', '1 to 2 hours']) {
+      expect(pairCellTip({ ...numbered, bLevel, range: undefined })).toBe(
+        `Religious service attendance: More than once a week\n20% — ${bLevel}`,
+      )
+    }
     expect(
       pairBarTip({
         level: '8',
         short: 'Life evaluation today',
-        share: 0.21,
-        interval: undefined,
-        flagged: false,
+        share: 0.25,
+        range: likelyRange(0.2474, 0.2561),
       }),
-    ).toBe('21% answered 8 to Life evaluation today.')
+    ).toBe('Life evaluation today: 8\n25% of people\nLikely range: 25%–26%')
     // Shares: whole percents, "<1%" for a sliver, never "0%" above zero.
     expect(shareLabel(0.57)).toBe('57%')
     expect(shareLabel(0.004)).toBe('<1%')
     expect(shareLabel(0)).toBe('0%')
-    // Fixed bins at 0/5/10/20/30/45/60%, onto the seven ramp tokens.
-    expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 1].map(shareTint)).toEqual([
-      SEQUENTIAL_RAMP[0],
-      SEQUENTIAL_RAMP[0],
-      SEQUENTIAL_RAMP[1],
-      SEQUENTIAL_RAMP[2],
-      SEQUENTIAL_RAMP[3],
-      SEQUENTIAL_RAMP[4],
-      SEQUENTIAL_RAMP[5],
-      SEQUENTIAL_RAMP[6],
-      SEQUENTIAL_RAMP[6],
+    // A narrow column leaves the "%" to the key.
+    expect(shareLabel(0.57, false)).toBe('57')
+    expect(shareLabel(0.004, false)).toBe('<1')
+    // Fixed bins at 0/5/10/20/30/45/60/75/90%, onto the grid's nine ramp
+    // tokens: they reach the top.
+    expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map(shareTint)).toEqual([
+      SHARE_RAMP[0],
+      SHARE_RAMP[0],
+      SHARE_RAMP[1],
+      SHARE_RAMP[2],
+      SHARE_RAMP[3],
+      SHARE_RAMP[4],
+      SHARE_RAMP[5],
+      SHARE_RAMP[6],
+      SHARE_RAMP[7],
+      SHARE_RAMP[8],
+      SHARE_RAMP[8],
     ])
+    // "Yes" at 84% and at 93% (review H3): two different steps.
+    expect(shareTint(0.84)).not.toBe(shareTint(0.93))
+    expect([shareTint(0.84), shareTint(0.93)]).toEqual(['var(--seq-800)', 'var(--seq-900)'])
+    // Nine steps for the grid alone: the sequential ramp's seven — the
+    // map's and the What Matters matrix's, shade for shade — then two
+    // deeper ones.
+    expect(SHARE_RAMP).toHaveLength(9)
+    expect(SEQUENTIAL_RAMP).toHaveLength(7)
+    expect(SHARE_RAMP.slice(0, 7)).toEqual([...SEQUENTIAL_RAMP])
+    expect(SHARE_RAMP.slice(7)).toEqual(['var(--seq-800)', 'var(--seq-900)'])
     expect(shareTint(null)).toBe('transparent')
   })
 
@@ -1415,6 +2123,42 @@ describe('correlates helpers', () => {
     expect(screen.getByRole('table')).not.toHaveAttribute('data-fixed')
     const row: EstimateRow = plainRow('LONELY', 0.2)
     expect(row.ci_method).toBe('none')
+  })
+
+  test('a midyear question wears its small tag: a heat table’s headers, a ranked row', () => {
+    render(
+      <HeatTable
+        caption="cap"
+        corner="rows ↓ · cols →"
+        rows={[{ key: 'a', label: 'Daily social media time', tag: 'Midyear' }]}
+        columns={[{ key: 'x', label: 'Loneliness' }]}
+        cellAt={() => ({ text: '+0.10', title: 'tip', tint: 'var(--div-p1)' })}
+      />,
+    )
+    const header = screen.getByRole('rowheader')
+    expect(header.textContent).toBe('Daily social media timeMidyear')
+    expect(within(header).getByText('Midyear').tagName).toBe('SPAN')
+    cleanup()
+    const figure = render(
+      <RankedBar
+        rows={[plainRow('TIME_MEDIA', 0.3), plainRow('LONELY', -0.2)]}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'pearson_r' })}
+        variable={happyVariable}
+        color="var(--div-pos-mark)"
+        labelOf={(row) =>
+          row.predictor === 'TIME_MEDIA' ? 'Daily social media time' : 'Loneliness'
+        }
+        fixedScale={CORRELATION_SCALE}
+        fitLabels
+        tagOf={(row) => (row.predictor === 'TIME_MEDIA' ? 'Midyear' : undefined)}
+      />,
+    ).container
+    const tags = [...figure.querySelectorAll('tspan[font-size="11"]')].map(
+      (node) => node.textContent,
+    )
+    expect(tags).toEqual(['Midyear'])
+    expect(figure.querySelector('svg')?.textContent).toContain('Daily social media time Midyear')
   })
 
   test('HeatTable: past the edge, "N more →" is a button that pages the box beside its sticky column', () => {

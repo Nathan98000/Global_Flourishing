@@ -32,6 +32,14 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY infra/data-stage/ /app/data/
 ENV FA_DATA_PATH=/app/data/flourish.duckdb
 
+# Every country's correlations (ADR-0020) — what "All countries" averages
+# and the country-by-country views show — computed once here from the
+# staged data by the same frames and estimator the API runs on demand, and
+# read at startup: a sweep over every country is too slow for the 1 CPU
+# instance to take per request. With no data staged (CI) it writes nothing
+# and the API boots as before.
+RUN python -m flourish_api.country_correlations
+
 # Set by the deploy workflow so /health reports the build.
 ARG GIT_SHA=""
 ENV FA_GIT_SHA=$GIT_SHA

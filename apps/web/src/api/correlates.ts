@@ -17,6 +17,16 @@ import type { EstimateResponse, EstimateRow, Wave } from './types'
 export type CorrelationMethod = 'pearson' | 'spearman'
 export const CORRELATION_METHODS: readonly CorrelationMethod[] = ['pearson', 'spearman']
 
+/** Where a correlation is taken: one country by its code, or every
+ * country — each on its own, and their plain average (ADR-0020). */
+export type CountryScope = number | 'all'
+
+/** A scope as the API's parameters: a country filter, or `pooled`. */
+export function appendScope(params: URLSearchParams, scope: CountryScope): void {
+  if (scope === 'all') params.set('pooled', 'average')
+  else params.append('filter', `country_code:${scope}`)
+}
+
 /** One /v1/correlates request, in the API's own vocabulary. */
 export interface CorrelatesRequest {
   outcome: string
@@ -27,6 +37,11 @@ export interface CorrelatesRequest {
   /** Group columns (country_code for the cross-country matrix; none for one country). */
   by: readonly string[]
   countries?: readonly number[]
+  /** Every country averaged (ADR-0020), in place of `countries`. */
+  pooled?: boolean
+  /** At the midyear survey: the wave the other questions' answers come
+   * from (ADR-0020); absent = the server's default, 2023. */
+  otherWave?: 'Y1' | 'Y2'
   filters?: readonly DomainFilter[]
   /** Predictors a ranked sweep returns (the server's default otherwise). */
   limit?: number
@@ -41,6 +56,8 @@ export function canonicalCorrelatesParams(request: CorrelatesRequest): URLSearch
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
   for (const column of request.by) params.append('by', column)
   for (const code of request.countries ?? []) params.append('filter', `country_code:${code}`)
+  if (request.pooled) params.set('pooled', 'average')
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   for (const filter of request.filters ?? [])
     for (const value of filter.values) params.append('filter', `${filter.column}:${value}`)
   if (request.limit !== undefined) params.set('limit', String(request.limit))

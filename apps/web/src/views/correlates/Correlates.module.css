@@ -11,31 +11,96 @@
 }
 
 /* A view's own question pickers, in a sentence ("How do answers to
-   [A ▾] relate to [B ▾]?"): the deck's serif at a size that holds two
-   pickers on one line on a desktop, wrapping between words on a phone. */
-.sentence {
+   [A ▾] relate to [B ▾]?"), set in one typeface (ADR-0020): the page
+   sans at the deck size, regular, in ink; the pickers inherit it at 600
+   and sit on its baseline. On a phone it wraps between words, a picker
+   may take the full width, and wrapped lines keep a gap between them
+   (the pickers' own margins). Swap stands outside the sentence, after
+   it on its last line, centred on the pickers (its own line on a
+   phone). */
+.sentenceRow {
   margin: 0 0 var(--space-4);
   color: var(--ink);
-  font-family: var(--font-serif);
-  font-size: var(--text-h2);
+  font-family: var(--font-sans);
+  font-size: var(--text-deck);
+  font-weight: 400;
   line-height: 1.6;
 }
 
-/* The pickers inside it read in the page's sans, a step smaller. */
-.sentence button {
-  font-family: var(--font-sans);
-  font-size: var(--text-base);
-  vertical-align: 0.1em;
+.sentence {
+  display: inline;
+  margin: 0;
 }
 
-/* Find related's In {country} · In every country, above its chart. */
+/* The last picker keeps its "?" and Swap beside it, one group that never
+   wraps apart (review L3): the picker gives up the room they need rather
+   than leave either alone on a line. */
+.sentenceEnd {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  max-width: 100%;
+}
+
+.sentenceEnd > span {
+  min-width: 0;
+}
+
+.sentenceEnd > .swap {
+  flex: none;
+  align-self: center;
+}
+
+/* Swap: a small secondary button. */
+.swap {
+  margin-left: var(--space-3);
+  vertical-align: middle;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.swap:hover {
+  color: var(--accent-hover);
+}
+
+.swap:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* "higher" and "lower", wherever the page says them in HTML (ADR-0020):
+   italic, 600, in ink — the words a signed reading turns on. */
+.turn {
+  color: var(--ink);
+  font-style: italic;
+  font-weight: 600;
+}
+
+/* Find related's In {country} · Country by country, above its chart. */
 .scopeRow {
   margin: 0 0 var(--space-4);
 }
 
+/* A phone: the last picker fills its line, so Swap takes the group's
+   second row — the "?" still beside the picker — at a full tap target. */
 @media (max-width: 40rem) {
-  .sentence {
-    font-size: var(--text-deck);
+  .sentenceEnd {
+    display: inline-grid;
+    grid-template-columns: minmax(0, auto) auto;
+    align-items: baseline;
+  }
+
+  .sentenceEnd > .swap {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-height: 44px;
+    margin: var(--space-2) 0 0;
   }
 }
 
@@ -44,6 +109,42 @@
    runs under the whole row, so no column widens for it. */
 .controlRow {
   margin-bottom: var(--space-5);
+}
+
+/* A phone's shared row, folded (review M9): what Wave, Country and the
+   correlation type are set to, in one line, and "Change" to open them. */
+.summaryLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.change {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.change:hover {
+  color: var(--accent-hover);
+}
+
+.change:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.controlCells[hidden] {
+  display: none;
 }
 
 .controlCells {
@@ -67,6 +168,31 @@
   font-size: var(--text-xs);
 }
 
+/* At Midyear, the year of the other answers is chosen inside the row
+   note's sentence (review M3): a select in the note's own type. */
+.inlineSelect {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+}
+
+/* What changed on its own: one line under the row, in ink, polite. */
+.notice {
+  max-width: 40rem;
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+
+/* Empty, it takes no room — but stays in the page, so it can speak. */
+.notice:empty {
+  margin: 0;
+}
+
 @media (max-width: 40rem) {
   .controlCells {
     display: grid;
@@ -86,10 +212,15 @@
   .typeCell > fieldset {
     flex: 1 1 100%;
   }
+
+  /* "What's the difference?" spans the column, so its note can. */
+  .typeCell > div {
+    flex: 1 1 100%;
+  }
 }
 
 /* Compare two's header row: the correlation strip on the left, In
-   {country} · In every country on the right. */
+   {country} · Country by country on the right. */
 .headerRow {
   display: flex;
   flex-wrap: wrap;
@@ -99,8 +230,8 @@
   margin: 0 0 var(--space-4);
 }
 
-/* The grid's key: "Share of each column", the seven ramp steps with the
-   bin each starts at, then the asterisk — one line on a desktop. */
+/* The grid's key: "Share of each column", the grid's nine ramp steps
+   with the bin each starts at, then the asterisk — one line on a desktop. */
 .shareLegend {
   display: flex;
   flex-wrap: wrap;
@@ -198,6 +329,13 @@
 
 .chipName {
   padding: 4px 2px;
+}
+
+/* A midyear question's chip says so, small and muted (ADR-0020). */
+.chipTag {
+  margin-left: 0.4em;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
 }
 
 .remove {

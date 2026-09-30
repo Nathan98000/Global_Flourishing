@@ -9,7 +9,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { API_BASE_URL } from '../config'
-import type { CorrelationMethod } from './correlates'
+import { appendScope, type CorrelationMethod, type CountryScope } from './correlates'
 import { fetchApiJson } from './http'
 import { useMeta } from './meta'
 import type { CorrelationsResponse, PairResponse, Wave } from './types'
@@ -19,8 +19,12 @@ export interface PairRequest {
   y: string
   x: string
   wave: Wave
-  country: number
+  /** One country, or every country pooled (ADR-0020). */
+  country: CountryScope
   method?: CorrelationMethod
+  /** At the midyear survey, when a question is from another wave: the
+   * wave its answers come from (ADR-0020). */
+  otherWave?: 'Y1' | 'Y2'
 }
 
 /** Canonical query string: stable order in, stable cache keys out. */
@@ -29,8 +33,9 @@ export function canonicalPairParams(request: PairRequest): URLSearchParams {
   params.set('y', request.y)
   params.set('x', request.x)
   params.set('wave', request.wave)
-  params.append('filter', `country_code:${request.country}`)
+  appendScope(params, request.country)
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   return params
 }
 
@@ -63,16 +68,20 @@ export function usePair(request: PairRequest | null, { enabled = true } = {}) {
 export interface TableRequest {
   vars: readonly string[]
   wave: Wave
-  country: number
+  /** One country, or every country pooled (ADR-0020). */
+  country: CountryScope
   method?: CorrelationMethod
+  /** At the midyear survey, as PairRequest's. */
+  otherWave?: 'Y1' | 'Y2'
 }
 
 export function canonicalTableParams(request: TableRequest): URLSearchParams {
   const params = new URLSearchParams()
   for (const name of request.vars) params.append('vars', name)
   params.set('wave', request.wave)
-  params.append('filter', `country_code:${request.country}`)
+  appendScope(params, request.country)
   if (request.method && request.method !== 'pearson') params.set('method', request.method)
+  if (request.otherWave) params.set('other_wave', request.otherWave)
   return params
 }
 

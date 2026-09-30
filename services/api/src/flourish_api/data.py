@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import duckdb
 import polars as pl
@@ -35,6 +35,9 @@ from flourish_stats.io import DEFAULT_COLUMNS, analysis_frame, derived_frame, wi
 from flourish_stats.outcomes import DERIVED_OUTCOMES, DERIVED_WAVES, SERVABLE_SCALE_TYPES
 
 from flourish_api.config import Settings
+
+if TYPE_CHECKING:  # the table's module imports this one
+    from flourish_api.country_correlations import CountryCorrelations
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,7 @@ class DataStore:
         self.data_version: str | None = None
         self.con: duckdb.DuckDBPyConnection | None = None
         self.catalog: Catalog | None = None
+        self._midyear: pl.DataFrame | None = None
         if not self.present:
             return
         self.con = duckdb.connect(str(settings.data_path), read_only=True)
@@ -143,6 +147,23 @@ class DataStore:
             manifest: dict[str, Any] = json.loads(settings.manifest_path.read_text())
             version = manifest.get("data_version")
             self.data_version = str(version) if version is not None else None
+        # How each respondent took the midyear survey, for /v1/meta's
+        # midyear timing (ADR-0020): four small columns, read once.
+        self._midyear = self._query(
+            "SELECT country_code, has_midyear, retained_y2, midyear_type FROM respondents"
+        )
+
+    def midyear_types(self) -> pl.DataFrame:
+        """Each respondent's country, midyear and Wave 2 flags and midyear
+        type (``flourish_stats.weights.midyear_timing`` reads them)."""
+        assert self._midyear is not None
+        return self._midyear
+
+    def _query(self, sql: str) -> pl.DataFrame:
+        assert self.con is not None
+        frame = pl.from_arrow(self.con.execute(sql).arrow())
+        assert isinstance(frame, pl.DataFrame)
+        return frame
 
     def _table(self, name: str) -> pl.DataFrame:
         assert self.con is not None
@@ -277,6 +298,14 @@ def adjusted_gate(
     if adjusted and not request.app.state.adjusted_enabled:
         raise HTTPException(status_code=422, detail=[ADJUSTED_OFF])
     return adjusted
+
+
+def country_correlations(request: Request) -> CountryCorrelations | None:
+    """FastAPI dependency: every country's correlations precomputed with
+    the image (ADR-0020), or None — every request is then estimated on
+    demand."""
+    table: CountryCorrelations | None = request.app.state.country_correlations
+    return table
 
 
 def require_data(request: Request) -> DataStore:

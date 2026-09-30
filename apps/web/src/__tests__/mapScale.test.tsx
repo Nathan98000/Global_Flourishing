@@ -5,6 +5,7 @@
 import { render } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 import { MapLegend, mapDomain, quantizeColor } from '../charts/mapScale'
+import { SEQUENTIAL_RAMP } from '../charts/theme'
 import { testResponseMeta, testRow } from '../test-utils/fixtures'
 
 describe('quantized token colors', () => {
@@ -15,6 +16,18 @@ describe('quantized token colors', () => {
     expect(color(9.99)).toBe('var(--seq-700)')
     expect(color(10)).toBe('var(--seq-700)')
     expect(color(5)).toBe('var(--seq-400)')
+    // Seven steps across the window, each as wide as the next — never the
+    // two deeper shades, which are Compare two's grid's alone.
+    const steps = Array.from({ length: 701 }, (_, index) => color(index / 70))
+    expect([...new Set(steps)]).toEqual([
+      'var(--seq-100)',
+      'var(--seq-200)',
+      'var(--seq-300)',
+      'var(--seq-400)',
+      'var(--seq-500)',
+      'var(--seq-600)',
+      'var(--seq-700)',
+    ])
   })
 
   test('the ramp anchors to the observed range, not the item scale (F1)', () => {
@@ -52,5 +65,15 @@ describe('MapLegend', () => {
     const shares = render(<MapLegend domain={[12.345, 40]} isShare />).container.textContent ?? ''
     expect(shares).toContain('12.3%')
     expect(shares).toContain('40.0%')
+  })
+
+  test('shows the scale’s seven steps, lightest to deepest', () => {
+    const { container } = render(<MapLegend domain={[5.89, 8.1]} isShare={false} />)
+    const swatches = [...container.querySelectorAll('span')]
+      .map((span) => span.style.background)
+      .filter((background) => background.startsWith('var(--seq-'))
+    expect(swatches).toEqual([...SEQUENTIAL_RAMP])
+    expect(swatches).toHaveLength(7)
+    expect(swatches.at(-1)).toBe('var(--seq-700)')
   })
 })

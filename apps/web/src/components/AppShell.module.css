@@ -67,10 +67,15 @@
     align-items: center;
   }
 
+  /* The row never pushes the page sideways (30 Sept fix): the space
+     between two items gives way first — from --space-3 where there is
+     room down to 2px (.navGap) — and past that the row wraps, a whole
+     item at a time. The type never shrinks and no link breaks. */
   .nav {
     flex-basis: 100%;
     order: 3;
-    gap: var(--space-3);
+    flex-wrap: wrap;
+    gap: 0;
     border-bottom: 1px solid var(--grid);
   }
 
@@ -80,6 +85,19 @@
     display: inline-flex;
     align-items: center;
   }
+
+  /* The least the row leaves between two items. */
+  .nav > a {
+    margin-right: 2px;
+  }
+}
+
+/* The stretch after each link on a phone: up to the rest of --space-3.
+   It starts from nothing, so it always ends a line and never begins
+   one — a wrapped row starts flush with the column. */
+.navGap {
+  flex: 1 1 0;
+  max-width: calc(var(--space-3) - 2px);
 }
 
 /* Phase 5: eight items. Under 40rem the secondary four collapse into a
@@ -130,7 +148,9 @@
 .morePanel {
   position: absolute;
   z-index: 5;
-  right: 0;
+  /* Hung from "More"'s right edge — moved right by --panel-shift where
+     that would run it past the row's left edge (a wrapped "More"). */
+  right: calc(-1 * var(--panel-shift, 0px));
   top: 100%;
   display: flex;
   flex-direction: column;

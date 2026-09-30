@@ -5,11 +5,15 @@
 // in one country or in every country). Each view owns its question
 // pickers; Wave, Country and the correlation type are shared, and each
 // view's first question seeds the next. A view that is not on screen
-// mounts nothing and fetches nothing. Every number is the server's; this
-// page chooses, labels and renders.
+// mounts nothing and fetches nothing. The midyear survey's questions are
+// reachable from every wave, paired with the same people's 2023 or 2024
+// answers (ADR-0020): every change runs through the rules in
+// correlates/midyear.ts — the wave follows the questions in view — and a
+// polite line under the row announces what changed on its own. Every
+// number is the server's; this page chooses, labels and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { CorrelationMethod } from '../api/correlates'
 import { useBootStatus, useMeta } from '../api/meta'
 import type { Wave } from '../api/types'
@@ -23,20 +27,37 @@ import { Disclosure } from '../components/controls/Disclosure'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { groupValueLabel } from '../labels'
 import { searchNavigation } from '../state/navigate'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import {
   correlatesSearchParams,
-  firstQuestion,
-  relatedQuestion,
-  secondQuestion,
   viewPatch,
   type CorrelatesSearch,
   type CorrelatesViewName,
 } from '../state/search'
 import { WAVE_CHIPS } from '../waves'
-import { METHOD_DIFFERENCE, countriesByName, defaultCountry, waveNote } from './correlatesRows'
+import {
+  ALL_COUNTRIES,
+  METHOD_DIFFERENCE,
+  countriesByName,
+  defaultCountry,
+  waveNote,
+} from './correlatesRows'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
+import {
+  chooseWave,
+  no2024Note,
+  otherNoteParts,
+  otherOpen,
+  otherWaveOf,
+  questionsInView,
+  reconcile,
+  showsOther,
+  timingPhrase,
+  waveOpen,
+  type Change,
+} from './correlates/midyear'
 import type { ViewProps } from './correlates/shared'
 import styles from './AtlasView.module.css'
 import own from './correlates/Correlates.module.css'
@@ -62,18 +83,6 @@ const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
   { value: 'spearman', label: 'By rank' },
 ]
 
-/** The questions the view on screen is about: whether a wave can be
- * chosen depends on them. */
-function questionsInView(search: CorrelatesSearch): {
-  names: string[]
-  who: 'question' | 'pair' | 'table'
-} {
-  if (search.view === 'pair')
-    return { names: [firstQuestion(search), secondQuestion(search)], who: 'pair' }
-  if (search.view === 'related') return { names: [relatedQuestion(search)], who: 'question' }
-  return { names: search.vars ?? [firstQuestion(search), secondQuestion(search)], who: 'table' }
-}
-
 export function CorrelatesView() {
   useWarmApi()
   const search = route.useSearch()
@@ -82,13 +91,49 @@ export function CorrelatesView() {
   const boot = useBootStatus()
   const variables = useVariables()
   const served = meta.data?.meta
+  // A country's code, or `all`: every country pooled (ADR-0020).
   const country = search.country ?? (served ? defaultCountry(served) : undefined)
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
+  const cellsId = useId()
+  // On a phone the shared row folds into one summary line (review M9);
+  // "Change" opens it in place.
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const [changing, setChanging] = useState(false)
+  // What changed without being chosen (ADR-0020), until the next change.
+  const [notice, setNotice] = useState<string | undefined>()
+  // The table Compare several shows before one is named (its default).
+  const [table, setTable] = useState<readonly string[] | undefined>()
+  const byName = variables.data?.byName ?? {}
 
-  const setSearch = (patch: Partial<CorrelatesSearch>) => {
-    void navigate(searchNavigation(correlatesSearchParams({ ...search, ...patch })))
+  /** A change, then whatever the midyear rules make of it — the wave
+   * following the questions in view — announced in one line. */
+  const apply = (change: Change) => {
+    let next: CorrelatesSearch = { ...search, ...change.patch }
+    const notices = change.notice ? [change.notice] : []
+    for (let step = 0; step < 3; step += 1) {
+      const fix = reconcile(next, byName, next.vars ? undefined : table)
+      if (Object.keys(fix.patch).length === 0) break
+      next = { ...next, ...fix.patch }
+      if (fix.notice) notices.push(fix.notice)
+    }
+    setNotice(notices.length > 0 ? notices.join(' ') : undefined)
+    void navigate(searchNavigation(correlatesSearchParams(next)))
   }
+  const setSearch = (patch: Partial<CorrelatesSearch>) => apply({ patch })
+
+  // A link can arrive in a state the rules never leave the page in (a
+  // midyear question at 2023, say): settled once, in place.
+  const catalog = variables.data
+  useEffect(() => {
+    if (!catalog) return
+    const fix = reconcile(search, catalog.byName, search.vars ? undefined : table)
+    if (Object.keys(fix.patch).length === 0) return
+    if (fix.notice) setNotice(fix.notice)
+    void navigate(
+      searchNavigation(correlatesSearchParams({ ...search, ...fix.patch }), { replace: true }),
+    )
+  }, [catalog, search, table, navigate])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -107,49 +152,109 @@ export function CorrelatesView() {
     )
   }
 
-  const byName = variables.data.byName
-  const countryName = country !== undefined ? groupValueLabel('country_code', country, served) : ''
+  const countryName =
+    country === 'all'
+      ? ALL_COUNTRIES
+      : country !== undefined
+        ? groupValueLabel('country_code', country, served)
+        : ''
   // A wave the view's questions were not asked in stays in the row,
-  // disabled, and the line under the row says why.
-  const inView = questionsInView(search)
-  const askedAt = (wave: Wave) =>
-    inView.names.filter((name) => byName[name]?.waves_available.includes(wave)).length
-  const open = (wave: Wave) =>
-    inView.who === 'table' ? askedAt(wave) >= 2 : askedAt(wave) === inView.names.length
+  // disabled, and the line under the row says why. Midyear never is: its
+  // questions are reachable from every wave (ADR-0020).
+  const shown = search.vars ? undefined : table
+  const inView = questionsInView(search, shown)
+  const open = (wave: Wave) => waveOpen(search, byName, wave, shown)
   const known = inView.names.every((name) => byName[name] !== undefined)
   const waveOptions: RadioOption<Wave>[] = WAVES.map((wave) => ({
     value: wave,
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: known && !open(wave),
   }))
-  const note = known ? waveNote(WAVES.filter(open), inView.who) : undefined
+  // At Midyear with another wave's question in view, the row note says
+  // whose answers and when — for the country on screen — and holds the
+  // choice of year itself (review M3): no second row of year buttons.
+  const withOther = known && showsOther(search, byName, shown)
+  const other = otherWaveOf(search)
+  const parts = otherNoteParts(
+    search.view !== 'pair',
+    timingPhrase(other, country, served.midyear_timing),
+  )
+  const no2024 = withOther ? no2024Note(search, byName, shown) : undefined
+  const note = !known ? undefined : withOther ? (
+    <>
+      {parts.before}{' '}
+      <select
+        className={own.inlineSelect}
+        aria-label="Year of the other answers"
+        value={other}
+        onChange={(event) =>
+          apply({ patch: { other: event.target.value === 'Y2' ? 'Y2' : undefined } })
+        }
+      >
+        <option value="Y1">2023</option>
+        <option value="Y2" disabled={!otherOpen(search, byName, 'Y2', shown)}>
+          2024
+        </option>
+      </select>{' '}
+      {parts.after}
+      {no2024 ? ` ${no2024}` : ''}
+    </>
+  ) : (
+    waveNote(WAVES.filter(open), inView.who)
+  )
 
   // One row — Wave · Country · Correlation type, each under its label —
-  // and, under the whole row, why a wave is unavailable.
+  // and, under the whole row, why a wave is unavailable. On a phone, one
+  // line says what the three are set to, with "Change" to open them.
+  const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
+  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, countryName, method?.label]
+    .filter(Boolean)
+    .join(' · ')
+  const folded = narrow && !changing
   const controls = (
     <div className={own.controlRow}>
-      <div className={own.controlCells}>
+      {narrow && (
+        <p className={own.summaryLine}>
+          <span>{summary}</span>
+          <button
+            type="button"
+            className={own.change}
+            aria-expanded={changing}
+            aria-controls={cellsId}
+            aria-label={changing ? 'Done changing' : 'Change wave, country and correlation type'}
+            onClick={() => setChanging((open) => !open)}
+          >
+            {changing ? 'Done' : 'Change'}
+          </button>
+        </p>
+      )}
+      <div id={cellsId} className={own.controlCells} hidden={folded}>
         <RadioRow
           legend="Wave"
           name="wave"
           options={waveOptions}
           value={search.wave}
-          onChange={(wave) => setSearch({ wave })}
+          onChange={(wave) => apply(chooseWave(search, wave, byName, shown))}
           noteId={note ? noteId : undefined}
         />
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Country</span>
           <select
             value={country ?? ''}
-            onChange={(event) =>
+            onChange={(event) => {
+              const value = event.target.value
               setSearch({
                 country:
-                  Number(event.target.value) === defaultCountry(served)
-                    ? undefined
-                    : Number(event.target.value),
+                  value === 'all'
+                    ? 'all'
+                    : Number(value) === defaultCountry(served)
+                      ? undefined
+                      : Number(value),
               })
-            }
+            }}
           >
+            {/* Every country pooled first, then each on its own, A–Z. */}
+            <option value="all">{ALL_COUNTRIES}</option>
             {countries.map((entry) => (
               <option key={entry.code} value={entry.code}>
                 {entry.name}
@@ -168,9 +273,11 @@ export function CorrelatesView() {
             }
           />
           <Disclosure variant="info" label="What’s the difference?">
-            {METHOD_DIFFERENCE.map((line) => (
-              <p key={line} className={styles.methodHint}>
-                {line}
+            {METHOD_DIFFERENCE.map((paragraph, index) => (
+              <p key={index} className={styles.methodHint}>
+                {paragraph.map((words, at) =>
+                  typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
+                )}
               </p>
             ))}
           </Disclosure>
@@ -181,6 +288,11 @@ export function CorrelatesView() {
           {note}
         </p>
       )}
+      {/* What changed on its own (ADR-0020): always in the page, so the
+          polite region is there before it speaks. */}
+      <p role="status" className={own.notice}>
+        {notice}
+      </p>
     </div>
   )
 
@@ -193,6 +305,7 @@ export function CorrelatesView() {
     countryName,
     apiReachable: boot.apiReachable,
     controls,
+    onTable: setTable,
   }
 
   return (

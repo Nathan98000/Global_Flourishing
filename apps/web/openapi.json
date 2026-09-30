@@ -130,9 +130,37 @@
       "CorrelationsMeta": {
         "description": "What a correlation table says about itself.",
         "properties": {
+          "answer_waves": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Waves"
+          },
           "ci_level": {
             "title": "Ci Level",
             "type": "number"
+          },
+          "countries": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countries"
           },
           "data_version": {
             "anyOf": [
@@ -178,6 +206,28 @@
           "n_frame": {
             "title": "N Frame",
             "type": "integer"
+          },
+          "other_wave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Wave"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pooled"
           },
           "stat": {
             "title": "Stat",
@@ -424,6 +474,17 @@
             "title": "N",
             "type": "integer"
           },
+          "n_countries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Countries"
+          },
           "n_psu": {
             "anyOf": [
               {
@@ -655,6 +716,14 @@
             ],
             "title": "Git Sha"
           },
+          "midyear_timing": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MidyearTimingModel"
+            },
+            "title": "Midyear Timing",
+            "type": "array"
+          },
           "state_labels": {
             "additionalProperties": {
               "$ref": "#/components/schemas/StateLabelModel"
@@ -693,6 +762,35 @@
           "state_labels"
         ],
         "title": "MetaResponse",
+        "type": "object"
+      },
+      "MidyearTimingModel": {
+        "description": "How one country's people in one midyear pairing took the midyear\nsurvey (``flourish_stats.weights.midyear_timing``, ADR-0020): in a\nstandalone midyear interview (``type_1``) or inside their Wave 2\ninterview (``type_2``) — the page words the time between the two\nanswers from it.",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "integer"
+          },
+          "other_wave": {
+            "title": "Other Wave",
+            "type": "string"
+          },
+          "type_1": {
+            "title": "Type 1",
+            "type": "integer"
+          },
+          "type_2": {
+            "title": "Type 2",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "country_code",
+          "other_wave",
+          "type_1",
+          "type_2"
+        ],
+        "title": "MidyearTimingModel",
         "type": "object"
       },
       "MissingnessRow": {
@@ -947,6 +1045,20 @@
             ],
             "title": "Adjusted"
           },
+          "answer_waves": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Waves"
+          },
           "by": {
             "items": {
               "type": "string"
@@ -971,6 +1083,20 @@
               }
             ],
             "title": "Controls"
+          },
+          "countries": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countries"
           },
           "data_version": {
             "anyOf": [
@@ -1027,6 +1153,17 @@
             "title": "Filters",
             "type": "object"
           },
+          "min_countries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Countries"
+          },
           "min_n": {
             "anyOf": [
               {
@@ -1060,6 +1197,17 @@
             ],
             "title": "N Excluded"
           },
+          "n_excluded_coverage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Excluded Coverage"
+          },
           "n_frame": {
             "title": "N Frame",
             "type": "integer"
@@ -1072,9 +1220,31 @@
             "title": "Oriented",
             "type": "boolean"
           },
+          "other_wave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Wave"
+          },
           "outcome": {
             "title": "Outcome",
             "type": "string"
+          },
+          "pooled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pooled"
           },
           "scale_type": {
             "title": "Scale Type",
@@ -1935,7 +2105,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
+        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``pooled=average`` — in place of a country filter — takes each\ncountry's own correlation and their plain mean: every country counts\nthe same, and one with no estimate (it did not ask a question) drops\nout. Each row's ``n`` is the complete cases summed over the countries\nin its average (the ranking floor reads it), ``n_countries`` counts\nthem, and ``flagged`` says every one of them rests on fewer than\n``meta.min_n`` people; ``meta.countries`` lists every country in at\nleast one average, whether or not it is ranked. The ranked sweep keeps\nonly the candidates whose average covers at least\n``meta.min_countries`` countries — half of those /v1/meta lists,\nrounded up — before ranking and cutting, so the list fills with\ncandidates that do (``meta.n_excluded_coverage`` covered fewer;\n``meta.n_excluded`` counts those below the floor among the rest). An\noutcome itself asked in fewer has no rows, and ``meta.countries``\nshorter than ``meta.min_countries`` says why. Named predictors\n(``against``) are always served. The dedupe is unchanged.\n\nAt ``wave=MY`` a midyear question reads its midyear answers and any\nother question the same respondents' ``other_wave`` answers (Y1 by\ndefault: every midyear respondent, ``w_l1m``; Y2: those who also did\nWave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear\noutcome is ranked against every midyear question and every question\nasked at ``other_wave``; any other outcome against the midyear\nquestions only. Two questions neither of which the midyear survey\nasked belong at their own wave: 422.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {
@@ -2034,6 +2204,42 @@
             }
           },
           {
+            "description": "average: each country's own estimate, and their plain average — every country counts the same (ADR-0020) — in place of a country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "average: each country's own estimate, and their plain average — every country counts the same (ADR-0020) — in place of a country filter.",
+              "title": "Pooled"
+            }
+          },
+          {
+            "description": "At wave=MY: Y1 (default) or Y2 — the wave every question the midyear survey did not ask reads the same people's answers from (ADR-0020).",
+            "in": "query",
+            "name": "other_wave",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "At wave=MY: Y1 (default) or Y2 — the wave every question the midyear survey did not ask reads the same people's answers from (ADR-0020).",
+              "title": "Other Wave"
+            }
+          },
+          {
             "description": "The adjusted associations under the fixed control set (ADR-0014) instead of plain correlations — disabled unless the server enables it (FA_ADJUSTED_ENABLED); otherwise a 422.",
             "in": "query",
             "name": "adjusted",
@@ -2073,7 +2279,7 @@
     },
     "/v1/correlations": {
       "get": {
-        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's. ``similar_order`` lists the questions\nwith those that go together side by side: average-linkage clustering\non 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),\nties broken toward the order asked.",
+        "description": "Associations, not causes. Every pair i < j of the questions named,\nin the order named: the weighted Pearson or Spearman correlation over\nthe people who answered both (a point estimate with no interval; the\nnumber /v1/correlates reports for the pair), its n, and ``below_min_n``\nwhen fewer than ``meta.min_n`` people answered both. A pair built from\nthe same answers (a score and its own question) is marked\n``shares_answers`` and carries no correlation — it goes together by\nconstruction. Each row's correlations are taken in one pass over the\nframe. Both items of every pair are aligned to their labels, so the\nsigns are the ranked list's. ``similar_order`` lists the questions\nwith those that go together side by side: average-linkage clustering\non 1 − |r| (a pair sharing answers at 0, one with no estimate at 1),\nties broken toward the order asked. ``pooled=average`` takes each\npair's correlation in each country and their plain mean: each\ncorrelation's ``n_countries`` counts the countries in it, ``n`` sums\ntheir people, ``below_min_n`` says every one rests on fewer than\n``meta.min_n``, and ``meta.countries`` lists every country in at least\none. At ``wave=MY`` the table\nholds one midyear question at least; the questions the midyear survey\ndid not ask read the same people's ``other_wave`` answers, and every\npair — two such questions included — is taken on the same people.",
         "operationId": "correlations_v1_correlations_get",
         "parameters": [
           {
@@ -2100,7 +2306,7 @@
             }
           },
           {
-            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -2116,7 +2322,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
               "title": "Filter"
             }
           },
@@ -2130,6 +2336,42 @@
               "description": "pearson (default) or spearman.",
               "title": "Method",
               "type": "string"
+            }
+          },
+          {
+            "description": "average: each country's own correlations, and their plain average (ADR-0020), in place of the country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "average: each country's own correlations, and their plain average (ADR-0020), in place of the country filter.",
+              "title": "Pooled"
+            }
+          },
+          {
+            "description": "At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020).",
+            "in": "query",
+            "name": "other_wave",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020).",
+              "title": "Other Wave"
             }
           }
         ],
@@ -2160,7 +2402,7 @@
     },
     "/v1/correlations/pair": {
       "get": {
-        "description": "Both items must be ordered (a 0–10 scale, an ordered or yes/no\nanswer, a count), asked at the wave and not built from the same\nanswers (a score and its own question go together by construction:\n422). ``columns`` are x's answers (its levels: up to eleven answers,\nelse ten equal-width bins between its weighted 1st and 99th\npercentiles, the end bins taking in the tails), each with the weighted\nshare of the people who answered both who gave it; ``rows`` are y's,\nlevelled the same way; both run from least to most of what the item's\nlabel names. ``cells`` gives, column by column, the weighted share of\nthe column's people who gave each row's answer — every column adds to\n1 — and ``shares`` the same cells as estimate rows with their\ndesign-based CIs (the /v1/aggregate proportion estimator grouped by\nx). A cell is ``flagged`` when fewer than ``cell_flag_below`` people\ngave that pair of answers or its column holds fewer than\n``column_flag_below`` (flagged, never withheld). ``correlation`` is the\nweighted Pearson or Spearman coefficient over the people who answered\nboth — the number /v1/correlates reports for the pair, with no\ninterval.",
+        "description": "Both items must be ordered (a 0–10 scale, an ordered or yes/no\nanswer, a count), asked at the wave and not built from the same\nanswers (a score and its own question go together by construction:\n422). ``columns`` are x's answers (its levels: up to eleven answers,\nelse ten equal-width bins between its weighted 1st and 99th\npercentiles, the end bins taking in the tails), each with the weighted\nshare of the people who answered both who gave it; ``rows`` are y's,\nlevelled the same way; both run from least to most of what the item's\nlabel names. ``cells`` gives, column by column, the weighted share of\nthe column's people who gave each row's answer — every column adds to\n1 — and ``shares`` the same cells as estimate rows with their\ndesign-based CIs (the /v1/aggregate proportion estimator grouped by\nx). A cell is ``flagged`` when fewer than ``cell_flag_below`` people\ngave that pair of answers or its column holds fewer than\n``column_flag_below`` (flagged, never withheld). ``correlation`` is the\nweighted Pearson or Spearman coefficient over the people who answered\nboth — the number /v1/correlates reports for the pair, with no\ninterval. ``pooled=average`` takes each country on its own and their\nplain mean: of the correlations (``correlation.n_countries`` counts\nthe countries in it; ``flagged`` when every one rests on fewer than\n``min_n`` people), of the shares who gave each of x's answers, and of\neach column's shares over the countries with people in that column —\nso every column still adds to 1 — each with SE √(Σ se²) / K and a\nnormal interval, and ``n`` summed over the countries (the flags read\nit); ``shares.meta.countries`` lists the countries with people who\nanswered both. At ``wave=MY`` one question at least must be a midyear\nquestion; the other reads its midyear answers or the same people's\n``other_wave`` answers (``shares.meta.answer_waves``).",
         "operationId": "correlation_pair_v1_correlations_pair_get",
         "parameters": [
           {
@@ -2195,7 +2437,7 @@
             }
           },
           {
-            "description": "Exactly one country_code:N, plus optional demographic domains.",
+            "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -2211,7 +2453,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Exactly one country_code:N, plus optional demographic domains.",
+              "description": "Exactly one country_code:N (none when pooled), plus optional demographic domains.",
               "title": "Filter"
             }
           },
@@ -2225,6 +2467,42 @@
               "description": "pearson (default) or spearman.",
               "title": "Method",
               "type": "string"
+            }
+          },
+          {
+            "description": "average: each country's own cross-tab and correlation, and their plain average (ADR-0020), in place of the country filter.",
+            "in": "query",
+            "name": "pooled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "average: each country's own cross-tab and correlation, and their plain average (ADR-0020), in place of the country filter.",
+              "title": "Pooled"
+            }
+          },
+          {
+            "description": "At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020).",
+            "in": "query",
+            "name": "other_wave",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "At wave=MY: Y1 (default) or Y2 — as /v1/correlates (ADR-0020).",
+              "title": "Other Wave"
             }
           }
         ],

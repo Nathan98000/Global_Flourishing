@@ -1,6 +1,7 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
-// plus the Phase 5 launch-checklist journeys and the Correlates journey
-// (its three views, ADR-0019). No API runs in this suite: every Phase 4 view is static-first
+// plus the Phase 5 launch-checklist journeys, the Correlates journey
+// (its three views, ADR-0019) and the phone-width rule (journey 11: no
+// page scrolls sideways). No API runs in this suite: every Phase 4 view is static-first
 // (journey 6 blocks the API at the network level to prove it), and the
 // API-only Phase 5/6 views are served their real synthetic responses back
 // through route interception from public/data/_fixtures (written by
@@ -8,7 +9,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 
 const API = 'http://localhost:8080'
 
@@ -27,10 +28,13 @@ interface FixtureRow {
   group: Record<string, string | number | boolean | null>
 }
 
+/** A fixture `make web-fixtures` wrote, whatever its shape. */
+function jsonFixture(name: string): unknown {
+  return JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', name), 'utf8'))
+}
+
 function apiFixture(name: string): { meta: Record<string, unknown>; rows: FixtureRow[] } {
-  return JSON.parse(
-    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', name), 'utf8'),
-  ) as { meta: Record<string, unknown>; rows: FixtureRow[] }
+  return jsonFixture(name) as { meta: Record<string, unknown>; rows: FixtureRow[] }
 }
 
 /** Serve the live-API routes from fixtures: health says the data is up. */
@@ -289,40 +293,6 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
 })
 
-/** The synthetic midyear family holds one importance item and no
- * chartable item, so What Matters' third view is served one here:
- * Service attendance's own catalog entry, value labels and Wave 1
- * shares, dressed as a midyear question (static paths, as the tier
- * would carry it). */
-async function serveMidyearQuestion(page: Page) {
-  const read = (path: string) =>
-    JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', path), 'utf8')) as Record<
-      string,
-      unknown
-    >
-  const catalog = read('variables.json') as { variables: Record<string, unknown>[] }
-  const source = catalog.variables.find((variable) => variable['name'] === 'ATTEND_SVCS')
-  const question = {
-    ...source,
-    name: 'SVCS_MY',
-    display_name: 'Service attendance, midyear',
-    family: 'midyear',
-    waves_available: ['MY'],
-  }
-  const shares = read('v1/ATTEND_SVCS/Y1/proportion_by-country_code.json')
-  await page.route('**/data/variables.json', (route) =>
-    route.fulfill({ json: { ...catalog, variables: [...catalog.variables, question] } }),
-  )
-  await page.route('**/data/v1/SVCS_MY/variable.json', (route) =>
-    route.fulfill({ json: { ...read('v1/ATTEND_SVCS/variable.json'), ...question } }),
-  )
-  await page.route('**/data/v1/SVCS_MY/MY/proportion_by-country_code.json', (route) =>
-    route.fulfill({
-      json: { ...shares, meta: { ...(shares['meta'] as object), outcome: 'SVCS_MY' } },
-    }),
-  )
-}
-
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
   page,
 }) => {
@@ -333,7 +303,6 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   // midyear weight, and the view must show them without a word about
   // administration modes.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
-  await serveMidyearQuestion(page)
   await page.goto('/what-matters')
   const views = page.getByRole('group', { name: 'View' })
 
@@ -379,9 +348,10 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
 
-  // Other questions: one question's bar chart, alone on screen.
+  // Other questions: one question's bar chart, alone on screen — the
+  // synthetic family's one chartable item, Daily social media time.
   await views.getByText('Other questions', { exact: true }).click()
-  const question = page.getByRole('img', { name: /Service attendance, midyear/ })
+  const question = page.getByRole('img', { name: /Daily social media time/ })
   await expect(question).toBeVisible()
   // Rounded bars render as paths in Plot's "bar" mark group.
   await expect(question.locator('[aria-label="bar"] > *').first()).toBeVisible()
@@ -438,9 +408,55 @@ interface JourneyPlan {
   /** The table's first cell: its column (Compare two's first question) and row. */
   cell: { name: string; display_name: string }[]
   related: { name: string; display_name: string }
+  /** Compare several's default table, every country averaged (ADR-0020). */
+  pooled_default: string[]
+  /** The midyear question the page brings in at Midyear (ADR-0020). */
+  midyear: { name: string; display_name: string }
+  /** A question one country asked, of a release of three: too few for an
+   * All countries list (ADR-0020's coverage rule). */
+  scarce: { name: string; display_name: string; asked: number; of: number }
 }
 
-test('10 — Correlates by task: Compare two and its picker, Swap, every country, Compare several, Find related, old links', async ({
+/** Where and when a request is taken, as scripts/web_fixtures.py names
+ * its fixture: the wave when not Wave 1, the other answers' wave, and
+ * "all" when every country is averaged (ADR-0020). */
+function scopeOf(url: URL, withWave = true): string {
+  const wave = url.searchParams.get('wave') ?? 'Y1'
+  return [
+    withWave && wave !== 'Y1' ? wave : null,
+    url.searchParams.get('other_wave'),
+    url.searchParams.get('pooled') ? 'all' : null,
+  ]
+    .filter(Boolean)
+    .map((part) => `-${part}`)
+    .join('')
+}
+
+/** Compare two's answers, each from the synthetic response made for it. */
+function servePairs(page: Page) {
+  return page.route(`${API}/v1/correlations/pair**`, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill(
+      fixtureOr404(
+        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}${scopeOf(url)}.json`,
+      ),
+    )
+  })
+}
+
+/** The tooltip of a Compare two grid's first cell, its lines as one: the
+ * pointer goes to the cell (its share label sits on top of it) and the
+ * chart draws the tip. */
+async function cellTip(chart: Locator): Promise<string> {
+  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
+    force: true,
+  })
+  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
+  // (Plot starts each line with a zero-width space.)
+  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
+}
+
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
   page,
 }) => {
   // Every request is answered by the synthetic response made for it,
@@ -453,30 +469,23 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
     const outcome = url.searchParams.get('outcome')
+    const wave = url.searchParams.get('wave') ?? 'Y1'
     const against = url.searchParams.getAll('against')
-    const across = url.searchParams.getAll('by').includes('country_code')
+    const shape = url.searchParams.getAll('by').includes('country_code') ? 'across' : 'ranked'
+    const one = against.length === 1 ? `-${against[0]}` : ''
     return route.fulfill(
-      fixtureOr404(
-        across && against.length === 1
-          ? `correlates-${outcome}-Y1-across-${against[0]}.json`
-          : `correlates-${outcome}-Y1-${across ? 'across' : 'ranked'}.json`,
-      ),
+      fixtureOr404(`correlates-${outcome}-${wave}${scopeOf(url, false)}-${shape}${one}.json`),
     )
   })
-  await page.route(`${API}/v1/correlations/pair**`, (route) => {
-    const url = new URL(route.request().url())
-    return route.fulfill(
-      fixtureOr404(
-        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}.json`,
-      ),
-    )
-  })
+  await servePairs(page)
   await page.route(
     (url) => url.pathname === '/v1/correlations',
     (route) => {
       const url = new URL(route.request().url())
       return route.fulfill(
-        fixtureOr404(`correlations-table-${url.searchParams.getAll('vars').join('-')}.json`),
+        fixtureOr404(
+          `correlations-table-${url.searchParams.getAll('vars').join('-')}${scopeOf(url)}.json`,
+        ),
       )
     },
   )
@@ -501,7 +510,13 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
       .filter({ hasText: /^\d+%\*?$/ })
       .first(),
   ).toBeVisible()
-  await expect(page.getByText('Correlation', { exact: true })).toBeVisible()
+  // A cell's tooltip: its column, then its share and the row's answer in
+  // the answer's own words.
+  await expect
+    .poll(() => cellTip(grid))
+    .toMatch(/^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( Likely range: .+)?$/)
+  // The strip names its scope; where is chosen under the shared row.
+  await expect(page.getByText('United States:', { exact: true })).toBeVisible()
   expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
 
   // The picker: browse a topic, then search, then pick.
@@ -535,14 +550,37 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
       exact: true,
     }),
   ).toBeVisible()
+  // The rows are numbers now, so a cell's tooltip names their question.
+  const swapped = page.getByRole('img', {
+    name: new RegExp(`^Feelings about household income and ${plan.picked.display_name} in`),
+  })
+  await expect
+    .poll(() => cellTip(swapped))
+    .toMatch(
+      new RegExp(
+        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( Likely range: .+)?$`,
+      ),
+    )
 
-  // In every country: one dot per country, the grid gone; then back.
-  await page.getByText('In every country', { exact: true }).click()
+  // Country by country: one dot per country, the grid gone, and the All
+  // countries average as a labelled rule — the chosen country still
+  // picked out; then back.
+  await page.getByText('Country by country', { exact: true }).click()
   await expect(page).toHaveURL(/scope=all/)
+  const everyCountry = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  await expect(everyCountry).toBeVisible()
+  await expect(everyCountry).toHaveAttribute(
+    'aria-label',
+    /A dashed line marks the All countries average, [+−]?\d\.\d\d\*?\./,
+  )
   await expect(
-    page.getByRole('img', { name: /their correlation in each of 2 countries/ }),
+    everyCountry
+      .locator('svg text')
+      .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
+      .first(),
   ).toBeVisible()
-  await expect(page.getByText('Share of each column')).toBeHidden()
+  expect(await everyCountry.innerHTML()).toContain('var(--control-selected)')
+  await expect(page.getByText('Share of each column (columns add to 100%)')).toBeHidden()
   await page.getByText('In United States', { exact: true }).click()
   await expect(page).not.toHaveURL(/scope=/)
 
@@ -571,12 +609,17 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
     name: `Correlations among ${plan.kept.length} questions`,
   })
   await expect(table.getByRole('table')).toBeVisible()
-  // Similar together: the server's order, the first column first.
+  // Similar together: the server's order, the first column first. Seven
+  // questions: numbered columns (review M7), each heading named for its
+  // question, over an empty corner that is no heading at all.
   await page.getByText('Similar together', { exact: true }).click()
   await expect(page).toHaveURL(/order=similar/)
-  await expect(table.getByRole('columnheader').nth(1)).toHaveText(
+  const firstColumn = table.getByRole('columnheader').first()
+  await expect(firstColumn).toHaveText('1')
+  await expect(firstColumn).toHaveAccessibleName(
     plan.order[0] === 'INCOME_FEELINGS' ? 'Feelings about household income' : /./,
   )
+  await expect(table.getByRole('rowheader').first()).toHaveText(/^1\. /)
   // Select a cell: Compare two, the column first and the row second (a
   // second question that is the first's default stays out of the URL).
   const [column, row] = plan.cell
@@ -615,11 +658,275 @@ test('10 — Correlates by task: Compare two and its picker, Swap, every country
   ).toBeVisible()
   await page.goto('/correlates?view=countries&outcome=HAPPY')
   await expect(views.getByLabel('Find related')).toBeChecked()
-  await expect(page.getByLabel('In every country')).toBeChecked()
+  await expect(page.getByLabel('Country by country')).toBeChecked()
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
   expect(await page.locator('main').innerText()).not.toMatch(JARGON)
+
+  // All countries (ADR-0020): every view averages the countries.
+  await page.goto('/correlates?country=all')
+  await expect(
+    page.getByText('All countries (average of 2) · Wave 1, 2023', { exact: true }),
+  ).toBeVisible()
+  const where = page.getByRole('group', { name: 'Where' })
+  await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
+  await expect(
+    page.getByRole('img', {
+      name: /Feelings about household income, averaged over 2 countries/,
+    }),
+  ).toBeVisible()
+  // Country by country: every country, none picked out; the strip reads the average.
+  await where.getByText('Country by country', { exact: true }).click()
+  const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  await expect(pooledAcross).toBeVisible()
+  expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
+  await expect(page.getByText('All countries:', { exact: true })).toBeVisible()
+  await expect(
+    pooledAcross
+      .locator('svg text')
+      .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
+      .first(),
+  ).toBeVisible()
+  await where.getByText('All countries', { exact: true }).click()
+  await views.getByText('Compare several', { exact: true }).click()
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^Correlations among ${plan.pooled_default.length} questions averaged over 2 countries`,
+      ),
+    }),
+  ).toBeVisible()
+  await views.getByText('Find related', { exact: true }).click()
+  await expect(
+    page.getByRole('group', {
+      name: /questions most strongly associated with it in all countries \(their average\)/,
+    }),
+  ).toBeVisible()
+
+  // A question asked in fewer than half the countries has no All countries
+  // list (ADR-0020): the page says so in the list's place, under either
+  // scope, and a country's own list is a choice away. One country of this
+  // tier's two is half, so this stop is served a release of three
+  // (scripts/web_fixtures.py): its meta in place of meta.json, and its
+  // answer for the question.
+  const { scarce } = plan
+  const threeCountries = (route: Route) =>
+    route.fulfill({ json: jsonFixture('coverage-meta.json') })
+  const noList = (route: Route) => {
+    const url = new URL(route.request().url())
+    return url.searchParams.get('outcome') === scarce.name && url.searchParams.get('pooled')
+      ? route.fulfill({
+          json: jsonFixture(`coverage-correlates-${scarce.name}-Y1-all-ranked.json`),
+        })
+      : route.fallback()
+  }
+  await page.route('**/data/meta.json', threeCountries)
+  await page.route(`${API}/v1/correlates**`, noList)
+  await page.goto(`/correlates?view=related&outcome=${scarce.name}&country=all`)
+  const emptyState = page.getByText(
+    `${scarce.display_name} was asked in ${scarce.asked} of ${scarce.of} countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.`,
+    { exact: true },
+  )
+  await expect(emptyState).toBeVisible()
+  await expect(emptyState.locator('em')).toHaveText(scarce.display_name)
+  await expect(page.locator('main figure')).toHaveCount(0)
+  await where.getByText('Country by country', { exact: true }).click()
+  await expect(page).toHaveURL(/scope=all/)
+  await expect(emptyState).toBeVisible()
+  await where.getByText('All countries', { exact: true }).click()
+  await expect(page).not.toHaveURL(/scope=/)
+  await page.getByRole('combobox', { name: /^Country/ }).selectOption({ label: 'Testland' })
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^${scarce.display_name}: the \\d+ questions most strongly associated with it in Testland`,
+      ),
+    }),
+  ).toBeVisible()
+  await expect(emptyState).toBeHidden()
+  await page.unroute('**/data/meta.json', threeCountries)
+  await page.unroute(`${API}/v1/correlates**`, noList)
+
+  // Midyear from the chip: the midyear question beside the same people's
+  // 2023 answers, then 2024's; back at 2023 the default returns — and the
+  // line under the row says each time what changed on its own.
+  await page.goto('/correlates')
+  const wave = page.getByRole('group', { name: 'Wave' })
+  await wave.getByText('Midyear', { exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY$`))
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name}, from the midyear survey, took the place of Life evaluation today.`,
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByText('United States · Midyear survey, with 2023 answers from the same people', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  // The year of the other answers is chosen in the note's own sentence,
+  // worded for the country on screen (the synthetic US took the midyear
+  // survey both ways).
+  const other = page.getByRole('combobox', { name: 'Year of the other answers' })
+  await expect(page.getByText(/^The other question uses the same people’s/)).toContainText(
+    'answers, usually given 8–12 months earlier.',
+  )
+  await other.selectOption('Y2')
+  await expect(page).toHaveURL(/other=Y2/)
+  await expect(page.getByText(/^The other question uses the same people’s/)).toContainText(
+    'answers, from the same interview for some people, about six months later for others.',
+  )
+  await expect(
+    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('img', {
+      name: new RegExp(`^${plan.midyear.display_name} and Feelings about household income in`),
+    }),
+  ).toBeVisible()
+  await wave.getByText('2023', { exact: true }).click()
+  await expect(page).toHaveURL(/\/correlates$/)
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name} was asked only in the midyear survey, so Life evaluation today took its place.`,
+    ),
+  ).toBeVisible()
+
+  // Midyear from the picker: a midyear question picked at 2023 takes the
+  // page to Midyear.
+  await page.goto('/correlates?view=related&outcome=HAPPY')
+  await page.getByRole('button', { name: 'Question: Happiness' }).click()
+  const questionPicker = page.getByRole('dialog', { name: 'Question' })
+  await questionPicker.getByRole('searchbox').fill('social')
+  await questionPicker
+    .getByRole('option', { name: `${plan.midyear.display_name}, Midyear`, exact: true })
+    .click()
+  await expect(page).toHaveURL(new RegExp(`outcome=${plan.midyear.name}&wave=MY`))
+  await expect(
+    page.getByText(
+      `${plan.midyear.display_name} is a midyear question, so the page switched to Midyear.`,
+    ),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^${plan.midyear.display_name}: the \\d+ questions most strongly associated`,
+      ),
+    }),
+  ).toBeVisible()
+  // Find related's note is plural, and its choice of year works the same.
+  await expect(page.getByText(/^The other questions use the same people’s/)).toBeVisible()
+  await page.getByRole('combobox', { name: 'Year of the other answers' }).selectOption('Y2')
+  await expect(page).toHaveURL(/other=Y2/)
+  await expect(
+    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
+      exact: false,
+    }),
+  ).toBeVisible()
+
+  // A phone: the shared row folds into one line; Change opens it in place.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/correlates')
+  await expect(
+    page.getByText('2023 · United States · Straight-line', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  const change = page.getByRole('button', { name: 'Change wave, country and correlation type' })
+  await change.click()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Correlation type' })).toBeVisible()
+  await page.getByRole('button', { name: 'Done changing' }).click()
+  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  // No sideways scroll at phone width.
+  expect(
+    await page.evaluate<boolean>(
+      'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+    ),
+  ).toBe(true)
+})
+
+// A phone's widths, down to the narrowest still in use, under two fonts:
+// the platform's own and a wider one. Linux's system font is wider than
+// macOS's, which is how the nav pushed the page sideways on the CI runner
+// and nowhere else (30 Sept). Verdana stands in for it where it is
+// installed (macOS, Windows); elsewhere the stack falls through to the
+// platform's own sans — on the runner, already the wide case.
+const PHONE_WIDTHS = [320, 360, 375, 390]
+const PHONE_FONTS = [
+  { name: 'the platform’s font', css: null },
+  { name: 'a wider font', css: ':root { --font-sans: Verdana, sans-serif }' },
+]
+/** The least the phone nav leaves between two items (AppShell.module.css). */
+const NAV_LEAST_GAP = 2
+
+test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+  page,
+}) => {
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await servePairs(page)
+  // Every width and font is tried, so one run names every one that fails.
+  const softly = expect.configure({ soft: true })
+  // How far the page can scroll sideways, in px — never less than none.
+  // Where the page keeps room for a classic scrollbar (scrollbar-gutter,
+  // styles.css) and Playwright hides the bar — the Linux runner — its
+  // scrollWidth is 15px short of its clientWidth when nothing overflows.
+  const sideways = () =>
+    page.evaluate<number>(
+      'Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)',
+    )
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const panel = nav.locator('details > div')
+  const column = page.locator('main')
+
+  for (const path of ['/', '/correlates']) {
+    for (const font of PHONE_FONTS) {
+      for (const width of PHONE_WIDTHS) {
+        const where = `${path} at ${width}px in ${font.name}`
+        await page.setViewportSize({ width, height: 844 })
+        await page.goto(path)
+        await expect(page.locator('main figure').first()).toBeVisible()
+        if (font.css) await page.addStyleTag({ content: font.css })
+        softly(await sideways(), `${where}: px of sideways scroll`).toBe(0)
+
+        // The row gives up its spacing before it wraps: one row wherever
+        // its items fit the page column with the least space between them.
+        const room = (await column.boundingBox())!.width
+        const items = await Promise.all(
+          (await nav.locator(':scope > a, :scope > details').all()).map((item) =>
+            item.boundingBox(),
+          ),
+        )
+        const needed =
+          items.reduce((sum, box) => sum + box!.width, 0) + NAV_LEAST_GAP * (items.length - 1)
+        if (needed <= room - 0.5) {
+          const rows = new Set(items.map((box) => Math.round(box!.y))).size
+          softly(rows, `${where}: rows of nav, its items fitting one`).toBe(1)
+        }
+
+        // "More" opens inside the page column — hung from its right edge,
+        // or moved over where the row has wrapped it to the left.
+        await nav.getByText('More', { exact: true }).click()
+        await expect(nav.getByRole('link', { name: 'Methods' })).toBeVisible()
+        await softly
+          .poll(
+            async () => {
+              const [box, within] = await Promise.all([panel.boundingBox(), column.boundingBox()])
+              if (!box || !within) return Infinity
+              return Math.max(within.x - box.x, box.x + box.width - (within.x + within.width))
+            },
+            {
+              message: `${where}: px of the "More" panel outside the page column`,
+              timeout: 1_000,
+            },
+          )
+          .toBeLessThanOrEqual(1)
+        softly(await sideways(), `${where}, "More" open: px of sideways scroll`).toBe(0)
+      }
+    }
+  }
 })
 
 async function streamToString(download: {

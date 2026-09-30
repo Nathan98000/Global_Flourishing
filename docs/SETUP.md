@@ -203,7 +203,11 @@ gate — CI has no R), and uploads everything under
 `gs://$BUCKET/builds/<data_version>/` with `builds/latest.txt` pointing at
 it. The next `make deploy TAG=…` bakes that build into the image and the
 Pages assets; until the bucket variable exists, deploys stay green and
-ship a data-less API that says so at `/health`.
+ship a data-less API that says so at `/health`. Building the image also
+precomputes every country's correlations from the staged data — what "All
+countries" averages and the country-by-country views show (`python -m
+flourish_api.country_correlations`, ADR-0020) — a few minutes of the
+deploy job, nothing to set up; the API reads the file at start.
 
 ## 8. Optional: Sentry (API error reporting)
 
@@ -240,8 +244,11 @@ gh variable list   # expect GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE,
    gh workflow run data-build.yml && gh run watch
    ```
 
-   Re-run it whenever the pipeline output changes (a new `data_version`);
-   deploys always bake whatever `builds/latest.txt` points at.
+   Re-run it whenever the pipeline output changes: a new raw release (a
+   new `data_version`), or a pipeline change that leaves the
+   `data_version` as it was — ADR-0020's catalog wording and midyear
+   timing, say — in which case the run overwrites that build in the
+   bucket. Deploys always bake whatever `builds/latest.txt` points at.
 
 2. **Release.** From a clean, up-to-date `main`:
 

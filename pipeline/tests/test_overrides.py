@@ -154,3 +154,16 @@ def test_short_labels_shorten_the_long_breakdown_answers() -> None:
         8: "Out of work (reserve duty)",
     }
     assert overrides.variables["GENDER"].short_labels == {}
+
+
+def test_a_wording_override_replaces_a_codebook_placeholder() -> None:
+    """The codebook's TIME_MEDIA wording ends "…such as [EXAMPLE]?" — the
+    survey named platforms country by country — so the override words it
+    for the page (review H2); no override wording carries a bracket."""
+    overrides = load_overrides()
+    assert overrides.variables["TIME_MEDIA"].wording == (
+        "On average, how much time do you spend each day using social media "
+        "platforms (the survey named popular ones in each country)?"
+    )
+    for variable in overrides.variables.values():
+        assert variable.wording is None or "[" not in variable.wording, variable.name

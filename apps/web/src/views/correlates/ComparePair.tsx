@@ -2,11 +2,11 @@
 // answers to another, in one country. The view owns its two pickers, set
 // in a sentence ("How do answers to [A ▾] relate to [B ▾]?") with a Swap;
 // A is the columns, B the rows. Its chart is a column-percent heat grid
-// (each column adds to 100%) under bars of who gave each of A's answers;
-// a header row holds the pair's correlation strip and the scope toggle —
-// In {country} · In every country, where the grid gives way to the
-// pair's correlation in each country. One chart at a time. Every number
-// is the server's.
+// (each column adds to 100%) under bars of who gave each of A's answers,
+// headed by the pair's correlation strip. The scope toggle — In {country}
+// · Country by country, where the grid gives way to the pair's
+// correlation in each country — sits under the shared control row, as in
+// Find related. One chart at a time. Every number is the server's.
 
 import { useMemo, type ReactNode } from 'react'
 import { useCorrelates } from '../../api/correlates'
@@ -30,39 +30,58 @@ import {
   type CrossTabRow,
 } from '../../charts/CrossTab'
 import { RankedBar } from '../../charts/RankedBar'
-import { SEQUENTIAL_RAMP, signMark } from '../../charts/theme'
+import { SHARE_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
+import { EstimateTable } from '../../components/EstimateTable'
 import { LoadingBlock } from '../../components/Loading'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
 import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, pairToCsv, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
-import { ciText, formatEstimate } from '../../format'
+import { formatEstimate } from '../../format'
 import { groupValueLabel, shortName } from '../../labels'
 import {
   correlatesAcrossCountries,
+  correlatesRequest,
   firstQuestion,
   pairRequest,
   secondQuestion,
   type CorrelatesScope,
 } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../../waves'
+import { WAVE_TITLES } from '../../waves'
 import {
+  ALL_COUNTRIES,
+  CORRELATES_NOTE,
   CORRELATION_SCALE,
+  averagedOver,
   FEW_PEOPLE_KEY,
   fewPeople,
+  likelyRange,
+  pooledPlace,
+  scopeLabel,
   pairAxisTitle,
   pairBarTip,
   pairCellTip,
   rankedTip,
   statisticPhrase,
+  tableCaption,
 } from '../correlatesRows'
+import {
+  otherWaveOf,
+  requestOther,
+  waveName,
+  waveTitle,
+  yearTagged,
+  type OtherWave,
+} from './midyear'
 import {
   Failure,
   orderedAt,
   pairReason,
+  pickerTag,
   questionReason,
+  triggerTag,
   useSharesAnswers,
   type ViewProps,
 } from './shared'
@@ -87,9 +106,13 @@ export function ComparePair({
   const sameAnswers = aName !== bName && shares(aName, bName)
   // A score's components decide whether the pair can be asked for at all.
   const waiting = !settled && (a?.is_derived === true || b?.is_derived === true)
+  // At Midyear another wave's question reads the same people's answers
+  // from the other answers' wave (ADR-0020).
+  const otherAnswers = otherWaveOf(search)
+  const otherWave = requestOther(search, [aName, bName], variables.byName)
   const ready =
-    orderedAt(a, search.wave) &&
-    orderedAt(b, search.wave) &&
+    orderedAt(a, search.wave, otherAnswers) &&
+    orderedAt(b, search.wave, otherAnswers) &&
     aName !== bName &&
     !sameAnswers &&
     !waiting
@@ -97,12 +120,24 @@ export function ComparePair({
   // One chart at a time: the grid in one country, or the pair's
   // correlation in every country.
   const pair = usePair(
-    ready && country !== undefined ? pairRequest(search, { a: aName, b: bName }, country) : null,
+    ready && country !== undefined
+      ? pairRequest(search, { a: aName, b: bName }, country, otherWave)
+      : null,
     { enabled: !everywhere },
   )
-  const across = useCorrelates(ready ? correlatesAcrossCountries(search, aName, [bName]) : null, {
-    enabled: everywhere,
-  })
+  const across = useCorrelates(
+    ready ? correlatesAcrossCountries(search, aName, [bName], otherWave) : null,
+    {
+      enabled: everywhere,
+    },
+  )
+  // Country by country, whatever country is chosen: the All countries
+  // average, as the chart's labelled rule (and, All countries chosen, as
+  // the strip).
+  const pooledPair = useCorrelates(
+    ready ? correlatesRequest(search, aName, 'all', [bName], otherWave) : null,
+    { enabled: everywhere },
+  )
   const aDetail = useVariable(ready ? aName : null).data?.detail
   const bDetail = useVariable(ready ? bName : null).data?.detail
 
@@ -132,56 +167,74 @@ export function ComparePair({
       legendHidden
       name="pair-scope"
       options={[
-        { value: 'country', label: countryName ? `In ${countryName}` : 'In one country' },
-        { value: 'all', label: 'In every country' },
+        { value: 'country', label: scopeLabel(countryName) },
+        { value: 'all', label: 'Country by country' },
       ]}
       value={search.scope}
       onChange={(scope) => setSearch({ scope })}
     />
   )
   const acrossResponse = across.data
-  const chosenRow = acrossResponse?.rows.find((row) => row.group['country_code'] === country)
+  const chosenRow =
+    country === 'all'
+      ? pooledPair.data?.rows[0]
+      : acrossResponse?.rows.find((row) => row.group['country_code'] === country)
 
   return (
     <>
-      <p className={own.sentence}>
-        How do answers to{' '}
-        <QuestionPicker
-          label="First question"
-          variables={variables.list}
-          wave={search.wave}
-          value={aName}
-          unavailable={(variable) =>
-            pairReason(variable, b, 'second question', search.wave, shares)
-          }
-          onPick={(name) => setSearch({ a: name })}
-        />{' '}
-        relate to{' '}
-        <QuestionPicker
-          label="Second question"
-          variables={variables.list}
-          wave={search.wave}
-          value={bName}
-          unavailable={(variable) => pairReason(variable, a, 'first question', search.wave, shares)}
-          onPick={(name) => setSearch({ b: name })}
-        />
-        ?{' '}
-        <button
-          type="button"
-          className={styles.swap}
-          onClick={() => setSearch({ a: bName, b: aName })}
-        >
-          <span aria-hidden="true">⇄ </span>Swap
-        </button>
-      </p>
+      <div className={own.sentenceRow}>
+        <p className={own.sentence}>
+          How do answers to{' '}
+          <QuestionPicker
+            label="First question"
+            variables={variables.list}
+            wave={search.wave}
+            value={aName}
+            unavailable={(variable) =>
+              pairReason(variable, b, 'second question', search.wave, shares)
+            }
+            countable={(variable) => questionReason(variable, search.wave) === undefined}
+            tagOf={(variable) => pickerTag(variable, search)}
+            triggerTag={triggerTag(a, search)}
+            onPick={(name) => setSearch({ a: name })}
+          />{' '}
+          relate to{' '}
+          <span className={own.sentenceEnd}>
+            <QuestionPicker
+              label="Second question"
+              variables={variables.list}
+              wave={search.wave}
+              value={bName}
+              unavailable={(variable) =>
+                pairReason(variable, a, 'first question', search.wave, shares)
+              }
+              countable={(variable) => questionReason(variable, search.wave) === undefined}
+              tagOf={(variable) => pickerTag(variable, search)}
+              triggerTag={triggerTag(b, search)}
+              onPick={(name) => setSearch({ b: name })}
+            />
+            <span>?</span>
+            {/* Swap keeps to the last picker's line (review L3). */}
+            <button
+              type="button"
+              className={own.swap}
+              onClick={() => setSearch({ a: bName, b: aName })}
+            >
+              <span aria-hidden="true">⇄ </span>Swap
+            </button>
+          </span>
+        </p>
+      </div>
       {controls}
+      {/* Where, in the one place every view has it: under the shared row. */}
+      <div className={own.scopeRow}>{scopeToggle}</div>
       {problem || !a || !b ? (
         <EmptyState title="Pick two questions to compare">
           <p>{problem ?? 'Choose two questions'} — choose another question above.</p>
         </EmptyState>
       ) : everywhere ? (
         waiting || across.isPending ? (
-          <LoadingBlock height={520} label="Loading the pair in every country" />
+          <LoadingBlock height={520} label="Loading the pair country by country" />
         ) : across.isError ? (
           <Failure error={across.error} apiReachable={apiReachable} />
         ) : acrossResponse ? (
@@ -189,24 +242,24 @@ export function ComparePair({
             a={a}
             b={b}
             response={acrossResponse}
-            chosen={country}
+            average={pooledPair.data?.rows[0]}
+            chosen={country === 'all' ? undefined : country}
             countryName={countryName}
             wave={search.wave}
+            other={otherWave}
             method={search.method}
             isRefreshing={across.isPlaceholderData}
             served={served}
             header={
-              <HeaderRow
-                strip={
-                  chosenRow ? (
-                    <CorrelationStrip
-                      row={chosenRow}
-                      flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
-                    />
-                  ) : null
-                }
-                toggle={scopeToggle}
-              />
+              <HeaderRow>
+                {chosenRow ? (
+                  <CorrelationStrip
+                    row={chosenRow}
+                    scope={countryName}
+                    flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
+                  />
+                ) : null}
+              </HeaderRow>
             }
           />
         ) : null
@@ -219,22 +272,21 @@ export function ComparePair({
           pair={pair.data}
           a={a}
           b={b}
-          aTitle={pairAxisTitle(a, aDetail)}
-          bTitle={pairAxisTitle(b, bDetail)}
+          aTitle={pairAxisTitle(a, aDetail, yearTagged(shortName(a), a, search.wave, otherWave))}
+          bTitle={pairAxisTitle(b, bDetail, yearTagged(shortName(b), b, search.wave, otherWave))}
           countryName={countryName}
           wave={search.wave}
+          other={otherWave}
           isRefreshing={pair.isPlaceholderData}
           served={served}
           header={
-            <HeaderRow
-              strip={
-                <CorrelationStrip
-                  row={pair.data.correlation}
-                  flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
-                />
-              }
-              toggle={scopeToggle}
-            />
+            <HeaderRow>
+              <CorrelationStrip
+                row={pair.data.correlation}
+                scope={countryName}
+                flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
+              />
+            </HeaderRow>
           }
         />
       ) : null}
@@ -242,25 +294,21 @@ export function ComparePair({
   )
 }
 
-/** The pair's header: the correlation on the left, where on the right. */
-function HeaderRow({ strip, toggle }: { strip: ReactNode; toggle: ReactNode }) {
-  return (
-    <div className={own.headerRow}>
-      {strip}
-      {toggle}
-    </div>
-  )
+/** The chart's header: only its labelled correlation strip (where the
+ * number is taken sits with the page's controls, review M5). */
+function HeaderRow({ children }: { children: ReactNode }) {
+  return <div className={own.headerRow}>{children}</div>
 }
 
-/** The key to the grid: its fixed bins in the ramp's own tokens, and the
- * asterisk. */
+/** The key to the grid: how to read it, its nine fixed bins in the grid
+ * ramp's own tokens, and the asterisk. */
 function ShareLegend() {
   return (
     <p className={`${styles.legend} ${own.shareLegend}`}>
       <span className={own.shareKey}>
-        <span>Share of each column</span>
+        <span>Share of each column (columns add to 100%)</span>
         <span className={own.bins} aria-hidden="true">
-          {SEQUENTIAL_RAMP.map((token, index) => (
+          {SHARE_RAMP.map((token, index) => (
             <span key={token} className={own.bin}>
               <span className={own.swatch} style={{ background: token }} />
               <span>
@@ -288,6 +336,7 @@ function PairFigure({
   bTitle,
   countryName,
   wave,
+  other,
   isRefreshing,
   served,
   header,
@@ -299,12 +348,14 @@ function PairFigure({
   bTitle: string
   countryName: string
   wave: Wave
+  /** At Midyear with another wave's question: that wave (ADR-0020). */
+  other: OtherWave | undefined
   isRefreshing: boolean
   served: Meta
   header: ReactNode
 }) {
-  const aShort = shortName(a)
-  const bShort = shortName(b)
+  const aShort = yearTagged(shortName(a), a, wave, other)
+  const bShort = yearTagged(shortName(b), b, wave, other)
   const columnLabel = useMemo(
     () => new Map(pair.columns.map((column) => [column.code, column.label])),
     [pair],
@@ -321,16 +372,7 @@ function PairFigure({
           level: column.label,
           short: aShort,
           share: column.share,
-          interval:
-            column.ci_lo !== null && column.ci_hi !== null
-              ? ciText({
-                  ci_lo: column.ci_lo,
-                  ci_hi: column.ci_hi,
-                  ci_level: pair.shares.meta.ci_level,
-                  stat: 'proportion',
-                })
-              : undefined,
-          flagged: column.flagged,
+          range: likelyRange(column.ci_lo, column.ci_hi),
         }),
       })),
     [pair, aShort],
@@ -355,9 +397,7 @@ function PairFigure({
             bLevel: rowLabel.get(cell.y) ?? String(cell.y),
             bShort,
             share: cell.share,
-            interval:
-              record && record.ci_lo !== null && record.ci_hi !== null ? ciText(record) : undefined,
-            flagged: cell.flagged,
+            range: record ? likelyRange(record.ci_lo, record.ci_hi) : undefined,
           }),
         }
       }),
@@ -366,13 +406,19 @@ function PairFigure({
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,
     view: 'Compare two',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
-  const ariaLabel = `${a.display_name} and ${b.display_name} in ${countryName}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}.${
-    flaggedCount > 0 ? ` ${flaggedCount} of the cells rest on few people and are starred.` : ''
-  } The data table below carries every number.`
+  const pooled = pair.shares.meta.pooled === 'average'
+  const place = pooled ? pooledPlace(pair.shares.meta.countries, served.countries) : countryName
+  const ariaLabel = `${a.display_name} and ${b.display_name}${pooled ? `, ${averagedOver(pair.shares.meta.countries, served.countries)}` : ` in ${countryName}`}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
+    flaggedCount === 1
+      ? ' 1 cell is starred: small sample size.'
+      : flaggedCount > 1
+        ? ` ${flaggedCount} cells are starred: small sample size.`
+        : ''
+  }`
   // The data table names both questions' answers (a binned axis already
   // carries its bin's label).
   const label = (column: string, value: string | number) => {
@@ -381,10 +427,82 @@ function PairFigure({
     if (column === pair.y) return rowLabel.get(code) ?? String(value)
     return undefined
   }
+  const columnName = (column: string) =>
+    column === pair.x
+      ? yearTagged(a.display_name, a, wave, other)
+      : column === pair.y
+        ? yearTagged(b.display_name, b, wave, other)
+        : undefined
+  // Every number the chart shows is in its data table (review M6): the
+  // bars, the grid and the correlation, each with its asterisk.
+  const weighting = tableCaption(pooled)
+  const cellFlagged = new Map(
+    pair.shares.rows.map((row, index) => [row, pair.cells[index]?.flagged === true]),
+  )
+  const bars: EstimateResponse = {
+    meta: { ...pair.shares.meta, by: [pair.x] },
+    rows: pair.columns.map((column) => ({
+      group: { [pair.x]: column.label },
+      stat: 'proportion',
+      estimate: column.share,
+      se: null,
+      ci_lo: column.ci_lo,
+      ci_hi: column.ci_hi,
+      ci_level: pair.shares.meta.ci_level,
+      ci_method: 'normal',
+      n: column.n,
+      sum_w: 0,
+      n_psu: null,
+      n_strata: null,
+      df: null,
+      se_method: pair.shares.meta.se_method,
+      weight: pair.shares.meta.weight,
+      suppressed: false,
+      flagged: column.flagged,
+      n_countries: pooled ? (pair.shares.meta.countries?.length ?? null) : null,
+    })),
+  }
+  const correlation: EstimateResponse = {
+    meta: { ...pair.shares.meta, by: [], stat: pair.correlation.stat },
+    rows: [pair.correlation],
+  }
+  const dataTable = (
+    <>
+      <EstimateTable
+        response={bars}
+        meta={served}
+        caption={`Share of respondents who gave each answer to ${aShort}`}
+        columnName={columnName}
+        weightCaption={weighting}
+        estimateHeader="Share"
+        smallSampleOf={(row) => row.flagged}
+      />
+      <EstimateTable
+        response={pair.shares}
+        meta={served}
+        caption="Share of each column (columns add to 100%)"
+        groupLabel={label}
+        columnName={columnName}
+        weightCaption={weighting}
+        estimateHeader="Share of column"
+        smallSampleOf={(row) => cellFlagged.get(row) === true}
+      />
+      <EstimateTable
+        response={correlation}
+        meta={served}
+        caption="Correlation"
+        predictorLabel={() => `${a.display_name} and ${b.display_name}`}
+        predictorHeader="Questions"
+        weightCaption={weighting}
+        estimateHeader="Correlation"
+        smallSampleOf={(row) => fewPeople(row, pair.min_n)}
+      />
+    </>
+  )
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`${countryName} · ${WAVE_TITLES[wave] ?? wave}`}
+      subtitle={`${place} · ${waveTitle(wave, other)}`}
       ariaLabel={ariaLabel}
       marks="table"
       intro={
@@ -401,16 +519,8 @@ function PairFigure({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      groupLabel={label}
-      columnName={(column) =>
-        column === pair.x ? a.display_name : column === pair.y ? b.display_name : undefined
-      }
-      footnote={
-        <>
-          Each column is the people who gave that answer to {aShort}; the shading shows how they
-          answered {bShort}, adding to 100% down the column.{' '}
-        </>
-      }
+      dataTable={dataTable}
+      note={CORRELATES_NOTE}
     >
       <CrossTab
         columns={columns}
@@ -424,15 +534,18 @@ function PairFigure({
   )
 }
 
-/** The pair's correlation in every country: one dot per country on a
- * fixed −1 to 1 axis, strongest first, the chosen country picked out. */
+/** The pair's correlation in every country that asked both: one dot per
+ * country on a fixed −1 to 1 axis, strongest first, the chosen country
+ * picked out, and the All countries average as a labelled rule. */
 function EveryCountry({
   a,
   b,
   response,
+  average,
   chosen,
   countryName,
   wave,
+  other,
   method,
   isRefreshing,
   served,
@@ -441,9 +554,12 @@ function EveryCountry({
   a: VariableSummary
   b: VariableSummary
   response: EstimateResponse
+  /** The All countries average (drawn whatever country is chosen). */
+  average: EstimateRow | undefined
   chosen: number | undefined
   countryName: string
   wave: Wave
+  other: OtherWave | undefined
   method: 'spearman' | undefined
   isRefreshing: boolean
   served: Meta
@@ -458,35 +574,50 @@ function EveryCountry({
       groupValueLabel('country_code', row.group['country_code'] ?? null, served)
     return {
       ...response,
-      rows: [...response.rows].sort(
-        (left, right) =>
-          (right.estimate ?? -Infinity) - (left.estimate ?? -Infinity) ||
-          nameOf(left).localeCompare(nameOf(right)),
-      ),
+      // A country with nobody behind the pair wasn't asked: no row.
+      rows: response.rows
+        .filter((row) => row.n > 0)
+        .sort(
+          (left, right) =>
+            (right.estimate ?? -Infinity) - (left.estimate ?? -Infinity) ||
+            nameOf(left).localeCompare(nameOf(right)),
+        ),
     }
   }, [response, served])
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,
-    view: 'Compare two in every country',
-    waves: WAVE_CHIPS[wave] ?? wave,
+    view: 'Compare two country by country',
+    waves: waveName(wave, other),
   }
-  const aShort = shortName(a)
-  const bShort = shortName(b)
+  const aShort = yearTagged(shortName(a), a, wave, other)
+  const bShort = yearTagged(shortName(b), b, wave, other)
   const top = sorted.rows[0]
   const bottom = sorted.rows[sorted.rows.length - 1]
-  const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1; ${countryName} is picked out.${
+  const averageText =
+    average && average.estimate !== null
+      ? `${formatEstimate(average.estimate, average.stat)}${fewPeople(average, minN) ? '*' : ''}`
+      : undefined
+  const ariaLabel = `${a.display_name} and ${b.display_name}: their correlation in each of ${sorted.rows.length} countries, strongest first, on a fixed scale from −1 to 1${chosen !== undefined ? `; ${countryName} is picked out` : ''}.${
     top && bottom
       ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''
-  } The data table below carries every number.`
+  }${averageText ? ` A dashed line marks the All countries average, ${averageText}.` : ''} The data table below carries every number.`
+  // The data table: every country's dot, then the average the rule marks.
+  const table: EstimateResponse =
+    average && average.estimate !== null
+      ? {
+          ...sorted,
+          rows: [...sorted.rows, { ...average, group: { country_code: ALL_COUNTRIES } }],
+        }
+      : sorted
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`Every country · ${WAVE_TITLES[wave] ?? wave} · ${statisticPhrase(method)}`}
+      subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
       marks="dots"
       intro={header}
-      response={sorted}
+      response={table}
       meta={served}
       csv={{
         kind: 'client',
@@ -494,7 +625,17 @@ function EveryCountry({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      predictorLabel={(predictor) => (predictor === b.name ? b.display_name : undefined)}
+      predictorLabel={(predictor) =>
+        predictor === b.name ? yearTagged(b.display_name, b, wave, other) : undefined
+      }
+      groupLabel={(column, value) =>
+        column === 'country_code' && value === ALL_COUNTRIES ? 'All countries (average)' : undefined
+      }
+      tableCaption={tableCaption(response.meta.pooled === 'average')}
+      predictorHeader="Question"
+      estimateHeader="Correlation"
+      smallSampleOf={(row) => fewPeople(row, minN)}
+      note={CORRELATES_NOTE}
     >
       <RankedBar
         rows={sorted.rows}
@@ -504,12 +645,21 @@ function EveryCountry({
         color={signMark(1)}
         colorOf={(row) => signMark(row.estimate)}
         highlightOf={(row) => row.group['country_code'] === chosen}
+        {...(average && average.estimate !== null && averageText
+          ? {
+              reference: {
+                value: average.estimate,
+                label: `${ALL_COUNTRIES} ${averageText}`,
+                atTop: true,
+              },
+            }
+          : {})}
         zeroRule
         labelFontSize={narrow ? 12 : 13.5}
         fixedScale={CORRELATION_SCALE}
         axisEnds={[
-          `← higher ${aShort} goes with lower ${bShort}`,
-          `higher ${aShort} goes with higher ${bShort} →`,
+          `← higher answers to ${aShort} go with lower answers to ${bShort}`,
+          `higher answers to ${aShort} go with higher answers to ${bShort} →`,
         ]}
         stackOnNarrow
         tipOf={(row, label) => rankedTip(row, label, fewPeople(row, minN))}

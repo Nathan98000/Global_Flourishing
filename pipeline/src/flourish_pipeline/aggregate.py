@@ -51,6 +51,7 @@ from flourish_stats import (
     SuppressionPolicy,
     WeightSpec,
     eligibility_expr,
+    midyear_timing,
     resolve,
     weight_table_json,
     weighted_distribution,
@@ -362,6 +363,11 @@ def export_catalog(
             "breakdown_labels": breakdown_labels(variables, value_labels),
             "families": sorted(variables["family"].unique().to_list()),
             "state_labels": state_labels(),
+            "midyear_timing": midyear_timing(
+                con.execute(
+                    "SELECT country_code, has_midyear, retained_y2, midyear_type FROM respondents"
+                ).pl()
+            ),
         },
     )
 

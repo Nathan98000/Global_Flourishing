@@ -29,7 +29,7 @@ import {
 } from 'react'
 import type { VariableSummary, Wave } from '../../api/types'
 import { shortName } from '../../labels'
-import { subtopicsOf, topicFamily, topicsOf } from '../../topics'
+import { pickerTopicName, subtopicsOf, topicFamily, topicsOf } from '../../topics'
 import { searchMeasures } from './OutcomePicker'
 import styles from './QuestionPicker.module.css'
 
@@ -114,7 +114,7 @@ function shelvesOf(variables: readonly VariableSummary[]): Shelf[] {
     const subtopics = subtopicsOf(topic.measures)
     const own: Shelf = {
       key: topic.family,
-      name: topic.name,
+      name: pickerTopicName(topic.family),
       depth: 0,
       family: topic.family,
       sections:
@@ -156,12 +156,18 @@ interface Common {
   wave: Wave
   /** Why a question can't be chosen here, in words (undefined: it can). */
   unavailable?: (variable: VariableSummary) => string | undefined
+  /** Which questions a topic's count counts (default: asked at `wave`). */
+  countable?: (variable: VariableSummary) => boolean
+  /** A small tag beside an option's name ("Midyear", "2023 answers"). */
+  tagOf?: (variable: VariableSummary) => string | undefined
 }
 
 interface SingleProps extends Common {
   multiple?: false
   value: string | undefined
   onPick: (name: string) => void
+  /** A small tag in the closed button, after the name ("2023"). */
+  triggerTag?: string
 }
 
 interface MultipleProps extends Common {
@@ -215,7 +221,11 @@ export function QuestionPicker(props: QuestionPickerProps) {
         aria-haspopup="dialog"
         aria-expanded={open}
         disabled={props.multiple ? props.disabled : undefined}
-        aria-label={props.multiple ? props.trigger : `${label}: ${name}`}
+        aria-label={
+          props.multiple
+            ? props.trigger
+            : `${label}: ${name}${props.triggerTag ? `, ${props.triggerTag} answers` : ''}`
+        }
         onClick={() => setOpen((was) => !was)}
       >
         {props.multiple ? (
@@ -225,8 +235,11 @@ export function QuestionPicker(props: QuestionPickerProps) {
         ) : (
           <>
             <span className={styles.triggerText}>{name}</span>
+            {props.triggerTag && <span className={styles.triggerTag}>{props.triggerTag}</span>}
             <span className={styles.chevron} aria-hidden="true">
-              ▾
+              <svg viewBox="0 0 12 12" focusable="false">
+                <path d="M2.25 4.5 6 8.25 9.75 4.5" />
+              </svg>
             </span>
           </>
         )}
@@ -254,7 +267,7 @@ function Panel(
     anchor: React.RefObject<HTMLSpanElement | null>
   },
 ) {
-  const { label, variables, wave, unavailable, current, onClose, anchor } = props
+  const { label, variables, wave, unavailable, countable, tagOf, current, onClose, anchor } = props
   const multiple = props.multiple === true
   const selected = props.multiple ? props.selected : []
   const id = useId()
@@ -297,7 +310,7 @@ function Panel(
     const matches = new Set(searchMeasures([...variables], needle).map((v) => v.name))
     return topicsOf([...variables])
       .map((topic) => ({
-        title: topic.name,
+        title: pickerTopicName(topic.family),
         items: topic.measures.filter((v) => matches.has(v.name)),
       }))
       .filter((section) => section.items.length > 0)
@@ -545,7 +558,7 @@ function Panel(
             {visibleShelves.map((entry) => {
               const count = entry.sections
                 .flatMap((section) => section.items)
-                .filter((v) => v.waves_available.includes(wave)).length
+                .filter((v) => (countable ? countable(v) : v.waves_available.includes(wave))).length
               return (
                 // eslint-disable-next-line jsx-a11y/click-events-have-key-events
                 <li
@@ -613,7 +626,7 @@ function Panel(
                     role="option"
                     aria-selected={chosen}
                     aria-disabled={reason !== undefined || undefined}
-                    aria-label={optionName(variable, reason)}
+                    aria-label={optionName(variable, reason, tagOf?.(variable))}
                     aria-describedby={`${optionId(variable.name)}-w`}
                     className={styles.option}
                     data-active={variable.name === activeName || undefined}
@@ -632,6 +645,7 @@ function Panel(
                     <span className={styles.optionText}>
                       <span className={styles.optionName}>
                         {marked(shortName(variable), needle)}
+                        {tagOf?.(variable) && <span className={styles.tag}>{tagOf(variable)}</span>}
                       </span>
                       <span className={styles.optionWording} id={`${optionId(variable.name)}-w`}>
                         {marked(wordingSnippet(wordingOf(variable), needle), needle)}
@@ -672,8 +686,9 @@ function Panel(
 /** An option's accessible name: its short label and, when it can't be
  * chosen, why (its wording is its description). Plain text, so a marked
  * match never splits the name. */
-function optionName(variable: VariableSummary, reason: string | undefined): string {
-  return reason ? `${shortName(variable)}, ${reason}` : shortName(variable)
+function optionName(variable: VariableSummary, reason: string | undefined, tag?: string): string {
+  const name = tag ? `${shortName(variable)}, ${tag}` : shortName(variable)
+  return reason ? `${name}, ${reason}` : name
 }
 
 /** Whether an option reads as chosen: the current question (single), or

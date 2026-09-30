@@ -5,9 +5,10 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
+import { BAR_LABEL_ROOM, CrossTab, LINE, crossTabLayout, type Measurer } from '../charts/CrossTab'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import { TIP_OPTIONS } from '../charts/theme'
-import { LABEL_CAP, RankedBar, rankEntries, wrapLabel } from '../charts/RankedBar'
+import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
@@ -235,13 +236,17 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     // Never fitted: a +0.12 list and a +0.76 list share one window.
     expect(ticks).toEqual(['−1', '−0.5', '0', '0.5', '1'])
     // (Each end holds to half the plot, wrapping rather than meeting.)
+    // (A line is a positioned tspan; "higher" and "lower" ride inside
+    // their line as styled tspans of their own.)
     const words = [...svg.querySelectorAll('text')].map(
       (node) =>
-        [...node.querySelectorAll('tspan')].map((line) => line.textContent).join(' ') ||
+        [...node.querySelectorAll(':scope > tspan[x]')].map((line) => line.textContent).join(' ') ||
         node.textContent,
     )
     expect(words).toContain('← goes with lower Happiness')
     expect(words).toContain('goes with higher Happiness →')
+    const turns = [...svg.querySelectorAll('g[aria-description="axis end"] tspan:not([x])')]
+    expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
     // The long label wraps to two lines; every word is still there.
     const labels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
     const long = labels.find((node) => node.textContent?.startsWith('Christian'))
@@ -653,6 +658,161 @@ describe('usePlot', () => {
     } finally {
       rect.mockRestore()
       vi.unstubAllGlobals()
+    }
+  })
+})
+
+describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
+  // The estimate the charts measure with before layout (bold runs wider).
+  const measurer: Measurer = (size, weight) => textMeasurer(size, false, weight)
+  // The catalog's longest short name, as both titles and the caption.
+  const longest = 'Chinese folk teachings important (country religion)'
+  const ends = '0 = Not at all important, 10 = Very important'
+  const zeroToTen = Array.from({ length: 11 }, (_, index) => ({ label: String(index) }))
+  const narrowGutters = {
+    '0–10 rows': zeroToTen,
+    'yes/no rows': [{ label: 'Yes' }, { label: 'No' }],
+  }
+  // The widest share labels a cell or a bar can wear.
+  const cellTexts = ['100%', '65%*', '<1%*', '8%']
+  const layoutAt = (width: number, rows: { label: string }[]) =>
+    crossTabLayout({
+      width,
+      columns: zeroToTen,
+      rows,
+      xTitle: `${longest} · ${ends}`,
+      yTitle: `${longest} · ${ends}`,
+      barCaption: `Share of respondents who gave each answer to ${longest}`,
+      cellTexts,
+      barTexts: cellTexts,
+      measurer,
+    })
+
+  for (const [name, rows] of Object.entries(narrowGutters)) {
+    for (const width of [300, 390, 519, 520, 660, 896]) {
+      test(`${name} at ${width}px: every line fits its box, the caption clears the bars`, () => {
+        const layout = layoutAt(width, rows)
+        const { caption, title, rowLabels, ticks, xTitle } = layout
+        const bold = new Set([title, xTitle])
+        for (const text of [caption, title, ...rowLabels, ...ticks, xTitle]) {
+          const measure = measurer(text.fontSize, bold.has(text) ? 600 : 400)
+          for (const line of text.lines) expect(measure(line)).toBeLessThanOrEqual(text.width)
+          expect(text.left).toBeGreaterThanOrEqual(0)
+          expect(text.left + text.width).toBeLessThanOrEqual(width)
+        }
+        // The caption and the rows' title start at the chart's left edge
+        // and may span it; the gutter holds the row labels alone.
+        for (const text of [caption, title]) {
+          expect(text.left).toBe(4)
+          expect(text.width).toBe(width - 8)
+        }
+        // The caption ends above the tallest bar's value label (11px,
+        // 4px over the bar), so it never meets a bar or its label.
+        const captionBottom = caption.top + caption.lines.length * LINE
+        expect(captionBottom + BAR_LABEL_ROOM).toBeLessThanOrEqual(layout.barTop)
+        expect(captionBottom).toBeLessThanOrEqual(layout.barTop - 4 - 13)
+        // Then the bars, the rows' title, the grid, the ticks, the x title.
+        expect(title.top).toBeGreaterThan(layout.barBase)
+        const titleBottom = title.top + title.lines.length * LINE
+        const firstRow = layout.stacked ? (rowLabels[0]?.top ?? 0) : (layout.rowTops[0] ?? 0)
+        expect(titleBottom).toBeLessThanOrEqual(firstRow)
+        const gridBottom = (layout.rowTops[layout.rowTops.length - 1] ?? 0) + layout.cellHeight
+        for (const tick of ticks) expect(tick.top).toBeGreaterThan(gridBottom)
+        const ticksBottom = Math.max(...ticks.map((tick) => tick.top + tick.lines.length * 13))
+        expect(xTitle.top).toBeGreaterThanOrEqual(ticksBottom)
+        expect(xTitle.top + xTitle.lines.length * LINE).toBeLessThanOrEqual(layout.height)
+        // Row labels keep to their own rows — on a phone, nearer their own
+        // row than the one before (review M9).
+        rowLabels.forEach((label, index) => {
+          const top = layout.rowTops[index] ?? 0
+          const bottom = label.top + label.lines.length * LINE
+          if (layout.stacked && index > 0) {
+            const before = (layout.rowTops[index - 1] ?? 0) + layout.cellHeight
+            expect(label.top - before).toBeGreaterThan(top - bottom)
+          }
+          if (layout.stacked) expect(bottom).toBeLessThanOrEqual(top)
+          else {
+            expect(label.top).toBeGreaterThanOrEqual(top)
+            expect(bottom).toBeLessThanOrEqual(top + layout.cellHeight)
+          }
+        })
+        // Every share fits its cell, inside a flagged cell's outline, and
+        // every bar's label its column — as drawn: a column under 44px
+        // leaves the "%" to the key (the asterisk stays).
+        expect(layout.percent).toBe(layout.columnWidth >= 44)
+        const inCell = measurer(layout.cellFontSize)
+        const onBar = measurer(layout.barFontSize)
+        const drawn = cellTexts.map((text) => (layout.percent ? text : text.replace('%', '')))
+        for (const text of drawn) {
+          expect(inCell(text)).toBeLessThanOrEqual(layout.columnWidth - 2 * layout.flagInset - 2)
+          expect(onBar(text)).toBeLessThanOrEqual(layout.columnWidth - 2)
+        }
+        expect(layout.cellFontSize).toBeGreaterThanOrEqual(9)
+        // Nothing is cut: every word of every title is still there.
+        expect(caption.lines.join(' ')).toBe(
+          `Share of respondents who gave each answer to ${longest}`,
+        )
+        expect(xTitle.lines.join(' ')).toBe(`${longest} · ${ends}`)
+      })
+    }
+  }
+
+  test('a desktop gutter is fitted to the row labels alone; long labels make taller rows', () => {
+    expect(layoutAt(660, zeroToTen).marginLeft).toBeLessThan(40)
+    const worded = layoutAt(660, [
+      { label: 'Living comfortably on present income' },
+      { label: 'Finding it very difficult on present income and a good deal more besides' },
+    ])
+    expect(worded.marginLeft).toBeLessThanOrEqual(220)
+    expect(Math.max(...worded.rowLabels.map((label) => label.lines.length))).toBeGreaterThan(2)
+    expect(worded.cellHeight).toBeGreaterThan(32)
+  })
+
+  test('the drawing follows the layout: the caption over the bars, the x title bold in ink', () => {
+    const columns = zeroToTen.map((column, index) => ({
+      key: column.label,
+      label: column.label,
+      share: index === 7 ? 0.3 : 0.07,
+      flagged: false,
+      tip: '',
+    }))
+    const { container } = render(
+      <CrossTab
+        columns={columns}
+        rows={[
+          { key: '1', label: 'Yes' },
+          { key: '0', label: 'No' },
+        ]}
+        cells={[]}
+        xTitle={`${longest} · ${ends}`}
+        yTitle={`${longest} · ${ends}`}
+        barCaption={`Share of respondents who gave each answer to ${longest}`}
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const texts = [...svg.querySelectorAll('text')]
+    const captionNode = texts.find((node) => node.textContent?.startsWith('Share of respondents'))
+    const layout = layoutAt(660, [{ label: 'Yes' }, { label: 'No' }])
+    // (One line is drawn as the text itself; several as its tspans.)
+    const tspans = [...(captionNode?.querySelectorAll('tspan') ?? [])]
+    const drawn = tspans.length
+      ? tspans.map((line) => line.textContent)
+      : [captionNode?.textContent]
+    expect(drawn).toEqual(layout.caption.lines)
+    // Above every bar.
+    const barTops = [...svg.querySelectorAll('rect')]
+      .map((rect) => Number(rect.getAttribute('y')))
+      .filter((y) => y > 0)
+    expect(absoluteY(captionNode as Element)).toBeLessThan(Math.min(...barTops))
+    const titles = texts.filter((node) =>
+      node.textContent?.replace(/\s+/g, ' ').startsWith(longest),
+    )
+    expect(titles).toHaveLength(2)
+    for (const node of titles) {
+      const mark = node.closest('g')
+      expect(mark?.getAttribute('font-weight')).toBe('600')
+      expect(mark?.getAttribute('fill')).toBe('var(--ink)')
+      expect(mark?.getAttribute('font-size')).toBe('12.5')
     }
   })
 })

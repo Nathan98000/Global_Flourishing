@@ -1,8 +1,10 @@
 // The numbers behind a view, as a real table: the screen-reader path and
 // the copy-paste path for every chart, and a view in its own right.
 // Columns: the row's identity, Estimate, the CI, and n (§6 — the weight
-// is named once in the caption). Every cell is shown (ADR-0011); a
-// missing interval reads "—" and the n rides on every row.
+// is named once in the caption) — and, for estimates pooled across
+// countries, how many countries each covers (ADR-0020). Every cell is
+// shown (ADR-0011); a missing interval reads "—" and the n rides on
+// every row.
 
 import type { EstimateResponse, EstimateRow } from '../api/types'
 import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
@@ -37,6 +39,10 @@ export function EstimateTable({
   groupLabel,
   predictorLabel,
   columnName,
+  weightCaption,
+  estimateHeader = 'Estimate',
+  predictorHeader = 'Measure',
+  smallSampleOf,
 }: {
   response: EstimateResponse
   meta: Meta
@@ -55,6 +61,16 @@ export function EstimateTable({
    * the rows are grouped by: Compare two's question); falls back to
    * meta's labels. */
   columnName?: (column: string) => string | undefined
+  /** In place of "Weighted estimates (w_c1).": the weighting in plain
+   * words, with no weight code (the Correlates page). */
+  weightCaption?: string
+  /** The estimate column's header ("Share of column", "Correlation"). */
+  estimateHeader?: string
+  /** The predictor column's header ("Question"). */
+  predictorHeader?: string
+  /** A "Small sample" column: whether each row's value wears the chart's
+   * asterisk. */
+  smallSampleOf?: (row: EstimateRow) => boolean
 }) {
   const by = response.meta.by
   const rows = response.rows
@@ -70,6 +86,8 @@ export function EstimateTable({
   // A response of point estimates (plain correlations) has no interval to
   // tabulate: the column goes, rather than a column of dashes under "95% CI".
   const hasIntervals = !(rows.length > 0 && rows.every((row) => row.ci_method === 'none'))
+  // Pooled estimates say how many countries are behind each.
+  const hasCountries = rows.some((row) => row.n_countries !== null && row.n_countries !== undefined)
   const level = (value: number | null | undefined) => {
     if (value === null || value === undefined) return '—'
     const named = levelLabel?.(value)
@@ -83,11 +101,12 @@ export function EstimateTable({
       <table className={styles.table}>
         {/* The weight is named once here, not repeated on every row (§6). */}
         <caption className={styles.caption}>
-          {caption ? `${caption} · ` : ''}Weighted estimates ({response.meta.weight}).
+          {caption ? `${caption} · ` : ''}
+          {weightCaption ?? `Weighted estimates (${response.meta.weight}).`}
         </caption>
         <thead>
           <tr>
-            {hasPredictor && <th scope="col">Measure</th>}
+            {hasPredictor && <th scope="col">{predictorHeader}</th>}
             {by.map((column) => (
               <th key={column} scope="col">
                 {columnName?.(column) ?? columnLabel(column, meta)}
@@ -99,13 +118,15 @@ export function EstimateTable({
             {hasTransition && <th scope="col">Later answer</th>}
             {hasMeasure && <th scope="col">{measureHeader}</th>}
             {hasP && <th scope="col">p</th>}
-            <th scope="col">Estimate</th>
+            <th scope="col">{estimateHeader}</th>
             {hasIntervals && (
               <th scope="col" className={styles.ci}>
                 {ciLabel(response.meta.ci_level)}
               </th>
             )}
             <th scope="col">n</th>
+            {smallSampleOf && <th scope="col">Small sample</th>}
+            {hasCountries && <th scope="col">Countries</th>}
           </tr>
         </thead>
         <tbody>
@@ -130,6 +151,8 @@ export function EstimateTable({
               <td className={styles.number}>{formatEstimate(row.estimate, row.stat)}</td>
               {hasIntervals && <td className={`${styles.number} ${styles.ci}`}>{formatCI(row)}</td>}
               <td className={styles.number}>{formatCount(row.n)}</td>
+              {smallSampleOf && <td>{smallSampleOf(row) ? 'Yes' : 'No'}</td>}
+              {hasCountries && <td className={styles.number}>{row.n_countries ?? '—'}</td>}
             </tr>
           ))}
         </tbody>

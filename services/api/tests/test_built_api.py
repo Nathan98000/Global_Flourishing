@@ -116,3 +116,208 @@ def test_screener_items_align_positively_with_their_score(
     assert set(rows) == set(items)
     for item in items:
         assert rows[item]["estimate"] is not None and rows[item]["estimate"] > 0.5, item
+
+
+# --- All countries: the average of the countries (ADR-0020) ----------------
+
+#: A slice of the release's questions for the precompute checks: 0–10,
+#: ordered and yes/no items, a derived score and its own question.
+PRECOMPUTE_SLICE = [
+    "WB_TODAY",
+    "INCOME_FEELINGS",
+    "HAPPY",
+    "LIFE_SAT",
+    "sfi",
+    "DEPRESSED",
+    "phq2_score",
+]
+
+
+def test_all_countries_averages_every_country_of_the_release(built_client: TestClient) -> None:
+    meta = built_client.get("/v1/meta").json()
+    params = {"outcome": "WB_TODAY", "wave": "Y1", "against": "INCOME_FEELINGS"}
+    body = built_client.get("/v1/correlates", params={**params, "pooled": "average"}).json()
+    assert body["meta"]["countries"] == sorted(country["code"] for country in meta["countries"])
+    row = body["rows"][0]
+    assert row["n_countries"] == 23
+    dots = built_client.get("/v1/correlates", params={**params, "by": "country_code"}).json()
+    shown = [r["estimate"] for r in dots["rows"]]
+    assert row["estimate"] == pytest.approx(sum(shown) / len(shown), abs=1e-15)
+
+
+def test_attendance_and_life_evaluation_average_about_a_tenth(built_client: TestClient) -> None:
+    """The review's case (29 Sept): positive in 20 of 23 countries, 0.00
+    pooled by population — the plain average reads about +0.10."""
+    body = built_client.get(
+        "/v1/correlates",
+        params={"outcome": "ATTEND_SVCS", "wave": "Y1", "against": "WB_TODAY", "pooled": "average"},
+    ).json()
+    assert body["rows"][0]["estimate"] == pytest.approx(0.10, abs=0.015)
+
+
+def test_an_all_countries_list_ranks_no_question_few_countries_asked(
+    built_client: TestClient,
+) -> None:
+    """The owner's case (30 Sept): among what goes with Life evaluation
+    today, "Chinese folk teachings important" (asked in 2 of 23 countries)
+    and "Sikh teachings important" (9 of 23) ranked third and fourth. An
+    All countries list ranks only questions asked in at least half the
+    countries — 12 of the release's 23."""
+    scarce = {"TEACHINGS_15": 2, "TEACHINGS_6": 9}
+    params = {"outcome": "WB_TODAY", "wave": "Y1"}
+    ranked = built_client.get(
+        "/v1/correlates", params={**params, "pooled": "average", "limit": 200}
+    ).json()
+    assert len(built_client.get("/v1/meta").json()["countries"]) == 23
+    assert ranked["meta"]["min_countries"] == 12
+    assert not {row["predictor"] for row in ranked["rows"]} & set(scarce)
+    assert ranked["rows"] and all(row["n_countries"] >= 12 for row in ranked["rows"])
+    # Named, their averages are served as before, over the countries that asked.
+    named = built_client.get(
+        "/v1/correlates", params={**params, "against": list(scarce), "pooled": "average"}
+    ).json()
+    assert {row["predictor"]: row["n_countries"] for row in named["rows"]} == scarce
+    # In India, where 143 people answered it, the Sikh question is ranked.
+    india = built_client.get(
+        "/v1/correlates", params={**params, "filter": "country_code:6", "limit": 200}
+    ).json()
+    assert "TEACHINGS_6" in {row["predictor"] for row in india["rows"]}
+    assert india["meta"]["min_countries"] is None
+    # Chosen itself for All countries, it has no list, and the meta says why.
+    own = built_client.get(
+        "/v1/correlates",
+        params={"outcome": "TEACHINGS_6", "wave": "Y1", "pooled": "average", "limit": 200},
+    ).json()
+    assert own["rows"] == []
+    assert len(own["meta"]["countries"]) < own["meta"]["min_countries"] == 12
+
+
+def test_the_precompute_equals_the_on_demand_estimator_on_the_release(tmp_path: Path) -> None:
+    from flourish_api import country_correlations
+    from flourish_api.config import Settings
+    from flourish_api.data import DataStore
+    from flourish_api.main import create_app
+
+    data = REPO_ROOT / "data" / "flourish.duckdb"
+    file = tmp_path / "country_slice.parquet"
+    store = DataStore(Settings(data_path=data))
+    assert country_correlations.write(store, file, only=PRECOMPUTE_SLICE) > 0
+    store.close()
+    served = TestClient(
+        create_app(Settings(data_path=data, country_correlations_path=file, cache_size=0))
+    )
+    assert served.app.state.country_correlations is not None  # type: ignore[attr-defined]
+    fresh = TestClient(
+        create_app(
+            Settings(
+                data_path=data,
+                country_correlations_path=tmp_path / "absent.parquet",
+                cache_size=0,
+            )
+        )
+    )
+    for method in ("pearson", "spearman"):
+        params = {"vars": PRECOMPUTE_SLICE[:5], "wave": "Y1", "method": method, "pooled": "average"}
+        got = served.get("/v1/correlations", params=params).json()
+        want = fresh.get("/v1/correlations", params=params).json()
+        assert got["meta"] == want["meta"]
+        for a, b in zip(got["pairs"], want["pairs"], strict=True):
+            assert (a["a"], a["b"], a["shares_answers"]) == (b["a"], b["b"], b["shares_answers"])
+            if b["correlation"] is None:
+                assert a["correlation"] is None
+                continue
+            assert abs(a["correlation"]["estimate"] - b["correlation"]["estimate"]) <= 1e-12
+            assert a["correlation"]["n"] == b["correlation"]["n"]
+            assert a["correlation"]["n_countries"] == b["correlation"]["n_countries"]
+            assert a["correlation"]["sum_w"] == pytest.approx(b["correlation"]["sum_w"], rel=1e-12)
+        against = {"outcome": "DEPRESSED", "wave": "Y1", "against": ["HAPPY", "WB_TODAY"]}
+        for extra in ({"pooled": "average"}, {"by": "country_code"}):
+            query = {**against, "method": method, **extra}
+            got_rows = served.get("/v1/correlates", params=query).json()["rows"]
+            want_rows = fresh.get("/v1/correlates", params=query).json()["rows"]
+            for a, b in zip(got_rows, want_rows, strict=True):
+                assert a["group"] == b["group"] and a["n"] == b["n"]
+                if b["estimate"] is None:
+                    assert a["estimate"] is None
+                else:
+                    assert abs(a["estimate"] - b["estimate"]) <= 1e-12
+
+
+# --- midyear pairs (ADR-0020) ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("other", "people", "weight"), [("Y1", 131_487, "w_l1m"), ("Y2", 116_038, "w_l1m2")]
+)
+def test_each_midyear_pairing_is_its_own_frame_on_the_release(
+    built_client: TestClient, other: str, people: int, weight: str
+) -> None:
+    body = built_client.get(
+        "/v1/correlations/pair",
+        params={
+            "y": "WB_TODAY",
+            "x": "TIME_MEDIA",
+            "wave": "MY",
+            "other_wave": other,
+            "pooled": "average",
+        },
+    ).json()
+    meta = body["shares"]["meta"]
+    assert meta["n_frame"] == people
+    assert meta["weight"] == weight
+    assert meta["answer_waves"] == {"TIME_MEDIA": "MY", "WB_TODAY": other}
+
+
+def test_six_countries_answer_the_2024_pairing_in_one_interview(built_client: TestClient) -> None:
+    """ADR-0020's note: in China, Hong Kong, Israel, Japan, Sweden and the
+    United States every midyear respondent who also did Wave 2 answered
+    the midyear items in the Wave 2 interview (midyear_type 2); two in
+    three of the 116,038 did overall."""
+    store = built_client.app.state.store  # type: ignore[attr-defined]
+    rows = store.con.execute(
+        "SELECT c.iso3, count(*) FILTER (WHERE midyear_type = 2), count(*) "
+        "FROM respondents r JOIN countries c ON c.code = r.country_code "
+        "WHERE has_midyear AND retained_y2 GROUP BY 1"
+    ).fetchall()
+    same_day = {iso3 for iso3, type_2, total in rows if type_2 == total}
+    assert same_day == {"CHN", "HKG", "ISR", "JPN", "SWE", "USA"}
+    share = sum(type_2 for _, type_2, _ in rows) / sum(total for _, _, total in rows)
+    assert 0.64 < share < 0.68
+
+
+def test_the_midyear_timing_the_page_words_on_the_release(built_client: TestClient) -> None:
+    """The review's facts (M4), as /v1/meta serves them: with 2024 answers,
+    six countries took the midyear items inside the Wave 2 interview, ten
+    in a standalone interview about six months before it, seven both ways;
+    two in three people in all, the All countries wording."""
+    meta = built_client.get("/v1/meta").json()
+    names = {row["code"]: row["name"] for row in meta["countries"]}
+    rows = [row for row in meta["midyear_timing"] if row["other_wave"] == "Y2"]
+    same = {names[row["country_code"]] for row in rows if row["type_1"] == 0}
+    separate = {names[row["country_code"]] for row in rows if row["type_2"] == 0}
+    assert same == {"China", "Hong Kong", "Israel", "Japan", "Sweden", "United States"}
+    assert separate == {
+        "Australia",
+        "Egypt",
+        "India",
+        "Indonesia",
+        "Kenya",
+        "Philippines",
+        "Poland",
+        "South Africa",
+        "Tanzania",
+        "Türkiye",
+    }
+    assert len(rows) == 23
+    share = sum(row["type_2"] for row in rows) / sum(row["type_1"] + row["type_2"] for row in rows)
+    assert 0.64 < share < 0.68
+
+
+def test_no_displayed_wording_carries_a_codebook_placeholder(built_client: TestClient) -> None:
+    """Review H2: every wording the page shows — the summaries and the
+    codebook entries alike — reads as a question, never "[EXAMPLE]"."""
+    variables = built_client.get("/v1/variables").json()["variables"]
+    bracketed = [row["name"] for row in variables if "[" in (row["wording"] or "")]
+    assert bracketed == []
+    detail = built_client.get("/v1/variables/TIME_MEDIA").json()
+    assert detail["wording"].endswith("(the survey named popular ones in each country)?")

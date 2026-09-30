@@ -243,28 +243,37 @@ def proportion_records(
     if level_frame["level"].n_unique() != level_frame.height:
         raise ValueError("levels must be distinct")
 
-    # Only the needed columns cross the levels join (rows × levels).
+    # One level at a time: the level's indicator over the frame, then the
+    # mean machinery per group. (Crossing every row with every level held
+    # rows × levels copies of the design columns at once — some 600 MB for
+    # an eleven-answer question over the pooled 208k rows, ADR-0020; the
+    # arithmetic per level is the same either way.)
     slim = df.select(sorted({*groups, *design.columns, value}))
-    expanded = slim.join(level_frame, how="cross").with_columns(
-        pl.when(pl.col(value).is_null())
-        .then(None)
-        .otherwise((pl.col(value) == pl.col("level")).cast(pl.Float64))
-        .alias("_ind")
-    )
-    records = mean_records(expanded, "_ind", design, [*groups, "level"])
-    # n: the mean machinery counts the group's valid responses (the
-    # denominator); the record's n is the count at the level.
-    level_n = (
-        expanded.filter(pl.col("_ind") == 1.0)
-        .group_by([*groups, "level"])
-        .agg(pl.len().cast(pl.Int64).alias("_level_n"))
-    )
-    records = (
-        records.join(level_n, on=[*groups, "level"], how="left")
-        .with_columns(pl.col("_level_n").fill_null(0).alias("n"))
-        .drop("_level_n")
-    )
-    return records, level_frame
+    parts: list[pl.DataFrame] = []
+    for level in level_frame["level"].to_list():
+        indicated = slim.with_columns(
+            pl.when(pl.col(value).is_null())
+            .then(None)
+            .otherwise((pl.col(value) == level).cast(pl.Float64))
+            .alias("_ind")
+        )
+        records = mean_records(indicated, "_ind", design, groups)
+        # n: the mean machinery counts the group's valid responses (the
+        # denominator); the record's n is the count at the level.
+        level_n = (
+            indicated.filter(pl.col("_ind") == 1.0)
+            .group_by(groups)
+            .agg(pl.len().cast(pl.Int64).alias("_level_n"))
+        )
+        parts.append(
+            records.join(level_n, on=groups, how="left")
+            .with_columns(
+                pl.col("_level_n").fill_null(0).alias("n"),
+                pl.lit(level, dtype=level_frame["level"].dtype).alias("level"),
+            )
+            .drop("_level_n")
+        )
+    return pl.concat(parts, how="vertical_relaxed"), level_frame
 
 
 def finalize(
