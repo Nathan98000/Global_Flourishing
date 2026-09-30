@@ -14,9 +14,11 @@
         1
       ]
     },
+    "min_countries": null,
     "min_n": null,
     "model": null,
     "n_excluded": null,
+    "n_excluded_coverage": null,
     "n_frame": 60,
     "n_valid": 60,
     "oriented": false,

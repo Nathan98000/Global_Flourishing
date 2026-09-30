@@ -2,8 +2,10 @@
 (ADR-0020) — against the synthetic data: the parameter and its 422s, the
 average against the countries' own numbers (correlations, and Compare
 two's shares with their intervals), the asterisk and the ranking floor, a
-country that did not ask a question, and the precomputed file of every
-country's correlations against the on-demand estimator (equal to 1e-12)."""
+country that did not ask a question, the ranked list's coverage rule (a
+question asked in fewer than half the countries is not ranked), and the
+precomputed file of every country's correlations against the on-demand
+estimator (equal to 1e-12)."""
 
 import math
 import shutil
@@ -20,7 +22,7 @@ from flourish_api.main import create_app
 from flourish_api.routes import correlates as correlates_route
 from flourish_api.routes import correlations as correlations_route
 from flourish_stats import NO_SUPPRESSION
-from synthetic_db import synthetic_settings
+from synthetic_db import add_countries, synthetic_settings, unask
 from test_contract import assert_json_close
 
 COUNTRIES = (1, 22)
@@ -68,9 +70,13 @@ def test_the_average_takes_the_place_of_a_country_and_says_so(client: TestClient
     # The floor and the dedupe are unchanged.
     assert meta["min_n"] == 20
     assert meta["dropped_overlap"] == {"phq2_positive": "phq2_score", "gad2_positive": "gad2_score"}
+    # A ranked average covers half the release's countries: here, one of two.
+    assert meta["min_countries"] == 1
     # A one-country response carries none of it.
     single = get(client, "/v1/correlates", outcome="HAPPY", wave="Y1", filter="country_code:1")
     assert single["meta"]["pooled"] is None and single["meta"]["countries"] is None
+    assert single["meta"]["min_countries"] is None
+    assert single["meta"]["n_excluded_coverage"] is None
     assert all(row["n_countries"] is None for row in single["rows"])
 
 
@@ -345,6 +351,157 @@ def test_a_country_that_did_not_ask_drops_out_of_that_average(unasked_dir: Path)
     assert us["n"] == 0 and us["estimate"] is None
 
 
+# --- a ranked list needs half the countries ---------------------------------
+
+#: One question at each wave that, in ``three_countries_dir``, only Testland
+#: was asked: (variable, wave).
+SCARCE = (("LONELY", "Y1"), ("ATTEND_SVCS", "Y2"), ("TIME_MEDIA", "MY"))
+#: An All countries sweep at each wave and midyear pairing, and the scarce
+#: question among its candidates.
+SWEEPS = [
+    ({"outcome": "HAPPY", "wave": "Y1"}, "LONELY"),
+    ({"outcome": "HAPPY", "wave": "Y2"}, "ATTEND_SVCS"),
+    ({"outcome": "MONEY", "wave": "MY"}, "TIME_MEDIA"),
+    ({"outcome": "MONEY", "wave": "MY", "other_wave": "Y1"}, "LONELY"),
+    ({"outcome": "MONEY", "wave": "MY", "other_wave": "Y2"}, "TIME_MEDIA"),
+    ({"outcome": "MONEY", "wave": "MY", "other_wave": "Y2"}, "ATTEND_SVCS"),
+]
+
+
+def more_countries(source: Path, directory: Path, extra: int) -> tuple[Path, list[int]]:
+    """The synthetic data with ``extra`` further countries, each Testland's
+    people again, and their codes."""
+    copy_data(source, directory)
+    codes = [2 + index for index in range(extra)]
+    add_countries(
+        directory / "flourish.duckdb",
+        [(code, f"Otherland {code}", f"OT{code}") for code in codes],
+    )
+    return directory, codes
+
+
+@pytest.fixture(scope="module")
+def three_countries_dir(synthetic_data_dir: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Three countries — Testland, Otherland (Testland's people again) and
+    the United States — where Testland alone was asked ``SCARCE``."""
+    directory, _ = more_countries(synthetic_data_dir, tmp_path_factory.mktemp("three"), 1)
+    for variable, wave in SCARCE:
+        unask(directory / "flourish.duckdb", variable, wave, [2, 22])
+    return directory
+
+
+def predictors(body: dict) -> list[str]:
+    return list(dict.fromkeys(row["predictor"] for row in body["rows"]))
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+@pytest.mark.parametrize(("sweep", "scarce"), SWEEPS)
+def test_an_all_countries_list_ranks_only_questions_asked_in_half_the_countries(
+    three_countries_dir: Path, sweep: dict, scarce: str, method: str
+) -> None:
+    client = at_floor(three_countries_dir, 20)
+    params = {**sweep, "method": method}
+    assert [c["code"] for c in get(client, "/v1/meta")["countries"]] == [1, 2, 22]
+    ranked = get(client, "/v1/correlates", pooled="average", limit=200, **params)
+    meta = ranked["meta"]
+    # Half of three countries, rounded up.
+    assert meta["min_countries"] == 2
+    assert scarce not in predictors(ranked)
+    assert ranked["rows"] and all(row["n_countries"] >= 2 for row in ranked["rows"])
+    assert meta["n_excluded_coverage"] >= 1
+    # Every country the question is averaged over is still listed.
+    assert meta["countries"] == [1, 2, 22]
+    # The rule is about ranked All countries lists only. One country's list
+    # ranks the question ...
+    alone = get(client, "/v1/correlates", filter="country_code:1", limit=200, **params)
+    assert scarce in predictors(alone)
+    assert alone["meta"]["min_countries"] is None
+    assert alone["meta"]["n_excluded_coverage"] is None
+    # ... a reader who names it gets its average (Compare two, Compare
+    # several), over the one country that asked ...
+    named = get(client, "/v1/correlates", against=scarce, pooled="average", **params)
+    (row,) = named["rows"]
+    assert row["predictor"] == scarce and row["n_countries"] == 1
+    assert row["estimate"] is not None
+    assert named["meta"]["min_countries"] is None and named["meta"]["countries"] == [1]
+    # ... and country by country it is there, where it was asked.
+    dots = get(client, "/v1/correlates", against=scarce, by="country_code", **params)
+    asked = {row["group"]["country_code"]: row["n"] > 0 for row in dots["rows"]}
+    assert asked == {1: True, 2: False, 22: False}
+
+
+def test_the_list_fills_with_questions_that_qualify(three_countries_dir: Path) -> None:
+    client = at_floor(three_countries_dir, 20)
+    params = {"outcome": "HAPPY", "wave": "Y1", "pooled": "average"}
+    everything = predictors(get(client, "/v1/correlates", limit=200, **params))
+    # The rule comes before the cut: a list of any length is full, of
+    # questions that qualify.
+    for limit in range(1, len(everything) + 1):
+        cut = get(client, "/v1/correlates", limit=limit, **params)
+        assert len(predictors(cut)) == limit and "LONELY" not in predictors(cut)
+        assert all(row["n_countries"] >= 2 for row in cut["rows"])
+    # Left to rank, the scarce question would have led the list: it clears
+    # the floor, and nothing listed goes with Happiness as strongly.
+    lonely = get(client, "/v1/correlates", against="LONELY", **params)["rows"][0]
+    first = get(client, "/v1/correlates", limit=1, **params)["rows"][0]
+    assert first["predictor"] == everything[0]
+    assert lonely["n"] >= 20 and abs(lonely["estimate"]) > abs(first["estimate"])
+
+
+@pytest.mark.parametrize(
+    ("extra", "needed", "ranked"),
+    [
+        (0, 1, True),  # two countries: one is half
+        (1, 2, True),  # three: two
+        (2, 2, True),  # four: two
+        (3, 3, False),  # five: three — and only two asked
+    ],
+)
+def test_the_coverage_rule_follows_the_countries_served(
+    synthetic_data_dir: Path, tmp_path: Path, extra: int, needed: int, ranked: bool
+) -> None:
+    """LONELY asked in two countries, Testland and the United States, of a
+    release holding two to five."""
+    directory, added = more_countries(synthetic_data_dir, tmp_path, extra)
+    unask(directory / "flourish.duckdb", "LONELY", "Y1", added)
+    client = at_floor(directory, 20)
+    assert len(get(client, "/v1/meta")["countries"]) == 2 + extra
+    body = get(client, "/v1/correlates", outcome="HAPPY", wave="Y1", pooled="average", limit=200)
+    assert body["meta"]["min_countries"] == needed
+    assert ("LONELY" in predictors(body)) is ranked
+    named = get(
+        client, "/v1/correlates", outcome="HAPPY", wave="Y1", against="LONELY", pooled="average"
+    )
+    assert named["rows"][0]["n_countries"] == 2
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+def test_a_question_asked_in_too_few_countries_has_no_list_and_says_its_coverage(
+    three_countries_dir: Path, method: str
+) -> None:
+    client = at_floor(three_countries_dir, 20)
+    params = {"outcome": "LONELY", "wave": "Y1", "method": method}
+    body = get(client, "/v1/correlates", pooled="average", limit=200, **params)
+    assert body["rows"] == []
+    meta = body["meta"]
+    # Asked in one country of three; a list needs two.
+    assert meta["pooled"] == "average" and meta["countries"] == [1]
+    assert meta["min_countries"] == 2
+    # Every candidate fell to the rule, none to the floor.
+    alone = get(client, "/v1/correlates", filter="country_code:1", limit=200, **params)
+    assert alone["rows"]
+    candidates = len(predictors(alone)) + alone["meta"]["n_excluded"]
+    candidates += len(alone["meta"]["dropped_overlap"])
+    assert meta["n_excluded_coverage"] == candidates and meta["n_excluded"] == 0
+    assert meta["dropped_overlap"] == {}
+    # The same at the midyear survey, for its scarce question.
+    midyear = get(
+        client, "/v1/correlates", outcome="TIME_MEDIA", wave="MY", pooled="average", method=method
+    )
+    assert midyear["rows"] == [] and midyear["meta"]["countries"] == [1]
+    assert midyear["meta"]["min_countries"] == 2
+
+
 # --- the precomputed file -------------------------------------------------
 
 
@@ -478,6 +635,44 @@ def test_a_question_not_asked_in_a_country_leaves_it_out_of_the_file(
         client, "/v1/correlates", outcome="HAPPY", wave="Y1", against="LONELY", pooled="average"
     )
     assert body["rows"][0]["n_countries"] == 1
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"outcome": "HAPPY", "wave": "Y1"},
+        {"outcome": "HAPPY", "wave": "Y2"},
+        {"outcome": "MONEY", "wave": "MY", "other_wave": "Y2"},
+        # Asked in one country of three: no list, from the file as on demand.
+        {"outcome": "LONELY", "wave": "Y1"},
+    ],
+)
+def test_the_file_ranks_by_the_same_coverage_rule(
+    three_countries_dir: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    params: dict,
+    method: str,
+) -> None:
+    file = precompute(three_countries_dir, tmp_path_factory.mktemp("rule") / "three.parquet")
+    query = {**params, "method": method, "pooled": "average", "limit": 200}
+    missing = tmp_path_factory.mktemp("rule-none") / "absent.parquet"
+    expected = get(
+        at_floor(three_countries_dir, 20, country_correlations_path=missing),
+        "/v1/correlates",
+        **query,
+    )
+    served = at_floor(three_countries_dir, 20, country_correlations_path=file)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("a precomputed request assembled a frame")
+
+    monkeypatch.setattr(correlates_route, "assemble_correlates_frame", refuse)
+    actual = get(served, "/v1/correlates", **query)
+    assert_json_close(actual, expected)
+    assert actual["meta"]["min_countries"] == 2
+    assert (actual["rows"] == []) is (params["outcome"] == "LONELY")
 
 
 def test_the_file_serves_the_serving_policy_as_finalize_does(

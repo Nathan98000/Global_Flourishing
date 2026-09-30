@@ -280,6 +280,14 @@ class ResponseMeta(BaseModel):
     #: at least one of the averages. Null on every other response.
     pooled: str | None = None
     countries: list[int] | None = None
+    #: /v1/correlates ranked sweeps averaged over the countries only
+    #: (ADR-0020): how many countries a candidate's average must cover to
+    #: be ranked — half the release's countries, rounded up
+    #: (``flourish_stats.averaging.ranking_min_countries``) — and how many
+    #: candidates the sweep left out for covering fewer (they are not
+    #: counted in ``n_excluded``). Null on every other response.
+    min_countries: int | None = None
+    n_excluded_coverage: int | None = None
     #: correlations at the midyear survey only (ADR-0020): the wave the
     #: questions it did not ask read the same people's answers from, and
     #: which wave each question's answers came from. Null elsewhere.

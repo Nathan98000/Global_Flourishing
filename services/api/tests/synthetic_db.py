@@ -26,6 +26,7 @@ Wave 2 state only (so no Wave 1 state weight).
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -493,6 +494,59 @@ def build_synthetic_db(directory: Path) -> Path:
         con.close()
     (directory / "manifest.json").write_text(json.dumps({"data_version": "synthetic.0.0.1"}))
     return db_path
+
+
+def add_countries(
+    db_path: Path, countries: Sequence[tuple[int, str, str]], *, like: int = 1
+) -> None:
+    """Further countries — (code, name, iso3) — in a built synthetic
+    database, each holding country ``like``'s people again (their design,
+    weights, answers and scores) under new ids: for the rules that read
+    how many countries the release holds (ADR-0020's coverage rule)."""
+    con = duckdb.connect(str(db_path))
+    try:
+        for index, (code, name, iso3) in enumerate(countries, start=1):
+            shift = 1000 * index
+            people = f"SELECT id FROM respondents WHERE country_code = {like}"
+            for table in ("responses_long", "derived"):
+                con.execute(
+                    f"INSERT INTO {table} SELECT * REPLACE (id + {shift} AS id) "
+                    f"FROM {table} WHERE id IN ({people})"
+                )
+            # Strata nest within countries, and PSUs within strata.
+            con.execute(
+                f"INSERT INTO respondents SELECT * REPLACE (id + {shift} AS id, "
+                f"{code} AS country_code, strata + {shift} AS strata, psu + {100 * shift} AS psu) "
+                f"FROM respondents WHERE country_code = {like}"
+            )
+            con.execute(
+                f"INSERT INTO coverage SELECT * REPLACE ({code} AS country_code) "
+                f"FROM coverage WHERE country_code = {like}"
+            )
+            con.execute("INSERT INTO countries VALUES (?, ?, ?)", [code, name, iso3])
+    finally:
+        con.close()
+
+
+def unask(db_path: Path, variable: str, wave: str, countries: Sequence[int]) -> None:
+    """Take a question's answers at a wave out of some countries of a built
+    synthetic database: it was never asked there."""
+    if not countries:
+        return
+    codes = ", ".join(str(code) for code in countries)
+    con = duckdb.connect(str(db_path))
+    try:
+        con.execute(
+            "DELETE FROM responses_long WHERE variable = ? AND wave = ? AND id IN "
+            f"(SELECT id FROM respondents WHERE country_code IN ({codes}))",
+            [variable, wave],
+        )
+        con.execute(
+            f"DELETE FROM coverage WHERE variable = ? AND wave = ? AND country_code IN ({codes})",
+            [variable, wave],
+        )
+    finally:
+        con.close()
 
 
 def synthetic_settings(directory: Path, **overrides: Any) -> Settings:

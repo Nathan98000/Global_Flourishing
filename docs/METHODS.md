@@ -95,15 +95,24 @@ countries' shares. The countries are independent samples, so an average
 of K countries' estimates has standard error √(Σ SE²) ⁄ K, and its
 interval is the usual 95% normal one.
 
-An average's **n** is the complete cases summed over its countries, and
+An average's **n** is the complete cases summed over its countries.
 Find related ranks a question for All countries when that total reaches
-the floor (100). The small-sample asterisk marks an average of
-correlations only when *every* country in it rests on few people; a grid
-cell is starred on the same thresholds as a country's, applied to the
-summed counts. Each country's correlation for every pair of questions the
-views can ask for is computed when the app is built, by the same
-estimator the API runs on demand, and checked equal to it within 10⁻¹²;
-the averages and both country-by-country views are read from that file.
+the floor (100) and the average covers at least half the countries: 12 of
+the 23, or half of however many a release holds, rounded up. A question
+asked in fewer countries cannot stand in a list that speaks for all of
+them, but it is never out of reach: it has its list in each country that
+asked it, and its average wherever a reader names it (Compare two,
+Compare several). Chosen in Find related for All countries, a question
+that was itself asked in fewer than half the countries gets a line saying
+how many asked it, in place of a list.
+
+The small-sample asterisk marks an average of correlations only when
+*every* country in it rests on few people; a grid cell is starred on the
+same thresholds as a country's, applied to the summed counts. Each
+country's correlation for every pair of questions the views can ask for
+is computed when the app is built, by the same estimator the API runs on
+demand, and checked equal to it within 10⁻¹²; the averages and both
+country-by-country views are read from that file.
 
 ## Confidence intervals: the survey design matters
 
@@ -303,9 +312,10 @@ the "every cell shown" rule: the list is an ordering, and an ordering of
 noise misleads. The cells themselves are still served — the cross-country
 matrix shows each with its value and an asterisk (see "Few people behind
 an estimate" below). For All countries the floor reads the complete cases
-summed over the countries in the average, so a question asked in only
-one or a few countries can rank on those countries' answers; its row
-says how many countries asked it.
+summed over the countries in the average, and the list ranks only
+questions whose average covers at least half the countries
+([above](#all-countries-the-average-of-the-countries)); a ranked row
+that covers fewer countries than all says how many asked it.
 
 **One construct, once.** A score and the questions it is built from are
 associated by construction, so a ranked list never holds two measures

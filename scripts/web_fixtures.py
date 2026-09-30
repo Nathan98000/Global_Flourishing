@@ -29,7 +29,12 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "api" / "tests"))
 from fastapi.testclient import TestClient  # noqa: E402
 from flourish_api.main import create_app  # noqa: E402
 from flourish_pipeline.aggregate import export_static  # noqa: E402
-from synthetic_db import build_synthetic_db, synthetic_settings  # noqa: E402
+from synthetic_db import (  # noqa: E402
+    add_countries,
+    build_synthetic_db,
+    synthetic_settings,
+    unask,
+)
 
 #: Enough shapes for every front-end test: a 0-10 item over two waves, a
 #: lower_better item, an ordinal item (suppressed proportions), the
@@ -106,14 +111,15 @@ API_FIXTURES: tuple[tuple[str, str, dict[str, str]], ...] = (
 #: the first question's top four), adds two questions, removes the first
 #: of them, orders the table "similar together" and opens its first cell;
 #: then Find related for that cell's first question, whose top row opens
-#: Compare two again. Then All countries, averaged, in each view; and
-#: Midyear, from the chip (the midyear question beside the same people's
-#: 2023 answers, then 2024's, then back) and from the picker (Find related
-#: at Midyear, then 2024's answers through the note's choice); and the
-#: phone's summary line. The plan is
-#: written beside the fixtures (journey-10.json) so the spec needn't
-#: repeat the server's choices; each fixture is named from its request
-#: (``scope``), as the spec's route handlers rebuild the name.
+#: Compare two again. Then All countries, averaged, in each view, and the
+#: empty state of a question too few countries asked (``coverage_fixtures``);
+#: and Midyear, from the chip (the midyear question beside the same
+#: people's 2023 answers, then 2024's, then back) and from the picker (Find
+#: related at Midyear, then 2024's answers through the note's choice); and
+#: the phone's summary line. The plan is written beside the fixtures
+#: (journey-10.json) so the spec needn't repeat the server's choices; each
+#: fixture is named from its request (``scope``), as the spec's route
+#: handlers rebuild the name.
 DEFAULT_PAIR = ("WB_TODAY", "INCOME_FEELINGS")
 JOURNEY_PICKED = "HAPPY"
 #: Added in Compare several: the first two of these not already there.
@@ -123,6 +129,15 @@ BASE = {"wave": "Y1", "filter": "country_code:1"}
 POOLED = {"wave": "Y1", "pooled": "average"}
 #: The midyear question the page brings in at Midyear (ADR-0020).
 MIDYEAR_QUESTION = "TIME_MEDIA"
+#: Journey 10's stop at the coverage rule (ADR-0020): an All countries list
+#: ranks only questions asked in at least half the release's countries, and
+#: one country of this tier's two is half. So that stop is served a release
+#: of three — Otherland holds Testland's people again — in which Testland
+#: alone was asked one question: that release's /v1/meta (the journey
+#: serves it in place of meta.json) and its answer for the question, in
+#: fixtures named ``coverage-…``, apart from the two-country ones.
+COVERAGE_COUNTRY = (2, "Otherland", "OTH")
+SCARCE_QUESTION = "LONELY"
 
 
 def scope(params: dict[str, object]) -> str:
@@ -258,6 +273,37 @@ def correlation_fixtures(
     return fixtures, plan
 
 
+def coverage_fixtures(directory: Path) -> tuple[dict[str, str], dict[str, object]]:
+    """The coverage stop's fixtures (file → body), served by the API over a
+    three-country synthetic database built in ``directory``, and its plan
+    entry: the question, where it was asked, and of how many countries."""
+    db_path = build_synthetic_db(directory)
+    add_countries(db_path, [COVERAGE_COUNTRY])
+    unask(db_path, SCARCE_QUESTION, "Y1", [COVERAGE_COUNTRY[0], 22])
+    client = TestClient(create_app(synthetic_settings(directory)))
+    meta = client.get("/v1/meta")
+    meta.raise_for_status()
+    ranked = client.get("/v1/correlates", params={"outcome": SCARCE_QUESTION, **POOLED})
+    ranked.raise_for_status()
+    detail = client.get(f"/v1/variables/{SCARCE_QUESTION}")
+    detail.raise_for_status()
+    body = ranked.json()
+    asked, total = len(body["meta"]["countries"]), len(meta.json()["countries"])
+    # The case the stop is for: no list, because too few countries asked.
+    assert body["rows"] == [] and asked < body["meta"]["min_countries"] <= total
+    files = {
+        "coverage-meta.json": meta.text,
+        f"coverage-correlates-{SCARCE_QUESTION}-Y1-all-ranked.json": ranked.text,
+    }
+    plan: dict[str, object] = {
+        "name": SCARCE_QUESTION,
+        "display_name": str(detail.json()["display_name"]),
+        "asked": asked,
+        "of": total,
+    }
+    return files, plan
+
+
 def main() -> int:
     target = REPO_ROOT / "apps" / "web" / "public" / "data"
     if target.exists():
@@ -283,6 +329,9 @@ def main() -> int:
             response = client.get(path, params=params)
             response.raise_for_status()
             (fixtures / name).write_text(response.text)
+        coverage, plan["scarce"] = coverage_fixtures(Path(tmp) / "coverage")
+        for name, text in coverage.items():
+            (fixtures / name).write_text(text)
         (fixtures / "journey-10.json").write_text(json.dumps(plan, indent=2) + "\n")
 
     print(

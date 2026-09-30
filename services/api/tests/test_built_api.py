@@ -155,6 +155,43 @@ def test_attendance_and_life_evaluation_average_about_a_tenth(built_client: Test
     assert body["rows"][0]["estimate"] == pytest.approx(0.10, abs=0.015)
 
 
+def test_an_all_countries_list_ranks_no_question_few_countries_asked(
+    built_client: TestClient,
+) -> None:
+    """The owner's case (30 Sept): among what goes with Life evaluation
+    today, "Chinese folk teachings important" (asked in 2 of 23 countries)
+    and "Sikh teachings important" (9 of 23) ranked third and fourth. An
+    All countries list ranks only questions asked in at least half the
+    countries — 12 of the release's 23."""
+    scarce = {"TEACHINGS_15": 2, "TEACHINGS_6": 9}
+    params = {"outcome": "WB_TODAY", "wave": "Y1"}
+    ranked = built_client.get(
+        "/v1/correlates", params={**params, "pooled": "average", "limit": 200}
+    ).json()
+    assert len(built_client.get("/v1/meta").json()["countries"]) == 23
+    assert ranked["meta"]["min_countries"] == 12
+    assert not {row["predictor"] for row in ranked["rows"]} & set(scarce)
+    assert ranked["rows"] and all(row["n_countries"] >= 12 for row in ranked["rows"])
+    # Named, their averages are served as before, over the countries that asked.
+    named = built_client.get(
+        "/v1/correlates", params={**params, "against": list(scarce), "pooled": "average"}
+    ).json()
+    assert {row["predictor"]: row["n_countries"] for row in named["rows"]} == scarce
+    # In India, where 143 people answered it, the Sikh question is ranked.
+    india = built_client.get(
+        "/v1/correlates", params={**params, "filter": "country_code:6", "limit": 200}
+    ).json()
+    assert "TEACHINGS_6" in {row["predictor"] for row in india["rows"]}
+    assert india["meta"]["min_countries"] is None
+    # Chosen itself for All countries, it has no list, and the meta says why.
+    own = built_client.get(
+        "/v1/correlates",
+        params={"outcome": "TEACHINGS_6", "wave": "Y1", "pooled": "average", "limit": 200},
+    ).json()
+    assert own["rows"] == []
+    assert len(own["meta"]["countries"]) < own["meta"]["min_countries"] == 12
+
+
 def test_the_precompute_equals_the_on_demand_estimator_on_the_release(tmp_path: Path) -> None:
     from flourish_api import country_correlations
     from flourish_api.config import Settings

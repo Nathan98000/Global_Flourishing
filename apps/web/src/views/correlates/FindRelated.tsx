@@ -3,7 +3,10 @@
 // country, the same questions as a matrix with the chosen country pinned
 // first. The server sweeps every other ordered question, ranks by
 // strength and cuts the list; correlations are point estimates, drawn
-// without an interval. A row opens Compare two with the pair.
+// without an interval. A row opens Compare two with the pair. An All
+// countries list holds only questions asked in at least half the
+// countries (the server's rule, ADR-0020); a question itself asked in
+// fewer gets an empty state in the list's place.
 
 import { useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
@@ -36,6 +39,7 @@ import {
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   acrossSubtitle,
+  askedInTooFew,
   axisEnds,
   belowFloor,
   fewPeople,
@@ -51,6 +55,7 @@ import {
   starred,
   statisticPhrase,
   tableCaption,
+  tooFewCountries,
 } from '../correlatesRows'
 import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
 import {
@@ -137,6 +142,9 @@ export function FindRelated({
   // Where, in a sentence: a country, or the average of every country.
   const where = pooled ? 'all countries (their average)' : countryName
   const total = served.countries.length
+  // All countries, and the question was asked in fewer than half of them:
+  // no list (nor its country-by-country table), and the page says why.
+  const askedIn = pooled && rankedResponse ? askedInTooFew(rankedResponse) : undefined
   const rankedAria = `${title}: the ${predictors.length} questions most strongly associated with it in ${where}, ${waveTitle(search.wave, otherWave)}, ${statisticPhrase(search.method)}.${
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
@@ -203,7 +211,20 @@ export function FindRelated({
       ) : ranked.isError ? (
         <Failure error={ranked.error} apiReachable={apiReachable} />
       ) : rankedResponse && variable ? (
-        search.scope === 'country' ? (
+        askedIn !== undefined ? (
+          // (While another question's request is in flight, the response
+          // held is the one before's: it says nothing about this question.)
+          ranked.isPlaceholderData ? (
+            <LoadingBlock height={520} label="Loading the ranked list" />
+          ) : (
+            <EmptyState title="No All countries list">
+              <p>
+                <em>{title}</em>
+                {tooFewCountries(askedIn, total)}
+              </p>
+            </EmptyState>
+          )
+        ) : search.scope === 'country' ? (
           <>
             <p role="status" className="visually-hidden">
               Updated: {title}, {predictors.length} questions ranked for {where}.

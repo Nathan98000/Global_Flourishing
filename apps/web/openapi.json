@@ -1153,6 +1153,17 @@
             "title": "Filters",
             "type": "object"
           },
+          "min_countries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Countries"
+          },
           "min_n": {
             "anyOf": [
               {
@@ -1185,6 +1196,17 @@
               }
             ],
             "title": "N Excluded"
+          },
+          "n_excluded_coverage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Excluded Coverage"
           },
           "n_frame": {
             "title": "N Frame",
@@ -2083,7 +2105,7 @@
     },
     "/v1/correlates": {
       "get": {
-        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``pooled=average`` — in place of a country filter — takes each\ncountry's own correlation and their plain mean: every country counts\nthe same, and one with no estimate (it did not ask a question) drops\nout. Each row's ``n`` is the complete cases summed over the countries\nin its average (the ranking floor reads it), ``n_countries`` counts\nthem, and ``flagged`` says every one of them rests on fewer than\n``meta.min_n`` people; ``meta.countries`` lists every country in at\nleast one average. The dedupe is unchanged.\n\nAt ``wave=MY`` a midyear question reads its midyear answers and any\nother question the same respondents' ``other_wave`` answers (Y1 by\ndefault: every midyear respondent, ``w_l1m``; Y2: those who also did\nWave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear\noutcome is ranked against every midyear question and every question\nasked at ``other_wave``; any other outcome against the midyear\nquestions only. Two questions neither of which the midyear survey\nasked belong at their own wave: 422.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
+        "description": "Associations, not causes. Rows are weighted Pearson or Spearman\ncoefficients with no interval (``ci_method = \"none\"``). Omit\n``against`` for the ranked sweep over every other servable ordered\nitem at the wave, cut to ``limit`` predictors (ranked by the median\nabsolute association across the groups with at least ``meta.min_n``\ncomplete cases; ``meta.n_excluded`` candidates fell below it and are\nnot ranked). Of two kept predictors built from the same answers only\nthe one built from more of them stays (a score over its questions; on\na tie, a score over its screen-positive flag); the list backfills to\n``limit`` and ``meta.dropped_overlap`` names what was left out, and\nwhat stands in for it. Binary items enter as indicators of code 1\n(Yes / screen positive). Global scope only.\n\n``pooled=average`` — in place of a country filter — takes each\ncountry's own correlation and their plain mean: every country counts\nthe same, and one with no estimate (it did not ask a question) drops\nout. Each row's ``n`` is the complete cases summed over the countries\nin its average (the ranking floor reads it), ``n_countries`` counts\nthem, and ``flagged`` says every one of them rests on fewer than\n``meta.min_n`` people; ``meta.countries`` lists every country in at\nleast one average, whether or not it is ranked. The ranked sweep keeps\nonly the candidates whose average covers at least\n``meta.min_countries`` countries — half of those /v1/meta lists,\nrounded up — before ranking and cutting, so the list fills with\ncandidates that do (``meta.n_excluded_coverage`` covered fewer;\n``meta.n_excluded`` counts those below the floor among the rest). An\noutcome itself asked in fewer has no rows, and ``meta.countries``\nshorter than ``meta.min_countries`` says why. Named predictors\n(``against``) are always served. The dedupe is unchanged.\n\nAt ``wave=MY`` a midyear question reads its midyear answers and any\nother question the same respondents' ``other_wave`` answers (Y1 by\ndefault: every midyear respondent, ``w_l1m``; Y2: those who also did\nWave 2, ``w_l1m2``); ``meta.answer_waves`` says which. A midyear\noutcome is ranked against every midyear question and every question\nasked at ``other_wave``; any other outcome against the midyear\nquestions only. Two questions neither of which the midyear survey\nasked belong at their own wave: 422.\n\n``adjusted=true`` — the predictor's coefficient in a survey-weighted\nregression under the fixed control set (``stat = \"beta\"``, plus a\n``beta_per_sd`` row) with a design-based CI — is disabled unless the\nserver enables it (``FA_ADJUSTED_ENABLED``); otherwise it is a 422.",
         "operationId": "correlates_v1_correlates_get",
         "parameters": [
           {

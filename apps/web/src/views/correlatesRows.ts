@@ -6,6 +6,7 @@ import type {
   Country,
   EstimateRow,
   Meta,
+  ResponseMeta,
   VariableDetail,
   VariableSummary,
   Wave,
@@ -113,6 +114,27 @@ export function coverageLine(
 /** A tooltip with its coverage line, when there is one. */
 export function withCoverage(tip: string, line: string | undefined): string {
   return line ? `${tip}\n${line}` : tip
+}
+
+/** Whether an All countries list is empty because its question was asked
+ * in fewer than half the countries — the server's rule and the server's
+ * numbers (`min_countries`, ADR-0020): how many countries asked it, or
+ * undefined for any other response (a list, a one-country sweep, a list
+ * empty for another reason). */
+export function askedInTooFew(response: {
+  meta: Pick<ResponseMeta, 'min_countries' | 'countries'>
+  rows: readonly unknown[]
+}): number | undefined {
+  const { min_countries: needed, countries } = response.meta
+  if (response.rows.length > 0 || needed === null || needed === undefined || !countries)
+    return undefined
+  return countries.length < needed ? countries.length : undefined
+}
+
+/** What Find related says in the list's place then, after the question's
+ * name: where it was asked, the rule, and what to do. */
+export function tooFewCountries(asked: number, total: number): string {
+  return ` was asked in ${asked} of ${total} countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.`
 }
 
 /** Why the Wave options are unavailable, in one line under the row:

@@ -5,7 +5,7 @@ from statistics import NormalDist
 
 import polars as pl
 import pytest
-from flourish_stats import average_countries
+from flourish_stats import average_countries, ranking_min_countries
 
 Z = NormalDist().inv_cdf(0.975)
 
@@ -84,3 +84,21 @@ def test_no_country_no_average() -> None:
     assert average_countries(
         frame.with_columns(pl.lit("A").alias("predictor")), ["predictor"]
     ).is_empty()
+
+
+def test_a_ranked_list_needs_half_the_countries_rounded_up() -> None:
+    # 12 of the release's 23; the rule follows whatever count it is given.
+    assert ranking_min_countries(23) == 12
+    assert [ranking_min_countries(total) for total in (1, 2, 3, 4, 5, 22, 24)] == [
+        1,
+        1,
+        2,
+        2,
+        3,
+        11,
+        12,
+    ]
+    # Half exactly is enough; one short of it is not.
+    for total in range(1, 60):
+        needed = ranking_min_countries(total)
+        assert 2 * needed >= total > 2 * (needed - 1)

@@ -13,6 +13,11 @@ The countries are independent samples, so the mean of K estimates has
 standard error √(Σ se_c²) / K, and the interval is the normal one every
 estimator here takes (estimate ± z·se). An estimator that claims no
 interval (a correlation) gives the average none either.
+
+An average is shown whatever it covers; a *ranked list* of averages holds
+only those covering at least half the release's countries
+(:func:`ranking_min_countries`), so a question a few countries asked
+cannot crowd a list that speaks for all of them.
 """
 
 from __future__ import annotations
@@ -37,6 +42,14 @@ AVERAGE_COLUMNS = (
     "n_largest",
     "countries",
 )
+
+
+def ranking_min_countries(total: int) -> int:
+    """How many countries an average must cover to be ranked in an All
+    countries list (ADR-0020): at least half of the release's ``total``,
+    rounded up — 12 of 23. The owner's rule, for ranked lists only: an
+    average a reader asks for by name is served whatever it covers."""
+    return (total + 1) // 2
 
 
 def average_countries(

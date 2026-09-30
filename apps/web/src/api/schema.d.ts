@@ -106,7 +106,15 @@ export interface paths {
          *     in its average (the ranking floor reads it), ``n_countries`` counts
          *     them, and ``flagged`` says every one of them rests on fewer than
          *     ``meta.min_n`` people; ``meta.countries`` lists every country in at
-         *     least one average. The dedupe is unchanged.
+         *     least one average, whether or not it is ranked. The ranked sweep keeps
+         *     only the candidates whose average covers at least
+         *     ``meta.min_countries`` countries — half of those /v1/meta lists,
+         *     rounded up — before ranking and cutting, so the list fills with
+         *     candidates that do (``meta.n_excluded_coverage`` covered fewer;
+         *     ``meta.n_excluded`` counts those below the floor among the rest). An
+         *     outcome itself asked in fewer has no rows, and ``meta.countries``
+         *     shorter than ``meta.min_countries`` says why. Named predictors
+         *     (``against``) are always served. The dedupe is unchanged.
          *
          *     At ``wave=MY`` a midyear question reads its midyear answers and any
          *     other question the same respondents' ``other_wave`` answers (Y1 by
@@ -714,12 +722,16 @@ export interface components {
             filters: {
                 [key: string]: (string | number | boolean | null)[];
             };
+            /** Min Countries */
+            min_countries?: number | null;
             /** Min N */
             min_n?: number | null;
             /** Model */
             model?: string | null;
             /** N Excluded */
             n_excluded?: number | null;
+            /** N Excluded Coverage */
+            n_excluded_coverage?: number | null;
             /** N Frame */
             n_frame: number;
             /** N Valid */

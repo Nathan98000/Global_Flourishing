@@ -42,6 +42,7 @@ import {
 import {
   CORRELATES_NOTE,
   CORRELATION_SCALE,
+  askedInTooFew,
   axisEnds,
   belowFloor,
   averagedOver,
@@ -64,6 +65,7 @@ import {
   starred,
   shortName,
   statisticPhrase,
+  tooFewCountries,
   waveNote,
 } from '../views/correlatesRows'
 
@@ -507,6 +509,40 @@ const pooledTier: Routes = {
   ...tier,
 }
 
+/** A release of four countries, one of which asked Loneliness: the server
+ * ranks only questions asked in at least half of them (two), so its All
+ * countries list is empty, and its meta says where it was asked. */
+const rankedTooFew = testResponse([], {
+  outcome: 'LONELY',
+  stat: 'pearson_r',
+  se_method: 'none',
+  by: [],
+  filters: {},
+  adjusted: false,
+  controls: [],
+  model: null,
+  min_n: 20,
+  n_excluded: 0,
+  dropped_overlap: {},
+  pooled: 'average',
+  countries: [1],
+  min_countries: 2,
+  n_excluded_coverage: 5,
+})
+
+const tooFewTier: Routes = {
+  'outcome=LONELY&wave=Y1&pooled=average': rankedTooFew,
+  ...tier,
+  '/data/meta.json': {
+    ...testMeta,
+    countries: [
+      ...testMeta.countries,
+      { code: 9, name: 'Japan', iso3: 'JPN' },
+      { code: 23, name: 'Sweden', iso3: 'SWE' },
+    ],
+  },
+}
+
 describe('All countries (ADR-0020)', () => {
   test('the Country select offers All countries first; chosen, Compare two averages every country', async () => {
     const calls = mockFetch(pooledTier)
@@ -630,6 +666,63 @@ describe('All countries (ADR-0020)', () => {
     expect(coverageLine({ n_countries: null }, 23)).toBeUndefined()
     expect(scopeLabel('All countries')).toBe('All countries')
     expect(scopeLabel('Japan')).toBe('In Japan')
+  })
+
+  test('Find related, All countries, a question asked in fewer than half the countries: an empty state, no list', async () => {
+    const calls = mockFetch(tooFewTier)
+    const router = await renderAt('/correlates?view=related&outcome=LONELY&country=all')
+    const title = await screen.findByText('No All countries list')
+    const sentence = title.nextElementSibling as HTMLElement
+    // The owner's words, with the server's numbers: where it was asked, of
+    // how many, the rule, and what to do.
+    expect(sentence.textContent).toBe(
+      'Loneliness was asked in 1 of 4 countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.',
+    )
+    expect(sentence.querySelector('em')?.textContent).toBe('Loneliness')
+    // An empty state in the list's place: no chart, no note under one, no
+    // data table — and the question can still be changed.
+    const main = screen.getByRole('main')
+    expect(main.querySelector('figure')).toBeNull()
+    expect(visibleText(main)).not.toContain(CORRELATES_NOTE)
+    expect(screen.getByRole('button', { name: 'Question: Loneliness' })).toBeInTheDocument()
+    expect(screen.getByLabelText('All countries', { selector: 'input' })).toBeChecked()
+    // Country by country follows the list: the same words, and no request
+    // for a table of nothing.
+    fireEvent.click(screen.getByLabelText('Country by country'))
+    await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
+    expect(screen.getByText('No All countries list')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing ranked')).toBeNull()
+    expect(calls.some((url) => url.includes('by=country_code'))).toBe(false)
+    // Choosing a country brings that country's list: the rule is about
+    // All countries lists only.
+    fireEvent.click(screen.getByLabelText('All countries', { selector: 'input' }))
+    await waitFor(() => expect(router.state.location.searchStr).not.toContain('scope='))
+    const select = within(main).getByLabelText('Country') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: '22' } })
+    await screen.findByRole('group', {
+      name: /^Loneliness: the 2 questions most strongly associated with it in United States/,
+    })
+    expect(screen.queryByText('No All countries list')).toBeNull()
+  })
+
+  test('the empty state is for that one case: the server’s rule, the server’s numbers', () => {
+    const meta = { min_countries: 12, countries: [1, 2, 5, 6, 9, 17, 20, 22, 23] }
+    expect(askedInTooFew({ meta, rows: [] })).toBe(9)
+    expect(tooFewCountries(9, 23)).toBe(
+      ' was asked in 9 of 23 countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.',
+    )
+    // A list, however short, is a list.
+    expect(askedInTooFew({ meta, rows: [plainRow('HAPPY', 0.3)] })).toBeUndefined()
+    // Asked in enough countries, and still nothing ranked: another matter.
+    const twelve = Array.from({ length: 12 }, (_, index) => index + 1)
+    expect(askedInTooFew({ meta: { ...meta, countries: twelve }, rows: [] })).toBeUndefined()
+    // One country's sweep, or a list of named questions, carries no rule.
+    expect(
+      askedInTooFew({ meta: { min_countries: null, countries: null }, rows: [] }),
+    ).toBeUndefined()
+    expect(askedInTooFew({ meta: {}, rows: [] })).toBeUndefined()
+    // Asked nowhere at all: said as it is.
+    expect(askedInTooFew({ meta: { min_countries: 12, countries: [] }, rows: [] })).toBe(0)
   })
 })
 

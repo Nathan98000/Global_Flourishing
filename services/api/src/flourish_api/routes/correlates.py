@@ -9,7 +9,9 @@ enables it, ADR-0018). Either runs against the named predictors
 countries this way) or, when none is named, against every other servable
 ordered item at the wave in a single pass over one frame, ranked, cut to
 ``limit`` and kept free of overlap: of two kept predictors built from the
-same answers, only the one built from more of them stays.
+same answers, only the one built from more of them stays. A sweep averaged
+over the countries ranks only the items whose average covers at least half
+of them (ADR-0020).
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from flourish_stats import (
     SuppressionPolicy,
     adjusted_association,
     average_countries,
+    ranking_min_countries,
     weighted_correlations,
 )
 from flourish_stats.averaging import COUNTRY
@@ -400,22 +403,39 @@ def averaged_rows(
     return rows, sorted(countries)
 
 
-def rankable(rows: list[EstimateRow], adjusted: bool, min_n: int) -> list[EstimateRow]:
+def covers(row: EstimateRow, min_countries: int) -> bool:
+    """Whether an average over the countries covers enough of them to be
+    ranked (ADR-0020); every other row does (``min_countries`` = 0)."""
+    return (row.n_countries or 0) >= min_countries
+
+
+def rankable(
+    rows: list[EstimateRow], adjusted: bool, min_n: int, min_countries: int = 0
+) -> list[EstimateRow]:
     """The rows a predictor is ranked on: its per-SD coefficient when
     adjusted, and only the groups with at least ``min_n`` complete cases
     (ADR-0015 — the ranked list is an ordering, and an ordering of noise
-    misleads; the cells themselves are still served)."""
+    misleads; the cells themselves are still served) — and, averaged over
+    the countries, only the averages covering ``min_countries`` of them."""
     return [
-        row for row in rows if row.n >= min_n and (not adjusted or row.measure == RANKING_MEASURE)
+        row
+        for row in rows
+        if row.n >= min_n
+        and covers(row, min_countries)
+        and (not adjusted or row.measure == RANKING_MEASURE)
     ]
 
 
-def rank_key(rows: list[EstimateRow], adjusted: bool, min_n: int = 0) -> float:
+def rank_key(
+    rows: list[EstimateRow], adjusted: bool, min_n: int = 0, min_countries: int = 0
+) -> float:
     """Strength of a predictor across its groups: the median absolute
     estimate (per-SD coefficient when adjusted) over the rankable groups.
     Predictors with no defined estimate anywhere sort last."""
     values = [
-        abs(row.estimate) for row in rankable(rows, adjusted, min_n) if row.estimate is not None
+        abs(row.estimate)
+        for row in rankable(rows, adjusted, min_n, min_countries)
+        if row.estimate is not None
     ]
     return median(values) if values else -math.inf
 
@@ -482,12 +502,26 @@ def run_correlates(
     estimated = list(by_predictor.items())
     n_excluded = 0
     dropped: dict[str, str] = {}
+    min_countries: int | None = None
+    n_excluded_coverage: int | None = None
     if not query.against:
+        if query.pooled:
+            # An All countries list ranks only the questions whose average
+            # covers at least half the release's countries (ADR-0020) —
+            # before ranking and cutting, so the list fills with questions
+            # that do. Named predictors and one-country sweeps are untouched.
+            min_countries = ranking_min_countries(len(store.catalog.country_codes()))
+            covering = [
+                item for item in estimated if any(covers(row, min_countries) for row in item[1])
+            ]
+            n_excluded_coverage = len(estimated) - len(covering)
+            estimated = covering
+        coverage = min_countries or 0
         # A candidate with too few complete cases in every group is not
         # ranked at all; the rest rank on their qualifying groups.
-        ranked = [item for item in estimated if rankable(item[1], query.adjusted, min_n)]
+        ranked = [item for item in estimated if rankable(item[1], query.adjusted, min_n, coverage)]
         n_excluded = len(estimated) - len(ranked)
-        ranked.sort(key=lambda item: (-rank_key(item[1], query.adjusted, min_n), item[0]))
+        ranked.sort(key=lambda item: (-rank_key(item[1], query.adjusted, min_n, coverage), item[0]))
         infos = {p.name: p for p in predictors}
         estimated, dropped = drop_overlaps(ranked, infos, query.limit)
     rows = [row for _, predictor_rows in estimated for row in predictor_rows]
@@ -520,6 +554,8 @@ def run_correlates(
         min_n=min_n,
         n_excluded=n_excluded,
         dropped_overlap=dropped,
+        min_countries=min_countries,
+        n_excluded_coverage=n_excluded_coverage,
         **averaged_meta(query.pooled, countries),
         **midyear_meta(
             query.wave,
@@ -594,7 +630,15 @@ def correlates(
     in its average (the ranking floor reads it), ``n_countries`` counts
     them, and ``flagged`` says every one of them rests on fewer than
     ``meta.min_n`` people; ``meta.countries`` lists every country in at
-    least one average. The dedupe is unchanged.
+    least one average, whether or not it is ranked. The ranked sweep keeps
+    only the candidates whose average covers at least
+    ``meta.min_countries`` countries — half of those /v1/meta lists,
+    rounded up — before ranking and cutting, so the list fills with
+    candidates that do (``meta.n_excluded_coverage`` covered fewer;
+    ``meta.n_excluded`` counts those below the floor among the rest). An
+    outcome itself asked in fewer has no rows, and ``meta.countries``
+    shorter than ``meta.min_countries`` says why. Named predictors
+    (``against``) are always served. The dedupe is unchanged.
 
     At ``wave=MY`` a midyear question reads its midyear answers and any
     other question the same respondents' ``other_wave`` answers (Y1 by

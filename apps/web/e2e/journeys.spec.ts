@@ -8,7 +8,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const API = 'http://localhost:8080'
 
@@ -27,10 +27,13 @@ interface FixtureRow {
   group: Record<string, string | number | boolean | null>
 }
 
+/** A fixture `make web-fixtures` wrote, whatever its shape. */
+function jsonFixture(name: string): unknown {
+  return JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', name), 'utf8'))
+}
+
 function apiFixture(name: string): { meta: Record<string, unknown>; rows: FixtureRow[] } {
-  return JSON.parse(
-    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', name), 'utf8'),
-  ) as { meta: Record<string, unknown>; rows: FixtureRow[] }
+  return jsonFixture(name) as { meta: Record<string, unknown>; rows: FixtureRow[] }
 }
 
 /** Serve the live-API routes from fixtures: health says the data is up. */
@@ -408,6 +411,9 @@ interface JourneyPlan {
   pooled_default: string[]
   /** The midyear question the page brings in at Midyear (ADR-0020). */
   midyear: { name: string; display_name: string }
+  /** A question one country asked, of a release of three: too few for an
+   * All countries list (ADR-0020's coverage rule). */
+  scarce: { name: string; display_name: string; asked: number; of: number }
 }
 
 /** Where and when a request is taken, as scripts/web_fixtures.py names
@@ -425,7 +431,7 @@ function scopeOf(url: URL, withWave = true): string {
     .join('')
 }
 
-test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries, Midyear through the note, the phone line', async ({
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
   page,
 }) => {
   // Every request is answered by the synthetic response made for it,
@@ -663,6 +669,50 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       name: /questions most strongly associated with it in all countries \(their average\)/,
     }),
   ).toBeVisible()
+
+  // A question asked in fewer than half the countries has no All countries
+  // list (ADR-0020): the page says so in the list's place, under either
+  // scope, and a country's own list is a choice away. One country of this
+  // tier's two is half, so this stop is served a release of three
+  // (scripts/web_fixtures.py): its meta in place of meta.json, and its
+  // answer for the question.
+  const { scarce } = plan
+  const threeCountries = (route: Route) =>
+    route.fulfill({ json: jsonFixture('coverage-meta.json') })
+  const noList = (route: Route) => {
+    const url = new URL(route.request().url())
+    return url.searchParams.get('outcome') === scarce.name && url.searchParams.get('pooled')
+      ? route.fulfill({
+          json: jsonFixture(`coverage-correlates-${scarce.name}-Y1-all-ranked.json`),
+        })
+      : route.fallback()
+  }
+  await page.route('**/data/meta.json', threeCountries)
+  await page.route(`${API}/v1/correlates**`, noList)
+  await page.goto(`/correlates?view=related&outcome=${scarce.name}&country=all`)
+  const emptyState = page.getByText(
+    `${scarce.display_name} was asked in ${scarce.asked} of ${scarce.of} countries. All countries lists include only questions asked in at least half of them — choose a country to see what goes with it.`,
+    { exact: true },
+  )
+  await expect(emptyState).toBeVisible()
+  await expect(emptyState.locator('em')).toHaveText(scarce.display_name)
+  await expect(page.locator('main figure')).toHaveCount(0)
+  await where.getByText('Country by country', { exact: true }).click()
+  await expect(page).toHaveURL(/scope=all/)
+  await expect(emptyState).toBeVisible()
+  await where.getByText('All countries', { exact: true }).click()
+  await expect(page).not.toHaveURL(/scope=/)
+  await page.getByRole('combobox', { name: /^Country/ }).selectOption({ label: 'Testland' })
+  await expect(
+    page.getByRole('group', {
+      name: new RegExp(
+        `^${scarce.display_name}: the \\d+ questions most strongly associated with it in Testland`,
+      ),
+    }),
+  ).toBeVisible()
+  await expect(emptyState).toBeHidden()
+  await page.unroute('**/data/meta.json', threeCountries)
+  await page.unroute(`${API}/v1/correlates**`, noList)
 
   // Midyear from the chip: the midyear question beside the same people's
   // 2023 answers, then 2024's; back at 2023 the default returns — and the

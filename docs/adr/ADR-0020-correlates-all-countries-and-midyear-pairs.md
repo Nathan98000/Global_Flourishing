@@ -1,6 +1,6 @@
 # ADR-0020: Correlates: all countries and midyear pairs
 
-**Status:** Accepted · **Date:** 2026-09-29, revised the same day after the review · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-09-29, revised the same day after the review and on 2026-09-30 after the owner's browser check · **Phase:** 7
 
 Supersedes, in ADR-0019: §5's legend, tooltip sentence and screen-reader
 words for a flagged estimate, §7's column explanation under Compare two,
@@ -15,9 +15,10 @@ Related: ADR-0007 (the API's data tier and its memory budget), ADR-0011
 ADR-0016 (no n in any tooltip), ADR-0019 (Correlates by task),
 `docs/prompts/correlates-polish-2026-09-29.md` (the owner's ten requests
 and decisions of 29 September), `docs/reviews/correlates-2026-09-29.md`
-(the browser review of this branch) and
+(the browser review of this branch),
 `docs/prompts/correlates-review-2026-09-29.md` (the owner's decisions on
-it).
+it) and `docs/prompts/correlates-followups-2026-09-30.md` (the owner's
+browser check of the branch, 30 September).
 
 ## Context
 
@@ -132,14 +133,43 @@ the plain average of the countries, which reads +0.10.
    longer holds some 600 MB at once (a one-country pair's peak fell too,
    353 → 229 MB).
 
-3. **The ranking floor reads the countries' total** (ADR-0015's open
-   item). The floor stays 100 complete cases (`FA_CORRELATES_MIN_N`),
-   applied for All countries to the complete cases summed over the
-   countries in the average; the flags and the dedupe are as before. A
-   question asked in only a few countries still ranks on their people —
-   its tooltip says how many asked it ("Asked in 12 of 23 countries.") —
-   and no cutoff hides it: asterisks, never small-group cutoffs (ADR-0011,
-   the owner's standing rule).
+3. **The ranking floor reads the countries' total, and an All countries
+   list ranks only questions asked in at least half the countries**
+   (ADR-0015's open item). The floor stays 100 complete cases
+   (`FA_CORRELATES_MIN_N`), applied for All countries to the complete
+   cases summed over the countries in the average; the flags and the
+   dedupe are as before. On the floor alone a question asked in a few
+   countries ranked on those countries' people, each average covering
+   only the countries that asked: on the release, "Chinese folk teachings
+   important" (asked in 2 of 23) and "Sikh teachings important" (9 of 23)
+   stood third and fourth among what goes with *Life evaluation today*.
+   So (the owner's rule, 30 September) a question is ranked in an All
+   countries list only when its pair's average covers at least half the
+   release's countries, rounded up — 12 of 23, derived from the countries
+   served (`flourish_stats.averaging.ranking_min_countries`), never a
+   constant. The API applies it before ranking and cutting, so the list
+   fills with questions that qualify, the same way at every wave and
+   midyear pairing and for both correlation types, and says so:
+   `meta.min_countries`, and `meta.n_excluded_coverage` candidates left
+   out for it (`meta.n_excluded` then counts those below the floor among
+   the rest). What is built on the list follows it: Find related's
+   country-by-country table, and the four questions Compare several's
+   default table takes from the first question's list. Nothing else does.
+   Compare two and Compare several (the reader picks those questions) and
+   every one-country view are untouched, so every question stays
+   reachable: an average a reader names is served whatever it covers, its
+   subtitle and tooltip saying how many countries asked. When the chosen
+   question was itself asked in fewer than half the countries, no pair
+   qualifies, and Find related, All countries shows an empty state in the
+   list's place, under either scope: "*{Question}* was asked in {n} of 23
+   countries. All countries lists include only questions asked in at least
+   half of them — choose a country to see what goes with it." (the count:
+   the countries in any of the question's averages, `meta.countries`).
+   That is an empty state, not a note under a chart, and nothing else on
+   the page explains the rule. It is not a small-group cutoff either: it
+   decides which questions a list about all countries may rank, and every
+   estimate in the list is still shown, starred where few people are
+   behind it (ADR-0011, the owner's standing rule).
 
 4. **The midyear survey, paired with 2023 or 2024.** Midyear is never
    disabled, and the wave follows the question. At `wave=MY` a midyear
@@ -311,7 +341,7 @@ model on the page; the QuestionPicker on Correlates only.
 ## Consequences
 
 - The API gains `pooled` and `other_wave` on the three correlation
-  endpoints, `n_countries` on every row and four optional meta fields;
+  endpoints, `n_countries` on every row and six optional meta fields;
   the OpenAPI schema and client are regenerated, and the goldens gain the
   new null fields. The static tier is unchanged; no data rebuild is
   needed and `data_version` is unchanged (the ETag keys on the commit,
@@ -325,8 +355,9 @@ model on the page; the QuestionPicker on Correlates only.
 - No data file joins the repository.
 - The synthetic database gains *Daily social media time*, so tests and
   the journeys land where users do.
-- Revisit the ranking floor if one-country questions crowd the All
-  countries lists (decision 3).
+- Questions asked in a few countries did crowd the All countries lists;
+  decision 3's coverage rule (30 September) answers it, and the ranking
+  floor stays as it was.
 
 ## History
 
@@ -342,3 +373,8 @@ pooled response, with a precomputed file of pooled correlations
 contradict almost every country; the owner replaced it with the plain
 average of the countries (decisions 1–3), and the population table, its
 script and every population code path were removed.
+
+The owner's browser check of 30 September
+(`docs/prompts/correlates-followups-2026-09-30.md`) added the coverage
+rule to decision 3: until then an All countries list ranked a question a
+few countries asked on the floor alone.

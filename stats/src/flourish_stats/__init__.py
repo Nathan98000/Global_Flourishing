@@ -7,7 +7,7 @@ verified against R's ``survey`` package. See ``docs/METHODS.md`` for the
 plain-language account and ADR-0005/0006 for the design decisions.
 """
 
-from .averaging import average_countries
+from .averaging import average_countries, ranking_min_countries
 from .correlations import adjusted_association, weighted_correlation, weighted_correlations
 from .design import Design
 from .estimators import (
@@ -56,6 +56,7 @@ __all__ = [
     "paired_change_distribution",
     "paired_share_change",
     "pairing_spec",
+    "ranking_min_countries",
     "resolve",
     "suppress",
     "three_point_panel",
