@@ -861,8 +861,17 @@ const PHONE_FONTS = [
 ]
 /** The least the phone nav leaves between two items (AppShell.module.css). */
 const NAV_LEAST_GAP = 2
+// The pages the rule is held on, each with what shows it has rendered: a
+// chart, or — the Codebook has none — its table, by the last column's
+// header. Only a screen reader meets that header, and it once widened
+// the page from inside the table's own scrolling box (30 Sept).
+const PHONE_PAGES: { path: string; rendered: (page: Page) => Locator }[] = [
+  { path: '/', rendered: (page) => page.locator('main figure').first() },
+  { path: '/correlates', rendered: (page) => page.locator('main figure').first() },
+  { path: '/codebook', rendered: (page) => page.getByRole('columnheader', { name: 'Chartable' }) },
+]
 
-test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+test('11 — a phone never scrolls sideways: the Atlas, Correlates and the Codebook from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
   page,
 }) => {
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
@@ -881,13 +890,13 @@ test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 t
   const panel = nav.locator('details > div')
   const column = page.locator('main')
 
-  for (const path of ['/', '/correlates']) {
+  for (const { path, rendered } of PHONE_PAGES) {
     for (const font of PHONE_FONTS) {
       for (const width of PHONE_WIDTHS) {
         const where = `${path} at ${width}px in ${font.name}`
         await page.setViewportSize({ width, height: 844 })
         await page.goto(path)
-        await expect(page.locator('main figure').first()).toBeVisible()
+        await expect(rendered(page)).toBeVisible()
         if (font.css) await page.addStyleTag({ content: font.css })
         softly(await sideways(), `${where}: px of sideways scroll`).toBe(0)
 

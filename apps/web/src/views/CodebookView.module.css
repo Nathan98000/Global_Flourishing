@@ -53,8 +53,12 @@
 }
 
 /* The table scrolls sideways inside its own box on a phone (the columns
-   never break); the page keeps its width. */
+   never break); the page keeps its width. Positioned, so the last
+   header's visually-hidden "Chartable" (absolute) is held and clipped by
+   this box — otherwise the page is its containing block, and it widens
+   the page to wherever that column starts. */
 .tableScroll {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
 }
