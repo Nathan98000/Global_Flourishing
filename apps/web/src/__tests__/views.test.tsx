@@ -10,6 +10,7 @@ import type { VariableDetail } from '../api/types'
 import { createAppRouter } from '../router'
 import { filterVariables } from '../views/CodebookView'
 import { whyNotChartable } from '../views/CodebookDetailView'
+import { renderMethods } from '../views/MethodsView'
 import { attendVariable, happyVariable, sfiVariable, testMeta } from '../test-utils/fixtures'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -53,6 +54,36 @@ describe('whyNotChartable', () => {
   })
 })
 
+describe('renderMethods', () => {
+  const headingIds = (html: string) =>
+    [...html.matchAll(/<h\d id="([^"]*)">/g)].map((match) => match[1] ?? '')
+
+  test('a heading takes the id GitHub gives it', () => {
+    const source = [
+      '## All countries: the average of the countries',
+      '## Subgroups (domain estimation)',
+      '## Change — Y1 to Y2',
+      '## The `w_r2` weight',
+      '## Türkiye’s sample',
+    ].join('\n\n')
+    expect(headingIds(renderMethods(source))).toEqual([
+      'all-countries-the-average-of-the-countries',
+      'subgroups-domain-estimation',
+      'change--y1-to-y2',
+      'the-w_r2-weight',
+      'türkiyes-sample',
+    ])
+  })
+
+  test('a repeated heading is numbered, and each parse counts afresh', () => {
+    const source = ['## Data', '## Data', '## Data 1', '## Data'].join('\n\n')
+    const unique = ['data', 'data-1', 'data-1-1', 'data-2']
+    expect(headingIds(renderMethods(source))).toEqual(unique)
+    // A second visit to the page parses again: the same ids, no -1s.
+    expect(headingIds(renderMethods(source))).toEqual(unique)
+  })
+})
+
 describe('Methods view', () => {
   test('renders METHODS.md itself — its headings are on the page', async () => {
     vi.stubGlobal(
@@ -84,6 +115,15 @@ describe('Methods view', () => {
     expect(sourceHeadings.length).toBeGreaterThan(5)
     for (const heading of sourceHeadings) {
       expect(await screen.findByRole('heading', { name: heading }), heading).toBeInTheDocument()
+    }
+    // Every link to one of the document's own sections finds its heading:
+    // the ids are GitHub's, so the same links work there and here.
+    const sectionLinks = [...methodsSource.matchAll(/\]\(#([^)\s]+)\)/g)].map(
+      (match) => match[1] ?? '',
+    )
+    expect(sectionLinks.length).toBeGreaterThan(0)
+    for (const id of sectionLinks) {
+      expect(document.getElementById(id), id).toBeInstanceOf(HTMLHeadingElement)
     }
     // Every table of the source renders inside a box of its own, which
     // scrolls sideways where a phone is too narrow for the table — the
