@@ -334,24 +334,31 @@ export function likelyRange(lo: number | null, hi: number | null): string | unde
 
 /** A cell's tooltip, in three lines (review M2): the column — "Life
  * evaluation today: 0" — then the share and the row's answer — "65% —
- * Finding it very difficult on present income" — then its likely range.
- * No asterisk here (the cell carries it) and never the n (ADR-0016). */
+ * Finding it very difficult on present income", or, when the answer is a
+ * bare number (a 0–10 scale, a count), with its question: "20% answered
+ * 10 on Life evaluation today" — then its likely range. No asterisk here
+ * (the cell carries it) and never the n (ADR-0016). */
 export function pairCellTip({
   aLevel,
   aShort,
   bLevel,
+  bShort,
   share,
   range,
 }: {
   aLevel: string
   aShort: string
   bLevel: string
+  bShort: string
   share: number | null
   range: string | undefined
 }): string {
   const column = `${aShort}: ${aLevel}`
   if (share === null) return `${column}\nNobody here gave this answer.`
-  return [column, `${shareLabel(share)} — ${bLevel}`, ...(range ? [range] : [])].join('\n')
+  const answer = /^\d+$/.test(bLevel)
+    ? `${shareLabel(share)} answered ${bLevel} on ${bShort}`
+    : `${shareLabel(share)} — ${bLevel}`
+  return [column, answer, ...(range ? [range] : [])].join('\n')
 }
 
 /** A bar's tooltip: "Life evaluation today: 8", "25% of people", then

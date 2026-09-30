@@ -355,6 +355,7 @@ function PairFigure({
   header: ReactNode
 }) {
   const aShort = yearTagged(shortName(a), a, wave, other)
+  const bShort = yearTagged(shortName(b), b, wave, other)
   const columnLabel = useMemo(
     () => new Map(pair.columns.map((column) => [column.code, column.label])),
     [pair],
@@ -394,12 +395,13 @@ function PairFigure({
             aLevel: columnLabel.get(cell.x) ?? String(cell.x),
             aShort,
             bLevel: rowLabel.get(cell.y) ?? String(cell.y),
+            bShort,
             share: cell.share,
             range: record ? likelyRange(record.ci_lo, record.ci_hi) : undefined,
           }),
         }
       }),
-    [pair, aShort, columnLabel, rowLabel],
+    [pair, aShort, bShort, columnLabel, rowLabel],
   )
   const name: ExportName = {
     measure: `${a.display_name} and ${b.display_name}`,

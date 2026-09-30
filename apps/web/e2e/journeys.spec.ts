@@ -8,7 +8,7 @@
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type Page, type Route } from '@playwright/test'
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 
 const API = 'http://localhost:8080'
 
@@ -431,6 +431,18 @@ function scopeOf(url: URL, withWave = true): string {
     .join('')
 }
 
+/** The tooltip of a Compare two grid's first cell, its lines as one: the
+ * pointer goes to the cell (its share label sits on top of it) and the
+ * chart draws the tip. */
+async function cellTip(chart: Locator): Promise<string> {
+  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
+    force: true,
+  })
+  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
+  // (Plot starts each line with a zero-width space.)
+  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
+}
+
 test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
   page,
 }) => {
@@ -492,6 +504,11 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       .filter({ hasText: /^\d+%\*?$/ })
       .first(),
   ).toBeVisible()
+  // A cell's tooltip: its column, then its share and the row's answer in
+  // the answer's own words.
+  await expect
+    .poll(() => cellTip(grid))
+    .toMatch(/^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( Likely range: .+)?$/)
   // The strip names its scope; where is chosen under the shared row.
   await expect(page.getByText('United States:', { exact: true })).toBeVisible()
   expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
@@ -527,6 +544,17 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       exact: true,
     }),
   ).toBeVisible()
+  // The rows are numbers now, so a cell's tooltip names their question.
+  const swapped = page.getByRole('img', {
+    name: new RegExp(`^Feelings about household income and ${plan.picked.display_name} in`),
+  })
+  await expect
+    .poll(() => cellTip(swapped))
+    .toMatch(
+      new RegExp(
+        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( Likely range: .+)?$`,
+      ),
+    )
 
   // Country by country: one dot per country, the grid gone, and the All
   // countries average as a labelled rule — the chosen country still

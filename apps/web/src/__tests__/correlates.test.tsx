@@ -1970,9 +1970,11 @@ describe('correlates helpers', () => {
       aLevel: '0',
       aShort: 'Life evaluation today',
       bLevel: 'Finding it very difficult on present income',
+      bShort: 'Feelings about household income',
       share: 0.65,
       range: likelyRange(0.438, 0.864),
     }
+    // A worded answer stands on its own after the share.
     expect(pairCellTip(tip)).toBe(
       'Life evaluation today: 0\n65% — Finding it very difficult on present income\nLikely range: 44%–86%',
     )
@@ -1982,6 +1984,34 @@ describe('correlates helpers', () => {
     expect(pairCellTip({ ...tip, share: null })).toBe(
       'Life evaluation today: 0\nNobody here gave this answer.',
     )
+    // A bare number needs its question (the owner's check, 30 Sept: "20% —
+    // 10" said nothing): the first line and the likely range as before,
+    // and still no n.
+    const numbered = {
+      aLevel: 'More than once a week',
+      aShort: 'Religious service attendance',
+      bLevel: '10',
+      bShort: 'Life evaluation today',
+      share: 0.2,
+      range: likelyRange(0.171, 0.229),
+    }
+    expect(pairCellTip(numbered)).toBe(
+      'Religious service attendance: More than once a week\n20% answered 10 on Life evaluation today\nLikely range: 17%–23%',
+    )
+    expect(pairCellTip({ ...numbered, bLevel: '0', share: 0.004, range: undefined })).toBe(
+      'Religious service attendance: More than once a week\n<1% answered 0 on Life evaluation today',
+    )
+    expect(pairCellTip({ ...numbered, share: null })).toBe(
+      'Religious service attendance: More than once a week\nNobody here gave this answer.',
+    )
+    expect(pairCellTip(numbered)).not.toMatch(/n ?=|\bn\b/)
+    // Only a bare number: a range of a binned scale, or an answer that
+    // starts with a number, keeps the dash.
+    for (const bLevel of ['2.5–3.2', '10 or more', '1 to 2 hours']) {
+      expect(pairCellTip({ ...numbered, bLevel, range: undefined })).toBe(
+        `Religious service attendance: More than once a week\n20% — ${bLevel}`,
+      )
+    }
     expect(
       pairBarTip({
         level: '8',

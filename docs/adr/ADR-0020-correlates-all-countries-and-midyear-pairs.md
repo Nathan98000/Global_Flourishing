@@ -242,10 +242,12 @@ the plain average of the countries, which reads +0.10.
    tooltip (ADR-0016). Compare two's grid and bars say theirs in plain
    words, in three lines — the column ("Life evaluation today: 0"), the
    share and the row's answer ("65% — Finding it very difficult on
-   present income") or "25% of people", and "Likely range: 44%–86%" in
-   place of "95% CI [a, b]" — with no asterisk inside them (the cell
-   carries it); ranked rows and matrix cells keep "+0.41 · Gratitude",
-   the value starred when few people are behind it. The asterisk's key
+   present income"; an answer that is a bare number, on a 0–10 scale or
+   a count, with its question: "20% answered 10 on Life evaluation
+   today") or "25% of people", and "Likely range: 44%–86%" in place of
+   "95% CI [a, b]" — with no asterisk inside them (the cell carries it);
+   ranked rows and matrix cells keep "+0.41 · Gratitude", the value
+   starred when few people are behind it. The asterisk's key
    reads "* small sample size" everywhere on the page, and screen readers
    hear ", small sample size"; Compare two's summary ends "… N cells are
    starred: small sample size." Every Correlates chart ends, after its
@@ -383,4 +385,6 @@ rule to decision 3: until then an All countries list ranked a question a
 few countries asked on the floor alone. It also split the ramps (decision
 5): for a day the US States map and the What Matters matrix shared the
 grid's nine steps, which made both pages much darker and their deepest
-three shades hard to tell apart; they are back on seven.
+three shades hard to tell apart; they are back on seven. And it named the
+question in a grid cell's tooltip when the row's answer is a number: "20%
+— 10" said nothing.
