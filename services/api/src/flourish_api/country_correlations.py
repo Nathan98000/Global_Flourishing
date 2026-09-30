@@ -49,8 +49,11 @@ from flourish_api.queries import (
     shares_answers,
 )
 
-#: Bumped whenever what the file holds changes shape or meaning.
-FORMAT = 1
+#: Bumped whenever what the file holds changes shape or meaning. 2: no
+#: estimate where a country has fewer than two people behind a pair or one
+#: of its answers never varies (a format-1 file holds rounding residues
+#: there — 1.0, 0.0, even −1.41).
+FORMAT = 2
 #: The Parquet key-value metadata key the file's facts ride under.
 _META_KEY = "flourish_country_correlations"
 

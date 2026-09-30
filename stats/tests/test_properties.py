@@ -221,6 +221,45 @@ def test_spearman_invariant_under_monotone_transforms(sample, ys: list[int]) -> 
         assert after["estimate"] == pytest.approx(base["estimate"], rel=1e-9, abs=1e-12)
 
 
+@given(
+    weights=st.lists(st.floats(0.02, 50.0), min_size=1, max_size=30),
+    constant=VALUES,
+    method=st.sampled_from(["pearson", "spearman"]),
+    data=st.data(),
+)
+def test_an_answer_that_never_varies_has_no_correlation(
+    weights: list[float], constant: int, method: str, data
+) -> None:
+    """Whatever the weights (the release's run from 0.02 to 49), an item
+    everyone gave the same answer to has no correlation, on either side of
+    the pair and by either estimator: its variance's rounding residue never
+    passes for variation."""
+    from flourish_stats import weighted_correlation, weighted_correlations
+
+    n = len(weights)
+    ys = data.draw(st.lists(VALUES, min_size=n, max_size=n))
+    frame = pl.DataFrame({"w": weights, "flat": [constant] * n, "y": ys})
+    for x, y in (("flat", "y"), ("y", "flat")):
+        pair = weighted_correlation(
+            frame,
+            x,
+            y,
+            KISH,
+            method=method,  # type: ignore[arg-type]
+            policy=NO_SUPPRESSION,
+        )
+        sweep = weighted_correlations(
+            frame,
+            x,
+            [y],
+            KISH,
+            method=method,  # type: ignore[arg-type]
+            policy=NO_SUPPRESSION,
+        )
+        for row in (the_row(pair), the_row(sweep)):
+            assert row["estimate"] is None and row["n"] == n
+
+
 @given(sample=simple_samples(min_rows=4), xs=st.lists(VALUES, min_size=4, max_size=30))
 def test_unit_weight_sandwich_is_the_textbook_robust_variance(
     sample: tuple[list[int], list[float]], xs: list[int]

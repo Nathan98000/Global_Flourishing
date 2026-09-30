@@ -303,6 +303,10 @@ the Correlates view draws none — its footnote says so rather than naming
 an interval level. A design-based interval (a delta method over the four
 totals R's `svyvar` estimates) is the recorded backlog item; a textbook
 Fisher-z interval would assume simple random sampling and is not offered.
+A correlation needs at least two people who answered both questions, and
+some variation in each answer: a country where only one person answered
+both, or where everyone gave one of them the same answer, has no
+correlation for the pair and drops out of its All countries average.
 
 **Which measures are ranked.** The Correlates view's ranked list leaves
 out any measure resting on fewer than 100 respondents with both answers

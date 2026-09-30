@@ -106,6 +106,97 @@ def test_zero_variance_gives_null_estimate() -> None:
     assert row["n"] == 4
 
 
+# --- where no correlation is defined ----------------------------------------
+#
+# A correlation needs two complete cases at least, and some variation in
+# each item among them. The weights below are chosen so that the variance
+# of an item that never varies does NOT come out at exactly zero in
+# floating point — Σw·x² − (Σw·x)²/Σw in the one-pass sweep, Σw·(x − x̄)²
+# in the two-pass form — which the estimators once read as variation:
+# one person "correlated" 1.0, a constant item about 0.
+
+BOTH_METHODS = pytest.mark.parametrize("method", ["pearson", "spearman"])
+
+
+def both_estimators(frame, x: str, y: str, method: str, by=()) -> list[list[dict]]:
+    """``x`` against ``y`` by the pairwise estimator and by the sweep."""
+    design = Design(weight="w")
+    pair = weighted_correlation(
+        frame,
+        x,
+        y,
+        design,
+        method=method,  # type: ignore[arg-type]
+        by=by,
+        policy=NO_SUPPRESSION,
+    )
+    sweep = weighted_correlations(
+        frame,
+        x,
+        [y],
+        design,
+        method=method,  # type: ignore[arg-type]
+        by=by,
+        policy=NO_SUPPRESSION,
+    )
+    return [pair.to_pylist(), sweep.to_pylist()]
+
+
+@BOTH_METHODS
+def test_one_person_has_no_correlation(method: str) -> None:
+    # In group b one person answered both questions (the other two only x),
+    # as a question asked of few people is in most countries. Before the
+    # fix, this weight gave 1.0 by the sweep and by the pairwise Pearson.
+    frame = pl.DataFrame(
+        {
+            "g": ["a"] * 4 + ["b"] * 3,
+            "w": [1.0, 0.5, 2.0, 1.5, 2.880413, 0.7, 1.3],
+            "x": [1, 4, 2, 8, 3, 5, 9],
+            "y": [2, 3, 1, 9, 6, None, None],
+        }
+    )
+    for rows in both_estimators(frame, "x", "y", method, by=["g"]):
+        groups = {row["g"]: row for row in rows}
+        assert groups["b"]["estimate"] is None
+        assert groups["b"]["n"] == 1 and groups["b"]["sum_w"] == pytest.approx(2.880413)
+        assert not groups["b"]["suppressed"]
+        assert groups["a"]["estimate"] is not None and groups["a"]["n"] == 4
+
+
+@BOTH_METHODS
+def test_an_item_that_does_not_vary_among_the_complete_cases_has_no_correlation(
+    method: str,
+) -> None:
+    # The four people who answered both all gave x = 7 (two others answered
+    # x alone, differently). Before the fix, x's variance under these
+    # weights was a rounding residue, and every path returned about 0.
+    frame = pl.DataFrame(
+        {
+            "w": [0.363, 2.448, 2.111, 0.221, 1.0, 1.7],
+            "x": [7, 7, 7, 7, 2, 10],
+            "y": [7, 9, 2, 0, None, None],
+        }
+    )
+    # The item that does not vary on either side of the pair.
+    for x, y in (("x", "y"), ("y", "x")):
+        for rows in both_estimators(frame, x, y, method):
+            (row,) = rows
+            assert row["estimate"] is None
+            assert row["n"] == 4 and row["sum_w"] == pytest.approx(5.143)
+
+
+@BOTH_METHODS
+def test_two_people_who_differ_correlate_one_or_minus_one(method: str) -> None:
+    # Two complete cases define a correlation: it is ±1, and it is served
+    # (two is the definition, not a cutoff).
+    frame = pl.DataFrame({"w": [0.363, 2.448], "x": [2, 7], "up": [1, 9], "down": [9, 1]})
+    for y, expected in (("up", 1.0), ("down", -1.0)):
+        for rows in both_estimators(frame, "x", y, method):
+            (row,) = rows
+            assert row["estimate"] == pytest.approx(expected, abs=1e-12)
+            assert row["n"] == 2
+
+
 def test_suppression_and_method_validation() -> None:
     row = one_row(weighted_correlation(TOY, "y", "x2", TAYLOR))  # default policy, n=9
     assert row["suppressed"] is True and row["estimate"] is None
