@@ -869,9 +869,13 @@ test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 t
   await servePairs(page)
   // Every width and font is tried, so one run names every one that fails.
   const softly = expect.configure({ soft: true })
+  // How far the page can scroll sideways, in px — never less than none.
+  // Where the page keeps room for a classic scrollbar (scrollbar-gutter,
+  // styles.css) and Playwright hides the bar — the Linux runner — its
+  // scrollWidth is 15px short of its clientWidth when nothing overflows.
   const sideways = () =>
     page.evaluate<number>(
-      'document.documentElement.scrollWidth - document.documentElement.clientWidth',
+      'Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)',
     )
   const nav = page.getByRole('navigation', { name: 'Main' })
   const panel = nav.locator('details > div')
