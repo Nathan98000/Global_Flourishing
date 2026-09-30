@@ -30,7 +30,7 @@ import {
   type CrossTabRow,
 } from '../../charts/CrossTab'
 import { RankedBar } from '../../charts/RankedBar'
-import { SEQUENTIAL_RAMP, signMark } from '../../charts/theme'
+import { SHARE_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
 import { EstimateTable } from '../../components/EstimateTable'
 import { LoadingBlock } from '../../components/Loading'
@@ -300,15 +300,15 @@ function HeaderRow({ children }: { children: ReactNode }) {
   return <div className={own.headerRow}>{children}</div>
 }
 
-/** The key to the grid: how to read it, its fixed bins in the ramp's own
- * tokens, and the asterisk. */
+/** The key to the grid: how to read it, its nine fixed bins in the grid
+ * ramp's own tokens, and the asterisk. */
 function ShareLegend() {
   return (
     <p className={`${styles.legend} ${own.shareLegend}`}>
       <span className={own.shareKey}>
         <span>Share of each column (columns add to 100%)</span>
         <span className={own.bins} aria-hidden="true">
-          {SEQUENTIAL_RAMP.map((token, index) => (
+          {SHARE_RAMP.map((token, index) => (
             <span key={token} className={own.bin}>
               <span className={own.swatch} style={{ background: token }} />
               <span>

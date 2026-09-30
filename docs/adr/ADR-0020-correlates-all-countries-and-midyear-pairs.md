@@ -266,11 +266,14 @@ the plain average of the countries, which reads +0.10.
    edge; the gutter holds only row labels; no text block is capped at a
    line count; cell and bar labels are sized to fit their columns. The
    grid's fixed bins reach the top — 0, 5, 10, 20, 30, 45, 60, 75 and
-   90%+ on a nine-step sequential ramp, so "Yes" at 84% and at 93% are two
-   shades (the US States map and the What Matters matrix share the ramp
-   and step in nine too); its key reads "Share of each column (columns
-   add to 100%)"; a column under 44px writes its shares without "%" (the
-   key says it; the asterisk stays). Compare several's table drops the
+   90%+ on a nine-step ramp of its own (`SHARE_RAMP`: the sequential
+   ramp's seven steps, then `--seq-800` and `--seq-900`), so "Yes" at 84%
+   and at 93% are two shades. Only the grid, its key and `shareTint` read
+   the nine: the US States map and the What Matters matrix keep the seven
+   (`SEQUENTIAL_RAMP`, `--seq-100` to `--seq-700`), so the first seven
+   shades are the same on every page. The grid's key reads "Share of each
+   column (columns add to 100%)"; a column under 44px writes its shares
+   without "%" (the key says it; the asterisk stays). Compare several's table drops the
    shaded corner and its "Question ↓ · with →"; its headings stand
    horizontal, wrapped to three lines at most (the column widens until
    they fit); with more than six questions, or on a phone, its columns are
@@ -377,4 +380,7 @@ script and every population code path were removed.
 The owner's browser check of 30 September
 (`docs/prompts/correlates-followups-2026-09-30.md`) added the coverage
 rule to decision 3: until then an All countries list ranked a question a
-few countries asked on the floor alone.
+few countries asked on the floor alone. It also split the ramps (decision
+5): for a day the US States map and the What Matters matrix shared the
+grid's nine steps, which made both pages much darker and their deepest
+three shades hard to tell apart; they are back on seven.

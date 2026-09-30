@@ -430,13 +430,13 @@ describe('What Matters view', () => {
     // end of Good relationships (7–8) and the high end of Money (6–7).
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
     expect(cells[1]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-900)')
-    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-900)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
+    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
     // The number wears the ink its tint step names (light ink on the
     // deep teal), never the page ink at 1.9:1.
-    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-900-ink)')
+    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
     expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
-    // A legend replaces the caption: the nine ramp tokens, lower to
+    // A legend replaces the caption: the seven ramp tokens, lower to
     // higher (so it reads true in either theme), and the column rule.
     const legend = within(ranking).getByText(/· each column shaded on its own range/)
     expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
@@ -445,6 +445,11 @@ describe('What Matters view', () => {
     expect(
       [...legend.querySelectorAll('span[style]')].map((swatch) => swatch.getAttribute('style')),
     ).toEqual(SEQUENTIAL_RAMP.map((token) => `background: ${token};`))
+    // Seven steps, the deepest --seq-700: the two deeper shades are
+    // Compare two's grid's alone, in the key and in every cell.
+    expect(SEQUENTIAL_RAMP).toHaveLength(7)
+    expect(SEQUENTIAL_RAMP.at(-1)).toBe('var(--seq-700)')
+    expect(ranking.innerHTML).not.toMatch(/--seq-[89]00/)
     expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
     expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
     // The sort control, always in view: country name or one of the items.
@@ -684,7 +689,7 @@ describe('What Matters view', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual(['5.22', '5.22', '6.22', '6.22'])
     // Shaded per column across the groups.
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-900)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
     within(split).getByText(/each column shaded on its own range/)
     // The country select starts on the United States: no "Choose a
     // country…" option, no hint; one figure on screen.

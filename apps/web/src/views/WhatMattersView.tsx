@@ -603,7 +603,7 @@ function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** The matrix's key, in its caption's place: the nine ramp steps from
+/** The matrix's key, in its caption's place: the seven ramp steps from
  * lower to higher — the tokens themselves, so it reads true in either
  * theme — and the rule that each column is shaded on its own range. */
 function TintLegend() {

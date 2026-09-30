@@ -3,9 +3,10 @@
 // it. Columns are the first question's answers, least to most; rows are
 // the second's, the most at the top. Each cell is the share of its
 // column's people who gave the row's answer ("57%", "<1%"; the "%" left
-// to the key in a column under 44px), tinted on the sequential ramp in
-// nine fixed bins that reach 90% — the same shade is the same share in
-// every pair — its ink the ramp step's own. A cell few people are behind
+// to the key in a column under 44px), tinted on the grid's nine-step ramp
+// (the sequential ramp and two deeper steps, this grid's alone) in nine
+// fixed bins that reach 90% — the same shade is the same share in every
+// pair — its ink the ramp step's own. A cell few people are behind
 // wears an asterisk and a dashed inner outline. Above the grid, one bar
 // per column, aligned to it, shows the share of respondents who gave that
 // answer. At every width the bars' caption runs on its own lines above
@@ -20,15 +21,7 @@
 
 import * as Plot from '@observablehq/plot'
 import { textMeasurer, wrapLabel } from './RankedBar'
-import {
-  FONT_FAMILY,
-  GRID,
-  INK,
-  INK_MUTED,
-  INK_SECONDARY,
-  SEQUENTIAL_RAMP,
-  TIP_OPTIONS,
-} from './theme'
+import { FONT_FAMILY, GRID, INK, INK_MUTED, INK_SECONDARY, SHARE_RAMP, TIP_OPTIONS } from './theme'
 import { tintInk } from './TransitionTable'
 import { chartWidth, usePlot } from './usePlot'
 
@@ -41,8 +34,8 @@ export const SHARE_BINS = [0, 5, 10, 20, 30, 45, 60, 75, 90] as const
  * says it); the asterisk stays. */
 export const PERCENT_BELOW = 44
 
-/** A column share onto the nine sequential ramp tokens, in fixed bins
- * (never fitted to the pair). No share: no tint. */
+/** A column share onto the grid's nine ramp tokens, in fixed bins (never
+ * fitted to the pair). No share: no tint. */
 export function shareTint(share: number | null): string {
   if (share === null) return 'transparent'
   const percent = share * 100
@@ -50,7 +43,7 @@ export function shareTint(share: number | null): string {
   SHARE_BINS.forEach((edge, index) => {
     if (percent >= edge) step = index
   })
-  return SEQUENTIAL_RAMP[step] ?? SEQUENTIAL_RAMP[0]
+  return SHARE_RAMP[step] ?? SHARE_RAMP[0]
 }
 
 /** A share as the grid writes it: "57%"; "<1%" for a sliver, so nothing

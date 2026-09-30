@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
+import { SEQUENTIAL_RAMP, SHARE_RAMP } from '../charts/theme'
 
 // vitest runs from apps/web (jsdom rewrites import.meta.url, so resolve
 // from the package root instead).
@@ -82,8 +83,8 @@ const MARKS = [
   '--div-pos-mark',
 ]
 
-/** The sequential ramp (the map, the What Matters matrix and Compare two's
- * grid), light → dark: nine steps, so the grid's bins reach 90%. */
+/** The sequential ramp (the US States map and the What Matters matrix),
+ * light → dark: seven steps. */
 const SEQUENTIAL = [
   '--seq-100',
   '--seq-200',
@@ -92,9 +93,11 @@ const SEQUENTIAL = [
   '--seq-500',
   '--seq-600',
   '--seq-700',
-  '--seq-800',
-  '--seq-900',
 ]
+
+/** Compare two's grid: the seven and two deeper steps of its own — nine,
+ * so its bins reach 90%. */
+const SHARE = [...SEQUENTIAL, '--seq-800', '--seq-900']
 
 /** The diverging tints (Phase 6), negative → neutral → positive: five
  * steps per sign around the page tone. */
@@ -149,18 +152,21 @@ describe.each([
   })
 
   test('the sequential ramp reads against the surface', () => {
-    // The deep end carries the high values: full non-text contrast.
+    // The deep end carries the high values: full non-text contrast — the
+    // map's and the matrix's seventh step, and the grid's ninth.
+    assertContrast(vars, '--seq-700', '--surface', 3, theme)
     assertContrast(vars, '--seq-900', '--surface', 3, theme)
     // The light end must be a *visible tint* on the surface — the floor
     // that rejected a blue ramp indistinguishable on off-white paper —
     // and a visible step away from the next bin.
     assertContrast(vars, '--seq-100', '--surface', 1.25, theme)
     assertContrast(vars, '--seq-100', '--seq-200', 1.1, theme)
-    // Every step a visible step from the next, the two added at the top
+    // Every step a visible step from the next, the grid's two at the top
     // included (84% and 93% must read apart).
-    for (let index = 0; index + 1 < SEQUENTIAL.length; index += 1) {
-      assertContrast(vars, SEQUENTIAL[index] as string, SEQUENTIAL[index + 1] as string, 1.1, theme)
+    for (let index = 0; index + 1 < SHARE.length; index += 1) {
+      assertContrast(vars, SHARE[index] as string, SHARE[index + 1] as string, 1.1, theme)
     }
+    expect(new Set(SHARE.map((name) => vars[name])).size).toBe(9)
   })
 
   test('"no estimate" is a neutral with an outline, apart from the lowest bin', () => {
@@ -195,7 +201,7 @@ describe.each([
     // A cell's number wears the ink its tint token names — dark ink on
     // the light steps, light ink on the dark ones — so no step falls to
     // the 1.9:1 the page ink read at on the deep teal.
-    for (const step of [...SEQUENTIAL, ...DIVERGING]) {
+    for (const step of [...SHARE, ...DIVERGING]) {
       const ink = resolveToken(vars, `${step}-ink`)
       expect(ink, `${theme} ${step}-ink`).toMatch(/^--tint-ink-(dark|light)$/)
       assertContrast(vars, ink, step, 4.5, theme)
@@ -236,6 +242,15 @@ test('dark diverging steps stay apart: every neighbouring pair clears 1.3:1 (ADR
       ).toBeGreaterThanOrEqual(1.3)
     }
   }
+})
+
+test('the charts read the ramps by these tokens: seven for the map and the matrix, nine for the grid', () => {
+  const token = (name: string) => `var(${name})`
+  expect([...SEQUENTIAL_RAMP]).toEqual(SEQUENTIAL.map(token))
+  expect(SEQUENTIAL_RAMP).toHaveLength(7)
+  // The grid's first seven shades are the other pages' own.
+  expect([...SHARE_RAMP]).toEqual(SHARE.map(token))
+  expect(SHARE_RAMP).toHaveLength(9)
 })
 
 test('the dark media block and the dark stamp define identical tokens', () => {

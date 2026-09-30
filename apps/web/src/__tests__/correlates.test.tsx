@@ -23,7 +23,14 @@ import type {
 } from '../api/types'
 import { footnoteCopy } from '../charts/ChartFigure'
 import { shareLabel, shareTint } from '../charts/CrossTab'
-import { DIVERGING_RAMP, SEQUENTIAL_RAMP, divergingTint, signMark, tipText } from '../charts/theme'
+import {
+  DIVERGING_RAMP,
+  SEQUENTIAL_RAMP,
+  SHARE_RAMP,
+  divergingTint,
+  signMark,
+  tipText,
+} from '../charts/theme'
 import { RankedBar, wrapLabel } from '../charts/RankedBar'
 import { HEAT_CELL_PAD, HeatTable, columnsPastEdge, intervalText } from '../charts/TransitionTable'
 import { pairToCsv } from '../export/csv'
@@ -1150,8 +1157,24 @@ describe('Correlates view', () => {
     const shared = screen.getByRole('group', { name: 'Correlation type' })
     expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The legend: how to read it, the fixed bins, and the asterisk.
-    expect(screen.getByText('Share of each column (columns add to 100%)')).toBeInTheDocument()
+    const key = screen.getByText('Share of each column (columns add to 100%)')
     expect(screen.getByText('* small sample size')).toBeInTheDocument()
+    // Its nine steps, the grid's own ramp, each over the bin it starts at.
+    const swatches = [...(key.parentElement as HTMLElement).querySelectorAll('span[style]')]
+    expect(swatches.map((swatch) => swatch.getAttribute('style'))).toEqual(
+      SHARE_RAMP.map((token) => `background: ${token};`),
+    )
+    expect(swatches.map((swatch) => swatch.nextElementSibling?.textContent)).toEqual([
+      '0',
+      '5',
+      '10',
+      '20',
+      '30',
+      '45',
+      '60',
+      '75',
+      '90%+',
+    ])
     // One SVG: the bars, the grid and every label (so the PNG carries them).
     const svgs = figure.querySelectorAll('svg')
     expect(svgs).toHaveLength(1)
@@ -1974,24 +1997,31 @@ describe('correlates helpers', () => {
     // A narrow column leaves the "%" to the key.
     expect(shareLabel(0.57, false)).toBe('57')
     expect(shareLabel(0.004, false)).toBe('<1')
-    // Fixed bins at 0/5/10/20/30/45/60/75/90%, onto the nine ramp tokens:
-    // they reach the top.
+    // Fixed bins at 0/5/10/20/30/45/60/75/90%, onto the grid's nine ramp
+    // tokens: they reach the top.
     expect([0, 0.049, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map(shareTint)).toEqual([
-      SEQUENTIAL_RAMP[0],
-      SEQUENTIAL_RAMP[0],
-      SEQUENTIAL_RAMP[1],
-      SEQUENTIAL_RAMP[2],
-      SEQUENTIAL_RAMP[3],
-      SEQUENTIAL_RAMP[4],
-      SEQUENTIAL_RAMP[5],
-      SEQUENTIAL_RAMP[6],
-      SEQUENTIAL_RAMP[7],
-      SEQUENTIAL_RAMP[8],
-      SEQUENTIAL_RAMP[8],
+      SHARE_RAMP[0],
+      SHARE_RAMP[0],
+      SHARE_RAMP[1],
+      SHARE_RAMP[2],
+      SHARE_RAMP[3],
+      SHARE_RAMP[4],
+      SHARE_RAMP[5],
+      SHARE_RAMP[6],
+      SHARE_RAMP[7],
+      SHARE_RAMP[8],
+      SHARE_RAMP[8],
     ])
     // "Yes" at 84% and at 93% (review H3): two different steps.
     expect(shareTint(0.84)).not.toBe(shareTint(0.93))
-    expect(SEQUENTIAL_RAMP).toHaveLength(9)
+    expect([shareTint(0.84), shareTint(0.93)]).toEqual(['var(--seq-800)', 'var(--seq-900)'])
+    // Nine steps for the grid alone: the sequential ramp's seven — the
+    // map's and the What Matters matrix's, shade for shade — then two
+    // deeper ones.
+    expect(SHARE_RAMP).toHaveLength(9)
+    expect(SEQUENTIAL_RAMP).toHaveLength(7)
+    expect(SHARE_RAMP.slice(0, 7)).toEqual([...SEQUENTIAL_RAMP])
+    expect(SHARE_RAMP.slice(7)).toEqual(['var(--seq-800)', 'var(--seq-900)'])
     expect(shareTint(null)).toBe('transparent')
   })
 

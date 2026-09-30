@@ -345,10 +345,10 @@ and 99th percentiles — ten ranges for a score, whole-number ranges for a
 count — the two end ranges taking in the few people beyond them, and
 their labels say so. Both axes run from least to most of what the
 question's label names, the most of the second question at the top. The
-tints use fixed steps (0, 5, 10, 20, 30, 45 and 60% or more), so a shade
-means the same share in every pair. Only shares of people are shown; no
-individual's answers ever are. "Country by country" shows the pair's
-correlation in each country instead.
+tints use fixed steps (0, 5, 10, 20, 30, 45, 60, 75 and 90% or more), so
+a shade means the same share in every pair. Only shares of people are
+shown; no individual's answers ever are. "Country by country" shows the
+pair's correlation in each country instead.
 
 **A table of several** (Compare several) sets 2 to 10 questions against
 each other in one country: every pair's weighted correlation, as the

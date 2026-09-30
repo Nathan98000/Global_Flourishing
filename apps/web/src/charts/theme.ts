@@ -1,6 +1,6 @@
 // Chart theme: every color is a `var(--token)` string straight into the
 // SVG, so charts re-theme live with tokens.css and no hex ever exists in
-// chart code. The map's sequential scale is *quantized* onto the nine
+// chart code. The map's sequential scale is *quantized* onto the seven
 // discrete ramp tokens for the same reason (no interpolation, no
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
 // (≤ 24px), hairline solid grid, 2px surface gaps and rings.
@@ -45,6 +45,8 @@ export const SFI_HUES: Record<string, string> = {
 
 export const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'] as const
 
+/** The sequential ramp, light → deep: the seven steps the US States map
+ * and the What Matters matrix are quantized onto, and their keys show. */
 export const SEQUENTIAL_RAMP = [
   'var(--seq-100)',
   'var(--seq-200)',
@@ -53,11 +55,16 @@ export const SEQUENTIAL_RAMP = [
   'var(--seq-500)',
   'var(--seq-600)',
   'var(--seq-700)',
-  'var(--seq-800)',
-  'var(--seq-900)',
 ] as const
 
-/** A value in [lo, hi] onto the nine sequential ramp tokens (the map's
+/** Compare two's grid alone steps in nine — the seven, shade for shade,
+ * then two deeper — so its fixed bins reach 90% and "Yes" at 84% and at
+ * 93% are two shades (ADR-0020). Only the grid, its key and `shareTint`
+ * read it: nine steps over a map's or a matrix's own range made those
+ * pages much darker, their deepest three shades hard to tell apart. */
+export const SHARE_RAMP = [...SEQUENTIAL_RAMP, 'var(--seq-800)', 'var(--seq-900)'] as const
+
+/** A value in [lo, hi] onto the seven sequential ramp tokens (the map's
  * quantized scale; the What Matters matrix uses the same). */
 export function quantizeSequential(domain: [number, number]): (value: number) => string {
   const [lo, hi] = domain

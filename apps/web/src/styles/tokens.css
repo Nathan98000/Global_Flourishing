@@ -122,7 +122,9 @@
   /* Sequential ramp (map): sand → teal, light→dark; the first step is a
      visible tint on the surface, and the empty fill is a *neutral* with
      its own outline so "no estimate" and unsurveyed land never read as
-     the lowest bin */
+     the lowest bin. The map and the What Matters matrix step through
+     100–700; 800 and 900 are two deeper steps for Compare two's grid
+     alone, whose fixed bins reach 90% */
   --seq-100: #e9dcb8;
   --seq-200: #d9cfb0;
   --seq-300: #b3c0a4;

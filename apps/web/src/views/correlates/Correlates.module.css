@@ -230,8 +230,8 @@
   margin: 0 0 var(--space-4);
 }
 
-/* The grid's key: "Share of each column", the seven ramp steps with the
-   bin each starts at, then the asterisk — one line on a desktop. */
+/* The grid's key: "Share of each column", the grid's nine ramp steps
+   with the bin each starts at, then the asterisk — one line on a desktop. */
 .shareLegend {
   display: flex;
   flex-wrap: wrap;
