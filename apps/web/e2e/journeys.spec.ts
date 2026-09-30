@@ -1,7 +1,7 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
 // plus the Phase 5 launch-checklist journeys, the Correlates journey
-// (its three views, ADR-0019) and the phone-width rule (journey 11: no
-// page scrolls sideways). No API runs in this suite: every Phase 4 view is static-first
+// (its three views, ADR-0019) and the phone-width rule (journeys 11 and
+// 12: no page scrolls sideways). No API runs in this suite: every Phase 4 view is static-first
 // (journey 6 blocks the API at the network level to prove it), and the
 // API-only Phase 5/6 views are served their real synthetic responses back
 // through route interception from public/data/_fixtures (written by
@@ -35,6 +35,12 @@ function jsonFixture(name: string): unknown {
 
 function apiFixture(name: string): { meta: Record<string, unknown>; rows: FixtureRow[] } {
   return jsonFixture(name) as { meta: Record<string, unknown>; rows: FixtureRow[] }
+}
+
+/** A file of the static tier `make web-fixtures` wrote, by its path under
+ * public/data — what the app itself fetches from /data. */
+function tierFile(path: string): unknown {
+  return JSON.parse(readFileSync(join(process.cwd(), 'public', 'data', path), 'utf8'))
 }
 
 /** Serve the live-API routes from fixtures: health says the data is up. */
@@ -861,35 +867,51 @@ const PHONE_FONTS = [
 ]
 /** The least the phone nav leaves between two items (AppShell.module.css). */
 const NAV_LEAST_GAP = 2
+// The pages journey 11 holds the rule on, each with what shows it has
+// rendered: a chart, or — the Codebook and Methods have none — a table
+// wider than a phone, which scrolls in a box of its own. The Codebook's
+// is found by its last column's header: only a screen reader meets it,
+// and it once widened the page from inside that box (30 Sept).
+const PHONE_PAGES: { path: string; rendered: (page: Page) => Locator }[] = [
+  { path: '/', rendered: (page) => page.locator('main figure').first() },
+  { path: '/correlates', rendered: (page) => page.locator('main figure').first() },
+  { path: '/codebook', rendered: (page) => page.getByRole('columnheader', { name: 'Chartable' }) },
+  { path: '/methods', rendered: (page) => page.getByRole('table').first() },
+]
 
-test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+/** How far the page can scroll sideways, in px — never less than none.
+ * Where the page keeps room for a classic scrollbar (scrollbar-gutter,
+ * styles.css) and Playwright hides the bar — the Linux runner — its
+ * scrollWidth is 15px short of its clientWidth when nothing overflows. */
+function sideways(page: Page): Promise<number> {
+  return page.evaluate<number>(
+    'Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)',
+  )
+}
+
+test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
   page,
 }) => {
+  // Thirty-two page loads, "More" opened on each: about half a second
+  // apiece on the CI runner, so twice the default allowance.
+  test.setTimeout(60_000)
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await servePairs(page)
   // Every width and font is tried, so one run names every one that fails.
   const softly = expect.configure({ soft: true })
-  // How far the page can scroll sideways, in px — never less than none.
-  // Where the page keeps room for a classic scrollbar (scrollbar-gutter,
-  // styles.css) and Playwright hides the bar — the Linux runner — its
-  // scrollWidth is 15px short of its clientWidth when nothing overflows.
-  const sideways = () =>
-    page.evaluate<number>(
-      'Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)',
-    )
   const nav = page.getByRole('navigation', { name: 'Main' })
   const panel = nav.locator('details > div')
   const column = page.locator('main')
 
-  for (const path of ['/', '/correlates']) {
+  for (const { path, rendered } of PHONE_PAGES) {
     for (const font of PHONE_FONTS) {
       for (const width of PHONE_WIDTHS) {
         const where = `${path} at ${width}px in ${font.name}`
         await page.setViewportSize({ width, height: 844 })
         await page.goto(path)
-        await expect(page.locator('main figure').first()).toBeVisible()
+        await expect(rendered(page)).toBeVisible()
         if (font.css) await page.addStyleTag({ content: font.css })
-        softly(await sideways(), `${where}: px of sideways scroll`).toBe(0)
+        softly(await sideways(page), `${where}: px of sideways scroll`).toBe(0)
 
         // The row gives up its spacing before it wraps: one row wherever
         // its items fit the page column with the least space between them.
@@ -923,7 +945,96 @@ test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 t
             },
           )
           .toBeLessThanOrEqual(1)
-        softly(await sideways(), `${where}, "More" open: px of sideways scroll`).toBe(0)
+        softly(await sideways(page), `${where}, "More" open: px of sideways scroll`).toBe(0)
+      }
+    }
+  }
+})
+
+// The longest things in a release, which a phone is too narrow for. A
+// table cannot be narrower than its longest label, and some have nowhere
+// to break: words joined by slashes, as country-specific answers are.
+const UNBREAKABLE_LABEL = 'Single/Separated/Divorced/Widowed/Unmarried/Unpartnered'
+// A select is as wide as its longest option: an answer a sentence long,
+// or a question named as long.
+const LONG_ANSWER =
+  'Every week, or more often than that, at a church, a mosque, a temple, a shrine or another place of worship or prayer'
+const LONG_NAME = 'Marital status, or the living arrangement nearest to one, when interviewed'
+
+test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments with its options open and Change, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
+  page,
+}) => {
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await page.route(`${API}/v1/change**`, (route) =>
+    route.fulfill({ json: apiFixture('change-ATTEND_SVCS-Y1-Y2.json') }),
+  )
+  // Fixture rows made too wide for a phone — never real data. The Marital
+  // status entry's first label has nowhere to break, and its name in the
+  // catalog is a sentence; Service attendance's first answer is one too,
+  // in a list long enough (more than six) to be a select at every width.
+  const entry = tierFile('v1/MARITAL_STATUS/variable.json') as {
+    value_labels: { label: string }[]
+  }
+  entry.value_labels = entry.value_labels.map((row, index) =>
+    index === 0 ? { ...row, label: UNBREAKABLE_LABEL } : row,
+  )
+  await page.route('**/data/v1/MARITAL_STATUS/variable.json', (route) =>
+    route.fulfill({ json: entry }),
+  )
+  const catalog = tierFile('variables.json') as {
+    variables: { name: string; display_name: string }[]
+  }
+  catalog.variables = catalog.variables.map((variable) =>
+    variable.name === 'MARITAL_STATUS' ? { ...variable, display_name: LONG_NAME } : variable,
+  )
+  await page.route('**/data/variables.json', (route) => route.fulfill({ json: catalog }))
+  const answers = tierFile('v1/ATTEND_SVCS/variable.json') as {
+    value_labels: { code: number; label: string; is_nonresponse: boolean }[]
+  }
+  const [first, ...rest] = answers.value_labels
+  answers.value_labels = [
+    { ...first!, label: LONG_ANSWER },
+    ...rest,
+    ...[4, 5, 6, 7].map((code) => ({ ...first!, code, label: `Answer ${code}` })),
+  ]
+  await page.route('**/data/v1/ATTEND_SVCS/variable.json', (route) =>
+    route.fulfill({ json: answers }),
+  )
+  const softly = expect.configure({ soft: true })
+  // Each stop with what shows it has rendered, a fold to open before it
+  // is measured, and its widths where a phone's are not all.
+  const stops: { path: string; rendered: Locator; open?: string; widths?: number[] }[] = [
+    // The entry's value labels scroll in a box of their own.
+    {
+      path: '/codebook/MARITAL_STATUS',
+      rendered: page.getByRole('cell', { name: UNBREAKABLE_LABEL }),
+    },
+    // Segments' second breakdown lists every categorical question by
+    // name, inside "More options".
+    {
+      path: '/segments',
+      rendered: page.locator('main figure').first(),
+      open: 'More options — split, sort, countries',
+    },
+    // Change's answer level stands in the control row itself — tried on a
+    // phone turned on its side too (680 px), where that row wraps rather
+    // than stacks.
+    {
+      path: '/change?outcome=ATTEND_SVCS',
+      rendered: page.getByRole('combobox', { name: 'Answer level' }),
+      widths: [...PHONE_WIDTHS, 680],
+    },
+  ]
+  for (const { path, rendered, open, widths = PHONE_WIDTHS } of stops) {
+    for (const font of PHONE_FONTS) {
+      for (const width of widths) {
+        const where = `${path} at ${width}px in ${font.name}`
+        await page.setViewportSize({ width, height: 844 })
+        await page.goto(path)
+        await expect(rendered).toBeVisible()
+        if (font.css) await page.addStyleTag({ content: font.css })
+        if (open) await page.getByText(open, { exact: true }).click()
+        softly(await sideways(page), `${where}: px of sideways scroll`).toBe(0)
       }
     }
   }

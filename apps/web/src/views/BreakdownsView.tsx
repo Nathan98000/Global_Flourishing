@@ -227,7 +227,7 @@ export function BreakdownsView() {
   // Measure, Wave and the breakdown itself stay visible.
   const displayOptions = (
     <>
-      <label className={styles.oriented}>
+      <label className={`${styles.oriented} ${styles.stacksNarrow}`}>
         Second breakdown{' '}
         <select
           value={secondary ?? ''}

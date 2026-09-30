@@ -25,29 +25,34 @@ function ValueLabelTable({
   countryName: (code: number | null) => string
 }) {
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th scope="col">Code</th>
-          <th scope="col">Label</th>
-          <th scope="col">Applies to</th>
-          <th scope="col">Non-response</th>
-        </tr>
-      </thead>
-      <tbody>
-        {labels.map((label, index) => (
-          <tr key={index}>
-            <td className={styles.num}>{label.code}</td>
-            <td>{label.label}</td>
-            <td>
-              {countryName(label.country_code)}
-              {label.wave ? `, ${WAVE_CHIPS[label.wave] ?? label.wave}` : ''}
-            </td>
-            <td>{label.is_nonresponse ? 'yes' : ''}</td>
+    // Scrolls sideways inside its own box where a label is too long for a
+    // phone (words joined by slashes have nowhere to break); the page
+    // never does.
+    <div className={styles.tableScroll}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Label</th>
+            <th scope="col">Applies to</th>
+            <th scope="col">Non-response</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {labels.map((label, index) => (
+            <tr key={index}>
+              <td className={styles.num}>{label.code}</td>
+              <td>{label.label}</td>
+              <td>
+                {countryName(label.country_code)}
+                {label.wave ? `, ${WAVE_CHIPS[label.wave] ?? label.wave}` : ''}
+              </td>
+              <td>{label.is_nonresponse ? 'yes' : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -169,45 +174,47 @@ export function CodebookDetailView() {
           <p className={styles.facts}>
             n present (share of that country&rsquo;s wave sample with a valid answer).
           </p>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">Country</th>
-                {waves.map((wave) => (
-                  <th key={wave} scope="col">
-                    {WAVE_CHIPS[wave] ?? wave}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {countries
-                .filter((country) =>
-                  detail.missingness.some((row) => row.country_code === country.code),
-                )
-                .map((country) => (
-                  <tr key={country.code}>
-                    <th scope="row">{country.name}</th>
-                    {waves.map((wave) => {
-                      const cell = detail.missingness.find(
-                        (row) => row.country_code === country.code && row.wave === wave,
-                      )
-                      return (
-                        <td key={wave} className={styles.num}>
-                          {cell
-                            ? `${formatCount(cell.n_present)}${
-                                cell.n_present > 0 && cell.n_valid < cell.n_present
-                                  ? ` (${formatPercent(cell.n_valid / cell.n_present)} valid)`
-                                  : ''
-                              }`
-                            : '—'}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">Country</th>
+                  {waves.map((wave) => (
+                    <th key={wave} scope="col">
+                      {WAVE_CHIPS[wave] ?? wave}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {countries
+                  .filter((country) =>
+                    detail.missingness.some((row) => row.country_code === country.code),
+                  )
+                  .map((country) => (
+                    <tr key={country.code}>
+                      <th scope="row">{country.name}</th>
+                      {waves.map((wave) => {
+                        const cell = detail.missingness.find(
+                          (row) => row.country_code === country.code && row.wave === wave,
+                        )
+                        return (
+                          <td key={wave} className={styles.num}>
+                            {cell
+                              ? `${formatCount(cell.n_present)}${
+                                  cell.n_present > 0 && cell.n_valid < cell.n_present
+                                    ? ` (${formatPercent(cell.n_valid / cell.n_present)} valid)`
+                                    : ''
+                                }`
+                              : '—'}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </section>

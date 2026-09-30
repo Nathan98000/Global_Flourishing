@@ -58,6 +58,14 @@
 .prose table {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
+}
+
+/* A table wider than a phone scrolls sideways inside its own box (its
+   words never break); the page keeps its width. The box carries the
+   table's margin, so it still meets the paragraph above as it did. */
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
   margin: var(--space-3) 0;
 }
 

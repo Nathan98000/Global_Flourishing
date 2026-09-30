@@ -221,15 +221,19 @@
   margin-bottom: var(--space-3);
 }
 
+/* The column is the page's width, never its widest control's (a select
+   is as wide as its longest option): minmax(0, 1fr), not 1fr, whose
+   least is whatever its content asks for. */
 .moreBody {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
 /* F2 (revised §8): on a phone the visible controls stack one per row —
    Measure, Wave, the disclosure — so the chart starts within the first
-   screen; segmented rows stretch and divide evenly. */
+   screen; segmented rows stretch and divide evenly. The one column is
+   the page's width (.moreBody's rule). */
 @media (max-width: 40rem) {
   .deck {
     font-size: var(--text-base);
@@ -238,8 +242,15 @@
 
   .controls {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
     align-items: end;
+  }
+
+  /* A select beside its words stacks — the words above, the select the
+     column's width — as the fold's other fields do. */
+  .stacksNarrow {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

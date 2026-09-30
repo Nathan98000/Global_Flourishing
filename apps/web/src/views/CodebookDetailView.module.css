@@ -40,10 +40,18 @@
   font-size: var(--text-deck);
 }
 
+/* A table wider than a phone scrolls sideways inside its own box; the
+   page keeps its width (the Codebook list's rule). The box carries the
+   table's margin. */
+.tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+
 .table {
   width: 100%;
   font-size: var(--text-sm);
-  margin-bottom: var(--space-4);
 }
 
 .table th,

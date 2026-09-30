@@ -72,7 +72,7 @@ export function RadioRow<T extends string>({
   const asSelect = options.length > SELECT_ABOVE || (narrow && selectOnNarrow)
   if (asSelect) {
     const select = (
-      <label className={styles.fieldset}>
+      <label className={`${styles.fieldset} ${styles.selectForm}`}>
         <span className={legendClass}>{legend}</span>
         <select
           value={value}
@@ -89,7 +89,7 @@ export function RadioRow<T extends string>({
     )
     // The note stays out of the label, so it never joins the select's name.
     return note ? (
-      <div className={styles.fieldset}>
+      <div className={`${styles.fieldset} ${styles.selectForm}`}>
         {select}
         {noteLine}
       </div>

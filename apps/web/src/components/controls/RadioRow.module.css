@@ -7,6 +7,14 @@
   gap: var(--space-1);
 }
 
+/* The native-select form is never wider than the row it sits in. A
+   select takes its longest option's width, and a long answer's would
+   push a control row, and the page, sideways; free to shrink, the form
+   takes the row's width and its select (stretched) with it. */
+.selectForm {
+  min-width: 0;
+}
+
 .legend {
   padding: 0;
   font-size: var(--text-xs);

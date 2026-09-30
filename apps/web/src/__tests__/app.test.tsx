@@ -288,6 +288,39 @@ test('a derived score explains itself in the Codebook (item 11)', async () => {
   expect(screen.getByText('Worst')).toBeInTheDocument()
 })
 
+test('a codebook entry’s tables each sit in a box that scrolls sideways on a phone', async () => {
+  // The value labels and "Answered, by country and wave": a label with
+  // nowhere to break can be wider than a phone — its box scrolls, the
+  // page never does (journey 11 holds the widths).
+  mockFetch({
+    ...staticTier,
+    '/data/v1/HAPPY/variable.json': {
+      ...happyDetail,
+      value_labels: [
+        { code: 0, label: 'Worst', wave: null, country_code: null, is_nonresponse: false },
+      ],
+      missingness: [
+        {
+          country_code: 1,
+          wave: 'Y1',
+          n_present: 60,
+          n_valid: 60,
+          n_dk: 0,
+          n_refused: 0,
+          n_skipped: 0,
+        },
+      ],
+    } satisfies VariableDetail,
+  })
+  await renderAt('/codebook/HAPPY')
+  expect(await screen.findByText('Value labels')).toBeInTheDocument()
+  const tables = screen.getAllByRole('table')
+  expect(tables).toHaveLength(2)
+  for (const table of tables) {
+    expect(table.parentElement?.className).toContain('tableScroll')
+  }
+})
+
 test('unknown routes render the not-found page', async () => {
   mockFetch(staticTier)
   await renderAt('/nowhere')

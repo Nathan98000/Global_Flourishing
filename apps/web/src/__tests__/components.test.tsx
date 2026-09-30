@@ -178,6 +178,9 @@ describe('RadioRow', () => {
     )
     fireEvent.change(select, { target: { value: '7' } })
     expect(onChange).toHaveBeenCalledWith('7')
+    // The form may be narrower than its longest option, so a long answer
+    // never widens a control row (journey 11 holds the widths).
+    expect(select.closest('label')?.className).toContain('selectForm')
   })
 })
 
@@ -223,6 +226,8 @@ describe('RadioRow notes', () => {
     )
     const select = screen.getByRole('combobox', { name: 'Answer level' })
     expect(select).toHaveAccessibleDescription("Answer 0 isn't available.")
+    // With a note, the box around both is the form: it is what may shrink.
+    expect(select.closest('label')?.parentElement?.className).toContain('selectForm')
   })
 })
 
