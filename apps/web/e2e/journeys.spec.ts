@@ -1,6 +1,7 @@
 // The six Phase 4 journeys (§2.11) over the built app + fixture tier,
-// plus the Phase 5 launch-checklist journeys and the Correlates journey
-// (its three views, ADR-0019). No API runs in this suite: every Phase 4 view is static-first
+// plus the Phase 5 launch-checklist journeys, the Correlates journey
+// (its three views, ADR-0019) and the phone-width rule (journey 11: no
+// page scrolls sideways). No API runs in this suite: every Phase 4 view is static-first
 // (journey 6 blocks the API at the network level to prove it), and the
 // API-only Phase 5/6 views are served their real synthetic responses back
 // through route interception from public/data/_fixtures (written by
@@ -431,6 +432,18 @@ function scopeOf(url: URL, withWave = true): string {
     .join('')
 }
 
+/** Compare two's answers, each from the synthetic response made for it. */
+function servePairs(page: Page) {
+  return page.route(`${API}/v1/correlations/pair**`, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill(
+      fixtureOr404(
+        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}${scopeOf(url)}.json`,
+      ),
+    )
+  })
+}
+
 /** The tooltip of a Compare two grid's first cell, its lines as one: the
  * pointer goes to the cell (its share label sits on top of it) and the
  * chart draws the tip. */
@@ -464,14 +477,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       fixtureOr404(`correlates-${outcome}-${wave}${scopeOf(url, false)}-${shape}${one}.json`),
     )
   })
-  await page.route(`${API}/v1/correlations/pair**`, (route) => {
-    const url = new URL(route.request().url())
-    return route.fulfill(
-      fixtureOr404(
-        `correlations-pair-${url.searchParams.get('y')}-${url.searchParams.get('x')}${scopeOf(url)}.json`,
-      ),
-    )
-  })
+  await servePairs(page)
   await page.route(
     (url) => url.pathname === '/v1/correlations',
     (route) => {
@@ -840,6 +846,83 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
     ),
   ).toBe(true)
+})
+
+// A phone's widths, down to the narrowest still in use, under two fonts:
+// the platform's own and a wider one. Linux's system font is wider than
+// macOS's, which is how the nav pushed the page sideways on the CI runner
+// and nowhere else (30 Sept). Verdana stands in for it where it is
+// installed (macOS, Windows); elsewhere the stack falls through to the
+// platform's own sans — on the runner, already the wide case.
+const PHONE_WIDTHS = [320, 360, 375, 390]
+const PHONE_FONTS = [
+  { name: 'the platform’s font', css: null },
+  { name: 'a wider font', css: ':root { --font-sans: Verdana, sans-serif }' },
+]
+/** The least the phone nav leaves between two items (AppShell.module.css). */
+const NAV_LEAST_GAP = 2
+
+test('11 — a phone never scrolls sideways: the Atlas and Correlates from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+  page,
+}) => {
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await servePairs(page)
+  // Every width and font is tried, so one run names every one that fails.
+  const softly = expect.configure({ soft: true })
+  const sideways = () =>
+    page.evaluate<number>(
+      'document.documentElement.scrollWidth - document.documentElement.clientWidth',
+    )
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const panel = nav.locator('details > div')
+  const column = page.locator('main')
+
+  for (const path of ['/', '/correlates']) {
+    for (const font of PHONE_FONTS) {
+      for (const width of PHONE_WIDTHS) {
+        const where = `${path} at ${width}px in ${font.name}`
+        await page.setViewportSize({ width, height: 844 })
+        await page.goto(path)
+        await expect(page.locator('main figure').first()).toBeVisible()
+        if (font.css) await page.addStyleTag({ content: font.css })
+        softly(await sideways(), `${where}: px of sideways scroll`).toBe(0)
+
+        // The row gives up its spacing before it wraps: one row wherever
+        // its items fit the page column with the least space between them.
+        const room = (await column.boundingBox())!.width
+        const items = await Promise.all(
+          (await nav.locator(':scope > a, :scope > details').all()).map((item) =>
+            item.boundingBox(),
+          ),
+        )
+        const needed =
+          items.reduce((sum, box) => sum + box!.width, 0) + NAV_LEAST_GAP * (items.length - 1)
+        if (needed <= room - 0.5) {
+          const rows = new Set(items.map((box) => Math.round(box!.y))).size
+          softly(rows, `${where}: rows of nav, its items fitting one`).toBe(1)
+        }
+
+        // "More" opens inside the page column — hung from its right edge,
+        // or moved over where the row has wrapped it to the left.
+        await nav.getByText('More', { exact: true }).click()
+        await expect(nav.getByRole('link', { name: 'Methods' })).toBeVisible()
+        await softly
+          .poll(
+            async () => {
+              const [box, within] = await Promise.all([panel.boundingBox(), column.boundingBox()])
+              if (!box || !within) return Infinity
+              return Math.max(within.x - box.x, box.x + box.width - (within.x + within.width))
+            },
+            {
+              message: `${where}: px of the "More" panel outside the page column`,
+              timeout: 1_000,
+            },
+          )
+          .toBeLessThanOrEqual(1)
+        softly(await sideways(), `${where}, "More" open: px of sideways scroll`).toBe(0)
+      }
+    }
+  }
 })
 
 async function streamToString(download: {
