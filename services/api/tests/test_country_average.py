@@ -3,9 +3,11 @@
 average against the countries' own numbers (correlations, and Compare
 two's shares with their intervals), the asterisk and the ranking floor, a
 country that did not ask a question, the ranked list's coverage rule (a
-question asked in fewer than half the countries is not ranked), and the
+question asked in fewer than half the countries is not ranked), the
 precomputed file of every country's correlations against the on-demand
-estimator (equal to 1e-12)."""
+estimator (equal to 1e-12), and a country with one person behind a pair or
+one answer from everyone, which has no correlation and drops out of the
+average as a country that was not asked does."""
 
 import math
 import shutil
@@ -699,8 +701,8 @@ def test_the_file_serves_the_serving_policy_as_finalize_does(
         )
 
 
-def test_a_file_for_another_build_is_ignored(
-    synthetic_data_dir: Path, precomputed: Path, tmp_path: Path
+def test_a_file_for_another_build_or_estimator_is_ignored(
+    synthetic_data_dir: Path, precomputed: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = DataStore(synthetic_settings(synthetic_data_dir))
     assert country_correlations.load(precomputed, store) is not None
@@ -708,4 +710,128 @@ def test_a_file_for_another_build_is_ignored(
     assert country_correlations.load(precomputed, store) is None
     store.data_version = "synthetic.0.0.1"
     assert country_correlations.load(tmp_path / "absent.parquet", store) is None
+    # A file made by another version of the estimator (its FORMAT) too.
+    monkeypatch.setattr(country_correlations, "FORMAT", country_correlations.FORMAT + 1)
+    assert country_correlations.load(precomputed, store) is None
     store.close()
+
+
+# --- no correlation: one person, or one answer --------------------------------
+
+#: Otherland's one person who answered LONELY (Testland's respondent 1 again).
+LONE = 1001
+
+
+@pytest.fixture(scope="module")
+def undefined_dir(synthetic_data_dir: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Three countries, where Otherland (Testland's people again) has no
+    correlation with two questions: one person there answered LONELY —
+    never asked in the United States — and everyone there gave BALANCE the
+    same answer at Wave 1. Otherland's weights are not binary fractions,
+    so the variance of an answer that never varies comes out a rounding
+    residue rather than zero: before the fix, by rank, the one person
+    "correlated" 1.0 and gave LONELY an All countries list, and
+    straight-line, every average on BALANCE's list counted Otherland."""
+    directory, _ = more_countries(synthetic_data_dir, tmp_path_factory.mktemp("undefined"), 1)
+    database = directory / "flourish.duckdb"
+    unask(database, "LONELY", "Y1", [22])
+    con = duckdb.connect(str(database))
+    try:
+        con.execute(
+            "DELETE FROM responses_long WHERE variable = 'LONELY' AND wave = 'Y1' AND id <> ? "
+            "AND id IN (SELECT id FROM respondents WHERE country_code = 2)",
+            [LONE],
+        )
+        con.execute(
+            "UPDATE coverage SET n_present = 1, n_valid = 1 "
+            "WHERE variable = 'LONELY' AND wave = 'Y1' AND country_code = 2"
+        )
+        con.execute("UPDATE respondents SET w_c1 = w_c1 * 0.9 WHERE country_code = 2")
+        con.execute("UPDATE respondents SET w_c1 = 2.880413 WHERE id = ?", [LONE])
+        con.execute(
+            "UPDATE responses_long SET value = 7 WHERE variable = 'BALANCE' AND wave = 'Y1' "
+            "AND id IN (SELECT id FROM respondents WHERE country_code = 2)"
+        )
+    finally:
+        con.close()
+    return directory
+
+
+#: What the tests below ask of that data: country by country, the averages,
+#: and the lists of the two questions Otherland has no correlation for.
+UNDEFINED_REQUESTS = [
+    {"outcome": "HAPPY", "against": ["LONELY", "BALANCE", "WB_TODAY"], "by": "country_code"},
+    {"outcome": "HAPPY", "against": ["LONELY", "BALANCE", "WB_TODAY"], "pooled": "average"},
+    {"outcome": "HAPPY", "pooled": "average", "limit": 200},
+    {"outcome": "LONELY", "pooled": "average", "limit": 200},
+    {"outcome": "BALANCE", "pooled": "average", "limit": 200},
+]
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+def test_one_person_or_one_answer_is_no_correlation(undefined_dir: Path, method: str) -> None:
+    client = at_floor(undefined_dir, 20)
+    by_country, average, happy, lonely, balance = (
+        get(client, "/v1/correlates", wave="Y1", method=method, **params)
+        for params in UNDEFINED_REQUESTS
+    )
+    # Otherland has people behind both pairs, and no correlation for either.
+    cells = {(row["predictor"], row["group"]["country_code"]): row for row in by_country["rows"]}
+    assert cells[("LONELY", 2)]["n"] == 1 and cells[("LONELY", 2)]["estimate"] is None
+    assert cells[("BALANCE", 2)]["n"] == 54 and cells[("BALANCE", 2)]["estimate"] is None
+    assert cells[("WB_TODAY", 2)]["estimate"] is not None
+    # So it drops out of those averages, as a country that was not asked does.
+    assert {row["predictor"]: row["n_countries"] for row in average["rows"]} == {
+        "LONELY": 1,
+        "BALANCE": 2,
+        "WB_TODAY": 3,
+    }
+    assert {row["n_countries"] for row in balance["rows"]} == {2}
+    assert balance["meta"]["countries"] == [1, 22]
+    # HAPPY's list ranks BALANCE on its two countries, and not LONELY, which
+    # only Testland has a correlation for.
+    ranked = {row["predictor"]: row["n_countries"] for row in happy["rows"]}
+    assert ranked["BALANCE"] == 2 and "LONELY" not in ranked
+    # LONELY was asked in one country of three, whichever the correlation
+    # type: no All countries list, and the count its empty state prints.
+    assert lonely["rows"] == [] and lonely["meta"]["countries"] == [1]
+    assert lonely["meta"]["min_countries"] == 2
+
+
+@pytest.mark.parametrize("method", ["pearson", "spearman"])
+def test_the_file_leaves_out_the_same_countries(
+    undefined_dir: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+) -> None:
+    file = precompute(undefined_dir, tmp_path_factory.mktemp("undefined-file") / "file.parquet")
+    missing = tmp_path_factory.mktemp("undefined-none") / "absent.parquet"
+    fresh = at_floor(undefined_dir, 20, country_correlations_path=missing)
+    expected = [
+        get(fresh, "/v1/correlates", wave="Y1", method=method, **params)
+        for params in UNDEFINED_REQUESTS
+    ]
+    served = at_floor(undefined_dir, 20, country_correlations_path=file)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("a precomputed request assembled a frame")
+
+    monkeypatch.setattr(correlates_route, "assemble_correlates_frame", refuse)
+    for params, want in zip(UNDEFINED_REQUESTS, expected, strict=True):
+        assert_json_close(get(served, "/v1/correlates", wave="Y1", method=method, **params), want)
+    # The file keeps Otherland's rows — the people are there — with no
+    # estimate, whatever the two questions are paired with.
+    table = served.app.state.country_correlations  # type: ignore[attr-defined]
+    questions = table.frame(("Y1", None)).questions
+
+    def otherland(name: str) -> pl.DataFrame:
+        others = sorted(questions - {name})
+        records = table.records(("Y1", None), method, name, others, NO_SUPPRESSION)
+        return records.filter(pl.col("country_code") == 2)
+
+    lonely, balance = otherland("LONELY"), otherland("BALANCE")
+    assert lonely.height > 1 and set(lonely["n"]) == {1}
+    assert balance.height > 1 and balance["n"].max() == 60
+    assert lonely["estimate"].null_count() == lonely.height
+    assert balance["estimate"].null_count() == balance.height

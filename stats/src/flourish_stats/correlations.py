@@ -102,8 +102,12 @@ def weighted_correlation(
     Spearman (documented in METHODS.md), chosen because it reduces to the
     classical coefficient under equal weights.
 
-    Undefined correlations (zero weighted variance in either item) return a
-    null estimate with their ``n`` intact.
+    A correlation needs two complete cases at least and some variation in
+    each item among them; a group without — one person, or an item every
+    one of them gave the same answer to — returns a null estimate with its
+    ``n`` and ``sum_w`` intact. Whether an item varies is decided exactly
+    (:func:`_varies`), never from the sign of its computed variance, which
+    for an item that does not vary is a rounding residue of either sign.
     """
     if method not in ("pearson", "spearman"):
         raise ValueError(f"method must be 'pearson' or 'spearman', got {method!r}")
@@ -142,10 +146,14 @@ def weighted_correlation(
             (w * pl.col("_dy").pow(2)).sum().alias("_syy"),
             pl.len().cast(pl.Int64).alias("n"),
             w.sum().alias("sum_w"),
+            _varies(pl.col(x)).alias("_x_varies"),
+            _varies(pl.col(y)).alias("_y_varies"),
         )
     )
     records = moments.with_columns(
-        pl.when((pl.col("_sxx") > 0) & (pl.col("_syy") > 0))
+        # An item that varies has a deviation from its mean that is not
+        # zero, so its sum of squares is positive: the division is safe.
+        pl.when(_defined(pl.col("_x_varies"), pl.col("_y_varies")))
         .then(pl.col("_sxy") / (pl.col("_sxx") * pl.col("_syy")).sqrt())
         .otherwise(None)
         .alias("estimate"),
@@ -186,8 +194,11 @@ def weighted_correlations(
     the frame rather than a hundred. The pair's moments come from the
     one-pass sums ``Σw, Σwx, Σwy, Σwx², Σwy², Σwxy`` on the valid rows,
     which agree with the two-pass form to floating-point rounding on the
-    0–10 scales and rank values these items take. One row per (group,
-    ``predictor``), in the order of ``ys``.
+    0–10 scales and rank values these items take. A pair is undefined in
+    exactly the groups the two-pass form leaves undefined, decided the
+    same exact way: the one-pass variance ``Σwx² − (Σwx)²/Σw`` of an item
+    that does not vary is a rounding residue, as often positive as not.
+    One row per (group, ``predictor``), in the order of ``ys``.
     """
     if method not in ("pearson", "spearman"):
         raise ValueError(f"method must be 'pearson' or 'spearman', got {method!r}")
@@ -222,6 +233,10 @@ def weighted_correlations(
                 (wv * vx * vx).sum().alias(f"{i}:sxx"),
                 (wv * vy * vy).sum().alias(f"{i}:syy"),
                 (wv * vx * vy).sum().alias(f"{i}:sxy"),
+                # Nulled outside the pair's complete cases rather than
+                # filtered: the same answer, and cheaper to reduce.
+                _varies(pl.when(valid).then(pl.col(x))).alias(f"{i}:xv"),
+                _varies(pl.when(valid).then(pl.col(y))).alias(f"{i}:yv"),
             ]
         )
     sums = df.group_by(groups).agg(aggregations)
@@ -237,6 +252,8 @@ def weighted_correlations(
                 pl.col(f"{i}:sxx").alias("_sxx"),
                 pl.col(f"{i}:syy").alias("_syy"),
                 pl.col(f"{i}:sxy").alias("_sxy"),
+                pl.col(f"{i}:xv").alias("_x_varies"),
+                pl.col(f"{i}:yv").alias("_y_varies"),
             ]
         )
         for i, y in enumerate(ys)
@@ -246,7 +263,9 @@ def weighted_correlations(
     cyy = pl.col("_syy") - pl.col("_sy").pow(2) / sw
     cxy = pl.col("_sxy") - pl.col("_sx") * pl.col("_sy") / sw
     records = pl.concat(parts).with_columns(
-        pl.when((pl.col("n") > 0) & (cxx > 0) & (cyy > 0))
+        # The variances' signs only guard the division; whether an item
+        # varies is _varies' call alone.
+        pl.when(_defined(pl.col("_x_varies"), pl.col("_y_varies")) & (cxx > 0) & (cyy > 0))
         .then(cxy / (cxx * cyy).sqrt())
         .otherwise(None)
         .alias("estimate"),
@@ -268,6 +287,22 @@ def weighted_correlations(
         ci_method="none",
         policy=policy,
     )
+
+
+def _varies(values: pl.Expr) -> pl.Expr:
+    """Whether a group's non-null ``values`` are not all the same: decided
+    exactly, by the largest against the smallest. Weights are positive
+    (``weights.validate_frame``), so an item takes one value among the
+    complete cases exactly when its weighted variance there is zero; and
+    ranks are all the same exactly when the values are, so the answers
+    decide for Spearman too. No values at all do not vary."""
+    return (values.max() != values.min()).fill_null(False)
+
+
+def _defined(x_varies: pl.Expr, y_varies: pl.Expr) -> pl.Expr:
+    """Where a group has a correlation: two complete cases at least (as
+    variation needs) and each item varying among them."""
+    return (pl.col("n") >= 2) & x_varies & y_varies
 
 
 def adjusted_association(

@@ -395,3 +395,15 @@ question in a grid cell's tooltip when the row's answer is a number: "20%
 — 10" said nothing. The same day the rebuild line under Consequences was
 corrected: it had said the static tier was unchanged and no data rebuild
 was needed.
+
+Later that day the estimator stopped reporting a correlation where there
+is none: in a country where only one person answered both questions, or
+everyone gave one of them the same answer, rounding could leave the
+unvarying answer's variance a hair above zero, which passed for variation,
+and the file held 1,274 such numbers (1.0, 0.0, even −1.41), each counted
+in its pair's average and `n_countries` — "Sikh teachings important" read
+10 of 23 countries by straight line and 9 by rank. Whether an answer
+varies is now decided exactly; both read 9, 78 of the 748 All countries
+lists changed in the 20 rows the page shows (nearly all through the
+religious-teachings questions), and the file's `FORMAT` is 2, so a file
+built before is ignored.
