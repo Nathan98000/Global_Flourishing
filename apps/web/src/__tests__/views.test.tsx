@@ -85,6 +85,16 @@ describe('Methods view', () => {
     for (const heading of sourceHeadings) {
       expect(await screen.findByRole('heading', { name: heading }), heading).toBeInTheDocument()
     }
+    // Every table of the source renders inside a box of its own, which
+    // scrolls sideways where a phone is too narrow for the table — the
+    // page never does (journey 11 holds the widths).
+    const sourceTables = methodsSource.match(/^\|(?:\s*:?-+:?\s*\|)+\s*$/gm) ?? []
+    expect(sourceTables.length).toBeGreaterThan(0)
+    const tables = screen.getAllByRole('table')
+    expect(tables).toHaveLength(sourceTables.length)
+    for (const table of tables) {
+      expect(table.parentElement?.className).toContain('tableScroll')
+    }
     // The serving policy comes from meta, not hard-coded copy: with the
     // ADR-0011 zeros, the page says every cell is shown.
     expect(await screen.findByText(/Every cell is shown, however small/)).toBeInTheDocument()

@@ -4,7 +4,7 @@
 // "associations, not causes" note. This whole route (marked included)
 // is a lazy chunk.
 
-import { marked } from 'marked'
+import { Marked, Renderer } from 'marked'
 import { useMemo } from 'react'
 import methodsSource from '../../../../docs/METHODS.md?raw'
 import { useMeta } from '../api/meta'
@@ -22,9 +22,21 @@ const STUDY_LINKS = [
   },
 ]
 
+// The document's tables are marked's own, each inside a box that scrolls
+// sideways where a phone is too narrow for it (owner decision, 30 Sept):
+// the rule every table here follows — its words never break, and the
+// page keeps its width.
+const markdown = new Marked({
+  renderer: {
+    table(token) {
+      return `<div class="${styles.tableScroll}">${Renderer.prototype.table.call(this, token)}</div>`
+    },
+  },
+})
+
 export function MethodsView() {
   const meta = useMeta()
-  const html = useMemo(() => marked.parse(methodsSource, { async: false }), [])
+  const html = useMemo(() => markdown.parse(methodsSource, { async: false }), [])
   const suppression = meta.data?.meta.suppression
   const ciLevel = meta.data?.meta.ci_level
 

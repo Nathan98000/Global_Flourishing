@@ -862,16 +862,18 @@ const PHONE_FONTS = [
 /** The least the phone nav leaves between two items (AppShell.module.css). */
 const NAV_LEAST_GAP = 2
 // The pages the rule is held on, each with what shows it has rendered: a
-// chart, or — the Codebook has none — its table, by the last column's
-// header. Only a screen reader meets that header, and it once widened
-// the page from inside the table's own scrolling box (30 Sept).
+// chart, or — the Codebook and Methods have none — a table wider than a
+// phone, which scrolls in a box of its own. The Codebook's is found by
+// its last column's header: only a screen reader meets it, and it once
+// widened the page from inside that box (30 Sept).
 const PHONE_PAGES: { path: string; rendered: (page: Page) => Locator }[] = [
   { path: '/', rendered: (page) => page.locator('main figure').first() },
   { path: '/correlates', rendered: (page) => page.locator('main figure').first() },
   { path: '/codebook', rendered: (page) => page.getByRole('columnheader', { name: 'Chartable' }) },
+  { path: '/methods', rendered: (page) => page.getByRole('table').first() },
 ]
 
-test('11 — a phone never scrolls sideways: the Atlas, Correlates and the Codebook from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
   page,
 }) => {
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
