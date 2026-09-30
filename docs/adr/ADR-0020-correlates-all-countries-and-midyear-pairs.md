@@ -348,9 +348,14 @@ model on the page; the QuestionPicker on Correlates only.
 - The API gains `pooled` and `other_wave` on the three correlation
   endpoints, `n_countries` on every row and six optional meta fields;
   the OpenAPI schema and client are regenerated, and the goldens gain the
-  new null fields. The static tier is unchanged; no data rebuild is
-  needed and `data_version` is unchanged (the ETag keys on the commit,
-  ADR-0019).
+  new null fields.
+- A full `make data` is needed, with the same `data_version`: the
+  social-media wording override and `meta.midyear_timing` live in the
+  catalog and the static tier. (The version names the raw files, which
+  have not changed; the ETag keys on the deployed commit, ADR-0019, so
+  no cached response outlives the deploy.) Before deploying, the release
+  reruns GitHub's Data build workflow (`gh workflow run data-build.yml`,
+  `docs/SETUP.md` §9), which overwrites that build in the bucket.
 - The image build runs the precompute: a few minutes more per deploy on
   the runner, which has the memory (about 0.85 GB). CI's image, built
   with no data staged, writes nothing and boots as before. Locally, `make
@@ -387,4 +392,6 @@ few countries asked on the floor alone. It also split the ramps (decision
 grid's nine steps, which made both pages much darker and their deepest
 three shades hard to tell apart; they are back on seven. And it named the
 question in a grid cell's tooltip when the row's answer is a number: "20%
-— 10" said nothing.
+— 10" said nothing. The same day the rebuild line under Consequences was
+corrected: it had said the static tier was unchanged and no data rebuild
+was needed.

@@ -244,8 +244,11 @@ gh variable list   # expect GCP_PROJECT_ID, GCP_REGION, CLOUD_RUN_SERVICE,
    gh workflow run data-build.yml && gh run watch
    ```
 
-   Re-run it whenever the pipeline output changes (a new `data_version`);
-   deploys always bake whatever `builds/latest.txt` points at.
+   Re-run it whenever the pipeline output changes: a new raw release (a
+   new `data_version`), or a pipeline change that leaves the
+   `data_version` as it was — ADR-0020's catalog wording and midyear
+   timing, say — in which case the run overwrites that build in the
+   bucket. Deploys always bake whatever `builds/latest.txt` points at.
 
 2. **Release.** From a clean, up-to-date `main`:
 
