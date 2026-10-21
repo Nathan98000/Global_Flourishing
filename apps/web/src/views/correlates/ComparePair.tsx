@@ -51,7 +51,6 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
   ALL_COUNTRIES,
-  CORRELATES_NOTE,
   CORRELATION_SCALE,
   averagedOver,
   FEW_PEOPLE_KEY,
@@ -370,7 +369,7 @@ function PairFigure({
           level: column.label,
           short: aShort,
           share: column.share,
-          ci: shareCI(column.ci_lo, column.ci_hi),
+          ci: shareCI(column.ci_lo, column.ci_hi, pair.shares.meta.ci_level),
           n: column.n,
         }),
       })),
@@ -396,7 +395,7 @@ function PairFigure({
             bLevel: rowLabel.get(cell.y) ?? String(cell.y),
             bShort,
             share: cell.share,
-            ci: record ? shareCI(record.ci_lo, record.ci_hi) : undefined,
+            ci: record ? shareCI(record.ci_lo, record.ci_hi, record.ci_level) : undefined,
             n: cell.n,
           }),
         }
@@ -424,21 +423,18 @@ function PairFigure({
       title={`${a.display_name} and ${b.display_name}`}
       subtitle={`${place} · ${waveTitle(wave, other)}`}
       ariaLabel={ariaLabel}
-      marks="table"
       intro={
         <>
           {header}
           <ShareLegend />
         </>
       }
-      response={pair.shares}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), pairToCsv(pair)),
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      note={CORRELATES_NOTE}
     >
       <CrossTab
         columns={columns}
@@ -525,16 +521,13 @@ function EveryCountry({
       title={`${a.display_name} and ${b.display_name}`}
       subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
-      marks="dots"
       intro={header}
-      response={sorted}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(sorted)),
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      note={CORRELATES_NOTE}
     >
       <RankedBar
         rows={sorted.rows}

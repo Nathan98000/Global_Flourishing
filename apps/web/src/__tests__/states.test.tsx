@@ -217,7 +217,7 @@ describe('the states topology', () => {
     expect(tip('California').split('\n')).toEqual([
       'California',
       'Mean: 7.10 on a 0–10 scale',
-      'CI: [7.00, 7.20]',
+      '95% CI: [7.00, 7.20]',
       expect.stringMatching(/^Based on \d[\d,]* people$/),
     ])
     expect(tip('Maine').split('\n').slice(0, 2)).toEqual([
@@ -282,10 +282,10 @@ describe('US States view', () => {
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     expect(figure).toBeInTheDocument()
     // The header line is the whole US on the state weight; the national
-    // figure is in the footnote, in words.
+    // figure follows it, in words.
     expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
-    // The n, and no weight code: the footnote says the weighting in words.
+    // The n, and no weight code: the weighting is said in words.
     expect(screen.getByText('n = 38,142')).toBeInTheDocument()
     expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
     expect(
@@ -311,13 +311,14 @@ describe('US States view', () => {
     expect(screen.queryByText('ME_NH_RI_VT')).toBeNull()
   })
 
-  test('the states chart is weighted by state, says so, and gives the reason a control is off', async () => {
+  test('the states chart is weighted by state, says so in its subtitle, and gives the reason a control is off', async () => {
     mockFetch(tier)
     await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.getByText(/· state weights ·/, { selector: 'figcaption *' })).toBeInTheDocument()
+    // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
-    expect(text).toContain("weighted so each state's sample stands for its adult population")
-    expect(text).not.toContain("each country's sample")
+    expect(text).not.toContain('weighted so each')
     const reason = screen.getByText(/The release has no adjusted state weight for Wave 1, 2023/)
     expect(reason.className).toContain('reason')
   })

@@ -34,7 +34,6 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
-  CORRELATES_NOTE,
   CORRELATION_SCALE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
@@ -236,7 +235,6 @@ export function FindRelated({
                 otherWave,
               )}
               ariaLabel={rankedAria}
-              marks="dots"
               interactive
               intro={
                 <>
@@ -247,11 +245,9 @@ export function FindRelated({
                   )}
                 </>
               }
-              response={rankedResponse}
               csv={csvFor(rankedResponse, rankedName)}
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
-              note={CORRELATES_NOTE}
             >
               <RankedBar
                 rows={rankedRows}
@@ -303,12 +299,9 @@ export function FindRelated({
               otherWave,
             )}
             ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones.`}
-            marks="table"
-            response={acrossResponse}
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
-            note={CORRELATES_NOTE}
             wide
           >
             <CountryMatrix

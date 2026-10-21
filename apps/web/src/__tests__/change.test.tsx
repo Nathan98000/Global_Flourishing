@@ -548,7 +548,7 @@ describe('change chart helpers', () => {
       const lines = [...screen.getByRole('tooltip').children].map((line) => line.textContent)
       expect(lines[0]).toMatch(/^First “(Yes|No)”, later “(Yes|No)”$/)
       expect(lines[1]).toMatch(/^(70|30)\.0% of the people who first said “(Yes|No)”$/)
-      expect(lines[2]).toMatch(/^CI: \[\d+\.\d%, \d+\.\d%\]$/)
+      expect(lines[2]).toMatch(/^95% CI: \[\d+\.\d%, \d+\.\d%\]$/)
       expect(lines[3]).toMatch(/^\d[\d,]* (person|people) in the sample made this move$/)
       fireEvent.pointerLeave(cell)
     }

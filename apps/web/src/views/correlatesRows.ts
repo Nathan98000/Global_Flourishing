@@ -15,7 +15,7 @@ import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
 import { shareLabel } from '../charts/CrossTab'
 import { people } from '../charts/theme'
-import { formatEstimate } from '../format'
+import { ciLabel, formatEstimate } from '../format'
 import { endpointsClause, shortName } from '../labels'
 import { WAVE_CHIPS, WAVE_NAMES } from '../waves'
 import { waveTitle, type OtherWave } from './correlates/midyear'
@@ -209,11 +209,6 @@ export const FEW_PEOPLE_KEY = '* small sample size'
 /** What a screen reader hears after a flagged value, in place of "*". */
 export const FEW_PEOPLE_HIDDEN = ', small sample size'
 
-/** The one note under every Correlates chart (ADR-0020): in place of
- * the interval clause, where the n lives, any footnote and the Methods
- * link. */
-export const CORRELATES_NOTE = "Weighted so each country's sample stands for its adult population."
-
 /** A value, with its asterisk when few people are behind it. */
 export function starred(text: string, flagged: boolean): string {
   return flagged ? `${text}*` : text
@@ -334,13 +329,14 @@ export function pairAxisTitle(
   return ends ? `${short} · ${ends.slice(1, -1)}` : short
 }
 
-/** A share's interval for a hover card: "CI: [44%, 86%]" — the brackets
- * every card uses (ADR-0022) — in whole percents, never below 0% or
- * above 100%; none when the interval can't be computed. */
-export function shareCI(lo: number | null, hi: number | null): string | undefined {
+/** A share's interval for a hover card: "95% CI: [44%, 86%]" — named
+ * with the response's level and in the brackets every card uses
+ * (ADR-0022, ADR-0024) — in whole percents, never below 0% or above
+ * 100%; none when the interval can't be computed. */
+export function shareCI(lo: number | null, hi: number | null, level: number): string | undefined {
   if (lo === null || hi === null) return undefined
   const percent = (value: number) => `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
-  return `CI: [${percent(lo)}, ${percent(hi)}]`
+  return `${ciLabel(level)}: [${percent(lo)}, ${percent(hi)}]`
 }
 
 /** A cell's hover card (review M2, ADR-0022): the column — "Life

@@ -15,7 +15,7 @@ import { useEffect, useMemo } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
-import type { CorrelationsResponse, EstimateResponse, Meta, Wave } from '../../api/types'
+import type { CorrelationsResponse, Meta, Wave } from '../../api/types'
 import { ChartFigure } from '../../charts/ChartFigure'
 import { textMeasurer, wrapLabel } from '../../charts/RankedBar'
 import { divergingTint } from '../../charts/theme'
@@ -37,7 +37,6 @@ import {
   type CorrelatesOrder,
 } from '../../state/search'
 import {
-  CORRELATES_NOTE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   averagedOver,
@@ -322,35 +321,7 @@ function TableFigure({
     waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
-  // The pairs as rows (the footnote reads their interval method).
-  const response: EstimateResponse = {
-    meta: {
-      data_version: table.meta.data_version,
-      outcome: table.meta.vars.join(','),
-      scale_type: 'correlation table',
-      direction: 'none',
-      stat: table.meta.stat,
-      waves: [table.meta.wave],
-      scope: 'global',
-      oriented: false,
-      weight_key: table.meta.weight_key,
-      weight: table.meta.weight,
-      se_method: 'none',
-      ci_level: table.meta.ci_level,
-      suppression: table.meta.suppression,
-      n_frame: table.meta.n_frame,
-      // (Not shown: each pair's own n is on its row.)
-      n_valid: 0,
-      by: ['question', 'with'],
-      filters: table.meta.filters,
-      min_n: table.meta.min_n,
-    },
-    rows: table.pairs.flatMap((pair) =>
-      pair.correlation
-        ? [{ ...pair.correlation, predictor: null, group: { question: pair.b, with: pair.a } }]
-        : [],
-    ),
-  }
+
   const strongest = [...counted].sort(
     (left, right) => Math.abs(right.estimate ?? 0) - Math.abs(left.estimate ?? 0),
   )[0]
@@ -368,9 +339,7 @@ function TableFigure({
           ? ` Strongest: ${nameOf(strongestPair.a)} with ${nameOf(strongestPair.b)}, ${formatEstimate(strongest.estimate, strongest.stat)}.`
           : ''
       } Select a cell to see the two questions together.`}
-      marks="table"
       interactive
-      response={response}
       csv={{
         kind: 'client',
         onDownload: () =>
@@ -378,7 +347,6 @@ function TableFigure({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      note={CORRELATES_NOTE}
     >
       <HeatTable
         caption={

@@ -504,14 +504,14 @@ describe('hover cards (ADR-0022)', () => {
   test('heading first, then the value said as what it is, its CI, and its sample size', () => {
     const row = testRow({ estimate: 7.71, ci_lo: 7.66, ci_hi: 7.76, n: 1204 })
     expect(tipText(row, 'Philippines', { range: { min: 0, max: 10 } })).toBe(
-      'Philippines\nMean: 7.71 on a 0–10 scale\nCI: [7.66, 7.76]\nBased on 1,204 people',
+      'Philippines\nMean: 7.71 on a 0–10 scale\n95% CI: [7.66, 7.76]\nBased on 1,204 people',
     )
     // A line under the heading places the mark.
     expect(tipText(row, 'Indonesia', { detail: 'Age band: 30–39' }).split('\n')).toEqual([
       'Indonesia',
       'Age band: 30–39',
       'Mean: 7.71',
-      'CI: [7.66, 7.76]',
+      '95% CI: [7.66, 7.76]',
       'Based on 1,204 people',
     ])
     // Never "average", never a "likely range".
@@ -522,7 +522,7 @@ describe('hover cards (ADR-0022)', () => {
     const share = testRow({ stat: 'proportion', estimate: 0.45, ci_lo: 0.43, ci_hi: 0.47, n: 312 })
     expect(valueLine(share, { answer: 'Yes' })).toBe('45.0% answered “Yes”')
     expect(valueLine(share)).toBe('45.0% of people')
-    expect(ciLine(share)).toBe('CI: [43.0%, 47.0%]')
+    expect(ciLine(share)).toBe('95% CI: [43.0%, 47.0%]')
     // A share's n counts the people who gave its answer, not everyone asked.
     expect(sizeLine(share)).toBe('312 people in the sample gave this answer')
     const bin = testRow({ stat: 'distribution', estimate: 0.23, n: 1 })
@@ -533,13 +533,13 @@ describe('hover cards (ADR-0022)', () => {
     const median = testRow({ stat: 'quantile', estimate: 8, ci_lo: null, ci_hi: null, n: 900 })
     expect(valueLine(median, { range: { min: 0, max: 10 } })).toBe('Median: 8.00 on a 0–10 scale')
     expect(sizeLine(median)).toBe('Based on 900 people')
-    // A statistic shipped without an interval gets no CI line (the
-    // footnote says so); a missing one otherwise says why.
+    // A statistic shipped without an interval gets no CI line; a missing
+    // one otherwise says why.
     expect(ciLine({ ...median, ci_method: 'none' })).toBeUndefined()
-    expect(ciLine(median)).toBe('CI: none (one sampling unit only)')
+    expect(ciLine(median)).toBe('95% CI: none (one sampling unit only)')
     const change = testRow({ stat: 'change', estimate: 0.05, ci_lo: 0.03, ci_hi: 0.07, n: 1500 })
     expect(valueLine(change)).toBe('Mean change: +0.05')
-    expect(ciLine(change)).toBe('CI: [+0.03, +0.07]')
+    expect(ciLine(change)).toBe('95% CI: [+0.03, +0.07]')
     expect(sizeLine(change)).toBe('Based on 1,500 people who answered both times')
     const shareChange = testRow({
       stat: 'change_share',
@@ -548,7 +548,7 @@ describe('hover cards (ADR-0022)', () => {
       ci_hi: 0.054,
     })
     expect(valueLine(shareChange)).toBe('Change in share: +3.2 percentage points')
-    expect(ciLine(shareChange)).toBe('CI: [+1.0 pp, +5.4 pp]')
+    expect(ciLine(shareChange)).toBe('95% CI: [+1.0 pp, +5.4 pp]')
     const moved = testRow({ stat: 'change_distribution', estimate: 0.2, n: 40 })
     expect(valueLine(moved, { answer: '+2' })).toBe('20.0% changed their answer by +2')
     expect(valueLine(moved, { answer: '0' })).toBe('20.0% gave the same answer both times')
@@ -567,14 +567,14 @@ describe('hover cards (ADR-0022)', () => {
   test('an HTML card sets its heading apart, one line per line', () => {
     render(
       <div role="tooltip">
-        <TipCardText text={'Kenya\nMean: 7.28\nCI: [7.13, 7.42]'} />
+        <TipCardText text={'Kenya\nMean: 7.28\n95% CI: [7.13, 7.42]'} />
       </div>,
     )
     const lines = [...screen.getByRole('tooltip').children]
     expect(lines.map((line) => line.textContent)).toEqual([
       'Kenya',
       'Mean: 7.28',
-      'CI: [7.13, 7.42]',
+      '95% CI: [7.13, 7.42]',
     ])
     const box = document.createElement('div')
     fillTipCard(box, 'Kenya\nMean: 7.28')

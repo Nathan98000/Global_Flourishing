@@ -22,7 +22,7 @@ import {
 } from '../api/change'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateResponse, EstimateRow, Wave } from '../api/types'
+import type { EstimateRow, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
@@ -264,8 +264,6 @@ export function ChangeView() {
             downloadTextFile(exportFilename(name, 'csv'), responseToCsv({ ...response, rows })),
         }
       : undefined
-  const withRows = (rows: EstimateRow[]): EstimateResponse =>
-    response ? { ...response, rows } : { meta: meta.data.meta as never, rows }
   // The lede's years come from the supported pair, never from literals:
   // if the only pair ever changes, the lede follows.
   const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
@@ -427,7 +425,6 @@ export function ChangeView() {
                 ? `${title}: change in the share of the same people answering “${activeLevelLabel ?? activeLevel}”, ${pair}, by country, in percentage points.`
                 : `${title}: average change among the same people, ${pair}, by country.`,
             )}
-            marks="dots"
             intro={
               detail && (
                 <div className={styles.wording}>
@@ -435,7 +432,6 @@ export function ChangeView() {
                 </div>
               )
             }
-            response={withRows(display.rows)}
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
@@ -456,8 +452,6 @@ export function ChangeView() {
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
                 ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
-                marks="bins"
-                response={withRows(distribution)}
                 csv={csvFor(distribution, nameFor('Change distribution'))}
                 exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}
@@ -483,8 +477,6 @@ export function ChangeView() {
               title="Where people moved between answers"
               subtitle={`Of the people who gave each answer first, the share giving each answer later · ${pair}`}
               ariaLabel={`${title}: for each first answer, the share of the same people giving each later answer, ${pair}. Each row sums to 100%.`}
-              marks="table"
-              response={withRows(transitions)}
               csv={csvFor(transitions, nameFor('Transitions'))}
               exportName={nameFor('Transitions')}
               isRefreshing={change.isPlaceholderData}

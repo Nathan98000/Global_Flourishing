@@ -398,7 +398,6 @@ export function BreakdownsView() {
                 title={title}
                 subtitle={subtitle}
                 ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
-                marks="dots"
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -406,7 +405,6 @@ export function BreakdownsView() {
                     </div>
                   )
                 }
-                response={{ ...response, rows: displayRows }}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}

@@ -388,8 +388,6 @@ export function WhatMattersView() {
               title="What matters most, by country"
               subtitle={rankingSubtitle}
               ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`}
-              marks="table"
-              response={rankingResponse}
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
@@ -450,8 +448,6 @@ export function WhatMattersView() {
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                 subtitle={rankingSubtitle}
                 ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}.`}
-                marks="table"
-                response={splitResponse}
                 csv={csvFor(splitResponse, splitName)}
                 exportName={splitName}
                 isRefreshing={splitQuery.isPlaceholderData}
@@ -536,7 +532,6 @@ export function WhatMattersView() {
                 served,
                 `${item.display_name} (${itemSubtitle}) by country.`,
               )}
-              marks={itemStat === 'proportion' ? 'bars' : 'dots'}
               intro={
                 itemDetail && (
                   <div className={styles.wording}>
@@ -544,7 +539,6 @@ export function WhatMattersView() {
                   </div>
                 )
               }
-              response={{ ...itemResponse, rows: itemRows }}
               csv={csvFor(
                 { ...itemResponse, rows: itemRows },
                 { ...rankingName, measure: item.display_name },

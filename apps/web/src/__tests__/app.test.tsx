@@ -152,7 +152,7 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   expect(screen.queryByRole('button', { name: /Switch to (dark|light)/ })).toBeNull()
 })
 
-test('the Atlas renders from the static tier, question on the page, plain footnote', async () => {
+test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
   // In the chart/table as well as the country filter.
@@ -160,8 +160,9 @@ test('the Atlas renders from the static tier, question on the page, plain footno
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
   expect(screen.getByText(/Mean of the 12 SFI items/)).toBeInTheDocument()
-  // The footnote names the interval level and nothing more (item 7).
-  expect(screen.getByText(/Lines are 95% confidence intervals/)).toBeInTheDocument()
+  // No footnote under the chart (ADR-0024): the cards name the CI's level.
+  expect(screen.queryByText(/Lines are 95% confidence intervals/)).toBeNull()
+  expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
   expect(screen.queryByText(/withheld|flagged|true value/)).toBeNull()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
 })

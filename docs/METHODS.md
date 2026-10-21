@@ -21,7 +21,7 @@ see [Verified against R](#verified-against-r) below).
   people, or answers that vary more.
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
   it is, its value in words (a mean, a median or a share), its CI
-  written as `CI: [low, high]`, and how many people in the sample it
+  written as `95% CI: [low, high]`, and how many people in the sample it
   rests on.
 - **Download CSV**, above every chart, gives every number with its
   weight and the number of people behind it (the *n*).
@@ -123,7 +123,7 @@ downstream can trip on them:
   difference is real information about the survey, not a bug.
 - **95%, every time.** Intervals are **95% confidence intervals**,
   estimate ± 1.96 standard errors; the hover cards write them as
-  `CI: [low, high]`.
+  `95% CI: [low, high]`.
 - **Sometimes there is none.** A number resting on a single sampling
   unit has no computable interval: its dot has no line, and its card
   says why.

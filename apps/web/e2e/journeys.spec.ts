@@ -199,7 +199,7 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   const tip = chartRegion(page).locator('g[aria-label="tip"] text')
   await expect(tip).toContainText('Gender:')
   await expect(tip).toContainText('Mean:')
-  await expect(tip).toContainText(/CI: (\[.+\]|none)/)
+  await expect(tip).toContainText(/95% CI: (\[.+\]|none)/)
   await expect(tip).toContainText(/Based on \d[\d,]* (person|people)/)
   await expect(tip).not.toContainText(/average|likely range/i)
   await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
@@ -291,8 +291,8 @@ test('7 — Change with a country where fewer people answered again: the interva
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
   expect(text).not.toMatch(JARGON)
-  // No retention or coverage percentage: the only "%" on the page is the
-  // interval level in the footnote.
+  // No retention or coverage percentage anywhere on the page (and no
+  // footnote under the chart since ADR-0024).
   expect((text.match(/\d+(\.\d+)?\s?%/g) ?? []).filter((match) => match !== '95%')).toEqual([])
   expect(await figure.innerText()).not.toMatch(/%/)
 
@@ -308,7 +308,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   const tip = figure.locator('g[aria-label="tip"] text')
   await expect(tip).toContainText('Testland')
   await expect(tip).toContainText(/Mean change: [+−]\d\.\d\d/)
-  await expect(tip).toContainText(/CI: \[[+−]\d\.\d\d, [+−]\d\.\d\d\]/)
+  await expect(tip).toContainText(/95% CI: \[[+−]\d\.\d\d, [+−]\d\.\d\d\]/)
   await expect(tip).toContainText('Based on 10 people who answered both times')
   await page.mouse.move(0, 0)
 
@@ -355,7 +355,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await matrix.getByRole('cell').first().hover()
   const card = page.getByRole('tooltip')
   await expect(card).toContainText('Mean:')
-  await expect(card).toContainText(/CI: \[/)
+  await expect(card).toContainText(/95% CI: \[/)
   await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
 
   // Within a country: the United States unless another is chosen, its
@@ -411,7 +411,9 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('table')).toHaveCount(0)
-  await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
+  // No line under the chart (ADR-0024); the subtitle names the weights.
+  await expect(page.getByText(/weighted so each/)).toHaveCount(0)
+  await expect(page.locator('figcaption').getByText(/state weights/)).toBeVisible()
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */
@@ -539,7 +541,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect
     .poll(() => cellTip(grid))
     .toMatch(
-      /^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( CI: \[.+\])? [\d,]+ (person|people) in the sample gave both answers$/,
+      /^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( 95% CI: \[.+\])? [\d,]+ (person|people) in the sample gave both answers$/,
     )
   // The strip names its scope; where is chosen under the shared row.
   await expect(page.getByText('United States:', { exact: true })).toBeVisible()
@@ -584,7 +586,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     .poll(() => cellTip(swapped))
     .toMatch(
       new RegExp(
-        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( CI: \\[.+\\])? [\\d,]+ (person|people) in the sample gave both answers$`,
+        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( 95% CI: \\[.+\\])? [\\d,]+ (person|people) in the sample gave both answers$`,
       ),
     )
 

@@ -1,13 +1,11 @@
 // The frame around every chart (§2.10): a figure with a figcaption, a
 // role="img" chart node whose aria-label states what it shows and its
-// extremes, a one-line footnote linked to Methods (or, on the Correlates
-// page, one plain note in its place), and CSV/PNG export — no data table
-// (ADR-0022: each mark's hover card carries its value, CI and n; the CSV
-// carries every number). Charts render inside; this never fetches.
+// extremes, and CSV/PNG export — no data table and no line under the
+// chart (ADR-0022, ADR-0024): each mark's hover card carries its value,
+// its 95% CI and its n, and the CSV carries every number. Charts render
+// inside; this never fetches.
 
-import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
-import type { EstimateResponse, ResponseMeta } from '../api/types'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { exportFilename, type ExportName } from '../export/filename'
 import { downloadChartPng } from '../export/png'
@@ -21,59 +19,14 @@ export function capitalize(text: string): string {
 export type CsvExport =
   { kind: 'server'; href: string } | { kind: 'client'; onDownload: () => void }
 
-export type ChartMarks = 'dots' | 'bars' | 'bins' | 'state-map' | 'table'
-
-/** The footnote under every chart (round-2 item 7): what the lines are
- * — 95% confidence intervals, the level from the response — the
- * weighting in one clause, and where the sample sizes are: in each
- * mark's hover card (ADR-0022). No sentence explains what a confidence
- * interval means; that is the Methods page's job. A response of point
- * estimates (`ci_method = "none"`: plain correlations, medians) says so
- * instead of naming an interval that does not exist. */
-export function footnoteCopy(
-  meta: ResponseMeta,
-  marks: ChartMarks,
-  intervals = true,
-  unit: 'country' | 'state' = marks === 'state-map' ? 'state' : 'country',
-): string {
-  const level = Math.round(meta.ci_level * 100)
-  // The noun follows the statistic that ships without an interval.
-  const noun = meta.stat === 'quantile' ? 'a median' : 'a correlation'
-  const mark =
-    marks === 'dots'
-      ? 'a dot'
-      : marks === 'state-map'
-        ? 'a state'
-        : marks === 'table'
-          ? 'a cell'
-          : 'a bar'
-  const interval = !intervals
-    ? marks === 'table'
-      ? `Cells are point estimates — no confidence interval is computed for ${noun}`
-      : `Dots are point estimates — no confidence interval is computed for ${noun}`
-    : marks === 'state-map' || marks === 'table'
-      ? `Hover ${mark} for its ${level}% confidence interval and sample size`
-      : `Lines are ${level}% confidence intervals`
-  const where =
-    intervals && (marks === 'state-map' || marks === 'table')
-      ? ''
-      : ` · hover ${mark} for its sample size`
-  return `${interval} · weighted so each ${unit}'s sample stands for its adult population${where}.`
-}
-
 export function ChartFigure({
   title,
   subtitle,
   ariaLabel,
-  marks = 'dots',
   intro,
-  response,
   csv,
   exportName,
   isRefreshing = false,
-  footnote,
-  note,
-  unit,
   wide = false,
   interactive = false,
   children,
@@ -82,30 +35,16 @@ export function ChartFigure({
   subtitle?: string
   /** What the chart shows and its extremes — the screen-reader summary. */
   ariaLabel: string
-  /** Which mark the footnote glosses. */
-  marks?: ChartMarks
   /** Rendered between the caption and the chart — the question wording
    * lives here (decision 3), outside the role="img" node so assistive
    * tech reads it. */
   intro?: React.ReactNode
-  /** The rows charted: whether they carry intervals sets the footnote. */
-  response: EstimateResponse
   csv?: CsvExport
   /** What the PNG download is called, in words (export/filename.ts); the
    * view's CSV shares it. Absent: the title alone names the file. */
   exportName?: ExportName
   /** Refetch keeps the frame: previous render held at reduced opacity. */
   isRefreshing?: boolean
-  /** Extra plain sentences in the footnote, before the Methods link (a
-   * caveat the view owes its reader — never a callout box). */
-  footnote?: React.ReactNode
-  /** The whole line under the chart, in place of the provenance line —
-   * its interval clause, where the n lives, the footnote and the Methods
-   * link (the Correlates page's one note, ADR-0020). */
-  note?: string
-  /** Whose sample the weights stand for (a state view's chart is
-   * weighted by state whatever mark it draws). */
-  unit?: 'country' | 'state'
   /** The chart may be wider than the text column (a HeatTable with
    * `wide`, which scrolls in its own box below 1200px): the chart node
    * lets it out rather than clipping it. */
@@ -120,11 +59,6 @@ export function ChartFigure({
   // A refetch keeps the chart (dimmed) and, past the same 600 ms, wears
   // the thin progress bar on its top rule — never a loading block.
   const [showProgress] = useDelayedFlags(isRefreshing)
-  // Plain correlations ship no interval at all; the footnote must not
-  // describe lines that are not drawn.
-  const intervals = !(
-    response.rows.length > 0 && response.rows.every((row) => row.ci_method === 'none')
-  )
 
   const exportPng = async () => {
     const svg = chartRef.current?.querySelector('svg')
@@ -191,14 +125,6 @@ export function ChartFigure({
       >
         {children}
       </div>
-      <p className={styles.provenance}>
-        {note ?? (
-          <>
-            {footnoteCopy(response.meta, marks, intervals, unit)} {footnote}
-            <Link to="/methods">How these numbers are made</Link>
-          </>
-        )}
-      </p>
     </figure>
   )
 }

@@ -74,7 +74,7 @@ function ReadingFigure() {
   return (
     <Figure
       viewBox="0 0 440 146"
-      label="An example chart: three countries, each a dot with a line through it. Country B's line is the longest. Its hover card reads: Country B; Mean: 7.10 on a 0–10 scale; CI: [6.80, 7.40]; Based on 412 people."
+      label="An example chart: three countries, each a dot with a line through it. Country B's line is the longest. Its hover card reads: Country B; Mean: 7.10 on a 0–10 scale; 95% CI: [6.80, 7.40]; Based on 412 people."
       caption={
         <ol className={styles.key}>
           <li>The dot: the estimate.</li>
@@ -132,7 +132,7 @@ function ReadingFigure() {
         Mean: 7.10 on a 0–10 scale
       </text>
       <text x={cardX + 18} y={picked.y + 30} className={styles.cardLine}>
-        CI: [6.80, 7.40]
+        95% CI: [6.80, 7.40]
       </text>
       <text x={cardX + 18} y={picked.y + 47} className={styles.cardLine}>
         Based on 412 people

@@ -2,10 +2,10 @@
 // /v1/correlates envelopes — the ranked list for one country and the same
 // measures across countries, one view at a time. The guards that matter:
 // a correlation is a point estimate and gets no interval anywhere (no
-// whisker, no "95%", no interval in the footnote); the adjusted model is
-// gone from the page (ADR-0018) and an old link's `adjusted` is reported,
-// never sent; the caveat is said in the deck and the footnote as plain
-// sentences.
+// whisker, no "95%"); the adjusted model is gone from the page
+// (ADR-0018) and an old link's `adjusted` is reported, never sent; the
+// caveat is said in the deck as plain sentences, and no line sits under
+// a chart (ADR-0024).
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
@@ -21,7 +21,6 @@ import type {
   VariableDetail,
   VariableSummary,
 } from '../api/types'
-import { footnoteCopy } from '../charts/ChartFigure'
 import { shareLabel, shareTint } from '../charts/CrossTab'
 import {
   DIVERGING_RAMP,
@@ -47,7 +46,6 @@ import {
   testRow,
 } from '../test-utils/fixtures'
 import {
-  CORRELATES_NOTE,
   CORRELATION_SCALE,
   askedInTooFew,
   axisEnds,
@@ -381,7 +379,8 @@ function tipLines(tip: HTMLElement): (string | null)[] {
   return [...tip.children].map((line) => line.textContent)
 }
 
-/** The line under a chart: on this page, its one note. */
+/** The line under a chart: none since ADR-0024 (the note went with the
+ * other pages' footnotes). */
 function figureNote(chart: HTMLElement): string {
   return chart.closest('figure')?.querySelector(':scope > p:last-child')?.textContent ?? ''
 }
@@ -574,7 +573,7 @@ describe('All countries (ADR-0020)', () => {
     expect(screen.getByText('All countries (average of 2) · Wave 1, 2023')).toBeInTheDocument()
     // The toggle's first choice names the scope.
     expect(screen.getByLabelText('All countries')).toBeChecked()
-    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(figureNote(figure)).toBe('')
     // Back to one country: the URL drops the average.
     fireEvent.change(select, { target: { value: '22' } })
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
@@ -699,7 +698,7 @@ describe('All countries (ADR-0020)', () => {
     // data table — and the question can still be changed.
     const main = screen.getByRole('main')
     expect(main.querySelector('figure')).toBeNull()
-    expect(visibleText(main)).not.toContain(CORRELATES_NOTE)
+    expect(visibleText(main)).not.toContain("Weighted so each country's sample")
     expect(screen.getByRole('button', { name: 'Question: Loneliness' })).toBeInTheDocument()
     expect(screen.getByLabelText('All countries', { selector: 'input' })).toBeChecked()
     // Country by country follows the list: the same words, and no request
@@ -1025,7 +1024,7 @@ describe('Correlates view', () => {
     const text = visibleText(screen.getByRole('main'))
     // One note under the chart, and nothing else: no interval clause, no
     // Methods link, not how many went unranked (ADR-0020).
-    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(figureNote(figure)).toBe('')
     expect(text).not.toContain('Dots are point estimates')
     expect(text).not.toMatch(/not ranked|respondents are/)
     expect(text).not.toContain('95%')
@@ -1087,7 +1086,7 @@ describe('Correlates view', () => {
     expect(tip).not.toMatch(/n =|Too few/)
     fireEvent.pointerLeave(cells[2] as HTMLElement)
     expect(within(matrix).getByText('* small sample size')).toBeInTheDocument()
-    expect(figureNote(matrix)).toBe(CORRELATES_NOTE)
+    expect(figureNote(matrix)).toBe('')
     // The legend's turning words, in <em>.
     const legendWords = within(matrix).getByText(
       (_, node) =>
@@ -1214,7 +1213,7 @@ describe('Correlates view', () => {
     expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
     // One note, after the data table; no column explanation, no causes.
     const main = visibleText(screen.getByRole('main'))
-    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(figureNote(figure)).toBe('')
     expect(main).not.toContain('Each column is the people')
     expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
@@ -1392,7 +1391,7 @@ describe('Correlates view', () => {
     })
     await renderAt('/correlates?view=related&outcome=HAPPY')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
-    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(figureNote(figure)).toBe('')
     expect(screen.queryByText(/are left out/)).toBeNull()
   })
 
@@ -1467,7 +1466,7 @@ describe('Correlates view', () => {
       '* small sample size',
     ])
     fireEvent.blur(flagged)
-    expect(figureNote(figure)).toBe(CORRELATES_NOTE)
+    expect(figureNote(figure)).toBe('')
     expect(screen.getByText('Select a cell to see the two questions together.')).toBeVisible()
     // A cell opens Compare two: the column first, the row second.
     fireEvent.click(lonely)
@@ -1953,21 +1952,21 @@ describe('correlates helpers', () => {
     expect(pairAxisTitle(sfiVariable, todayDetail)).toBe('Secure Flourishing Index')
     // Cards in plain words (review M2, ADR-0022): the column, the share
     // and the row's answer, the CI, and how many gave both — no asterisk.
-    expect(shareCI(0.438, 0.864)).toBe('CI: [44%, 86%]')
-    expect(shareCI(-0.004, 0.021)).toBe('CI: [0%, 2%]')
-    expect(shareCI(null, 0.5)).toBeUndefined()
+    expect(shareCI(0.438, 0.864, 0.95)).toBe('95% CI: [44%, 86%]')
+    expect(shareCI(-0.004, 0.021, 0.9)).toBe('90% CI: [0%, 2%]')
+    expect(shareCI(null, 0.5, 0.95)).toBeUndefined()
     const tip = {
       aLevel: '0',
       aShort: 'Life evaluation today',
       bLevel: 'Finding it very difficult on present income',
       bShort: 'Feelings about household income',
       share: 0.65,
-      ci: shareCI(0.438, 0.864),
+      ci: shareCI(0.438, 0.864, 0.95),
       n: 41,
     }
     // A worded answer stands on its own after the share.
     expect(pairCellTip(tip)).toBe(
-      'Life evaluation today: 0\n65% — Finding it very difficult on present income\nCI: [44%, 86%]\n41 people in the sample gave both answers',
+      'Life evaluation today: 0\n65% — Finding it very difficult on present income\n95% CI: [44%, 86%]\n41 people in the sample gave both answers',
     )
     expect(pairCellTip({ ...tip, share: 0.004, ci: undefined, n: 1 })).toBe(
       'Life evaluation today: 0\n<1% — Finding it very difficult on present income\n1 person in the sample gave both answers',
@@ -1983,11 +1982,11 @@ describe('correlates helpers', () => {
       bLevel: '10',
       bShort: 'Life evaluation today',
       share: 0.2,
-      ci: shareCI(0.171, 0.229),
+      ci: shareCI(0.171, 0.229, 0.95),
       n: 1204,
     }
     expect(pairCellTip(numbered)).toBe(
-      'Religious service attendance: More than once a week\n20% answered 10 on Life evaluation today\nCI: [17%, 23%]\n1,204 people in the sample gave both answers',
+      'Religious service attendance: More than once a week\n20% answered 10 on Life evaluation today\n95% CI: [17%, 23%]\n1,204 people in the sample gave both answers',
     )
     expect(pairCellTip({ ...numbered, share: null })).toBe(
       'Religious service attendance: More than once a week\nNobody here gave this answer.',
@@ -2005,11 +2004,11 @@ describe('correlates helpers', () => {
         level: '8',
         short: 'Life evaluation today',
         share: 0.25,
-        ci: shareCI(0.2474, 0.2561),
+        ci: shareCI(0.2474, 0.2561, 0.95),
         n: 3001,
       }),
     ).toBe(
-      'Life evaluation today: 8\n25% of people\nCI: [25%, 26%]\n3,001 people in the sample gave this answer',
+      'Life evaluation today: 8\n25% of people\n95% CI: [25%, 26%]\n3,001 people in the sample gave this answer',
     )
     // Shares: whole percents, "<1%" for a sliver, never "0%" above zero.
     expect(shareLabel(0.57)).toBe('57%')
@@ -2072,21 +2071,15 @@ describe('correlates helpers', () => {
     expect(rows[0]?.endsWith(',False')).toBe(true)
   })
 
-  test('point estimates say so in tooltips and footnotes; signed formatting', () => {
+  test('point estimates say so in their cards; signed formatting', () => {
     const plain = plainRow('LONELY', -0.52)
-    // A plain correlation's card: no CI line — the note says none is
-    // computed — its n in words, never the weight's column.
+    // A plain correlation's card: no CI line (none is computed), its n in
+    // words, never the weight's column.
     expect(tipText(plain, 'Loneliness')).toBe(
       `Loneliness\nCorrelation: −0.52\nBased on ${plain.n} people who answered both`,
     )
     expect(tipText(plain, 'Loneliness')).not.toContain('n =')
     expect(tipText(plain, 'Loneliness')).not.toContain('w_c1')
-    // The footnote's noun follows the statistic without an interval.
-    expect(footnoteCopy({ ...rankedPlain.meta, stat: 'quantile' }, 'dots', false)).toContain(
-      'no confidence interval is computed for a median',
-    )
-    expect(footnoteCopy(rankedPlain.meta, 'dots', false)).toContain('Dots are point estimates')
-    expect(footnoteCopy(rankedPlain.meta, 'table', false)).toContain('Cells are point estimates')
     expect(formatEstimate(-0.52, 'pearson_r')).toBe('−0.52')
     expect(formatEstimate(0.3, 'beta')).toBe('+0.30')
     expect(formatEstimate(0, 'spearman_r')).toBe('0.00')

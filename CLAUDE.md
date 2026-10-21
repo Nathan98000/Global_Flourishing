@@ -113,11 +113,12 @@ TAG=vX.Y.Z` (main only, clean tree; pushes the tag that triggers
   intercepts the exact path `/healthz` on `*.run.app` and returns its own 404
   before the container sees the request.
 - Numbers shown to users always carry weight and CI; the page shows no
-  data table (ADR-0022): every hover card is `charts/theme.ts tipText`'s
-  — what the mark is, the value as what it is (mean, median, share),
-  `CI: [X, Y]`, and the unweighted n in words that say what it counts (a
-  share's n is the people who gave that answer); an estimate few people
-  are behind is shown with an asterisk, never withheld (ADR-0019);
+  data table and no line under a chart (ADR-0022, ADR-0024): every hover
+  card is `charts/theme.ts tipText`'s — what the mark is, the value as
+  what it is (mean, median, share), `95% CI: [X, Y]` (the level from the
+  row), and the unweighted n in words that say what it counts (a share's
+  n is the people who gave that answer); an estimate few people are
+  behind is shown with an asterisk, never withheld (ADR-0019);
   associations, not causes (proposal §4.4).
 
 ## Phases (docs/PROPOSAL.md §7)

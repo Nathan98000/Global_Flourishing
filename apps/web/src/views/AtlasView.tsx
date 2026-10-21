@@ -11,7 +11,7 @@ import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
-import { ChartFigure, type ChartMarks, type CsvExport } from '../charts/ChartFigure'
+import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
@@ -166,8 +166,6 @@ export function AtlasView() {
           ? scaleSubtitle(variable, stat, detail)
           : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
-  const marks: ChartMarks =
-    stat === 'distribution' ? 'bins' : stat === 'proportion' ? 'bars' : 'dots'
 
   // What a download is called, in words (ADR-0016); the server names its
   // CSV the same way.
@@ -365,7 +363,6 @@ export function AtlasView() {
                   meta.data.meta,
                   `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
                 )}
-                marks={marks}
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -373,7 +370,6 @@ export function AtlasView() {
                     </div>
                   )
                 }
-                response={{ ...response, rows: displayRows }}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}

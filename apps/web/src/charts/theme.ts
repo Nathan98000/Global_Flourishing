@@ -8,6 +8,7 @@
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
 import {
+  ciLabel,
   formatCI,
   formatCount,
   formatEstimate,
@@ -289,15 +290,18 @@ export function valueLine(row: EstimateRow, context: TipContext = {}): string {
   }
 }
 
-/** A hover card's interval line: "CI: [7.66, 7.76]" — the confidence
- * interval at the response's level, which the footnote names, in the
- * brackets every surface uses (`format.ts formatCI`). A statistic shipped
- * without one (a median, a plain correlation: the footnote says so)
- * gets no line; an estimate with no computable interval says why. */
+/** A hover card's interval line: "95% CI: [7.66, 7.76]" — the
+ * confidence interval named with the row's own level (`format.ts
+ * ciLabel`, never a literal 95), in the brackets every surface uses
+ * (`formatCI`). A statistic shipped without one (a median, a plain
+ * correlation) gets no line; an estimate with no computable interval
+ * says why (ADR-0024). */
 export function ciLine(row: EstimateRow): string | undefined {
   if (row.estimate === null) return undefined
-  if (hasCI(row)) return `CI: ${formatCI(row)}`
-  return row.ci_method === 'none' ? undefined : 'CI: none (one sampling unit only)'
+  if (hasCI(row)) return `${ciLabel(row.ci_level)}: ${formatCI(row)}`
+  return row.ci_method === 'none'
+    ? undefined
+    : `${ciLabel(row.ci_level)}: none (one sampling unit only)`
 }
 
 /** "1 person", "1,204 people". */

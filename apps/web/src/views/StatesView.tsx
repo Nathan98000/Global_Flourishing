@@ -17,7 +17,7 @@ import { NO_ADJUSTED_WEIGHT_WAVE, adjustedWeightsExist, useStates } from '../api
 import type { EstimateRow, Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
-import { ChartFigure, type ChartMarks } from '../charts/ChartFigure'
+import { ChartFigure } from '../charts/ChartFigure'
 import { RankedBar, type Reference } from '../charts/RankedBar'
 import { outcomeColor, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
@@ -196,8 +196,6 @@ export function StatesView() {
         ? scaleSubtitle(variable, stat, detail)
         : undefined
   const subtitle = [subtitleBase, weights, waveTitle].filter(Boolean).join(' · ')
-  const marks: ChartMarks =
-    search.view === 'map' ? 'state-map' : stat === 'proportion' ? 'bars' : 'dots'
   const reference: Reference | undefined =
     overallRow && overallRow.estimate !== null
       ? { value: plotValue(overallRow) as number, label: 'US overall (state weights)' }
@@ -386,7 +384,6 @@ export function StatesView() {
             title={title}
             subtitle={subtitle}
             ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
-            marks={marks}
             intro={
               <>
                 {detail && (
@@ -399,9 +396,9 @@ export function StatesView() {
                     US overall (state weights): <StatLine row={overallRow} />
                   </p>
                 )}
+                {nationalNote && <p className={styles.national}>{nationalNote}</p>}
               </>
             }
-            response={{ ...response, rows: displayRows }}
             csv={{
               kind: 'client',
               onDownload: () =>
@@ -412,8 +409,6 @@ export function StatesView() {
             }}
             exportName={exportName}
             isRefreshing={states.isPlaceholderData}
-            unit="state"
-            footnote={nationalNote}
           >
             {search.view === 'map' ? (
               <Suspense fallback={<Skeleton height={450} label="Loading the map of states" />}>

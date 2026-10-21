@@ -425,7 +425,7 @@ describe('What Matters view', () => {
     const lines = [...tip.children].map((line) => line.textContent ?? '')
     expect(lines[0]).toBe('Testland · Money')
     expect(lines[1]).toMatch(/^Mean: 6\.00/)
-    expect(lines[2]).toMatch(/^CI: \[/)
+    expect(lines[2]).toMatch(/^95% CI: \[/)
     expect(lines[3]).toMatch(/^Based on \d[\d,]* people$/)
     fireEvent.pointerLeave(first)
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
