@@ -20,6 +20,7 @@ import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
   attendVariable,
@@ -490,6 +491,68 @@ describe('figure copy', () => {
     )
     expect(capitalize('Average score')).toBe('Average score')
     expect(capitalize('')).toBe('')
+  })
+})
+
+describe('StackedShares (ADR-0025)', () => {
+  const answers = [
+    { value: 1, label: 'A lot' },
+    { value: 2, label: 'Some' },
+    { value: 3, label: 'Not very much' },
+    { value: 4, label: 'Not at all' },
+  ]
+
+  test('shades spread over the ramp, deepest at the answer that is most of the name', () => {
+    const ascending = answerShades(answers, 'ascending')
+    expect([...ascending.values()]).toEqual([
+      'var(--seq-100)',
+      'var(--seq-400)',
+      'var(--seq-600)',
+      'var(--seq-900)',
+    ])
+    const descending = answerShades(answers, 'descending')
+    expect(descending.get(1)).toBe('var(--seq-900)')
+    expect(descending.get(4)).toBe('var(--seq-100)')
+    // Yes / no: the two ends.
+    expect([...answerShades(answers.slice(0, 2), 'ascending').values()]).toEqual([
+      'var(--seq-100)',
+      'var(--seq-900)',
+    ])
+    expect(MAX_ANSWERS).toBe(9)
+  })
+
+  test('a 100% bar per country, a segment per answer, the key in the codebook order', () => {
+    const rows = [1, 22].flatMap((code) =>
+      answers.map((answer) =>
+        testRow({
+          group: { country_code: code },
+          stat: 'proportion',
+          level: answer.value,
+          estimate: 0.25,
+        }),
+      ),
+    )
+    const { container } = render(
+      <StackedShares
+        rows={rows}
+        meta={testMeta}
+        answers={answers}
+        polarity="ascending"
+        countryOrder={['Testland', 'United States']}
+        sortedBy={1}
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    expect(svg.querySelectorAll('g[aria-label="bar"] rect')).toHaveLength(8)
+    expect(svg.innerHTML).toContain('var(--seq-900)')
+    expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
+    const key = screen.getByRole('list', { name: 'Answers' })
+    expect(
+      within(key)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(answers.map((answer) => answer.label))
+    expect(within(key).getByText('A lot').closest('li')).toHaveAttribute('data-sorted')
   })
 })
 

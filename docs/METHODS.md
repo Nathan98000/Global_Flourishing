@@ -23,6 +23,10 @@ see [Verified against R](#verified-against-r) below).
   it is, its value in words (a mean, a median or a share), its CI
   written as `95% CI: [low, high]`, and how many people in the sample it
   rests on.
+- **Distribution**, for a question with answer options ("A lot / Some /
+  Not very much / Not at all"), shows every answer's share as one bar
+  per country, the deeper shades for more of what the question names;
+  the bars can be sorted by any answer's share.
 - **Download CSV**, above every chart, gives every number with its
   weight and the number of people behind it (the *n*).
 - **An asterisk** (`+0.25*`) on the Correlates page marks a number that

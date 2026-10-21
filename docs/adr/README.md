@@ -30,3 +30,4 @@ it.
 | [ADR-0022](ADR-0022-charts-alone-cards-with-ci-and-n.md) | Charts without data tables; hover cards that name the statistic (mean, median, share) and carry `CI: [X, Y]` and the n in words | Accepted; card CI label revised by ADR-0024 |
 | [ADR-0023](ADR-0023-light-theme-only.md) | One light theme: the dark theme, its toggle and the OS-preference switch removed | Accepted |
 | [ADR-0024](ADR-0024-no-footnote-ci-level-in-cards.md) | No line under the charts (the footnote and the Correlates note removed); the card's interval reads `95% CI: [X, Y]` | Accepted |
+| [ADR-0025](ADR-0025-answer-distributions-on-the-atlas.md) | Every answer's share on the Atlas: a categorical question's Distribution as stacked bars, served from its share file | Accepted |

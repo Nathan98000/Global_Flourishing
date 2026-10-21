@@ -214,10 +214,14 @@ export function atlasRequest(
   search: AtlasSearch,
   variable: VariableSummary | undefined,
 ): AggregateRequest {
+  const stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   return {
     outcome: search.outcome,
     wave: search.wave,
-    stat: search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean',
+    // A categorical question's distribution is its share at every answer:
+    // the proportion response, which carries every level for every
+    // country (ADR-0025) — static, and the same numbers.
+    stat: stat === 'distribution' && variable?.default_stat === 'proportion' ? 'proportion' : stat,
     by: ['country_code'],
   }
 }

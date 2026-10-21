@@ -10,7 +10,14 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
 import { createAppRouter } from '../router'
-import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
+import {
+  attendVariable,
+  happyVariable,
+  sfiVariable,
+  testMeta,
+  testResponse,
+  testRow,
+} from '../test-utils/fixtures'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -165,6 +172,80 @@ test('the Atlas renders from the static tier, question on the page, no line unde
   expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
   expect(screen.queryByText(/withheld|flagged|true value/)).toBeNull()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
+})
+
+test('a categorical question shows every answer, country by country, from its share file', async () => {
+  const attendDetail: VariableDetail = {
+    ...attendVariable,
+    value_labels: ['Weekly', 'Sometimes', 'Never'].map((label, index) => ({
+      code: index + 1,
+      label,
+      wave: null,
+      country_code: null,
+      is_nonresponse: false,
+    })),
+    missingness: [],
+    scoring: null,
+    components: [],
+  }
+  // Every answer's share for both countries: Testland mostly "Weekly",
+  // the United States mostly "Never".
+  const shares: Record<number, number[]> = { 1: [0.6, 0.3, 0.1], 22: [0.2, 0.3, 0.5] }
+  const proportion = testResponse(
+    Object.entries(shares).flatMap(([code, values]) =>
+      values.map((estimate, index) =>
+        testRow({
+          group: { country_code: Number(code) },
+          stat: 'proportion',
+          level: index + 1,
+          estimate,
+          ci_lo: estimate - 0.02,
+          ci_hi: estimate + 0.02,
+        }),
+      ),
+    ),
+    { outcome: 'ATTEND_SVCS', stat: 'proportion' },
+  )
+  const calls = mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, attendVariable] },
+    '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+    '/data/v1/ATTEND_SVCS/Y1/proportion_by-country_code.json': proportion,
+  })
+  const router = await renderAt('/?outcome=ATTEND_SVCS')
+  // Share is the default; Distribution is offered beside it.
+  const statistic = await screen.findByRole('group', { name: 'Statistic' })
+  expect(within(statistic).getByLabelText('Share')).toBeChecked()
+  fireEvent.click(within(statistic).getByLabelText('Distribution'))
+  await waitFor(() => expect(router.state.location.searchStr).toContain('stat=distribution'))
+  // One stacked bar per country, a segment per answer, keyed in the
+  // codebook's order; sorted by the first answer's share, high first.
+  const figure = await screen.findByRole('img', { name: /the share giving each of 3 answers/ })
+  expect(
+    within(screen.getByRole('list', { name: 'Answers' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent),
+  ).toEqual(['Weekly', 'Sometimes', 'Never'])
+  expect(screen.getByText(/Share giving each answer · sorted by “Weekly”/)).toBeInTheDocument()
+  const svg = figure.querySelector('svg') as SVGSVGElement
+  expect(svg.querySelectorAll('g[aria-label="bar"] rect')).toHaveLength(6)
+  expect(
+    [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')].map((t) => t.textContent),
+  ).toEqual(['Testland', 'United States'])
+  // Sorted by another answer, the order follows it.
+  fireEvent.click(
+    within(screen.getByRole('group', { name: 'Sort by answer' })).getByLabelText('Never'),
+  )
+  await waitFor(() =>
+    expect(
+      [
+        ...svg.ownerDocument.querySelectorAll('figure svg [aria-label="y-axis tick label"] text'),
+      ].map((t) => t.textContent),
+    ).toEqual(['United States', 'Testland']),
+  )
+  // The share file serves it: no distribution request for a categorical item.
+  expect(calls.some((url) => url.includes('ATTEND_SVCS/Y1/distribution'))).toBe(false)
+  expect(calls.filter((url) => url.includes('ATTEND_SVCS/Y1/proportion')).length).toBeGreaterThan(0)
 })
 
 test('the topic → measure picker: topics carry counts, search jumps across topics', async () => {

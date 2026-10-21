@@ -36,7 +36,7 @@ import {
   whatMattersSearchParams,
 } from '../state/search'
 import { parseSearchString, stringifySearch } from '../state/searchCodec'
-import { happyVariable, sfiVariable } from '../test-utils/fixtures'
+import { attendVariable, happyVariable, sfiVariable } from '../test-utils/fixtures'
 
 describe('search codec', () => {
   test('repeated keys become arrays and round-trip API-style', () => {
@@ -148,6 +148,12 @@ describe('atlas search', () => {
     expect(atlasRequest({ ...search, stat: 'distribution' }, happyVariable).stat).toBe(
       'distribution',
     )
+    // A categorical question's distribution is its share at every answer:
+    // the proportion file (ADR-0025).
+    expect(
+      atlasRequest({ ...search, outcome: 'ATTEND_SVCS', stat: 'distribution' }, attendVariable)
+        .stat,
+    ).toBe('proportion')
   })
 })
 

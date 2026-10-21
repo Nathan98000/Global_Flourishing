@@ -1,0 +1,31 @@
+/* The answers' key above the stacked bars (StackedShares.tsx): one
+   swatch and the answer's words each, wrapping on a phone; the answer
+   the rows are sorted by in ink. */
+.key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+.key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key li[data-sorted] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+}
