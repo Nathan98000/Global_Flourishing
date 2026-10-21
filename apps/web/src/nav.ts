@@ -1,23 +1,37 @@
 // Navigation copy and the data-view rule, kept out of the shell
 // component so fast refresh stays clean. Nav order (Phase 5 brief, plus
 // Phase 6, less Compare — retired 25 Sept): Atlas · Change · What Matters ·
-// Correlates · US States · Segments · Codebook · Methods.
+// Correlates · US States · Segments · Methods. The Codebook is reached
+// from Methods, not the nav (ADR-0021): Methods reads as the current
+// page while a codebook page is open.
 
-export const NAV_ITEMS: readonly { to: string; label: string }[] = [
+export interface NavItem {
+  to: string
+  label: string
+  /** Other paths the item stands for (its pages reached from it). */
+  covers?: readonly string[]
+}
+
+export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Atlas' },
   { to: '/change', label: 'Change' },
   { to: '/what-matters', label: 'What Matters' },
   { to: '/correlates', label: 'Correlates' },
   { to: '/states', label: 'US States' },
   { to: '/segments', label: 'Segments' },
-  { to: '/codebook', label: 'Codebook' },
-  { to: '/methods', label: 'Methods' },
+  { to: '/methods', label: 'Methods', covers: ['/codebook'] },
 ]
 
-/** On a phone eight items do not fit one 13px row at 390px; the
- * secondary four collapse into a "More" disclosure rather than the type
+/** On a phone seven items do not fit one 13px row at 390px; the
+ * secondary three collapse into a "More" disclosure rather than the type
  * shrinking. */
 export const NAV_PRIMARY_COUNT = 4
+
+/** Whether a nav item stands for the current page: its own path, or one
+ * it covers (a codebook page, for Methods). */
+export function navCovers(item: NavItem, pathname: string): boolean {
+  return (item.covers ?? []).some((prefix) => pathname.startsWith(prefix))
+}
 
 /** The views that load data — the only places an outage banner can
  * matter (F13: it used to show on Methods and the 404 page too). */

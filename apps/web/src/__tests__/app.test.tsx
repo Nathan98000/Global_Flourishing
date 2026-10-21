@@ -128,21 +128,13 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  // Phase 6 nav order less Compare (ADR-0017) — eight items.
+  // Phase 6 nav order less Compare (ADR-0017) and the Codebook, which
+  // Methods links to instead (ADR-0021) — seven items.
   expect(
     within(nav)
       .getAllByRole('link')
       .map((link) => link.textContent),
-  ).toEqual([
-    'Atlas',
-    'Change',
-    'What Matters',
-    'Correlates',
-    'US States',
-    'Segments',
-    'Codebook',
-    'Methods',
-  ])
+  ).toEqual(['Atlas', 'Change', 'What Matters', 'Correlates', 'US States', 'Segments', 'Methods'])
   // The deck says what this is, above the fold (F5); the count sits in
   // its own ink-colored span (§6), so match the two parts.
   expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
@@ -389,7 +381,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   expect(statistic).toHaveDisplayValue('Mean')
 })
 
-test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
+test('on a phone the secondary three nav items collapse behind "More" (type unchanged)', async () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -418,14 +410,17 @@ test('on a phone the secondary four nav items collapse behind "More" (type uncha
     'Correlates',
     'US States',
     'Segments',
-    'Codebook',
     'Methods',
   ])
   const more = within(nav).getByText('More')
   expect(more.closest('details')).not.toBeNull()
-  // The current view lives inside "More", so its summary reads active.
+  // A codebook page is reached from Methods, which lives inside "More":
+  // the summary and Methods both read active (ADR-0021).
   expect(more).toHaveAttribute('data-status', 'active')
-  expect(within(nav).getByRole('link', { name: 'Codebook' }).closest('details')).not.toBeNull()
+  const methods = within(nav).getByRole('link', { name: 'Methods' })
+  expect(methods.closest('details')).not.toBeNull()
+  expect(methods).toHaveAttribute('data-status', 'active')
+  expect(within(nav).queryByRole('link', { name: 'Codebook' })).toBeNull()
   expect(within(nav).getByRole('link', { name: 'Atlas' }).closest('details')).toBeNull()
 })
 

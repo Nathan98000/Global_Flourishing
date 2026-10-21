@@ -153,8 +153,17 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await insideColumn()
 })
 
-test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {
-  await page.goto('/codebook')
+test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({
+  page,
+}) => {
+  // The Codebook is not in the nav; Methods links to it, and stays the
+  // nav's current item while it is open (ADR-0021).
+  await page.goto('/methods')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: 'Codebook' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Browse the Codebook →' }).click()
+  await expect(page).toHaveURL(/\/codebook$/)
+  await expect(nav.getByRole('link', { name: 'Methods' })).toHaveAttribute('data-status', 'active')
   await page.getByLabel('Search name, label or wording').fill('service attendance')
   await expect(page.getByText(/1 of \d+ questions/)).toBeVisible()
 
@@ -881,15 +890,15 @@ const PHONE_FONTS = [
 /** The least the phone nav leaves between two items (AppShell.module.css). */
 const NAV_LEAST_GAP = 2
 // The pages journey 11 holds the rule on, each with what shows it has
-// rendered: a chart, or — the Codebook and Methods have none — a table
-// wider than a phone, which scrolls in a box of its own. The Codebook's
-// is found by its last column's header: only a screen reader meets it,
-// and it once widened the page from inside that box (30 Sept).
+// rendered: a chart; the Codebook has none — a table wider than a
+// phone, which scrolls in a box of its own, found by its last column's
+// header: only a screen reader meets it, and it once widened the page
+// from inside that box (30 Sept); Methods, its first diagram.
 const PHONE_PAGES: { path: string; rendered: (page: Page) => Locator }[] = [
   { path: '/', rendered: (page) => page.locator('main figure').first() },
   { path: '/correlates', rendered: (page) => page.locator('main figure').first() },
   { path: '/codebook', rendered: (page) => page.getByRole('columnheader', { name: 'Chartable' }) },
-  { path: '/methods', rendered: (page) => page.getByRole('table').first() },
+  { path: '/methods', rendered: (page) => page.locator('[data-figure] svg').first() },
 ]
 
 /** How far the page can scroll sideways, in px — never less than none.
