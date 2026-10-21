@@ -1,5 +1,5 @@
 // Chart theme: every color is a `var(--token)` string straight into the
-// SVG, so charts re-theme live with tokens.css and no hex ever exists in
+// SVG, so charts follow tokens.css (ADR-0010) and no hex ever exists in
 // chart code. The map's sequential scale is *quantized* onto the seven
 // discrete ramp tokens for the same reason (no interpolation, no
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
@@ -37,7 +37,7 @@ const headingFirst: Plot.RenderFunction = (index, scales, values, dimensions, co
 /** Every hover card (ADR-0022): the plot font at 13px with room between
  * its lines, the hairline rule as its stroke, its heading set apart;
  * its fill is Plot's --plot-background, which tokens.css sets to the
- * surface in both themes (the text is the plot's current colour,
+ * surface (the text is the plot's current colour,
  * secondary ink, AA on that fill). The HTML cards (TipCard.tsx) take the
  * face, size and stroke from here too. */
 export const TIP_OPTIONS = {
@@ -56,7 +56,7 @@ export const AXIS = 'var(--axis)'
 export const SURFACE = 'var(--surface)'
 export const WHISKER = 'var(--whisker)'
 /** The neutral for "no estimate" and unsurveyed land, and the outline
- * that keeps it apart from the ramp's lowest bin in both themes. */
+ * that keeps it apart from the ramp's lowest bin. */
 export const MAP_EMPTY = 'var(--map-empty)'
 export const MAP_EMPTY_OUTLINE = 'var(--map-empty-outline)'
 
@@ -132,8 +132,8 @@ export const POSITIVE_MARK = 'var(--div-pos-mark)'
 export const ZERO_MARK = INK_SECONDARY
 
 /** The diverging tint for a value in [−extent, extent], quantized onto
- * the eleven ramp tokens (no interpolation, no resolved colors — the
- * theme switch recolors live); null → transparent. */
+ * the eleven ramp tokens (no interpolation, no resolved colors — a
+ * token's change recolors every chart); null → transparent. */
 export function divergingTint(value: number | null | undefined, extent = 1): string {
   if (value === null || value === undefined || !Number.isFinite(value) || extent <= 0)
     return 'transparent'

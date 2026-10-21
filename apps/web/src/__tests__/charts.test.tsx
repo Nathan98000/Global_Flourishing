@@ -1,6 +1,6 @@
 // One render test per chart against synthetic fixtures: the marks exist,
 // labels come from meta, suppression renders in place, colors are token
-// vars (never hex) so both themes recolor the same SVG.
+// vars (never hex), so tokens.css alone colors the SVG.
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'

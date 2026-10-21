@@ -148,8 +148,8 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   // The footer carries the citation only (decision 5).
   expect(screen.queryByText(/data version/)).toBeNull()
   expect(screen.queryByText(/associations, not causes/)).toBeNull()
-  // The theme button names its action (F15).
-  expect(screen.getByRole('button', { name: /Switch to (dark|light)/ })).toBeInTheDocument()
+  // One light theme (ADR-0023): no theme switch in the header.
+  expect(screen.queryByRole('button', { name: /Switch to (dark|light)/ })).toBeNull()
 })
 
 test('the Atlas renders from the static tier, question on the page, plain footnote', async () => {

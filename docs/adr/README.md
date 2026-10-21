@@ -17,7 +17,7 @@ it.
 | [ADR-0009](ADR-0009-static-first-fetch-layer.md) | Static-first fetch layer | Accepted |
 | [ADR-0010](ADR-0010-frontend-rendering-stack.md) | Front-end rendering stack | Accepted |
 | [ADR-0011](ADR-0011-small-cells-shown.md) | Small cells are shown, not withheld (policy default; env-restorable) | Accepted |
-| [ADR-0012](ADR-0012-visual-identity.md) | Visual identity — warm paper, serif structure, quiet controls | Accepted |
+| [ADR-0012](ADR-0012-visual-identity.md) | Visual identity — warm paper, serif structure, quiet controls | Accepted; the dark theme removed by ADR-0023 |
 | [ADR-0013](ADR-0013-phase-5-serving-and-display.md) | Phase 5 — API-only views, a progress affordance that is not a spinner, retention kept off the screen | Accepted |
 | [ADR-0014](ADR-0014-adjusted-associations.md) | Phase 6 — adjusted associations on numpy, the `svyglm` sandwich, a fixed control set, ranked correlations without intervals | Accepted |
 | [ADR-0015](ADR-0015-label-aligned-signs-and-display-rules.md) | Signed statistics follow the label; categorical change in share; a ranking floor; binned derived scores | Accepted |
@@ -28,3 +28,4 @@ it.
 | [ADR-0020](ADR-0020-correlates-all-countries-and-midyear-pairs.md) | Correlates: all countries as the plain average of the countries, each country's correlations precomputed with the image, an All countries list ranking only questions asked in at least half the countries; the midyear survey paired with 2023 or 2024; one note under each chart | Accepted |
 | [ADR-0021](ADR-0021-codebook-through-methods.md) | The Codebook reached through Methods, not the nav; Methods written for reading — summaries in bullets, fine print folded, six diagrams, a contents list | Accepted |
 | [ADR-0022](ADR-0022-charts-alone-cards-with-ci-and-n.md) | Charts without data tables; hover cards that name the statistic (mean, median, share) and carry `CI: [X, Y]` and the n in words | Accepted |
+| [ADR-0023](ADR-0023-light-theme-only.md) | One light theme: the dark theme, its toggle and the OS-preference switch removed | Accepted |

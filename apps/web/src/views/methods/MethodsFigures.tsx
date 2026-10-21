@@ -1,7 +1,7 @@
 // The Methods page's diagrams (ADR-0021): small explanatory drawings set
 // between the sections of docs/METHODS.md, where a "figure:" comment asks
-// for one. Like the charts, every colour is a `var(--token)` string, so
-// they re-theme live; unlike the charts they draw no data, except the
+// for one. Like the charts, every colour is a `var(--token)` string
+// (ADR-0010); unlike the charts they draw no data, except the
 // weights diagram, which is drawn from the server's own weight table
 // (`meta.weight_table` — the rules are never restated here). Example
 // numbers belong to "Country A", "Country B", … and to no real country.

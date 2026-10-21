@@ -1,19 +1,18 @@
 /**
  * Design tokens — the only place colors, spacing, radii and type sizes are
- * defined. Both themes live here; components read roles, never hex.
+ * defined. One light theme (ADR-0023); components read roles, never hex.
  *
  * The palette is warm paper + ink-teal accent (visual redesign, Sept 2026):
  * off-white warm surfaces, a teal accent, warm data series, and a sand→teal
  * sequential ramp. The six SFI domain hues are fixed across every view
  * (proposal §4.4) and validated as a categorical set with the dataviz
- * six-check validator in both modes (ADR-0010 records the numbers): light
- * worst adjacent CVD ΔE 9.1 / normal 19.6, dark 8.4 / 19.3. Three light-mode
- * SFI hues sit below 3:1 against the surface — the relief rule applies, and
- * every chart ships direct labels and a data table, so hue never carries
- * meaning alone.
+ * six-check validator (ADR-0010 records the numbers): worst adjacent CVD
+ * ΔE 9.1 / normal 19.6. Three SFI hues sit below 3:1 against the surface
+ * — the relief rule applies, and every chart ships direct labels and a
+ * hover card for every mark, so hue never carries meaning alone.
  *
- * Theme resolution: the OS preference applies unless the visitor stamped
- * <html data-theme="...">; an explicit stamp wins both ways.
+ * There is no dark theme (ADR-0023): `color-scheme: light` keeps native
+ * controls and scrollbars light whatever the OS prefers.
  */
 
 /* Source Serif 4 (OFL 1.1 — see /fonts/OFL.txt and docs/NOTICES.md),
@@ -43,7 +42,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* Type */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -184,211 +183,4 @@
   --notice-border: #c8d3c8;
   --warning-bg: #f4ecd9;
   --warning-border: #ddc99a;
-}
-
-/* Dark theme: selected steps for the dark surface, not an automatic flip.
-   The OS preference applies unless the visitor stamped a theme… */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
-    --page: #141310;
-    --surface: #1b1a16;
-    --surface-raised: #23211c;
-    --plot-background: #1b1a16;
-    --ink: #ece8de;
-    --ink-secondary: #b6b1a4;
-    --ink-muted: #7d7970;
-    --border: rgba(236, 232, 222, 0.14);
-    --border-strong: rgba(236, 232, 222, 0.18);
-    --grid: #2b2924;
-    --axis: #3a372f;
-
-    --accent: #7fb8ad;
-    --accent-hover: #9ecec4;
-    --accent-ink: #141310;
-    --focus-ring: #7fb8ad;
-
-    --control-bg: #1c1b17;
-    --control-selected: #272521;
-    --control-rule: #ece8de;
-
-    --sfi-happiness: #c98500;
-    --sfi-health: #199e70;
-    --sfi-meaning: #9085e9;
-    --sfi-character: #3987e5;
-    --sfi-relationships: #d55181;
-    --sfi-financial: #d95926;
-
-    --series-1: #7fb8ad;
-    --series-2: #d98b5a;
-    --series-3: #a396db;
-
-    --ci-band: rgba(127, 184, 173, 0.24);
-    --whisker: #b6b1a4;
-    --suppressed-fill: rgba(236, 232, 222, 0.07);
-    --suppressed-hatch: #7d7970;
-    --warn-text: #e3b562;
-    --error-text: #f0a79c;
-    --ok-text: #7fb8ad;
-
-    --seq-100: #1f3f3c;
-    --seq-200: #24504c;
-    --seq-300: #356a65;
-    --seq-400: #598e84;
-    --seq-500: #83a596;
-    --seq-600: #b3c0a4;
-    --seq-700: #d9cfb0;
-    --seq-800: #e7ddc1;
-    --seq-900: #f4ebd3;
-    --map-empty: #34322c;
-    --map-empty-outline: #6d6960;
-    --tint-ink-dark: #1b1a16;
-    --tint-ink-light: #ece8de;
-    --seq-100-ink: var(--tint-ink-light);
-    --seq-200-ink: var(--tint-ink-light);
-    --seq-300-ink: var(--tint-ink-light);
-    --seq-400-ink: var(--tint-ink-dark);
-    --seq-500-ink: var(--tint-ink-dark);
-    --seq-600-ink: var(--tint-ink-dark);
-    --seq-700-ink: var(--tint-ink-dark);
-    --seq-800-ink: var(--tint-ink-dark);
-    --seq-900-ink: var(--tint-ink-dark);
-
-    /* Diverging, dark (widened in ADR-0018): each step climbs about 9 L*
-       (the end step 16), so neighbouring tints stay apart on the dark
-       page; the end steps are light enough to take the dark ink. */
-    --div-n5: #e0a47c;
-    --div-n4: #8a5a3b;
-    --div-n3: #66432e;
-    --div-n2: #493223;
-    --div-n1: #2e2117;
-    --div-0: #141310;
-    --div-p1: #192622;
-    --div-p2: #223c35;
-    --div-p3: #2f6254;
-    --div-p4: #46907f;
-    --div-p5: #86cbb9;
-    --div-neg-mark: #d98b5a;
-    --div-pos-mark: #7fb8ad;
-    --div-n5-ink: var(--tint-ink-dark);
-    --div-n4-ink: var(--tint-ink-light);
-    --div-n3-ink: var(--tint-ink-light);
-    --div-n2-ink: var(--tint-ink-light);
-    --div-n1-ink: var(--tint-ink-light);
-    --div-0-ink: var(--tint-ink-light);
-    --div-p1-ink: var(--tint-ink-light);
-    --div-p2-ink: var(--tint-ink-light);
-    --div-p3-ink: var(--tint-ink-light);
-    --div-p4-ink: var(--tint-ink-dark);
-    --div-p5-ink: var(--tint-ink-dark);
-
-    --notice-bg: #17201c;
-    --notice-border: #2f4a42;
-    --warning-bg: #2a2313;
-    --warning-border: #5c4a23;
-  }
-}
-
-/* …an explicit light stamp keeps native controls (selects, checkboxes,
-   scrollbars) light whatever the OS prefers… */
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-
-/* …and an explicit dark stamp wins over an OS light preference. */
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --page: #141310;
-  --surface: #1b1a16;
-  --plot-background: #1b1a16;
-  --surface-raised: #23211c;
-  --ink: #ece8de;
-  --ink-secondary: #b6b1a4;
-  --ink-muted: #7d7970;
-  --border: rgba(236, 232, 222, 0.14);
-  --border-strong: rgba(236, 232, 222, 0.18);
-  --grid: #2b2924;
-  --axis: #3a372f;
-
-  --accent: #7fb8ad;
-  --accent-hover: #9ecec4;
-  --accent-ink: #141310;
-  --focus-ring: #7fb8ad;
-
-  --control-bg: #1c1b17;
-  --control-selected: #272521;
-  --control-rule: #ece8de;
-
-  --sfi-happiness: #c98500;
-  --sfi-health: #199e70;
-  --sfi-meaning: #9085e9;
-  --sfi-character: #3987e5;
-  --sfi-relationships: #d55181;
-  --sfi-financial: #d95926;
-
-  --series-1: #7fb8ad;
-  --series-2: #d98b5a;
-  --series-3: #a396db;
-
-  --ci-band: rgba(127, 184, 173, 0.24);
-  --whisker: #b6b1a4;
-  --suppressed-fill: rgba(236, 232, 222, 0.07);
-  --suppressed-hatch: #7d7970;
-  --warn-text: #e3b562;
-  --error-text: #f0a79c;
-  --ok-text: #7fb8ad;
-
-  --seq-100: #1f3f3c;
-  --seq-200: #24504c;
-  --seq-300: #356a65;
-  --seq-400: #598e84;
-  --seq-500: #83a596;
-  --seq-600: #b3c0a4;
-  --seq-700: #d9cfb0;
-  --seq-800: #e7ddc1;
-  --seq-900: #f4ebd3;
-  --map-empty: #34322c;
-  --map-empty-outline: #6d6960;
-  --tint-ink-dark: #1b1a16;
-  --tint-ink-light: #ece8de;
-  --seq-100-ink: var(--tint-ink-light);
-  --seq-200-ink: var(--tint-ink-light);
-  --seq-300-ink: var(--tint-ink-light);
-  --seq-400-ink: var(--tint-ink-dark);
-  --seq-500-ink: var(--tint-ink-dark);
-  --seq-600-ink: var(--tint-ink-dark);
-  --seq-700-ink: var(--tint-ink-dark);
-  --seq-800-ink: var(--tint-ink-dark);
-  --seq-900-ink: var(--tint-ink-dark);
-
-  /* Diverging, dark: as in the media block above (ADR-0018). */
-  --div-n5: #e0a47c;
-  --div-n4: #8a5a3b;
-  --div-n3: #66432e;
-  --div-n2: #493223;
-  --div-n1: #2e2117;
-  --div-0: #141310;
-  --div-p1: #192622;
-  --div-p2: #223c35;
-  --div-p3: #2f6254;
-  --div-p4: #46907f;
-  --div-p5: #86cbb9;
-  --div-neg-mark: #d98b5a;
-  --div-pos-mark: #7fb8ad;
-  --div-n5-ink: var(--tint-ink-dark);
-  --div-n4-ink: var(--tint-ink-light);
-  --div-n3-ink: var(--tint-ink-light);
-  --div-n2-ink: var(--tint-ink-light);
-  --div-n1-ink: var(--tint-ink-light);
-  --div-0-ink: var(--tint-ink-light);
-  --div-p1-ink: var(--tint-ink-light);
-  --div-p2-ink: var(--tint-ink-light);
-  --div-p3-ink: var(--tint-ink-light);
-  --div-p4-ink: var(--tint-ink-dark);
-  --div-p5-ink: var(--tint-ink-dark);
-
-  --notice-bg: #17201c;
-  --notice-border: #2f4a42;
-  --warning-bg: #2a2313;
-  --warning-border: #5c4a23;
 }

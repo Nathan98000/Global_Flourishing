@@ -228,21 +228,19 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   )
 })
 
-test('5 — dark mode toggles and survives a reload', async ({ page }) => {
+test('5 — one light theme, whatever the OS prefers', async ({ page }) => {
+  // There is no dark mode (ADR-0023): an OS that prefers dark still gets
+  // the warm paper page, and the header has no theme switch.
+  await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
-  const html = page.locator('html')
-  await expect(html).not.toHaveAttribute('data-theme', 'dark')
-
-  // The button names its action (F15).
-  await page.getByRole('button', { name: 'Switch to dark' }).click()
-  await expect(html).toHaveAttribute('data-theme', 'dark')
-
-  await page.reload()
-  await expect(html).toHaveAttribute('data-theme', 'dark')
-  await expect(page.getByRole('button', { name: 'Switch to light' })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Switch to light' }).click()
-  await expect(html).toHaveAttribute('data-theme', 'light')
+  await expect(caption(page).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /Switch to (dark|light)/ })).toHaveCount(0)
+  expect(await page.evaluate<string>('getComputedStyle(document.body).backgroundColor')).toBe(
+    'rgb(246, 244, 238)',
+  )
+  expect(
+    await page.evaluate<string>('getComputedStyle(document.documentElement).colorScheme'),
+  ).toBe('light')
 })
 
 test('6 — with the API blocked at the network level, the Atlas still renders and says so', async ({

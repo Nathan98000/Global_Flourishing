@@ -138,8 +138,8 @@ table {
 }
 
 /* Observable Plot sets --plot-background to white on every figure it
-   draws (its tooltip fill). Re-assert the theme's value there, so tips
-   sit on the surface in both themes (tokens.css defines it). */
+   draws (its tooltip fill). Re-assert the token's value there, so tips
+   sit on the surface (tokens.css defines it). */
 [class^='plot-'] {
   --plot-background: inherit;
 }

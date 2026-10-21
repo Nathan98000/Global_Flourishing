@@ -440,7 +440,7 @@ describe('What Matters view', () => {
     expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
     expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
     // A legend replaces the caption: the seven ramp tokens, lower to
-    // higher (so it reads true in either theme), and the column rule.
+    // higher (the tokens themselves), and the column rule.
     const legend = within(ranking).getByText(/· each column shaded on its own range/)
     expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
       'Lower Higher · each column shaded on its own range',

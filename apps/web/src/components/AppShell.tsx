@@ -20,7 +20,6 @@ import {
 import { useBootStatus } from '../api/meta'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
 import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { ThemeToggle } from './ThemeToggle'
 import styles from './AppShell.module.css'
 
 const DATA_CITATION_URL = 'https://doi.org/10.17605/OSF.IO/3JTZ8'
@@ -161,7 +160,6 @@ export function AppShell() {
             NAV_ITEMS.map((item) => <NavLink key={item.to} item={item} pathname={pathname} />)
           )}
         </nav>
-        <ThemeToggle />
       </header>
       {isDataView(pathname) && <BootBanner />}
       <main id="main" className={styles.main}>
