@@ -1,5 +1,5 @@
 // The Change view's row bookkeeping, kept out of the component so fast
-// refresh stays clean: one ordering for the chart and the data table
+// refresh stays clean: one ordering for the chart and the CSV
 // (sortRows.ts), the signed buckets the change histogram bins into, and
 // the signed tick labels.
 

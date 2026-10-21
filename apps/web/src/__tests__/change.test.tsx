@@ -261,12 +261,13 @@ describe('Change view', () => {
     expect(
       within(figure.closest('figure') as HTMLElement).getByText(/2023 → 2024/),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
-    const table = screen.getAllByRole('table')[0] as HTMLElement
-    expect(within(table).getByText('+0.30')).toBeInTheDocument()
-    expect(within(table).getByText('−0.12')).toBeInTheDocument()
-    expect(within(table).getByText('[−0.17, −0.07]')).toBeInTheDocument()
-    expect(within(table).getByText('1,500')).toBeInTheDocument()
+    // No data table anywhere (ADR-0022): the chart's own value labels
+    // carry the estimates; each dot's hover card its CI and n.
+    expect(screen.queryByText('Data table')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    const values = figure.querySelector('svg')?.textContent ?? ''
+    expect(values).toContain('+0.30')
+    expect(values).toContain('−0.12')
     // The Countries control stands alone: no hint beside it (25 Sept).
     expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
@@ -303,13 +304,11 @@ describe('Change view', () => {
     // No mean of codes anywhere, no histogram of individual change; the
     // value labels are signed percentage points.
     expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
-    fireEvent.click(within(caption).getByText('Data table'))
-    const table = within(caption).getByRole('table')
-    expect(within(table).getByText('+5.0 pp')).toBeInTheDocument()
-    expect(within(table).getByText('+1.2 pp')).toBeInTheDocument()
-    expect(within(table).queryByText('−3.0 pp')).toBeNull() // another level's row
-    // The chart's value labels carry the unit too.
-    expect(figure.querySelector('svg')?.textContent).toContain('+5.0 pp')
+    // The chart's value labels carry the unit; only the chosen level.
+    const values = figure.querySelector('svg')?.textContent ?? ''
+    expect(values).toContain('+5.0 pp')
+    expect(values).toContain('+1.2 pp')
+    expect(values).not.toContain('−3.0 pp') // another level's row
   })
 
   test('a directional yes/no item says whether a rise in the share is better', async () => {
@@ -353,10 +352,8 @@ describe('Change view', () => {
         .map((th) => th.textContent),
     ).toEqual(['First answer ↓ · later answer →', 'Weekly', 'Sometimes', 'Never'])
     expect(within(table).getAllByText('60.0%')).toHaveLength(3)
-    // Only the conditional measure is charted; the joint cell stays in
-    // the data table, in words.
-    fireEvent.click(within(moves.closest('figure') as HTMLElement).getByText('Data table'))
-    expect(screen.getAllByText('share within the first answer').length).toBeGreaterThan(0)
+    // Only the conditional measure is charted, and no table repeats it.
+    expect(screen.queryByText('share within the first answer')).toBeNull()
   })
 
   test('a measure asked only once says so instead of asking the API', async () => {
@@ -540,15 +537,19 @@ describe('change chart helpers', () => {
     )
     expect(screen.getAllByText('70.0%')).toHaveLength(2)
     expect(screen.getAllByText('30.0%')).toHaveLength(2)
-    // The interval rides in the (styled) tooltip; the n lives in the
-    // data table.
-    expect(screen.queryAllByText(/n = 30/)).toHaveLength(0)
+    // The CI and n ride in the (styled) hover card, never in the cell.
     const cells = screen.getAllByRole('cell')
     expect(cells).toHaveLength(4)
     for (const cell of cells) {
       expect(cell).not.toHaveAttribute('title')
       fireEvent.pointerEnter(cell)
-      expect(screen.getByRole('tooltip').textContent).toMatch(/later said “(Yes|No)”\n95% CI \[/)
+      // Heading first — the move — then the share in words, its CI and
+      // how many in the sample made the move.
+      const lines = [...screen.getByRole('tooltip').children].map((line) => line.textContent)
+      expect(lines[0]).toMatch(/^First “(Yes|No)”, later “(Yes|No)”$/)
+      expect(lines[1]).toMatch(/^(70|30)\.0% of the people who first said “(Yes|No)”$/)
+      expect(lines[2]).toMatch(/^CI: \[\d+\.\d%, \d+\.\d%\]$/)
+      expect(lines[3]).toMatch(/^\d[\d,]* (person|people) in the sample made this move$/)
       fireEvent.pointerLeave(cell)
     }
     expect(screen.getByRole('rowheader', { name: 'Yes' })).toBeInTheDocument()

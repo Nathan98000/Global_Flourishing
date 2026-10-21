@@ -174,20 +174,26 @@ test('2 — Codebook: search, open the entry, chart it, read the wording', async
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
-test('3 — a small cell renders with its n and no flag, not a gap', async ({ page }) => {
+test('3 — a small cell renders with its hover card and no flag, not a gap', async ({ page }) => {
   // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
-  // were withheld; since ADR-0011 every cell is shown, with its n in the
-  // data table so a reader can see what the number rests on.
+  // were withheld; since ADR-0011 every cell is shown. The page shows the
+  // chart alone (ADR-0022): no data table, each dot's card its numbers.
   await page.goto('/segments?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
 
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.getByRole('table')
-  await expect(table.getByText(/withheld|†/)).toHaveCount(0)
-  // Every row carries an estimate and its n (the small cells included).
-  const cells = await table.locator('tbody tr').count()
-  expect(cells).toBeGreaterThan(0)
+  // A dot's hover card: the country first, set apart, then the level by
+  // its breakdown, the mean, its CI and how many people it rests on.
+  await chartRegion(page).locator('svg circle').first().hover()
+  const tip = chartRegion(page).locator('g[aria-label="tip"] text')
+  await expect(tip).toContainText('Gender:')
+  await expect(tip).toContainText('Mean:')
+  await expect(tip).toContainText(/CI: (\[.+\]|none)/)
+  await expect(tip).toContainText(/Based on \d[\d,]* (person|people)/)
+  await expect(tip).not.toContainText(/average|likely range/i)
+  await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
 })
 
 test('4 — CSV export downloads with the # meta header lines', async ({ page }) => {
@@ -252,7 +258,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   // shrink its follow-up group to a fifth — fixture rows, never real
   // data. The view must show its estimate and interval like any other
   // country's: no caution sentence (withdrawn — ADR-0013, revised), no
-  // rate, no jargon; the n rides in the data table.
+  // rate, no jargon; the n rides in the CSV (and the screen-reader table).
   const change = apiFixture('change-HAPPY-Y1-Y2.json')
   for (const row of change.rows) {
     if (row.stat === 'change' && row.group['country_code'] === 1) row.n = 10
@@ -283,16 +289,21 @@ test('7 — Change with a country where fewer people answered again: the interva
   expect((text.match(/\d+(\.\d+)?\s?%/g) ?? []).filter((match) => match !== '95%')).toEqual([])
   expect(await figure.innerText()).not.toMatch(/%/)
 
-  // The estimate and its interval still appear, and the n is one click
-  // away on every table row.
+  // The estimate still appears; no data table (ADR-0022): Testland's
+  // card gives its mean change, its CI and its ten pairs.
   await expect(figure.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
-  await page.getByText('Data table', { exact: true }).first().click()
-  const table = page.getByRole('table').first()
-  await expect(table.getByRole('columnheader', { name: 'Estimate' })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: '95% CI' })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
-  await expect(table.getByText('10', { exact: true })).toBeVisible()
-  await expect(table.getByText(/^\[[+−]\d\.\d\d, [+−]\d\.\d\d\]$/).first()).toBeVisible()
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
+  const row = await figure
+    .locator('[aria-label="y-axis tick label"] text', { hasText: 'Testland' })
+    .boundingBox()
+  await page.mouse.move(row!.x + row!.width + 120, row!.y + row!.height / 2)
+  const tip = figure.locator('g[aria-label="tip"] text')
+  await expect(tip).toContainText('Testland')
+  await expect(tip).toContainText(/Mean change: [+−]\d\.\d\d/)
+  await expect(tip).toContainText(/CI: \[[+−]\d\.\d\d, [+−]\d\.\d\d\]/)
+  await expect(tip).toContainText('Based on 10 people who answered both times')
+  await page.mouse.move(0, 0)
 
   // The URL is the state.
   await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()
@@ -332,11 +343,13 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   expect(text).not.toMatch(JARGON)
   expect(text).not.toMatch(/midyear_type|standalone|combined/i)
 
-  // The n rides on every row of the data table.
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.locator('details').first().getByRole('table')
-  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
+  // No data table (ADR-0022): a cell's card carries its mean, CI and n.
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await matrix.getByRole('cell').first().hover()
+  const card = page.getByRole('tooltip')
+  await expect(card).toContainText('Mean:')
+  await expect(card).toContainText(/CI: \[/)
+  await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
 
   // Within a country: the United States unless another is chosen, its
   // age bands as the matrix's rows, alone on screen.
@@ -389,10 +402,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   // The chart view and the table carry the server's state codes.
   await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.getByRole('table')
-  await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
-  await expect(table.getByText('California', { exact: true })).toBeVisible()
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
   await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
 })
 
@@ -520,7 +531,9 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // the answer's own words.
   await expect
     .poll(() => cellTip(grid))
-    .toMatch(/^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( Likely range: .+)?$/)
+    .toMatch(
+      /^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( CI: \[.+\])? [\d,]+ (person|people) in the sample gave both answers$/,
+    )
   // The strip names its scope; where is chosen under the shared row.
   await expect(page.getByText('United States:', { exact: true })).toBeVisible()
   expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
@@ -564,7 +577,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     .poll(() => cellTip(swapped))
     .toMatch(
       new RegExp(
-        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( Likely range: .+)?$`,
+        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( CI: \\[.+\\])? [\\d,]+ (person|people) in the sample gave both answers$`,
       ),
     )
 

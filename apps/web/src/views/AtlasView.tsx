@@ -1,5 +1,5 @@
 // Atlas (§2.5): pick a measure and a wave, see ranked dots/bars or the
-// distribution — CI on every value, n in the data table, the question on
+// distribution — CI on every value, n in the CSV, the question on
 // the page, weight and suppression rule in plain words under the chart,
 // coverage on Y2/MY, the URL carrying all of it. Statistics come from
 // the server; this view only chooses, filters and renders.
@@ -64,7 +64,7 @@ export function AtlasView() {
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   // A derived score's distribution bins arrive as its value labels
   // ("0–1" … "9–10", the server's rule — ADR-0015); an item's answer
-  // codes wear their own labels in the data table (ADR-0016).
+  // codes wear their own labels in the hover cards (ADR-0016).
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
@@ -87,7 +87,7 @@ export function AtlasView() {
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
-    // One ordering for the chart and the data table (items 5/13).
+    // One ordering for the chart and the CSV (items 5/13).
     if (!metaForSort) return rows
     return sortAtlasRows(rows, metaForSort, search.sort, dir)
   }, [response, stat, activeLevel, search.countries, metaForSort, search.sort, dir])
@@ -374,11 +374,9 @@ export function AtlasView() {
                   )
                 }
                 response={{ ...response, rows: displayRows }}
-                meta={meta.data.meta}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
-                levelLabel={binLabel}
               >
                 {stat === 'distribution' ? (
                   <>

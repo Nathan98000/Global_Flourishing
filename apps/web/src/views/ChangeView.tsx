@@ -428,7 +428,6 @@ export function ChangeView() {
                 : `${title}: average change among the same people, ${pair}, by country.`,
             )}
             marks="dots"
-            levelLabel={levelLabel}
             intro={
               detail && (
                 <div className={styles.wording}>
@@ -437,7 +436,6 @@ export function ChangeView() {
               )
             }
             response={withRows(display.rows)}
-            meta={meta.data.meta}
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
@@ -457,10 +455,9 @@ export function ChangeView() {
               <ChartFigure
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
-                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries. The data table below carries every number.`}
+                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
                 marks="bins"
                 response={withRows(distribution)}
-                meta={meta.data.meta}
                 csv={csvFor(distribution, nameFor('Change distribution'))}
                 exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}
@@ -485,14 +482,12 @@ export function ChangeView() {
             <ChartFigure
               title="Where people moved between answers"
               subtitle={`Of the people who gave each answer first, the share giving each answer later · ${pair}`}
-              ariaLabel={`${title}: for each first answer, the share of the same people giving each later answer, ${pair}. Each row sums to 100%. The data table below carries every number.`}
+              ariaLabel={`${title}: for each first answer, the share of the same people giving each later answer, ${pair}. Each row sums to 100%.`}
               marks="table"
               response={withRows(transitions)}
-              meta={meta.data.meta}
               csv={csvFor(transitions, nameFor('Transitions'))}
               exportName={nameFor('Transitions')}
               isRefreshing={change.isPlaceholderData}
-              levelLabel={levelLabel}
             >
               {chosen.map((code) => (
                 <TransitionTable

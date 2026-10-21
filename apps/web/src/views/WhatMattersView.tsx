@@ -18,8 +18,8 @@ import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
-import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential } from '../charts/theme'
-import { HEAT_CELL_PAD, HeatTable, headerFont, intervalText } from '../charts/TransitionTable'
+import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
+import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -293,8 +293,6 @@ export function WhatMattersView() {
     ranking.map((entry) => entry.name).join(','),
     ['outcome', 'country_code', search.by],
   )
-  const groupLabel = (column: string, value: string | number) =>
-    column === 'outcome' ? byName[String(value)]?.display_name : undefined
   const offline = (error: unknown) =>
     error instanceof NetworkError && !boot.apiReachable ? (
       <p className={styles.hint} role="status">
@@ -389,14 +387,12 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
-              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
+              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`}
               marks="table"
               response={rankingResponse}
-              meta={served}
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
-              groupLabel={groupLabel}
             >
               <ImportanceMatrix
                 rows={rankingAll}
@@ -453,14 +449,12 @@ export function WhatMattersView() {
               <ChartFigure
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                 subtitle={rankingSubtitle}
-                ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
+                ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}.`}
                 marks="table"
                 response={splitResponse}
-                meta={served}
                 csv={csvFor(splitResponse, splitName)}
                 exportName={splitName}
                 isRefreshing={splitQuery.isPlaceholderData}
-                groupLabel={groupLabel}
               >
                 <ImportanceMatrix
                   rows={splitAll}
@@ -551,7 +545,6 @@ export function WhatMattersView() {
                 )
               }
               response={{ ...itemResponse, rows: itemRows }}
-              meta={served}
               csv={csvFor(
                 { ...itemResponse, rows: itemRows },
                 { ...rankingName, measure: item.display_name },
@@ -625,7 +618,7 @@ function TintLegend() {
 
 /** Rows × the importance items — countries, or one country's groups —
  * each cell the weighted mean, tinted on its column's own range across
- * the rows shown (the legend says so), the interval in its tooltip;
+ * the rows shown (the legend says so), the interval in its hover card;
  * every column one width, its short label wrapping over it; the first
  * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
@@ -675,7 +668,9 @@ function ImportanceMatrix({
         if (!cell) return undefined
         return {
           text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
+          title: tipText(cell, `${row.label} · ${column.label}`, {
+            range: items.find((item) => item.name === column.key),
+          }),
           tint:
             cell.estimate === null
               ? 'transparent'

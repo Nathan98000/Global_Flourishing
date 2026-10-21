@@ -385,7 +385,7 @@ export function StatesView() {
           <ChartFigure
             title={title}
             subtitle={subtitle}
-            ariaLabel={`${title} by US state (${subtitle}). ${extremes} The data table below carries every number.`}
+            ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
             marks={marks}
             intro={
               <>
@@ -402,7 +402,6 @@ export function StatesView() {
               </>
             }
             response={{ ...response, rows: displayRows }}
-            meta={served}
             csv={{
               kind: 'client',
               onDownload: () =>
@@ -418,7 +417,13 @@ export function StatesView() {
           >
             {search.view === 'map' ? (
               <Suspense fallback={<Skeleton height={450} label="Loading the map of states" />}>
-                <StatesMapPanel rows={displayRows} responseMeta={response.meta} meta={served} />
+                <StatesMapPanel
+                  rows={displayRows}
+                  responseMeta={response.meta}
+                  meta={served}
+                  variable={variable}
+                  answer={isCategorical ? levelLabel : undefined}
+                />
               </Suspense>
             ) : (
               <RankedBar

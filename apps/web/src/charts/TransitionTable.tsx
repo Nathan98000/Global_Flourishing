@@ -1,13 +1,12 @@
 // The tinted matrix (Phase 5, generalised in Phase 6): a small heatmap
-// table whose cells carry a number over a token-only tint, with the CI
-// in the tooltip and the n in the data table beneath the figure
-// (ADR-0011: every cell is shown). `HeatTable` is the matrix itself —
-// row keys, column keys, one cell lookup — and `TransitionTable` is the
-// transition matrix of an ordinal/nominal item built on it: rows are the
-// earlier answer, columns the later one, each cell the share of the
-// row's people who gave that later answer (the engine's conditional
-// measure; each row sums to 100%), tinted with the accent at graded
-// opacity. The Correlates view builds its measures × countries matrix on
+// table whose cells carry a number over a token-only tint, with its CI
+// and n in the hover card (ADR-0011: every cell is shown; ADR-0022). `HeatTable` is
+// the matrix itself — row keys, column keys, one cell lookup — and
+// `TransitionTable` is the transition matrix of an ordinal/nominal item
+// built on it: rows are the earlier answer, columns the later one, each
+// cell the share of the row's people who gave that later answer (the
+// engine's conditional measure; each row sums to 100%), tinted with the
+// accent at graded opacity. The Correlates view builds its measures × countries matrix on
 // the same component with the diverging ramp. Never fetches.
 
 import {
@@ -20,9 +19,10 @@ import {
   type ReactNode,
 } from 'react'
 import type { EstimateRow } from '../api/types'
-import { ciText, formatEstimate } from '../format'
+import { formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
-import { TIP_OPTIONS } from './theme'
+import { TIP_OPTIONS, ciLine, sizeLine } from './theme'
+import { TipCardText } from './TipCard'
 import styles from './TransitionTable.module.css'
 
 export interface TransitionCell {
@@ -66,19 +66,12 @@ export function cellTint(share: number | null): string {
   return `color-mix(in srgb, var(--accent) ${percent}%, transparent)`
 }
 
-/** The interval clause of a cell's tooltip: the CI, or why there is none. */
-export function intervalText(row: EstimateRow): string {
-  if (row.ci_lo !== null && row.ci_hi !== null) return ciText(row)
-  return row.ci_method === 'none'
-    ? 'point estimate — no interval is computed for this statistic'
-    : 'no interval (single sampling unit)'
-}
-
 export interface HeatCell {
   /** The number in the cell (formatted by the caller). */
   text: string
-  /** The tooltip — value, context, interval (never the n — ADR-0016) —
-   * shown styled on hover or tap, never as a native title. */
+  /** The hover card — "\n"-joined lines: what the cell is, its value
+   * in words, its CI and n (theme.ts tipText, ADR-0022) — shown styled
+   * on hover or tap, never as a native title. */
   title: string
   /** A token-only background (`var(--…)` or a color-mix of one). */
   tint: string
@@ -171,7 +164,7 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * column — centred on it, up to 1216px — and its column headers stand
  * upright, so two dozen columns fit without scrolling. A cell's tooltip
  * is the Plot tips' look, at once on hover and on tap for touch; cells
- * are never tab stops (the data table carries the same numbers and
+ * are never tab stops (the CSV carries the same numbers and
  * intervals). */
 export function HeatTable({
   caption,
@@ -471,11 +464,26 @@ export function HeatTable({
             ...(tipAt ? { left: tipAt.left, top: tipAt.top } : { visibility: 'hidden' }),
           }}
         >
-          {tip.text}
+          <TipCardText text={tip.text} />
         </div>
       )}
     </div>
   )
+}
+
+/** A transition cell's hover card: the move it counts, then the share
+ * of the first answer's people who made it, its CI, and how many people
+ * in the sample made it. */
+export function transitionTip(cell: EstimateRow, from: string, to: string): string {
+  const share = formatEstimate(cell.estimate, cell.stat)
+  return [
+    `First “${from}”, later “${to}”`,
+    cell.estimate === null ? 'No estimate' : `${share} of the people who first said “${from}”`,
+    ciLine(cell),
+    sizeLine(cell),
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 export function TransitionTable({
@@ -502,7 +510,7 @@ export function TransitionTable({
         if (!cell) return undefined
         return {
           text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)} of those who first said “${from.label}” later said “${to.label}”\n${intervalText(cell)}`,
+          title: transitionTip(cell, from.label, to.label),
           tint: cellTint(cell.estimate),
         }
       }}

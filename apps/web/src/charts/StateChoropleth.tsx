@@ -7,8 +7,7 @@
 // server's (meta.state_labels). Never fetches.
 
 import * as Plot from '@observablehq/plot'
-import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
-import { ciText, formatEstimate } from '../format'
+import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { groupValueLabel, stateMembersOf } from '../labels'
 import { mapDomain, quantizeColor } from './mapScale'
 import {
@@ -19,6 +18,8 @@ import {
   MAP_EMPTY_OUTLINE,
   SURFACE,
   TIP_OPTIONS,
+  tipText,
+  type TipContext,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 import { joinStates, type StateEntry, type UsFeature } from './usTopology'
@@ -28,20 +29,22 @@ export function isPooledState(entry: Pick<StateEntry, 'code'>, meta: Meta): bool
   return entry.code !== null && stateMembersOf(entry.code, meta).length > 1
 }
 
-/** The tip for one feature: the server's name (a pooled member names its
- * group), the estimate and the interval; the n lives in the data table. */
-export function stateTipText(entry: StateEntry, meta: Meta): string {
-  const where =
-    entry.code && isPooledState(entry, meta)
-      ? `${entry.name} — ${groupValueLabel('state', entry.code, meta)}`
-      : entry.code
-        ? groupValueLabel('state', entry.code, meta)
-        : entry.name
-  if (!entry.row) return `${where}\nno estimate`
-  const row = entry.row
-  const lines = [`${formatEstimate(row.estimate, row.stat)}  ${where}`]
-  if (row.ci_lo !== null && row.ci_hi !== null) lines.push(ciText(row))
-  return lines.join('\n')
+/** The hover card for one feature (theme.ts tipText): the server's name
+ * — a pooled member's own name, then the group it is estimated with —
+ * the value in words, its CI and its n. */
+export function stateTipText(entry: StateEntry, meta: Meta, context: TipContext = {}): string {
+  const pooled = entry.code !== null && isPooledState(entry, meta)
+  const heading = pooled
+    ? entry.name
+    : entry.code
+      ? groupValueLabel('state', entry.code, meta)
+      : entry.name
+  const detail =
+    pooled && entry.code
+      ? `One estimate for ${groupValueLabel('state', entry.code, meta)}`
+      : undefined
+  if (!entry.row) return [heading, detail, 'No estimate'].filter(Boolean).join('\n')
+  return tipText(entry.row, heading, { ...context, detail })
 }
 
 export function StateChoropleth({
@@ -49,12 +52,18 @@ export function StateChoropleth({
   responseMeta,
   features,
   meta,
+  variable,
+  answer,
 }: {
   rows: EstimateRow[]
   responseMeta: ResponseMeta
   features: UsFeature[]
   /** For the server's state names (pooled groups read "A, B & C (pooled)"). */
   meta: Meta
+  /** The measure, for its scale in the hover cards ("on a 0–10 scale"). */
+  variable?: VariableSummary
+  /** The answer a share counts ("45.0% answered “Yes”"). */
+  answer?: string
 }) {
   const container = usePlot(
     (available) => {
@@ -64,7 +73,8 @@ export function StateChoropleth({
       const color = quantizeColor(domain)
       const fillOf = (entry: StateEntry): string =>
         entry.value === null ? MAP_EMPTY : color(entry.value)
-      const tipOf = (entry: StateEntry): string => stateTipText(entry, meta)
+      const tipOf = (entry: StateEntry): string =>
+        stateTipText(entry, meta, { answer, range: variable })
       const pooled = entries.filter((entry) => isPooledState(entry, meta))
       const empty = entries.filter((entry) => entry.value === null)
       return Plot.plot({
@@ -107,7 +117,7 @@ export function StateChoropleth({
         ],
       })
     },
-    [rows, responseMeta, features, meta],
+    [rows, responseMeta, features, meta, variable, answer],
   )
 
   return <div ref={container} />

@@ -1,6 +1,6 @@
 // The What Matters view's row bookkeeping, kept out of the component so
 // fast refresh stays clean: the seven items' rows as one set, the row
-// order a matrix and its data table share (countries, or one country's
+// order a matrix and its CSV share (countries, or one country's
 // groups), each column's tint window, and the columns' labels and width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
@@ -119,7 +119,7 @@ export function matrixCountryOrder(
   })
 }
 
-/** The rows in matrix order (row, then item), for the data table: rows
+/** The rows in matrix order (row, then item), for the CSV: rows
  * are `column`'s values in `rowOrder` (countries by default); a value
  * the matrix doesn't show sorts last. */
 export function orderMatrixRows(

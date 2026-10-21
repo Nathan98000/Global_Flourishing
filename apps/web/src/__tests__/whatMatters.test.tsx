@@ -415,15 +415,18 @@ describe('What Matters view', () => {
     ).toEqual(['Testland', 'United States'])
     const cells = within(matrix).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['6.00', '7.00', '7.00', '8.00'])
-    // The interval rides in a styled tooltip, at once on hover — never a
-    // native title; the n lives in the data table (ADR-0016).
+    // The CI and n ride in a styled hover card, at once on hover — never
+    // a native title (ADR-0022).
     const first = cells[0] as HTMLElement
     expect(first).not.toHaveAttribute('title')
     expect(first).not.toHaveAttribute('tabindex')
     fireEvent.pointerEnter(first)
     const tip = within(ranking).getByRole('tooltip')
-    expect(tip.textContent).toMatch(/^6\.00 {2}Testland · Money\n95% CI \[/)
-    expect(tip.textContent).not.toContain('n =')
+    const lines = [...tip.children].map((line) => line.textContent ?? '')
+    expect(lines[0]).toBe('Testland · Money')
+    expect(lines[1]).toMatch(/^Mean: 6\.00/)
+    expect(lines[2]).toMatch(/^CI: \[/)
+    expect(lines[3]).toMatch(/^Based on \d[\d,]* people$/)
     fireEvent.pointerLeave(first)
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
     // Each column is shaded on its own range: the same 7.00 is the low
@@ -623,8 +626,9 @@ describe('What Matters view', () => {
     const order = async (path: string) => {
       await renderAt(path)
       const chart = await screen.findByRole('img', { name: /Daily social media time/ })
-      const rows = chart.closest('figure')?.querySelectorAll('details tbody tr') ?? []
-      const countries = [...rows].map((row) => row.querySelector('td')?.textContent)
+      // The rows in the order the chart draws them: its row labels.
+      const labels = chart.querySelectorAll('svg [aria-label="y-axis tick label"] text')
+      const countries = [...labels].map((label) => label.textContent)
       cleanup()
       return countries
     }

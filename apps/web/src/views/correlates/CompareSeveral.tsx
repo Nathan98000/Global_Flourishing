@@ -41,11 +41,11 @@ import {
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
   averagedOver,
+  correlationTip,
   coverageLine,
   pooledPlace,
   starred,
   statisticPhrase,
-  tableCaption,
   withCoverage,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
@@ -322,7 +322,7 @@ function TableFigure({
     waves: waveName(wave, other),
     ...(countryName ? { country: countryName } : {}),
   }
-  // The data table: one row per pair with a correlation, named in words.
+  // The pairs as rows (the footnote reads their interval method).
   const response: EstimateResponse = {
     meta: {
       data_version: table.meta.data_version,
@@ -367,11 +367,10 @@ function TableFigure({
         strongestPair && strongest
           ? ` Strongest: ${nameOf(strongestPair.a)} with ${nameOf(strongestPair.b)}, ${formatEstimate(strongest.estimate, strongest.stat)}.`
           : ''
-      } Select a cell to see the two questions together; the data table below carries every number.`}
+      } Select a cell to see the two questions together.`}
       marks="table"
       interactive
       response={response}
-      meta={served}
       csv={{
         kind: 'client',
         onDownload: () =>
@@ -379,16 +378,6 @@ function TableFigure({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      groupLabel={(column, value) =>
-        column === 'question' || column === 'with'
-          ? withTag(nameOf(String(value)), tagOf(String(value)))
-          : undefined
-      }
-      columnName={(column) =>
-        column === 'question' ? 'Question' : column === 'with' ? 'Correlated with' : undefined
-      }
-      tableCaption={tableCaption(pooled)}
-      estimateHeader="Correlation"
       note={CORRELATES_NOTE}
     >
       <HeatTable
@@ -435,7 +424,7 @@ function TableFigure({
           return {
             text: starred(value, flagged),
             title: withCoverage(
-              `${starred(value, flagged)} · ${rowName} with ${columnName}`,
+              correlationTip(`${rowName} with ${columnName}`, correlation, flagged),
               coverageLine(correlation, served.countries.length),
             ),
             tint: divergingTint(correlation.estimate, 1),

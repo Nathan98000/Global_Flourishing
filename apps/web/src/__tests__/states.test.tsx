@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
@@ -203,18 +203,28 @@ describe('the states topology', () => {
     // (Plot sets a mark's constant stroke on its group).
     const outlined = svg?.querySelector('g[stroke-dasharray]')
     expect(outlined?.querySelectorAll('path').length).toBe(4)
-    // Tips name the state as the server does, pooled groups in full,
-    // with the interval and never the n (Plot renders tips on hover, so
-    // the text is checked through the function the mark uses).
+    // Cards name the state as the server does, a pooled member's group in
+    // full, then the value in words, its CI and its n (Plot renders tips
+    // on hover, so the text is checked through the function the mark
+    // uses).
     const { entries } = joinStates(statesResponse.rows, features)
     const tip = (name: string) =>
       stateTipText(
         entries.find((entry) => entry.name === name) as (typeof entries)[number],
         testMeta,
+        { range: { min: 0, max: 10 } },
       )
-    expect(tip('California')).toBe('7.10  California\n95% CI [7.00, 7.20]')
-    expect(tip('Maine')).toContain('Maine — Maine, New Hampshire, Rhode Island & Vermont (pooled)')
-    expect(tip('Ohio')).toBe('Ohio\nno estimate')
+    expect(tip('California').split('\n')).toEqual([
+      'California',
+      'Mean: 7.10 on a 0–10 scale',
+      'CI: [7.00, 7.20]',
+      expect.stringMatching(/^Based on \d[\d,]* people$/),
+    ])
+    expect(tip('Maine').split('\n').slice(0, 2)).toEqual([
+      'Maine',
+      'One estimate for Maine, New Hampshire, Rhode Island & Vermont (pooled)',
+    ])
+    expect(tip('Ohio')).toBe('Ohio\nNo estimate')
   })
 })
 
@@ -266,7 +276,7 @@ describe('state rows', () => {
 })
 
 describe('US States view', () => {
-  test('the map view: states on state weights beside the US overall figure on the same weight, names in the table', async () => {
+  test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
     const calls = mockFetch(tier)
     await renderAt('/states')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
@@ -295,14 +305,10 @@ describe('US States view', () => {
     expect(figure.getAttribute('aria-label')).toContain(
       'Highest: Maine, New Hampshire, Rhode Island & Vermont (pooled) 7.40',
     )
-    fireEvent.click(screen.getByText('Data table'))
-    const table = screen.getByRole('table')
-    expect(within(table).getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
-    expect(
-      within(table).getByText('Maine, New Hampshire, Rhode Island & Vermont (pooled)'),
-    ).toBeInTheDocument()
-    expect(within(table).queryByText('ME_NH_RI_VT')).toBeNull()
-    expect(within(table).getByText(/Weighted estimates \(w_state_c1\)/)).toBeInTheDocument()
+    // No data table (ADR-0022): each state's card carries its numbers.
+    expect(screen.queryByText('Data table')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryByText('ME_NH_RI_VT')).toBeNull()
   })
 
   test('the states chart is weighted by state, says so, and gives the reason a control is off', async () => {

@@ -7,7 +7,17 @@ import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { BAR_LABEL_ROOM, CrossTab, LINE, crossTabLayout, type Measurer } from '../charts/CrossTab'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
-import { TIP_OPTIONS } from '../charts/theme'
+import {
+  TIP_OPTIONS,
+  answered,
+  ciLine,
+  people,
+  sizeLine,
+  tipText,
+  valueLine,
+} from '../charts/theme'
+import { TipCardText } from '../charts/TipCard'
+import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import { chartWidth, usePlot } from '../charts/usePlot'
@@ -483,11 +493,93 @@ describe('figure copy', () => {
   })
 })
 
-describe('tooltips', () => {
-  test('every tip uses the 12px token size and the rule token as its stroke', () => {
-    expect(TIP_OPTIONS.fontSize).toBe(12)
+describe('hover cards (ADR-0022)', () => {
+  test('every card uses the 13px token size, room between lines, and the rule token as its stroke', () => {
+    expect(TIP_OPTIONS.fontSize).toBe(13)
+    expect(TIP_OPTIONS.lineHeight).toBeGreaterThan(1)
     expect(TIP_OPTIONS.stroke).toBe('var(--grid)')
     expect(TIP_OPTIONS.fontFamily).toContain('system-ui')
+  })
+
+  test('heading first, then the value said as what it is, its CI, and its sample size', () => {
+    const row = testRow({ estimate: 7.71, ci_lo: 7.66, ci_hi: 7.76, n: 1204 })
+    expect(tipText(row, 'Philippines', { range: { min: 0, max: 10 } })).toBe(
+      'Philippines\nMean: 7.71 on a 0–10 scale\nCI: [7.66, 7.76]\nBased on 1,204 people',
+    )
+    // A line under the heading places the mark.
+    expect(tipText(row, 'Indonesia', { detail: 'Age band: 30–39' }).split('\n')).toEqual([
+      'Indonesia',
+      'Age band: 30–39',
+      'Mean: 7.71',
+      'CI: [7.66, 7.76]',
+      'Based on 1,204 people',
+    ])
+    // Never "average", never a "likely range".
+    expect(tipText(row, 'Philippines')).not.toMatch(/average|likely range/i)
+  })
+
+  test('each statistic in words, its count said for what it counts', () => {
+    const share = testRow({ stat: 'proportion', estimate: 0.45, ci_lo: 0.43, ci_hi: 0.47, n: 312 })
+    expect(valueLine(share, { answer: 'Yes' })).toBe('45.0% answered “Yes”')
+    expect(valueLine(share)).toBe('45.0% of people')
+    expect(ciLine(share)).toBe('CI: [43.0%, 47.0%]')
+    // A share's n counts the people who gave its answer, not everyone asked.
+    expect(sizeLine(share)).toBe('312 people in the sample gave this answer')
+    const bin = testRow({ stat: 'distribution', estimate: 0.23, n: 1 })
+    expect(valueLine(bin, { answer: '7' })).toBe('23.0% answered 7')
+    expect(valueLine(bin, { answer: '7–8', score: true })).toBe('23.0% scored 7–8')
+    expect(sizeLine(bin)).toBe('1 person in the sample gave this answer')
+    expect(answered('Agree')).toBe('answered “Agree”')
+    const median = testRow({ stat: 'quantile', estimate: 8, ci_lo: null, ci_hi: null, n: 900 })
+    expect(valueLine(median, { range: { min: 0, max: 10 } })).toBe('Median: 8.00 on a 0–10 scale')
+    expect(sizeLine(median)).toBe('Based on 900 people')
+    // A statistic shipped without an interval gets no CI line (the
+    // footnote says so); a missing one otherwise says why.
+    expect(ciLine({ ...median, ci_method: 'none' })).toBeUndefined()
+    expect(ciLine(median)).toBe('CI: none (one sampling unit only)')
+    const change = testRow({ stat: 'change', estimate: 0.05, ci_lo: 0.03, ci_hi: 0.07, n: 1500 })
+    expect(valueLine(change)).toBe('Mean change: +0.05')
+    expect(ciLine(change)).toBe('CI: [+0.03, +0.07]')
+    expect(sizeLine(change)).toBe('Based on 1,500 people who answered both times')
+    const shareChange = testRow({
+      stat: 'change_share',
+      estimate: 0.032,
+      ci_lo: 0.01,
+      ci_hi: 0.054,
+    })
+    expect(valueLine(shareChange)).toBe('Change in share: +3.2 percentage points')
+    expect(ciLine(shareChange)).toBe('CI: [+1.0 pp, +5.4 pp]')
+    const moved = testRow({ stat: 'change_distribution', estimate: 0.2, n: 40 })
+    expect(valueLine(moved, { answer: '+2' })).toBe('20.0% changed their answer by +2')
+    expect(valueLine(moved, { answer: '0' })).toBe('20.0% gave the same answer both times')
+    expect(sizeLine(moved)).toBe('40 people in the sample answered this way')
+    const transition = testRow({ stat: 'transition', estimate: 0.3, n: 12 })
+    expect(sizeLine(transition)).toBe('12 people in the sample made this move')
+    const correlation = testRow({ stat: 'pearson_r', estimate: 0.25, n: 2310 })
+    expect(valueLine(correlation)).toBe('Correlation: +0.25')
+    expect(sizeLine(correlation)).toBe('Based on 2,310 people who answered both')
+    // No estimate: no CI, no count.
+    const none = testRow({ estimate: null })
+    expect(tipText(none, 'Ohio')).toBe('Ohio\nNo estimate')
+    expect(people(1)).toBe('1 person')
+  })
+
+  test('an HTML card sets its heading apart, one line per line', () => {
+    render(
+      <div role="tooltip">
+        <TipCardText text={'Kenya\nMean: 7.28\nCI: [7.13, 7.42]'} />
+      </div>,
+    )
+    const lines = [...screen.getByRole('tooltip').children]
+    expect(lines.map((line) => line.textContent)).toEqual([
+      'Kenya',
+      'Mean: 7.28',
+      'CI: [7.13, 7.42]',
+    ])
+    const box = document.createElement('div')
+    fillTipCard(box, 'Kenya\nMean: 7.28')
+    expect([...box.children].map((line) => line.textContent)).toEqual(['Kenya', 'Mean: 7.28'])
+    expect(box.firstElementChild?.className).toBe(lines[0]?.className)
   })
 })
 

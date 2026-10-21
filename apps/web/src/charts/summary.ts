@@ -22,6 +22,5 @@ export function summarizeExtremes(rows: EstimateRow[], meta: Meta, subject: stri
   } else {
     parts.push('No estimates to show.')
   }
-  parts.push('The data table below carries every number.')
   return parts.join(' ')
 }

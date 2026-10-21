@@ -1,5 +1,6 @@
 // Ranked countries, one series, one hue (no legend — the title names
-// it), a hover tip carrying estimate, CI and n, and a direct value label
+// it), a hover card naming the row, its value, its CI and its n
+// (theme.ts tipText, ADR-0022), and a direct value label
 // on every row (F16). Two marks by scale (F1 / ADR-0010 revised): shares
 // keep zero-based bars; 0–10 location stats (means, medians) render as
 // dot + CI on a data-fitted window whose edges are always labelled
@@ -22,6 +23,7 @@ import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
 import { ciExtents, fittedScale, measureBounds } from './domain'
 import styles from './RankedBar.module.css'
+import { fillTipCard } from './tipLines'
 import {
   BAR_RADIUS,
   FONT_FAMILY,
@@ -47,7 +49,7 @@ interface Entry {
 }
 
 /** Rows arrive already ordered (src/sortRows.ts — the same order the
- * data table renders); the chart never re-sorts. Rows are countries
+ * CSV takes); the chart never re-sorts. Rows are countries
  * unless another group column is named (the US States view's `state`,
  * whose codes are the server's own labels) or the caller labels rows
  * itself (the Correlates view: one measure per row, named from the
@@ -228,7 +230,8 @@ export function RankedBar({
   /** On a phone: each label on its own line, its value at the right, the
    * dot track under it at full width. */
   stackOnNarrow?: boolean
-  /** The tooltip, in words (default: value · CI). */
+  /** The hover card, in words (default: theme.ts tipText — the row,
+   * its value as what it is, its CI and n). */
   tipOf?: (row: EstimateRow, label: string) => string
   /** A row few people are behind: its value wears an asterisk. */
   flagOf?: (row: EstimateRow) => boolean
@@ -255,7 +258,9 @@ export function RankedBar({
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
       const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
       const tip = (entry: Entry) =>
-        tipOf ? tipOf(entry.row, entry.label) : tipText(entry.row, entry.label)
+        tipOf
+          ? tipOf(entry.row, entry.label)
+          : tipText(entry.row, entry.label, { answer: levelLabel, range: variable })
       const topLabel = reference?.atTop === true
       // A label at the top anchors toward the middle near either end of a
       // fixed window, so it never runs off the chart.
@@ -748,8 +753,8 @@ function emphasizeTurns(plot: Element): void {
 }
 
 /** The rows as real buttons over the plot, one per row across its full
- * width (label and dot alike), in row order for the keyboard; a tooltip
- * in the Plot tips' look follows hover and focus. */
+ * width (label and dot alike), in row order for the keyboard; a hover
+ * card in the Plot tips' look (TipCard.tsx) follows hover and focus. */
 function withRowButtons(
   plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
   entries: Entry[],
@@ -788,7 +793,7 @@ function withRowButtons(
     button.style.height = `${step}px`
     button.setAttribute('aria-label', nameOf ? nameOf(entry.row, entry.label) : entry.label)
     const show = () => {
-      tipBox.textContent = tip(entry)
+      fillTipCard(tipBox, tip(entry))
       tipBox.hidden = false
       const width = tipBox.offsetWidth
       const center = x.apply(entry.value ?? 0)

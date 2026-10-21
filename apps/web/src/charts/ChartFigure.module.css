@@ -1,6 +1,5 @@
 /* The chart block (§5): no card — a hairline rule and space separate it
-   from the controls; only the expanded data table keeps a bordered
-   surface. */
+   from the controls. */
 .figure {
   position: relative;
   margin: 0;
@@ -88,24 +87,6 @@
 .chart[data-refreshing] {
   opacity: 0.5;
   transition: opacity 0.15s;
-}
-
-.details {
-  margin-top: var(--space-4);
-  font-size: var(--text-sm);
-}
-
-.details summary {
-  color: var(--ink-secondary);
-  cursor: pointer;
-}
-
-/* The one bordered surface left in the chart block (§5). */
-.details[open] {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-4);
 }
 
 .provenance {

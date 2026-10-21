@@ -1,0 +1,11 @@
+/* A hover card's lines (TipCard.tsx): the heading in ink at 600, then
+   one block per line in the box's secondary ink. */
+.heading,
+.line {
+  display: block;
+}
+
+.heading {
+  color: var(--ink);
+  font-weight: 600;
+}
