@@ -138,6 +138,32 @@
   color: var(--ink);
 }
 
+/* What Matters (ADR-0026): a column's label, or the corner, is the
+   button that sorts by it — the header's own look, underlined on hover,
+   the focus ring for the keyboard. */
+.sortButton {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sortButton:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 /* Left, over the row labels (it outranks `.table th`'s right). */
 .table .corner {
   text-align: left;

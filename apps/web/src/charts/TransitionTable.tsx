@@ -112,6 +112,20 @@ function AxisLabel({ axis }: { axis: HeatAxis }) {
   )
 }
 
+/** The `sort` column that stands for the rows' own labels (the matrix
+ * ordered by its row names): the corner header wears its arrow. */
+export const ROW_LABELS = ':rows'
+
+/** ▼ for a descending sort, ▲ for an ascending one. */
+function SortArrow({ dir }: { dir: SortDir | undefined }) {
+  if (!dir) return null
+  return <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
+}
+
+function ariaSort(dir: SortDir | undefined): 'descending' | 'ascending' | undefined {
+  return dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
+}
+
 /** A fixed-width column's side padding (--space-2 in
  * TransitionTable.module.css): a caller sizing columns to their labels
  * adds it twice to the text width. */
@@ -158,7 +172,10 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * an "N more →" button say so — the button pages the box sideways. With
  * `columnWidth` every column takes that width and its header wraps over
  * it; without, columns fit their labels on one line. A `sort` column
- * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. A
+ * (or the corner, for the rows' own labels — `ROW_LABELS`) wears ▼ or ▲
+ * and aria-sort, and a new sort brings it into view; with `onSort`, the
+ * corner and every column label are buttons that ask for that sort
+ * (What Matters, ADR-0026). A
  * `highlight` column (the chosen country, pinned first) wears a marked
  * header and an outline. `wide`: from 1200px the matrix leaves the text
  * column — centred on it, up to 1216px — and its column headers stand
@@ -174,6 +191,7 @@ export function HeatTable({
   cellAt,
   columnWidth,
   sort,
+  onSort,
   highlight,
   wide = false,
   rowsWrap = false,
@@ -188,8 +206,12 @@ export function HeatTable({
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
   /** One width (px) for every column, headers wrapping to fit it. */
   columnWidth?: number
-  /** The column the rows are ordered by, and which way. */
+  /** The column the rows are ordered by (`ROW_LABELS`: their own
+   * labels), and which way. */
   sort?: { column: string; dir: SortDir }
+  /** The labels are sort buttons: a column's key, or `ROW_LABELS` for
+   * the corner. */
+  onSort?: (column: string) => void
   /** The key of a column to mark: a highlighted header, an outline. */
   highlight?: string
   /** From 1200px: out of the text column, up to 1216px, upright headers. */
@@ -320,8 +342,23 @@ export function HeatTable({
             <thead>
               <tr>
                 {corner ? (
-                  <th scope="col" className={styles.corner}>
-                    <span className={styles.axis}>{corner}</span>
+                  <th
+                    scope="col"
+                    className={styles.corner}
+                    aria-sort={ariaSort(sort?.column === ROW_LABELS ? sort.dir : undefined)}
+                  >
+                    {onSort ? (
+                      <button
+                        type="button"
+                        className={styles.sortButton}
+                        onClick={() => onSort(ROW_LABELS)}
+                      >
+                        <span className={styles.axis}>{corner}</span>
+                        <SortArrow dir={sort?.column === ROW_LABELS ? sort.dir : undefined} />
+                      </button>
+                    ) : (
+                      <span className={styles.axis}>{corner}</span>
+                    )}
                   </th>
                 ) : (
                   <td className={`${styles.corner} ${styles.cornerBlank}`} aria-hidden="true" />
@@ -332,9 +369,7 @@ export function HeatTable({
                     <th
                       key={column.key}
                       scope="col"
-                      aria-sort={
-                        dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
-                      }
+                      aria-sort={ariaSort(dir)}
                       aria-label={column.title}
                       data-highlight={column.key === highlight || undefined}
                       onPointerEnter={
@@ -357,12 +392,21 @@ export function HeatTable({
                           : undefined
                       }
                     >
-                      <span className={styles.head}>
-                        <AxisLabel axis={column} />
-                        {dir && (
-                          <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
-                        )}
-                      </span>
+                      {onSort ? (
+                        <button
+                          type="button"
+                          className={`${styles.head} ${styles.sortButton}`}
+                          onClick={() => onSort(column.key)}
+                        >
+                          <AxisLabel axis={column} />
+                          <SortArrow dir={dir} />
+                        </button>
+                      ) : (
+                        <span className={styles.head}>
+                          <AxisLabel axis={column} />
+                          <SortArrow dir={dir} />
+                        </span>
+                      )}
                     </th>
                   )
                 })}

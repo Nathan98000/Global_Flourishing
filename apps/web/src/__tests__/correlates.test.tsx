@@ -31,7 +31,7 @@ import {
   tipText,
 } from '../charts/theme'
 import { RankedBar, wrapLabel } from '../charts/RankedBar'
-import { HEAT_CELL_PAD, HeatTable, columnsPastEdge } from '../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, columnsPastEdge } from '../charts/TransitionTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
@@ -2083,6 +2083,35 @@ describe('correlates helpers', () => {
     expect(formatEstimate(-0.52, 'pearson_r')).toBe('−0.52')
     expect(formatEstimate(0.3, 'beta')).toBe('+0.30')
     expect(formatEstimate(0, 'spearman_r')).toBe('0.00')
+  })
+
+  test('HeatTable labels are sort buttons only when asked, the corner for the rows', () => {
+    const rows = [{ key: 'a', label: 'Alpha' }]
+    const columns = FOUR_COLUMNS.slice(0, 2)
+    const cellAt = () => ({ text: '1.00', title: 'tip', tint: 'var(--seq-100)' })
+    const { unmount } = render(
+      <HeatTable caption="c" corner="Rows" rows={rows} columns={columns} cellAt={cellAt} />,
+    )
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    unmount()
+    const onSort = vi.fn()
+    render(
+      <HeatTable
+        caption="c"
+        corner="Rows"
+        rows={rows}
+        columns={columns}
+        cellAt={cellAt}
+        sort={{ column: ROW_LABELS, dir: 'desc' }}
+        onSort={onSort}
+      />,
+    )
+    const corner = screen.getByRole('columnheader', { name: /Rows/ })
+    expect(corner).toHaveAttribute('aria-sort', 'descending')
+    expect(corner.textContent).toBe('Rows\u00a0▼')
+    fireEvent.click(screen.getByRole('button', { name: /^Rows/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'X' }))
+    expect(onSort.mock.calls).toEqual([[ROW_LABELS], ['x']])
   })
 
   test('HeatTable renders an em dash for a missing cell and the hidden n for a present one', () => {

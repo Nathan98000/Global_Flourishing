@@ -31,3 +31,4 @@ it.
 | [ADR-0023](ADR-0023-light-theme-only.md) | One light theme: the dark theme, its toggle and the OS-preference switch removed | Accepted |
 | [ADR-0024](ADR-0024-no-footnote-ci-level-in-cards.md) | No line under the charts (the footnote and the Correlates note removed); the card's interval reads `95% CI: [X, Y]` | Accepted |
 | [ADR-0025](ADR-0025-answer-distributions-on-the-atlas.md) | Every answer's share on the Atlas: a categorical question's Distribution as stacked bars, served from its share file | Accepted |
+| [ADR-0026](ADR-0026-what-matters-sorted-from-headers.md) | What Matters sorted from its column labels (the corner for country names; again to reverse); its sort drop-down and Order buttons removed | Accepted |

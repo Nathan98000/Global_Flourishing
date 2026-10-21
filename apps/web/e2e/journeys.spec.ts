@@ -336,11 +336,21 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
     caption(page).getByText('What matters most, by country', { exact: true }),
   ).toBeVisible()
   await expect(caption(page).getByText(/Midyear survey, Nov 2023–Dec 2024/)).toBeVisible()
-  const matrix = page.getByRole('img', {
+  const matrix = page.getByRole('group', {
     name: /How important people rate 1 item in each of 2 countries, as a matrix/,
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
+  // Its labels sort it (ADR-0026): no drop-down, no order buttons; the
+  // same label twice reverses the order.
+  await expect(page.getByLabel(/Sort countries by/)).toHaveCount(0)
+  const item = matrix.locator('thead th').nth(1).getByRole('button')
+  await item.click()
+  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+$/)
+  await item.click()
+  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+&dir=asc$/)
+  await matrix.getByRole('button', { name: /^Country/ }).click()
+  await expect(page).toHaveURL(/\/what-matters$/)
   await expect(page.locator('figure')).toHaveCount(1)
   // A switcher, not anchors; the crossings section is gone.
   await expect(page.getByRole('navigation', { name: 'On this page' })).toHaveCount(0)

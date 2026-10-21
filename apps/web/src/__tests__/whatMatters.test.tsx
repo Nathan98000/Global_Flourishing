@@ -389,8 +389,9 @@ describe('the midyear family from the catalog', () => {
 describe('What Matters view', () => {
   test('the ranking by country as one matrix, alone on screen under the view switcher — no jargon', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/what-matters')
-    const ranking = await screen.findByRole('img', {
+    const router = await renderAt('/what-matters')
+    // A labelled group, not an image: its labels are sort buttons (ADR-0026).
+    const ranking = await screen.findByRole('group', {
       name: /How important people rate 2 items in each of 2 countries, as a matrix: a row per country, a column per item, Midyear/,
     })
     // One matrix: a row per country, a column per item (catalog order),
@@ -400,7 +401,7 @@ describe('What Matters view', () => {
       within(matrix)
         .getAllByRole('columnheader')
         .map((th) => th.textContent),
-    ).toEqual(['Country ↓ · what matters →', 'Money', 'Good relationships'])
+    ).toEqual(['Country\u00a0▲', 'Money', 'Good relationships'])
     // One width for every column, the labels wrapping over it; the scale
     // is said once, in the subtitle.
     expect(matrix).toHaveAttribute('data-fixed')
@@ -455,16 +456,30 @@ describe('What Matters view', () => {
     expect(ranking.innerHTML).not.toMatch(/--seq-[89]00/)
     expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
     expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
-    // The sort control, always in view: country name or one of the items.
-    const sort = screen.getByLabelText(/^Sort countries by/) as HTMLSelectElement
-    expect([...sort.options].map((option) => option.textContent)).toEqual([
-      'Country name',
-      'Money',
-      'Good relationships',
-    ])
-    expect(screen.queryByText(/Options — sort/)).toBeNull()
-    // Sorted by name, no item column is marked.
-    expect(within(matrix).queryByText(/[▼▲]/)).toBeNull()
+    // No sort drop-down or order buttons: the labels sort (ADR-0026).
+    expect(screen.queryByLabelText(/^Sort countries by/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
+    // Sorted by name: the corner wears the arrow, no item column is marked.
+    const [corner, ...items] = within(matrix).getAllByRole('columnheader')
+    expect(corner).toHaveAttribute('aria-sort', 'ascending')
+    for (const item of items) expect(item).not.toHaveAttribute('aria-sort')
+    // An item's label sorts by it, high first; again, low first; the
+    // corner goes back to the names, and again reverses them.
+    const money = within(matrix).getByRole('button', { name: /^Money/ })
+    fireEvent.click(money)
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Money/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY&dir=asc'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?dir=desc'))
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['United States', 'Testland'])
+    expect(screen.getByText(/Select a column’s label to sort by it/)).toBeInTheDocument()
     // One switcher under the lede picks the view; the section headings
     // and the "On this page" anchors are gone.
     const views = screen.getByRole('group', { name: 'View' })
@@ -499,10 +514,6 @@ describe('What Matters view', () => {
       ),
     ).toBeInTheDocument()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(/standalone|combined|administ/i)
-    // Every select sits under its label, as RadioRow's legend does.
-    const sortField = sort.closest('label') as HTMLElement
-    expect(sortField.className).toContain('field')
-    expect(sortField.firstElementChild?.textContent).toBe('Sort countries by')
   })
 
   test('Other questions: the first chartable item alone, with its answer levels from the codebook', async () => {
@@ -537,7 +548,9 @@ describe('What Matters view', () => {
     const router = await renderAt('/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY')
     await screen.findByRole('img', { name: /share answering “More than an hour”/ })
     fireEvent.click(screen.getByRole('radio', { name: 'By country' }))
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     expect(
       within(within(ranking).getByRole('table'))
         .getAllByRole('rowheader')
@@ -556,7 +569,9 @@ describe('What Matters view', () => {
   test('sorting by an item reorders the rows, high to low, and marks its column', async () => {
     mockFetch(tier)
     await renderAt('/what-matters?sort=MONEY')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const matrix = within(ranking).getByRole('table')
     expect(
       within(matrix)
@@ -584,7 +599,9 @@ describe('What Matters view', () => {
     )
     mockFetch(tier)
     await renderAt('/what-matters')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const cells = within(within(ranking).getByRole('table')).getAllByRole('cell')
     const [, second, third] = cells as HTMLElement[]
     const touch = { pointerType: 'touch' }
@@ -609,7 +626,9 @@ describe('What Matters view', () => {
   test('low to high flips the marker', async () => {
     mockFetch(tier)
     await renderAt('/what-matters?sort=MONEY&dir=asc')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const matrix = within(ranking).getByRole('table')
     expect(
       within(matrix)

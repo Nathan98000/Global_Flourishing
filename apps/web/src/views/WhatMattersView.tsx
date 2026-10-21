@@ -19,7 +19,7 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
 import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
-import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, headerFont } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -155,6 +155,13 @@ export function WhatMattersView() {
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
+  }
+  // A column's label sorts the countries by it (the corner: by name); the
+  // same label again reverses the order (ADR-0026).
+  const sortMatrix = (column: string) => {
+    const next = column === ROW_LABELS ? 'name' : column
+    if (next === matrixSort) setSearch({ dir: dir === 'asc' ? 'desc' : 'asc' })
+    else setSearch({ sort: next, dir: undefined })
   }
 
   // An old link's anchor (#within-country) selects its view; the hash
@@ -358,27 +365,6 @@ export function WhatMattersView() {
 
       {search.view === 'country' && ranking.length > 0 && (
         <>
-          <div className={styles.controls}>
-            <SelectField
-              label="Sort countries by"
-              value={matrixSort}
-              onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
-            >
-              <option value="name">Country name</option>
-              {ranking.map((entry) => (
-                <option key={entry.name} value={entry.name}>
-                  {itemLabel(entry)}
-                </option>
-              ))}
-            </SelectField>
-            <RadioRow
-              legend="Order"
-              name="dir"
-              options={sortKey === 'name' ? NAME_ORDER : VALUE_ORDER}
-              value={dir}
-              onChange={(value) => setSearch({ dir: value })}
-            />
-          </div>
           {rankingQuery.isPending ? (
             <LoadingBlock height={720} label="Loading estimates" />
           ) : rankingQuery.isError ? (
@@ -387,6 +373,7 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
+              interactive
               ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`}
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
@@ -397,11 +384,15 @@ export function WhatMattersView() {
                 items={ranking}
                 rowColumn="country_code"
                 rowOrder={countryOrder}
-                corner="Country ↓ · what matters →"
+                corner="Country"
                 served={served}
                 columnWidth={columnWidth}
-                sort={matrixSort === 'name' ? undefined : { column: matrixSort, dir }}
+                sort={{ column: matrixSort === 'name' ? ROW_LABELS : matrixSort, dir }}
+                onSort={sortMatrix}
               />
+              <p className={styles.hint}>
+                Select a column&rsquo;s label to sort by it, and again to reverse the order.
+              </p>
             </ChartFigure>
           )}
         </>
@@ -624,6 +615,7 @@ function ImportanceMatrix({
   served,
   columnWidth,
   sort,
+  onSort,
 }: {
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
@@ -633,8 +625,11 @@ function ImportanceMatrix({
   corner: string
   served: Meta
   columnWidth: number
-  /** The item the rows are ordered by (none: the rows' own order). */
+  /** The item the rows are ordered by (`ROW_LABELS`: their names; none:
+   * the rows' own order). */
   sort?: { column: string; dir: SortDir }
+  /** The labels are sort buttons (the By country matrix). */
+  onSort?: (column: string) => void
 }) {
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
@@ -657,6 +652,7 @@ function ImportanceMatrix({
       columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
       columnWidth={columnWidth}
       sort={sort}
+      onSort={onSort}
       cellAt={(row, column) => {
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined
