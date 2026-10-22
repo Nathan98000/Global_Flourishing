@@ -534,6 +534,28 @@ describe('What Matters view', () => {
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
   })
 
+  test('within a country with no split: its items as one list, most important first', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/what-matters?view=within&by=none')
+    const list = await screen.findByRole('img', {
+      name: /^United States: how important people rate 2 items, most important first/,
+    })
+    expect(list.getAttribute('aria-label')).toContain(
+      'Most important: Good relationships 8.00; least: Money 7.00.',
+    )
+    // The rows top to bottom, by value: the items' labels, high first.
+    const labels = [...list.querySelectorAll('svg [aria-label="y-axis tick label"] text')].map(
+      (text) => text.textContent,
+    )
+    expect(labels).toEqual(['Good relationships', 'Money'])
+    expect(screen.getByText('United States: what matters most')).toBeInTheDocument()
+    expect((screen.getByLabelText(/^Split by/) as HTMLSelectElement).value).toBe('none')
+    // The by-country files answer it; no split is fetched.
+    expect(calls.filter((url) => url.includes('/MY/mean_by-country_code.json')).length).toBe(2)
+    expect(calls.filter((url) => url.includes('age_band'))).toEqual([])
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
+  })
+
   test('an old anchor link opens its view and drops the hash', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters#other-questions')

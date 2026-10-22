@@ -88,6 +88,17 @@ export function rankingRows(
   return rows
 }
 
+/** One country's items as a list, most important first ("Within a
+ * country" with no split): by estimate, high to low; an item without one
+ * goes last. Ties keep the columns' order. */
+export function rankItems(rows: readonly EstimateRow[]): EstimateRow[] {
+  return [...rows].sort((a, b) =>
+    a.estimate === null || b.estimate === null
+      ? Number(a.estimate === null) - Number(b.estimate === null)
+      : b.estimate - a.estimate,
+  )
+}
+
 /** Country codes in the matrix's order: A–Z by name (`sort = 'name'`),
  * or by one item's estimate (`sort` = that item's code), countries
  * without an estimate for it last either way. */

@@ -467,6 +467,8 @@ export interface WhatMattersSearch {
   /** The country whose ranking is split by `by`; absent = the United
    * States (else the first country A–Z), resolved from meta. */
   country?: number
+  /** The demographic column the country's ranking is split by, or
+   * NO_SPLIT: the country's items as one list, most important first. */
   by: string
   /** A chartable (non-ranking) midyear item to show by country. */
   item?: string
@@ -483,6 +485,9 @@ export interface WhatMattersSearch {
   invalid?: string[]
   invalidRaw?: RawParams
 }
+
+/** "Within a country" without a split: the country's own ranking. */
+export const NO_SPLIT = 'none'
 
 export const WHAT_MATTERS_DEFAULTS = {
   view: 'country' as const,

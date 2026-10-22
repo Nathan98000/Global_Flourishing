@@ -1,7 +1,8 @@
 // What Matters (Phase 5): the midyear survey — what people said mattered
 // most, as one matrix of countries × the seven importance items (the
-// tinted-table component the Correlates view uses); how that ranking
-// shifts within one country by age band (or another demographic); and
+// tinted-table component the Correlates view uses); one country's
+// ranking as a list, or how it shifts there by age band (or another
+// demographic); and
 // the family's other questions, chartable one at a time. One of the
 // three is on screen at a time (`view`, owner decision 25 Sept 2026):
 // the others mount nothing and fetch nothing. The item list comes from
@@ -33,6 +34,7 @@ import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitl
 import { defaultDir, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
+  NO_SPLIT,
   whatMattersRequest,
   whatMattersSearchParams,
   type WhatMattersSearch,
@@ -48,6 +50,7 @@ import {
   matrixCountryOrder,
   narrowestWrap,
   orderMatrixRows,
+  rankItems,
   rankingRows,
   splitGroupOrder,
 } from './whatMattersRows'
@@ -174,19 +177,25 @@ export function WhatMattersView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hash])
 
-  // 1. The ranking by country: one midyear cross-section per item.
+  // 1. The ranking by country: one midyear cross-section per item —
+  // also one country's own list, "Within a country" with no split.
+  const noSplit = search.by === NO_SPLIT
   const rankingRequests = useMemo(
     () => ranking.map((item) => whatMattersRequest(item.name, item)),
     [ranking],
   )
-  const rankingQuery = useEstimatesMany(rankingRequests, { enabled: search.view === 'country' })
+  const rankingQuery = useEstimatesMany(rankingRequests, {
+    enabled: search.view === 'country' || (search.view === 'within' && noSplit),
+  })
   // 2. The same seven items split by a demographic; one country's rows
   // are kept (the United States until another is chosen).
   const splitRequests = useMemo(
     () => ranking.map((item) => whatMattersRequest(item.name, item, search.by)),
     [ranking, search.by],
   )
-  const splitQuery = useEstimatesMany(splitRequests, { enabled: search.view === 'within' })
+  const splitQuery = useEstimatesMany(splitRequests, {
+    enabled: search.view === 'within' && !noSplit,
+  })
   // 3. One chartable item by country.
   const item: VariableSummary | undefined =
     (search.item !== undefined ? byName[search.item] : undefined) ?? chartable[0]
@@ -222,6 +231,18 @@ export function WhatMattersView() {
         splitCountry !== undefined ? [splitCountry] : [],
       ),
     [splitQuery.results, ranking, splitCountry],
+  )
+  // No split: the country's items, most important first.
+  const countryItems = useMemo(
+    () =>
+      rankItems(
+        rankingRows(
+          rankingQuery.results.map((result) => result?.response),
+          ranking,
+          splitCountry !== undefined ? [splitCountry] : [],
+        ),
+      ),
+    [rankingQuery.results, ranking, splitCountry],
   )
   const splitGroups = useMemo(
     () => (metaData ? splitGroupOrder(splitAll, search.by, metaData) : []),
@@ -262,6 +283,11 @@ export function WhatMattersView() {
   const demographics = served.breakdowns.filter((column) => column !== 'country_code')
   const countryName = (code: number) => groupValueLabel('country_code', code, served)
   const splitLabel = columnLabel(search.by, served)
+  const itemOf = new Map(ranking.map((entry) => [entry.name, entry]))
+  const itemName = (row: EstimateRow) => {
+    const entry = itemOf.get(String(row.group['outcome']))
+    return entry ? itemLabel(entry) : String(row.group['outcome'])
+  }
   const first = ranking[0]
   // The scale, said once (the columns drop "Importance:").
   const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
@@ -293,6 +319,24 @@ export function WhatMattersView() {
     ranking.map((entry) => entry.name).join(','),
     ['outcome', 'country_code'],
   )
+  const countryItemsName: ExportName = {
+    ...rankingName,
+    ...(splitCountry !== undefined ? { country: countryName(splitCountry) } : {}),
+  }
+  const countryItemsResponse = withMeta(
+    countryItems,
+    rankingQuery.results[0]?.response,
+    served,
+    ranking.map((entry) => entry.name).join(','),
+    ['outcome', 'country_code'],
+  )
+  const countryItemsValid = countryItems.filter((row) => row.estimate !== null)
+  const mostImportant = countryItemsValid[0]
+  const leastImportant = countryItemsValid[countryItemsValid.length - 1]
+  const countryItemsSummary =
+    mostImportant && leastImportant
+      ? ` Most important: ${itemName(mostImportant)} ${formatEstimate(mostImportant.estimate, mostImportant.stat)}; least: ${itemName(leastImportant)} ${formatEstimate(leastImportant.estimate, leastImportant.stat)}.`
+      : ' No estimates to show.'
   const splitResponse = withMeta(
     splitOrdered,
     splitQuery.results[0]?.response,
@@ -422,6 +466,7 @@ export function WhatMattersView() {
               value={search.by}
               onChange={(event) => setSearch({ by: event.target.value })}
             >
+              <option value={NO_SPLIT}>No split</option>
               {demographics.map((column) => (
                 <option key={column} value={column}>
                   {columnLabel(column, served)}
@@ -429,7 +474,35 @@ export function WhatMattersView() {
               ))}
             </SelectField>
           </div>
-          {splitQuery.isPending ? (
+          {noSplit ? (
+            rankingQuery.isPending ? (
+              <LoadingBlock height={360} label="Loading estimates" />
+            ) : rankingQuery.isError ? (
+              offline(rankingQuery.error)
+            ) : (
+              splitCountry !== undefined &&
+              first && (
+                <ChartFigure
+                  title={`${countryName(splitCountry)}: what matters most`}
+                  subtitle={rankingSubtitle}
+                  ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, most important first, ${MIDYEAR_TITLE}.${countryItemsSummary}`}
+                  csv={csvFor(countryItemsResponse, countryItemsName)}
+                  exportName={countryItemsName}
+                  isRefreshing={rankingQuery.isPlaceholderData}
+                >
+                  <RankedBar
+                    rows={countryItems}
+                    meta={served}
+                    responseMeta={countryItemsResponse.meta}
+                    variable={first}
+                    color={outcomeColor(first.name)}
+                    labelOf={itemName}
+                    fitLabels
+                  />
+                </ChartFigure>
+              )
+            )
+          ) : splitQuery.isPending ? (
             <LoadingBlock height={520} label="Loading estimates" />
           ) : splitQuery.isError ? (
             offline(splitQuery.error)

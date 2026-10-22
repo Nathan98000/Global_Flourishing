@@ -383,6 +383,18 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await page.getByLabel('Split by').selectOption('gender')
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
+  // No split: the country's items as one list, most important first.
+  await page.getByLabel('Split by').selectOption('none')
+  await expect(page).toHaveURL(/view=within&by=none$/)
+  await expect(
+    page.getByRole('img', {
+      name: /^United States: how important people rate 1 item, most important first/,
+    }),
+  ).toBeVisible()
+  await expect(
+    caption(page).getByText('United States: what matters most', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('figure')).toHaveCount(1)
 
   // Other questions: one question's bar chart, alone on screen — the
   // synthetic family's one chartable item, Daily social media time.
