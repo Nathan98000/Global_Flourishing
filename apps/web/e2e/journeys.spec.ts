@@ -1019,7 +1019,7 @@ function sideways(page: Page): Promise<number> {
   )
 }
 
-test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too, the options sheet open; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too, the options sheet open; the nav keeps one row where its items fit — all seven on a tablet — and "More" opens inside the page', async ({
   page,
 }) => {
   // Thirty-two page loads, "More" (and the options sheet) opened on each:
@@ -1033,6 +1033,21 @@ test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook
   const nav = page.getByRole('navigation', { name: 'Main' })
   const panel = nav.locator('details > div')
   const column = page.locator('main')
+
+  // A tablet held upright shows all seven pages on one row; a phone folds
+  // three into "More" (F8).
+  await page.setViewportSize({ width: 768, height: 1024 })
+  await page.goto('/')
+  await expect(nav.getByRole('link')).toHaveCount(7)
+  await expect(nav.getByText('More', { exact: true })).toHaveCount(0)
+  const tabletRows = new Set(
+    (await Promise.all((await nav.getByRole('link').all()).map((link) => link.boundingBox()))).map(
+      (box) => Math.round(box!.y),
+    ),
+  )
+  softly(tabletRows.size, 'rows of nav at 768 px').toBe(1)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(nav.getByText('More', { exact: true })).toBeVisible()
 
   for (const { path, rendered } of PHONE_PAGES) {
     for (const font of PHONE_FONTS) {

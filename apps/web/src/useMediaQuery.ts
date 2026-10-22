@@ -21,8 +21,9 @@ export function useMediaQuery(query: string): boolean {
 
 /** The fold breakpoint (§8): below this, display options collapse. */
 export const NARROW_VIEWPORT = '(max-width: 40rem)'
-/** Below this the nav's secondary items fold into "More" — the same
- * width at which the nav takes its own row, so no link ever wraps. */
+/** Below this the nav takes its own row under the brand, where its
+ * secondary items fold into "More" only if the seven don't fit that row
+ * (measured — F8); and Methods folds its contents above the prose. */
 export const NAV_FOLD_VIEWPORT = '(max-width: 50rem)'
 /** Below this, long segmented groups become native selects (§8). */
 export const SELECT_VIEWPORT = '(max-width: 30rem)'

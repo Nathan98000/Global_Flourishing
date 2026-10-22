@@ -13,6 +13,7 @@
 }
 
 .header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4) var(--space-5);
@@ -90,6 +91,31 @@
   .nav > a {
     margin-right: 2px;
   }
+}
+
+/* The seven links in the nav row's own type (padding, size, spacing),
+   out of sight: AppShell measures them against the header to decide
+   whether the row holds them all (F8). */
+.navMeasure {
+  /* No size of its own, so it never widens the page; its scrollWidth
+     is the links' width all the same. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  display: flex;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}
+
+.navMeasure > span {
+  flex: none;
+  padding: 0 var(--space-1);
 }
 
 /* The stretch after each link on a phone: up to the rest of --space-3.
