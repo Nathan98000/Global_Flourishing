@@ -26,8 +26,8 @@ import {
   THIN_LINE,
   isThin,
   outcomeColor,
-  quantizeSequential,
   starValue,
+  thinKey,
   tipText,
 } from '../charts/theme'
 import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
@@ -59,7 +59,7 @@ import {
   defaultSplitCountry,
   itemLabel,
   matrixCountryOrder,
-  matrixRange,
+  matrixSteps,
   narrowestWrap,
   orderMatrixRows,
   rankItems,
@@ -684,21 +684,43 @@ function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** The matrix's key, in its caption's place: the seven ramp steps from
- * the lowest to the highest number in the matrix — the tokens
- * themselves, one range for every column (ADR-0030). */
-function TintLegend({ range }: { range: [number, number] | undefined }) {
-  const [lo, hi] = range ?? [undefined, undefined]
+/** The matrix's key, in its caption's place: the seven ramp steps, the
+ * tokens themselves, with the number where each begins under it — equal
+ * counts of cells, one scale for every column (ADR-0031). */
+function TintLegend({
+  steps,
+  thinBelow,
+}: {
+  steps: Pick<NonNullable<ReturnType<typeof matrixSteps>>, 'lo' | 'hi' | 'cuts'> | undefined
+  thinBelow?: number
+}) {
+  const edges = steps ? [steps.lo, ...steps.cuts, steps.hi] : []
   return (
     <span className={styles.legend}>
       <span className={styles.legendKey}>
-        Lower{lo !== undefined ? ` (${formatEstimate(lo, 'mean')})` : ''}{' '}
-        <span className={styles.ramp} aria-hidden="true">
-          {SEQUENTIAL_RAMP.map((token) => (
-            <span key={token} style={{ background: token }} />
-          ))}
-        </span>{' '}
-        Higher{hi !== undefined ? ` (${formatEstimate(hi, 'mean')})` : ''}
+        Lower
+        <span className={styles.stepKey} aria-hidden="true">
+          <span className={styles.ramp}>
+            {SEQUENTIAL_RAMP.map((token) => (
+              <span key={token} style={{ background: token }} />
+            ))}
+          </span>
+          <span className={styles.stepTicks}>
+            {edges.map((edge, index) => (
+              <span key={index}>{edge.toFixed(1)}</span>
+            ))}
+          </span>
+        </span>
+        Higher
+      </span>{' '}
+      <span className={styles.legendNote}>
+        — each shade about a seventh of the cells
+        {steps && (
+          <span className="visually-hidden">
+            , from {steps.lo.toFixed(1)} to {steps.hi.toFixed(1)}
+          </span>
+        )}
+        {thinBelow !== undefined && ` · * ${thinKey(thinBelow)}`}
       </span>
     </span>
   )
@@ -743,11 +765,12 @@ function ImportanceMatrix({
   // One scale for the whole matrix, over the rows on screen (F2): a
   // shade is the same number in every column.
   const shown = new Set<unknown>(rowOrder)
-  const range = matrixRange(rows.filter((row) => shown.has(row.group[rowColumn])))
-  const tint = range ? quantizeSequential(range) : undefined
+  const onScreen = rows.filter((row) => shown.has(row.group[rowColumn]))
+  const steps = matrixSteps(onScreen)
+  const tint = steps ? (value: number) => SEQUENTIAL_RAMP[steps.step(value)] as string : undefined
   return (
     <HeatTable
-      caption={<TintLegend range={range} />}
+      caption={<TintLegend steps={steps} thinBelow={keyThinBelow(onScreen, served.suppression)} />}
       corner={corner}
       rows={rowOrder.map((value) => ({
         key: String(value),

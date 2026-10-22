@@ -18,7 +18,7 @@ import {
   defaultSplitCountry,
   itemLabel,
   matrixCountryOrder,
-  matrixRange,
+  matrixSteps,
   narrowestWrap,
   orderMatrixRows,
   rankingRows,
@@ -305,31 +305,40 @@ describe('the midyear family from the catalog', () => {
     expect(defaultSplitCountry({ countries: [] })).toBeUndefined()
   })
 
-  test('the whole matrix is tinted on one range, never narrower than a point (F2)', () => {
+  test('the whole matrix is shaded in equal-count steps, by rank (ADR-0031)', () => {
     const at = (outcome: string, code: number, estimate: number | null) => ({
       ...testRow({ group: { outcome, country_code: code }, estimate }),
     })
-    // Every cell's estimate, whatever its column: 5 to 9.
+    // Fourteen cells over two columns, a long low tail (as Sweden's 2.76
+    // in religious life): equal steps would bury the rest in the darkest.
+    const rows = [
+      at('REL_LIFE', 1, 2.76),
+      at('REL_LIFE', 2, 4),
+      ...[8.6, 8.7, 8.8, 8.9, 9, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6].map((value, index) =>
+        at('GOOD_PERSON', index + 3, value),
+      ),
+      at('GOOD_PERSON', 20, null),
+    ]
+    const steps = matrixSteps(rows)!
+    expect(steps.lo).toBe(2.76)
+    expect(steps.hi).toBe(9.6)
+    const shades = [2.76, 4, 8.6, 8.7, 8.8, 8.9, 9, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6].map(steps.step)
+    // The lowest the lightest, the highest the deepest, every shade used,
+    // about two cells each.
+    expect(shades[0]).toBe(0)
+    expect(shades[shades.length - 1]).toBe(6)
+    expect(new Set(shades).size).toBe(7)
+    for (let shade = 0; shade < 7; shade += 1) {
+      expect(shades.filter((value) => value === shade).length).toBeLessThanOrEqual(3)
+    }
+    // Ties share a shade; the key's cuts are where each step begins.
+    expect(steps.step(9)).toBe(steps.step(9))
+    expect(steps.cuts).toHaveLength(6)
     expect(
-      matrixRange([
-        at('GOOD_RELATION', 1, 6),
-        at('GOOD_RELATION', 2, 9),
-        at('GOOD_RELATION', 3, null),
-        at('MONEY', 1, 7.46),
-        at('MEANINGFUL', 1, 5),
-        at('REL_LIFE', 1, null),
-      ]),
-    ).toEqual([5, 9])
-    // A near-flat matrix (US money by age runs 7.46–7.66) widens to one
-    // point about its midpoint instead of spanning the whole ramp.
-    const [lo, hi] = matrixRange([at('MONEY', 1, 7.46), at('MONEY', 2, 7.66)]) ?? [0, 0]
-    expect(lo).toBeCloseTo(7.06)
-    expect(hi).toBeCloseTo(8.06)
-    // No estimate: no range (the cells are untinted).
-    expect(matrixRange([at('REL_LIFE', 1, null)])).toBeUndefined()
-    // Exactly a point wide is wide enough; a wider minimum can be asked for.
-    expect(matrixRange([at('MONEY', 1, 6), at('MONEY', 2, 7)])).toEqual([6, 7])
-    expect(matrixRange([at('MONEY', 1, 6), at('MONEY', 2, 7)], 2)).toEqual([5.5, 7.5])
+      steps.cuts.every((cut, index) => index === 0 || cut >= (steps.cuts[index - 1] ?? 0)),
+    ).toBe(true)
+    // No estimate: no steps (the cells are untinted).
+    expect(matrixSteps([at('REL_LIFE', 1, null)])).toBeUndefined()
   })
 
   test('a ramp tint names its ink; the accent tints and "no cell" keep the page ink', () => {
@@ -438,11 +447,13 @@ describe('What Matters view', () => {
     expect(style(1)).toContain('color: var(--seq-700-ink)')
     expect(style(2)).toContain('color: var(--seq-100-ink)')
     // A legend replaces the caption: the seven ramp tokens, lower to
-    // higher (the tokens themselves), with the range's two ends — one key.
+    // higher (the tokens themselves), the number where each step begins
+    // under it, and what a shade holds — one key (ADR-0031).
     const legend = within(ranking)
       .getByText(/^Lower/)
       .closest('span')?.parentElement as HTMLElement
-    expect(legend.textContent?.replace(/\s+/g, ' ')).toBe('Lower (6.00) Higher (8.00)')
+    expect(legend.textContent).toMatch(/^Lower.*6\.0.*8\.0.*Higher/)
+    expect(legend.textContent).toContain('each shade about a seventh of the cells')
     expect(within(ranking).queryByText(/each column shaded on its own range/)).toBeNull()
     expect(
       [...legend.querySelectorAll('span[style]')].map((swatch) => swatch.getAttribute('style')),
@@ -760,11 +771,13 @@ describe('What Matters view', () => {
     ).toEqual(['18–24', '25–29'])
     const cells = within(matrix).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['5.22', '5.22', '6.22', '6.22'])
-    // One range across the groups and the columns (F2).
-    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
+    // One scale across the groups and the columns, by rank (ADR-0031):
+    // the two tied lows share a lighter shade, the two tied highs a deeper.
+    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-200)')
+    expect(cells[1]?.getAttribute('style')).toContain('var(--seq-200)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-600)')
     expect(within(split).queryByText(/each column shaded on its own range/)).toBeNull()
-    within(split).getByText(/^Lower \(5\.22\)/)
+    within(split).getByText(/each shade about a seventh of the cells/)
     // The country select starts on the United States: no "Choose a
     // country…" option, no hint; one figure on screen.
     const country = screen.getByLabelText(/^Country/) as HTMLSelectElement

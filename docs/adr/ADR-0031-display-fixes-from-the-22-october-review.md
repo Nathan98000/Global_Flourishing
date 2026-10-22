@@ -74,6 +74,16 @@ app saying "sure" where it should say "unsure":
    0–10 and hid every difference. A level with no estimate in any panel
    shown takes no row.
 
+6. **What Matters is shaded in equal-count steps.** Each cell takes the
+   shade of its mid-rank among the cells shown (ties share a shade), so
+   each of the seven shades holds about a seventh of them — the lowest
+   the lightest, the highest the deepest — on one scale for the whole
+   grid, rows still comparable (revising ADR-0030 §1's equal steps). The
+   key puts the number where each step begins under its swatch and says
+   "each shade about a seventh of the cells". A shade now says where a
+   cell ranks, not how far apart two cells are: the numbers in the cells
+   and their cards say that.
+
 ## Consequences
 
 - The static tier must be rebuilt (`flourish-pipeline run --from

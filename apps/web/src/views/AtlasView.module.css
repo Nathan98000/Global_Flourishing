@@ -217,6 +217,41 @@
   display: inline-flex;
 }
 
+/* What Matters' equal-count key (ADR-0031): the seven swatches, the
+   number where each begins under its left edge, the last under the
+   right; "Lower" and "Higher" level with the swatches. */
+.legendKey:has(.stepKey) {
+  align-items: flex-start;
+  line-height: 12px;
+}
+
+.stepKey {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 1px var(--space-3) 0 var(--space-1);
+}
+
+.stepKey .ramp > span {
+  width: 30px;
+}
+
+.stepTicks {
+  display: grid;
+  grid-template-columns: repeat(7, 30px) 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepTicks > span {
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.legendNote {
+  white-space: normal;
+}
+
 .ramp > span {
   width: 20px;
   height: 10px;
