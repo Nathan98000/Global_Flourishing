@@ -135,7 +135,7 @@ async function renderAt(path: string) {
   return router
 }
 
-test('the shell renders nav, the deck line, and a citation-only footer', async () => {
+test('the shell renders nav, the deck line, and a footer with the citation and how to read the charts', async () => {
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
@@ -157,7 +157,14 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
     'href',
     'https://doi.org/10.17605/OSF.IO/3JTZ8',
   )
-  // The footer carries the citation only (decision 5).
+  // The footer carries the citation (decision 5) and, since the 21 Oct
+  // review, a link to how to read the charts — nothing else.
+  const footer = screen.getByRole('contentinfo')
+  expect(within(footer).getByRole('link', { name: 'How to read the charts' })).toHaveAttribute(
+    'href',
+    '/methods#how-to-read-the-charts',
+  )
+  expect(within(footer).getAllByRole('link')).toHaveLength(2)
   expect(screen.queryByText(/data version/)).toBeNull()
   expect(screen.queryByText(/associations, not causes/)).toBeNull()
   // One light theme (ADR-0023): no theme switch in the header.
@@ -464,6 +471,25 @@ test('with no data source at all the shell renders honestly', async () => {
   expect(await screen.findByText(/is reachable right now/)).toBeInTheDocument()
   expect(screen.getByText('No data')).toBeInTheDocument()
   expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
+})
+
+test('Methods leads in plain words: a 95% CI and the people behind each number; the technical sentence is folded', async () => {
+  mockFetch(staticTier)
+  await renderAt('/methods')
+  expect(await screen.findByRole('heading', { level: 2, name: 'Methods' })).toBeInTheDocument()
+  const lead = screen.getByText(/^Every number here is estimated from a survey/)
+  // The level is the server's (meta.ci_level): wait for it to land.
+  await waitFor(() =>
+    expect(lead).toHaveTextContent(
+      /^Every number here is estimated from a survey, so each comes with a 95% CI — the band drawn through each dot — and the number of people behind it\./,
+    ),
+  )
+  // "Survey-weighted, design-based" lives in the Confidence intervals
+  // section's "For the technically minded" fold, not in the lead.
+  expect(lead).not.toHaveTextContent(/survey-weighted|design-based/)
+  const fold = screen.getByText(/survey-weighted estimate/).closest('details')
+  expect(fold?.querySelector('summary')).toHaveTextContent('For the technically minded')
+  expect(screen.queryByText(/likely range/)).toBeNull()
 })
 
 test('the offline banner stays off Methods and the 404 page (F13)', async () => {

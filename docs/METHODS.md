@@ -16,9 +16,19 @@ see [Verified against R](#verified-against-r) below).
 
 - **The dot** (or the bar) is the estimate: what a country's whole
   adult population would answer, judged from the people who were asked.
-- **The line through it** is its **95% confidence interval** (CI). The
-  true value very probably sits inside it. A long line means fewer
-  people, or answers that vary more.
+- **The line through it** is its **95% confidence interval** — its
+  **95% CI**. The true value very probably sits inside it. A long line
+  means fewer people, or answers that vary more.
+- **The key** at the top of each chart names its marks: the dot (or the
+  bar) is the mean, the median or the share, and the line is its 95% CI.
+- **The value label** over the numbers ("Mean ▾", "Share ▾") orders the
+  chart: every chart runs by value, highest first; select the label to
+  reverse it, lowest first. Nothing is ever ordered A–Z.
+- **The toolbar** beside each chart's title holds how the chart is
+  drawn — a mean, a median or every answer, or the method of a
+  correlation — with a link back to this section and **Download**.
+  What is shown (the question, the year, the countries) sits in the
+  question bar above the chart.
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
   it is, its value in words (a mean, a median or a share), its CI
   written as `95% CI: [low, high]`, and how many people in the sample it
@@ -27,8 +37,9 @@ see [Verified against R](#verified-against-r) below).
   Not very much / Not at all"), shows every answer's share as one bar
   per country, the deeper shades for more of what the question names;
   the bars can be sorted by any answer's share.
-- **Download CSV**, above every chart, gives every number with its
-  weight and the number of people behind it (the *n*).
+- **Download**, in every chart's toolbar, gives a CSV of every number
+  with its weight and the number of people behind it (the *n*), or a
+  PNG of the chart.
 - **An asterisk** (`+0.25*`) on the Correlates page marks a number that
   rests on few people ([below](#few-people-behind-an-estimate)). It is
   shown, never hidden — lean on it lightly.
@@ -142,6 +153,11 @@ downstream can trip on them:
 <details>
 <summary>For the technically minded</summary>
 
+Every number in the app is a **survey-weighted estimate** with a
+**design-based** 95% confidence interval: the weights make it describe
+the population ([above](#survey-weights-why-every-number-carries-one)),
+and its standard error comes from the survey's own strata and PSUs.
+
 The estimator assumes a stratified design with PSUs sampled with
 replacement. In sketch: each respondent's weighted deviation from the
 estimate is summed within their PSU; the variance is built from how
@@ -184,11 +200,11 @@ Deep breakdowns can produce groups of a handful of respondents. Since
 number, however few people are behind it** — nothing is withheld. What
 protects the reader instead:
 
-- **The confidence interval widens honestly** as groups shrink — a
-  long line is the warning.
+- **The 95% CI widens honestly** as groups shrink — a long line is the
+  warning.
 - **The n is a hover away**: every hover card says how many people in
-  the sample a number rests on, and the CSV download at the top of every
-  chart lists it for every number.
+  the sample a number rests on, and the CSV in every chart's Download
+  menu lists it for every number.
 - **A number resting on a single sampling unit** has no computable
   interval, and its card says so.
 - **Every US state stands on its own.** The release pools its 13
@@ -255,7 +271,7 @@ would mix real change with changes in who answered.
   design-based interval.
 - **One more view of the same pairs.** The histogram of individual
   change (drawn for 0–10 scales and counts) is estimated on the same
-  pairs, each bar with its own confidence interval. A categorical item
+  pairs, each bar with its own 95% CI. A categorical item
   shows its overall change alone.
 
 ### Why fewer second answers widen the interval
@@ -278,8 +294,8 @@ Wave 1 sample — and how much smaller varies a great deal:
   who were), but they cannot add back the people who were not
   interviewed: they narrow the bias, not the interval.
 
-Read a country's change together with its confidence interval: a wide
-interval around a small change is a country whose follow-up group was thin, and a
+Read a country's change together with its 95% CI: a wide interval
+around a small change is a country whose follow-up group was thin, and a
 comparison between two such countries deserves the same caution as any
 comparison of two uncertain numbers.
 
@@ -289,7 +305,7 @@ The app **does not display follow-up rates next to Wave 2 estimates** —
 a deliberate owner decision (September 2026) departing from the
 proposal's §3.4. Follow-up varies widely, from 23% of the Wave 1 sample
 in Hong Kong to 90% in China, so treat cross-country Wave 2 comparisons
-with that in mind; the confidence interval carries the consequence, and
+with that in mind; the 95% CI carries the consequence, and
 this section spells it out.
 
 ### Where to find the n
@@ -318,7 +334,7 @@ so they take values like 7.25 rather than whole numbers.
 **Quantiles** (like medians) are computed from the weighted cumulative
 distribution: the median is the smallest answer at which half the
 weighted population sits at or below (R `svyquantile`, `qrule = "math"`).
-They are shown **without a confidence interval** for now — survey intervals for
+They are shown **without a 95% CI** for now — survey intervals for
 quantiles (Woodruff intervals) are a recorded backlog item.
 
 ## Correlations
@@ -330,7 +346,7 @@ in a country, on a −1 to 1 scale.
   Spearman ("rank order": ranks first, then weighted Pearson on the
   ranks — one of several defensible definitions of a weighted rank
   correlation; it reduces to the classical one when weights are equal).
-- **No confidence interval.** Correlations are shown as point estimates: no
+- **No 95% CI.** Correlations are shown as point estimates: no
   interval is computed for a correlation, and the Correlates page draws
   none. A design-based interval (a delta method over the four totals R's
   `svyvar` estimates) is the recorded backlog item; a textbook Fisher-z

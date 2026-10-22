@@ -1,6 +1,7 @@
 // The shell: skip link, header/nav, honest boot banner on the data
-// views, and a footer that carries the citation — nothing else (owner
-// decision 5: the data version lives in the CSV header and Methods; the
+// views, and a footer that carries the citation and a link to how to
+// read the charts — nothing else (owner decision 5; the link, the
+// 21 Oct review: the data version lives in the CSV header and Methods; the
 // causation caveat lives on Methods, where it is explained rather than
 // asserted). Phase 5 added Change, What Matters and US States to the nav
 // (and Compare, retired 25 Sept — ADR-0017); Phase 6 adds Correlates.
@@ -19,6 +20,7 @@ import {
   type RefObject,
 } from 'react'
 import { useBootStatus } from '../api/meta'
+import { HOW_TO_READ } from '../charts/ChartFigure'
 import { StillWorks } from './StillWorks'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
 import { NARROW_VIEWPORT, NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -225,6 +227,11 @@ export function AppShell() {
           </a>
           , Center for Open Science / Gallup / Harvard Human Flourishing Program / Baylor Institute
           for Global Human Flourishing.
+        </p>
+        <p className={styles.footerLine}>
+          <Link to={HOW_TO_READ.to} hash={HOW_TO_READ.hash}>
+            How to read the charts
+          </Link>
         </p>
       </footer>
     </div>

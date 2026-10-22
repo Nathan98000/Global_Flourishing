@@ -119,10 +119,11 @@ export function MethodsView() {
       <h2>Methods</h2>
       <div className={styles.summary}>
         <p>
-          Every number in this app is a <strong>survey-weighted estimate</strong> with a
-          design-based
-          {ciLevel !== undefined ? ` ${Math.round(ciLevel * 100)}%` : ''}{' '}
-          <strong>confidence interval</strong>, drawn through each dot.
+          {/* In plain words first; the survey-weighted, design-based
+              sentence sits in the first fold (Confidence intervals). */}
+          Every number here is estimated from a survey, so each comes with a{' '}
+          <strong>{ciLevel !== undefined ? `${Math.round(ciLevel * 100)}% CI` : 'CI'}</strong> — the
+          band drawn through each dot — and the number of people behind it.
           {suppression && suppression.threshold > 0 ? (
             <>
               {' '}
