@@ -107,6 +107,16 @@ _SCREENER_SCORING = (
     f"positive at {SCREEN_POSITIVE_AT} or more."
 )
 
+#: The screeners' lines in plain words (owner decision, 22 Oct 2026):
+#: the two questions by name, how they are scored, and what the chart shows.
+_SCREENER_SCORE_LINE = (
+    "Answers to “{0}” and “{1}”, scored 0–3 each and added up: 0–6. Higher means more symptoms."
+)
+_SCREENER_POSITIVE_LINE = (
+    f"Screens positive when the answers to “{{0}}” and “{{1}}” add up to "
+    f"{SCREEN_POSITIVE_AT} or more out of 6. The chart shows the share who do."
+)
+
 
 def _sfi_domain(domain: str, items: tuple[str, str]) -> DerivedOutcome:
     return DerivedOutcome(
@@ -169,7 +179,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         6,
         "lower_better",
         "Depression screening score (PHQ-2)",
-        "Sum of the two PHQ-2 items rescored 0–3 each; 0–6.",
+        _SCREENER_SCORE_LINE,
         components=PHQ2_ITEMS,
         scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
     ),
@@ -180,7 +190,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         1,
         "lower_better",
         "Depression screening positive (PHQ-2)",
-        "PHQ-2 score ≥ 3; served as the weighted share screening positive.",
+        _SCREENER_POSITIVE_LINE,
         components=PHQ2_ITEMS,
         scoring=_SCREENER_SCORING,
     ),
@@ -191,7 +201,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         6,
         "lower_better",
         "Anxiety screening score (GAD-2)",
-        "Sum of the two GAD-2 items rescored 0–3 each; 0–6.",
+        _SCREENER_SCORE_LINE,
         components=GAD2_ITEMS,
         scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
     ),
@@ -202,7 +212,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         1,
         "lower_better",
         "Anxiety screening positive (GAD-2)",
-        "GAD-2 score ≥ 3; served as the weighted share screening positive.",
+        _SCREENER_POSITIVE_LINE,
         components=GAD2_ITEMS,
         scoring=_SCREENER_SCORING,
     ),

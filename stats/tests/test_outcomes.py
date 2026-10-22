@@ -63,6 +63,31 @@ def test_descriptions_name_questions_in_words_never_codes() -> None:
             assert code not in line, (name, code)
 
 
+def test_screener_lines_are_plain_words() -> None:
+    """The four screeners' lines name their two questions and say how they
+    are scored, with no analyst wording (owner decision, 22 Oct 2026)."""
+    names = {"DEPRESSED": "Feeling down or depressed", "INTEREST": "Little interest"}
+    for name in ("phq2_score", "phq2_positive", "gad2_score", "gad2_positive"):
+        outcome = DERIVED_OUTCOMES[name]
+        line = derived_description(outcome, lambda n: names.get(n, f"Question {n.lower()}"))
+        for word in ("served", "rescored", "items", "PHQ", "GAD", "≥"):
+            assert word not in line, (name, word)
+        assert "0–3 each" in line or "out of 6" in line, name
+    phq2 = DERIVED_OUTCOMES["phq2_score"]
+    first, second = phq2.components
+    assert derived_description(phq2, lambda n: n) == (
+        f"Answers to “{first}” and “{second}”, scored 0–3 each and added up: 0–6. "
+        "Higher means more symptoms."
+    )
+    positive = DERIVED_OUTCOMES["gad2_positive"]
+    assert derived_description(positive, lambda n: n).startswith(
+        f"Screens positive when the answers to “{positive.components[0]}” and "
+        f"“{positive.components[1]}” add up to {SCREEN_POSITIVE_AT} or more out of 6."
+    )
+    # The Codebook's technical fold keeps the scoring rule as it was.
+    assert "rescored" in phq2.scoring
+
+
 def test_acronyms_follow_plain_words() -> None:
     """The screeners lead with what they screen for; the acronym follows."""
     assert DERIVED_OUTCOMES["phq2_score"].display_name == "Depression screening score (PHQ-2)"
