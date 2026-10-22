@@ -33,6 +33,7 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OutcomePicker } from '../components/controls/OutcomePicker'
@@ -44,7 +45,7 @@ import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_MOMENTS, WAVE_TITLES, pairTitle } from '../waves'
+import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
 
@@ -183,21 +184,36 @@ export function ChangeView() {
     })
   }
 
-  const pairOptions: RadioOption<string>[] = supportedPairs.map((candidate) => {
-    const missing = [candidate.from, candidate.via, candidate.to].filter(
+  const missingOf = (candidate: Pair): Wave[] =>
+    [candidate.from, candidate.via, candidate.to].filter(
       (wave): wave is Wave =>
         wave !== undefined && !(variable?.waves_available ?? []).includes(wave),
     )
-    return {
-      value: pairKey(candidate),
-      label: pairTitle(candidate.from, candidate.to, candidate.via),
-      disabled: missing.length > 0,
-      title:
-        missing.length > 0
-          ? `Not asked in ${missing.map((wave) => WAVE_TITLES[wave] ?? wave).join(' or ')}`
-          : undefined,
-    }
-  })
+  const pairOptions: RadioOption<string>[] = supportedPairs.map((candidate) => ({
+    value: pairKey(candidate),
+    label: pairTitle(candidate.from, candidate.to, candidate.via),
+    disabled: missingOf(candidate).length > 0,
+  }))
+  // Why the unavailable comparisons can't be chosen, in view (F6): those
+  // missing the same survey named together — "2023 → Midyear and
+  // Midyear → 2024 — not asked in the midyear survey".
+  const byMissing = new Map<string, string[]>()
+  for (const candidate of supportedPairs) {
+    const missing = missingOf(candidate)
+    if (missing.length === 0) continue
+    const key = missing.map((wave) => WAVE_NAMES[wave] ?? wave).join(' or ')
+    byMissing.set(key, [
+      ...(byMissing.get(key) ?? []),
+      pairTitle(candidate.from, candidate.to, candidate.via),
+    ])
+  }
+  const pairNote = [...byMissing]
+    .map(([missing, labels]) => {
+      const last = labels.pop()
+      const named = labels.length > 0 ? `${labels.join(', ')} and ${last}` : last
+      return `${named} — not asked in ${missing}`
+    })
+    .join('; ')
 
   const title = variable?.display_name ?? search.outcome
   // A numeric change is taken on values aligned to the label (a rise =
@@ -310,6 +326,7 @@ export function ChangeView() {
             wide
             selectOnNarrow
             options={pairOptions}
+            note={pairNote ? `${pairNote}.` : undefined}
             value={pairKey(search)}
             onChange={(value) => {
               const candidate = supportedPairs.find((entry) => pairKey(entry) === value)
@@ -369,10 +386,7 @@ export function ChangeView() {
         <LoadingBlock height={420} label="Loading estimates" />
       ) : change.isError ? (
         change.error instanceof NetworkError && !boot.apiReachable ? (
-          <p className={styles.hint} role="status">
-            This view needs the live data service, which is offline right now — the Atlas and
-            Segments still work.
-          </p>
+          <OfflineLine className={styles.hint} />
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={change.error} />
         )

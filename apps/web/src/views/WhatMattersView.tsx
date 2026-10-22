@@ -25,6 +25,7 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -340,10 +341,7 @@ export function WhatMattersView() {
   )
   const offline = (error: unknown) =>
     error instanceof NetworkError && !boot.apiReachable ? (
-      <p className={styles.hint} role="status">
-        This view needs the live data service, which is offline right now — the Atlas and Segments
-        still work.
-      </p>
+      <OfflineLine except="/what-matters" className={styles.hint} />
     ) : (
       <ErrorState apiReachable={boot.apiReachable} error={error} />
     )

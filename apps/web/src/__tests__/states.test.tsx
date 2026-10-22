@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
@@ -359,6 +359,14 @@ describe('US States view', () => {
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     const adj = screen.getByLabelText(/Adjust for who answered in each state/) as HTMLInputElement
     expect(adj).toBeDisabled()
+    // A year the question wasn't asked in says why, in view (F6).
+    const midyear = within(screen.getByRole('group', { name: 'Year' })).getByRole('radio', {
+      name: 'Midyear',
+    })
+    expect(midyear).toBeDisabled()
+    expect(midyear).toHaveAccessibleDescription(
+      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+    )
     expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,

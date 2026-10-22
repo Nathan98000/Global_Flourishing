@@ -43,7 +43,10 @@ describe('ErrorState', () => {
     rerender(<ErrorState error={new NetworkError(new TypeError('x'))} />)
     // Plain words, not engineer words (F6).
     expect(screen.getByRole('alert')).toHaveTextContent('Live data service is offline')
-    expect(screen.getByRole('alert')).toHaveTextContent('standard views still work')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The Atlas, Segments and What Matters still work.',
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/filters/)
   })
 
   test('with /health fine, a failed request is the service’s error, not an outage', () => {

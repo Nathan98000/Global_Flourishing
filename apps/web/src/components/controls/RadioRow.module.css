@@ -60,10 +60,15 @@
   font-size: var(--text-xs);
 }
 
+/* Unavailable, not merely quiet (F6): paler words inside a dashed
+   outline (--ink-muted on the control tint, 3:1 — tokens.test.ts), and
+   the reason in the note line under the row. */
 .option[data-disabled] {
   color: var(--ink-muted);
   opacity: 1;
   cursor: not-allowed;
+  outline: 1px dashed var(--ink-muted);
+  outline-offset: -4px;
 }
 
 /* Why the disabled options are unavailable: one plain line under the

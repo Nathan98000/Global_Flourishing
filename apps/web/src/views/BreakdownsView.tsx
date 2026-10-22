@@ -19,6 +19,7 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
@@ -44,7 +45,7 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/segments')
@@ -178,10 +179,6 @@ export function BreakdownsView() {
     value: wave as BreakdownsSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
 
   // The title names the splits in words ("Life satisfaction by gender
@@ -330,7 +327,7 @@ export function BreakdownsView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
+          note={yearNote(waveOptions)}
         />
         <RadioRow
           legend="Split by"
@@ -375,10 +372,7 @@ export function BreakdownsView() {
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && !boot.apiReachable ? (
-              <p className={styles.hint} role="status">
-                This view needs the live data service, which is offline right now — the standard
-                views still work.
-              </p>
+              <OfflineLine except="/segments" className={styles.hint} />
             ) : (
               <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )

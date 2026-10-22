@@ -18,6 +18,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useBootStatus } from '../api/meta'
+import { StillWorks } from './StillWorks'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
 import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import styles from './AppShell.module.css'
@@ -36,15 +37,16 @@ function BootBanner() {
       </>
     )
   } else if (boot.state === 'static-only') {
+    // What still works, by name (F13): the country filter works offline
+    // too, so the banner no longer says "filters are unavailable".
     message = boot.apiReachable ? (
       <>
-        The live data service has <strong>no data yet</strong> — the standard views still work;
-        filters and medians are unavailable.
+        The live data service has <strong>no data yet</strong>, so some views can&rsquo;t load.{' '}
+        <StillWorks />
       </>
     ) : (
       <>
-        Live data service is <strong>offline</strong> — the standard views still work; filters and
-        medians are unavailable.
+        Some views need the live data service, which is <strong>offline</strong>. <StillWorks />
       </>
     )
   } else if (boot.state === 'api-only') {

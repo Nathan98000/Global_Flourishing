@@ -147,6 +147,10 @@ describe.each([['light', light]] as const)('%s theme', (theme, vars) => {
     assertContrast(vars, '--focus-ring', '--page', 3, theme)
   })
 
+  test('an unavailable option’s dashed outline is visible on the control tint (3:1 non-text)', () => {
+    assertContrast(vars, '--ink-muted', '--control-bg', 3, theme)
+  })
+
   test('the sequential ramp reads against the surface', () => {
     // The deep end carries the high values: full non-text contrast — the
     // map's and the matrix's seventh step, and the grid's ninth.

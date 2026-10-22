@@ -10,6 +10,7 @@ import type { Meta, VariableSummary, Wave } from '../../api/types'
 import { useVariableDetails, type VariablesResult } from '../../api/variables'
 import { DIVERGING_RAMP } from '../../charts/theme'
 import { ErrorState } from '../../components/ErrorState'
+import { OfflineLine } from '../../components/StillWorks'
 import { shortName } from '../../labels'
 import type { CorrelatesSearch } from '../../state/search'
 import { WAVE_CHIPS } from '../../waves'
@@ -175,10 +176,7 @@ export function Turns({ text }: { text: string }) {
  * else the shared error state. */
 export function Failure({ error, apiReachable }: { error: unknown; apiReachable: boolean }) {
   return error instanceof NetworkError && !apiReachable ? (
-    <p className={styles.hint} role="status">
-      This view needs the live data service, which is offline right now — the Atlas and Segments
-      still work.
-    </p>
+    <OfflineLine className={styles.hint} />
   ) : (
     <ErrorState apiReachable={apiReachable} error={error} />
   )

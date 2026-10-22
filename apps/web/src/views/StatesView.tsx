@@ -12,7 +12,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import { Suspense, lazy, useMemo } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimates } from '../api/estimates'
-import { useBootStatus, useMeta } from '../api/meta'
+import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import { NO_ADJUSTED_WEIGHT_WAVE, adjustedWeightsExist, useStates } from '../api/states'
 import type { EstimateRow, Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
@@ -24,6 +24,7 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { Stat as StatLine } from '../components/Stat'
 import { WordingPanel } from '../components/WordingPanel'
@@ -37,7 +38,7 @@ import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
 
@@ -51,6 +52,10 @@ export function StatesView() {
   const navigate = route.useNavigate()
   const meta = useMeta()
   const boot = useBootStatus()
+  const health = useHealth()
+  // Every state figure is the live service's: while it is down (or has
+  // no data) the page says so, and Median says why it can't be chosen.
+  const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
   const variables = useVariables()
   const variable = variables.data?.byName[search.outcome]
   const chartable = variable !== undefined && variable.servable
@@ -163,16 +168,12 @@ export function StatesView() {
     value: wave as StatesSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
   const statOptions: RadioOption<string>[] | null =
     variable && (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
       ? [
           { value: 'default', label: 'Mean' },
-          { value: 'quantile', label: 'Median' },
+          { value: 'quantile', label: 'Median', disabled: liveDown },
         ]
       : null
   const adjAvailable = adjustedWeightsExist(search.wave)
@@ -228,6 +229,7 @@ export function StatesView() {
           onChange={(value) =>
             setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
           }
+          note={liveDown ? 'Median — needs the live data service.' : undefined}
         />
       )}
       <RadioRow
@@ -309,7 +311,7 @@ export function StatesView() {
           legend="Year"
           name="wave"
           options={waveOptions}
-          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
+          note={yearNote(waveOptions)}
           value={search.wave}
           onChange={(wave) =>
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })
@@ -347,10 +349,7 @@ export function StatesView() {
         <LoadingBlock height={480} label="Loading estimates" />
       ) : states.isError ? (
         states.error instanceof NetworkError && !boot.apiReachable ? (
-          <p className={styles.hint} role="status">
-            This view needs the live data service, which is offline right now — the Atlas and
-            Segments still work.
-          </p>
+          <OfflineLine className={styles.hint} />
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={states.error} />
         )

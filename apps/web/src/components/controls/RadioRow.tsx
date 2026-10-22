@@ -1,7 +1,7 @@
 // A labelled radio group rendered as a segmented row — native inputs,
-// full keyboard support, no dead options (unavailable ones say why: a
-// `note` line under the row, which every disabled option points to with
-// aria-describedby).
+// full keyboard support, no dead options (unavailable ones say why, in
+// view: a `note` line under the row, which every disabled option points
+// to with aria-describedby; they wear a dashed outline, F6).
 // Under 40rem the row becomes an even grid so no option is orphaned on
 // its own line; a group with long labels can opt into rendering as a
 // native <select> under 30rem instead (§8). Above SELECT_ABOVE options

@@ -414,10 +414,11 @@ describe('Change view', () => {
     const compare = screen.getByRole('group', { name: 'Compare' })
     const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()
-    expect(midyear.closest('label')).toHaveAttribute(
-      'title',
-      'Not asked in Midyear survey, Nov 2023–Dec 2024',
+    // The reason is in view, and the option points to it (F6).
+    expect(midyear).toHaveAccessibleDescription(
+      '2023 → Midyear, Midyear → 2024 and 2023 → Midyear → 2024 — not asked in the midyear survey.',
     )
+    expect(midyear.closest('label')).not.toHaveAttribute('title')
     expect(within(compare).getByLabelText('2023 → 2024')).toBeChecked()
   })
 })

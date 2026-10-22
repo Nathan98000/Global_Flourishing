@@ -20,7 +20,8 @@ import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
-import { InvalidParamsNotice } from '../components/Notice'
+import { InvalidParamsNotice, StatusNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
@@ -34,7 +35,7 @@ import { DEFAULT_DIR, VALUE_ORDER, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/')
@@ -66,7 +67,13 @@ export function AtlasView() {
   // `stat=distribution` shows the share view.
   const answersAvailable =
     isCategorical && (detail === undefined || (levels.length >= 2 && levels.length <= MAX_ANSWERS))
-  const requested: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
+  // A median is the live service's alone: while it is down (or has no
+  // data) a median link shows the mean, and says why (F13) — no fault of
+  // the link's. Still deciding (health pending) keeps the link's ask.
+  const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
+  const medianOffline = search.stat === 'quantile' && liveDown
+  const defaultStat = (variable?.default_stat as Stat | undefined) ?? 'mean'
+  const requested: Stat = medianOffline ? defaultStat : (search.stat ?? defaultStat)
   const stat: Stat =
     isCategorical && requested === 'distribution' && !answersAvailable ? 'proportion' : requested
   const allAnswers = isCategorical && stat === 'distribution'
@@ -78,7 +85,9 @@ export function AtlasView() {
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
-  const request = chartable ? atlasRequest(search, variable) : null
+  const request = chartable
+    ? atlasRequest(medianOffline ? { ...search, stat: undefined } : search, variable)
+    : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
 
@@ -175,10 +184,6 @@ export function AtlasView() {
     value: wave as AtlasSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
 
   const statOptions: RadioOption<string>[] | null =
@@ -186,12 +191,12 @@ export function AtlasView() {
       ? [
           { value: 'default', label: 'Mean' },
           { value: 'distribution', label: 'Distribution' },
-          { value: 'quantile', label: 'Median', title: 'Computed live by the data service' },
+          { value: 'quantile', label: 'Median', disabled: liveDown },
         ]
       : variable && variable.scale_type === 'count'
         ? [
             { value: 'default', label: 'Mean' },
-            { value: 'quantile', label: 'Median', title: 'Computed live by the data service' },
+            { value: 'quantile', label: 'Median', disabled: liveDown },
           ]
         : answersAvailable
           ? [
@@ -251,11 +256,16 @@ export function AtlasView() {
           legend="Show"
           name="stat"
           options={statOptions}
-          value={search.stat ?? 'default'}
+          value={medianOffline ? 'default' : (search.stat ?? 'default')}
           onChange={(value) =>
             setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
           }
           selectOnNarrow
+          note={
+            statOptions.some((option) => option.disabled)
+              ? 'Median — needs the live data service.'
+              : undefined
+          }
         />
       )}
       {(stat !== 'distribution' || allAnswers) && (
@@ -316,6 +326,12 @@ export function AtlasView() {
           )
         }
       />
+      {medianOffline && (
+        <StatusNotice>
+          The live data service is offline, so medians can&rsquo;t be shown right now — showing the
+          mean.
+        </StatusNotice>
+      )}
       <div className={styles.controls}>
         <OutcomePicker
           variables={variables.data.list}
@@ -330,7 +346,7 @@ export function AtlasView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
+          note={yearNote(waveOptions)}
         />
         {narrow ? (
           <details className={styles.moreOptions}>
@@ -375,10 +391,7 @@ export function AtlasView() {
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && !boot.apiReachable ? (
-              <p className={styles.hint} role="status">
-                This view needs the live data service, which is offline right now — the standard
-                views still work.
-              </p>
+              <OfflineLine except="/" className={styles.hint} />
             ) : (
               <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )

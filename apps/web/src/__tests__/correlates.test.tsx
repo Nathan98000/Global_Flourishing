@@ -1658,9 +1658,10 @@ describe('Correlates view', () => {
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates?view=related&outcome=HAPPY&adjusted=true')
-    expect(
-      await screen.findByText(/invalid and were reset to defaults: adjusted/),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+      'data-params',
+      'adjusted',
+    )
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     expect(ruleLines(figure)).toBe(1) // the zero rule; no whiskers
     const correlates = calls.filter((url) => url.includes('/v1/correlates'))

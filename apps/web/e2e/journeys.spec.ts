@@ -253,9 +253,33 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
-  // …and the app says so in plain words (F6).
-  await expect(page.getByText(/Live data service is offline/)).toBeVisible()
-  await expect(page.getByText(/standard views still work/)).toBeVisible()
+  // …and the app says so in plain words, naming what still works, each
+  // a link (F13).
+  const banner = page.getByText(/Some views need the live data service, which is offline/)
+  await expect(banner).toBeVisible()
+  for (const [name, href] of [
+    ['Atlas', '/'],
+    ['Segments', '/segments'],
+    ['What Matters', '/what-matters'],
+  ] as const) {
+    await expect(banner.getByRole('link', { name, exact: true })).toHaveAttribute('href', href)
+  }
+  await expect(page.getByText(/filters (and medians )?are unavailable/)).toHaveCount(0)
+
+  // A median link offline shows the mean, says why, and blames no one:
+  // Median is unavailable, with its reason in view.
+  await page.goto('/?stat=median')
+  await expect(
+    page.getByText(
+      'The live data service is offline, so medians can’t be shown right now — showing the mean.',
+    ),
+  ).toBeVisible()
+  await expect(page.getByText(/This link asked for something/)).toHaveCount(0)
+  await expect(caption(page).getByText(/^Mean score, 0–10/)).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Median' })).toBeDisabled()
+  await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
+  await banner.getByRole('link', { name: 'Segments', exact: true }).click()
+  await expect(page).toHaveURL(/\/segments$/)
 })
 
 test('7 — Change with a country where fewer people answered again: the interval and n carry it, no sentence, no rate', async ({

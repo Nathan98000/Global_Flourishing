@@ -22,7 +22,7 @@ function body(
         return {
           title: 'This deployment has no data build',
           lines: [
-            'The live data service is running without data, so filters and medians are unavailable.',
+            'The live data service is running without data, so some views can’t load. The Atlas, Segments and What Matters still work.',
             ...error.details,
           ],
         }
@@ -50,7 +50,9 @@ function body(
     }
     return {
       title: 'Live data service is offline',
-      lines: ['The standard views still work; filters and medians are unavailable.'],
+      lines: [
+        'Some views need the live data service, which is offline. The Atlas, Segments and What Matters still work.',
+      ],
     }
   }
   return { title: 'Something went wrong', lines: [String(error)] }

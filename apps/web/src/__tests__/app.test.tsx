@@ -332,9 +332,74 @@ test('an unknown measure gets the empty state, not an API error (F4)', async () 
 test('with the API down the Atlas still renders, with the plain-words banner', async () => {
   mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/')
-  expect(await screen.findByText(/Live data service is/)).toBeInTheDocument()
-  expect(screen.getByText(/standard views still work/)).toBeInTheDocument()
+  const banner = await screen.findByText(/Some views need the live data service, which is/)
+  // What still works, by name, each a link — and no claim that filters
+  // are unavailable (the country filter works offline, F13).
+  expect(banner).toHaveTextContent(
+    'Some views need the live data service, which is offline. The Atlas, Segments and What Matters still work.',
+  )
+  expect(
+    within(banner)
+      .getAllByRole('link')
+      .map((link) => [link.textContent, link.getAttribute('href')]),
+  ).toEqual([
+    ['Atlas', '/'],
+    ['Segments', '/segments'],
+    ['What Matters', '/what-matters'],
+  ])
+  expect(screen.queryByText(/filters (and medians )?are unavailable/)).toBeNull()
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
+})
+
+test('offline, Median says why it is unavailable, and a median link shows the mean without blame', async () => {
+  mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
+  for (const stat of ['quantile', 'median']) {
+    const router = await renderAt(`/?stat=${stat}`)
+    expect(
+      await screen.findByText(
+        'The live data service is offline, so medians can’t be shown right now — showing the mean.',
+      ),
+    ).toBeInTheDocument()
+    // Not the link's fault: no invalid-link notice.
+    expect(screen.queryByText(/This link asked for something/)).toBeNull()
+    expect(await screen.findByText(/^Mean score, 0–10/)).toBeInTheDocument()
+    const median = screen.getByRole('radio', { name: 'Median' })
+    expect(median).toBeDisabled()
+    expect(median).toHaveAccessibleDescription('Median — needs the live data service.')
+    expect(screen.getByRole('radio', { name: 'Mean' })).toBeChecked()
+    // The link keeps its ask, for when the service is back.
+    expect(router.state.location.searchStr).toBe('?stat=quantile')
+    cleanup()
+  }
+})
+
+test('a disabled year says why in view on Segments too (F6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/segments')
+  const midyear = await screen.findByRole('radio', { name: 'Midyear' })
+  expect(midyear).toBeDisabled()
+  expect(midyear).toHaveAccessibleDescription(
+    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+  )
+})
+
+test('a disabled year says why in view, and points to the reason (F6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText(/^Mean score, 0–10/)
+  const midyear = screen.getByRole('radio', { name: 'Midyear' })
+  expect(midyear).toBeDisabled()
+  expect(midyear).toHaveAccessibleDescription(
+    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+  )
+  expect(
+    screen.getByText(
+      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+    ),
+  ).toBeVisible()
+  // No hover-only reason; the open years point nowhere.
+  expect(midyear.closest('label')).not.toHaveAttribute('title')
+  expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
 })
 
 test('an API without a data build is its own banner', async () => {
@@ -362,9 +427,11 @@ test('the offline banner stays off Methods and the 404 page (F13)', async () => 
 test('invalid search params degrade to defaults with a visible notice', async () => {
   mockFetch(staticTier)
   await renderAt('/?wave=Y9&sort=pie')
-  expect(
-    await screen.findByText(/invalid and were reset to defaults: wave, sort/),
-  ).toBeInTheDocument()
+  const notice = await screen.findByText(/This link asked for something we can’t show/)
+  expect(notice).toHaveTextContent(
+    'This link asked for something we can’t show; showing the default instead. Dismiss',
+  )
+  expect(notice).toHaveAttribute('data-params', 'wave,sort')
   // The view still renders the default query, not a crash.
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
 })
@@ -375,9 +442,12 @@ test('the notice lists every rejected parameter and dismiss clears the URL (F5)'
   // Both rejected params are listed — and stay listed across the
   // router's own URL rebuilds, because the rejected raws stay in the
   // URL until dismissed.
-  expect(await screen.findByText(/reset to defaults: wave, stat/)).toBeInTheDocument()
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'wave,stat',
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-  await waitFor(() => expect(screen.queryByText(/reset to defaults/)).toBeNull())
+  await waitFor(() => expect(screen.queryByText(/This link asked for something/)).toBeNull())
   expect(router.state.location.searchStr).toBe('')
 })
 
@@ -569,7 +639,10 @@ test('the Phase 5 routes exist, parse their URL state and say what they are', as
   }
   // Bad params degrade with the notice, never a crash.
   await renderAt('/states?adj=true')
-  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'adj',
+  )
 })
 
 test('an old Compare link lands on Segments with its outcome and wave, and no notice', async () => {
@@ -595,7 +668,7 @@ test('an old Compare link lands on Segments with its outcome and wave, and no no
       countries: [],
       by: ['age_band'],
     })
-    expect(screen.queryByText(/were invalid and were reset/)).toBeNull()
+    expect(screen.queryByText(/This link asked for something/)).toBeNull()
     cleanup()
   }
 })
@@ -621,5 +694,8 @@ test('an old Breakdowns link lands on Segments with every param it carried', asy
   // A bad value rides along too, and Segments flags it as Breakdowns did.
   const router = await renderAt('/breakdowns?wave=Y9')
   await waitFor(() => expect(router.state.location.href).toBe('/segments?wave=Y9'))
-  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('wave')
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'wave',
+  )
 })

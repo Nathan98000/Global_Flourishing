@@ -117,7 +117,10 @@ const parseName = (value: unknown): string | undefined =>
 
 const parseWave = (value: unknown): Wave | undefined => (isWave(value) ? value : undefined)
 
-const parseStat = (value: unknown): Stat | undefined => (isStat(value) ? value : undefined)
+/** A statistic by its API name; `median` (what a visitor would type) is
+ * the median's, `quantile` (ADR-0029). */
+const parseStat = (value: unknown): Stat | undefined =>
+  value === 'median' ? 'quantile' : isStat(value) ? value : undefined
 
 const parseEnum =
   <T extends string>(...allowed: T[]) =>
