@@ -26,6 +26,7 @@ import { CSV_SENTENCE } from '../charts/summary'
 import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
@@ -175,8 +176,8 @@ export function StatesView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>US States</h2>
-        <LoadingBlock height={420} label="Loading the US States view" />
+        <h2 className="visually-hidden">US States</h2>
+        <PagePlaceholder label="Loading the US States view" />
       </section>
     )
   }

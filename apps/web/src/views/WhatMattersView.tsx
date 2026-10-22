@@ -33,6 +33,7 @@ import {
 import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
@@ -273,8 +274,8 @@ export function WhatMattersView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>What Matters</h2>
-        <LoadingBlock height={420} label="Loading What Matters" />
+        <h2 className="visually-hidden">What Matters</h2>
+        <PagePlaceholder label="Loading What Matters" />
       </section>
     )
   }

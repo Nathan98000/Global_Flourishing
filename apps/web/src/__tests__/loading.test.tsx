@@ -14,6 +14,7 @@ import {
   STILL_WORKING_COPY,
   useDelayedFlags,
 } from '../components/Loading'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 
 // The figure's Methods link needs no router here: a plain anchor stands in.
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -138,5 +139,22 @@ describe('ChartFigure while refetching', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settle' }))
     expect(container.querySelector('[class*="_bar_"]')).toBeNull()
     expect(chart).not.toHaveAttribute('data-refreshing')
+  })
+})
+
+describe('PagePlaceholder (F21, H7)', () => {
+  test("a page's stand-in is shaped like the page: deck, question bar, chart title, then the chart's block", () => {
+    const { container } = render(<PagePlaceholder label="Loading the Atlas" />)
+    // Busy, one status for the whole stand-in.
+    expect(screen.getByRole('status', { name: 'Loading the Atlas' })).toBeInTheDocument()
+    const page = container.firstElementChild as HTMLElement
+    expect(page).toHaveAttribute('aria-busy', 'true')
+    // The ghosts, in the page's order, hidden from assistive tech; then
+    // the chart's block at the chart's height.
+    expect(page.children).toHaveLength(4)
+    for (const ghost of [...page.children].slice(0, 3)) {
+      expect(ghost).toHaveAttribute('aria-hidden', 'true')
+    }
+    expect(page.lastElementChild).toHaveAttribute('style', 'height: 420px;')
   })
 })

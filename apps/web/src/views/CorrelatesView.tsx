@@ -21,7 +21,7 @@ import { WAVES } from '../api/types'
 import { useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ErrorState } from '../components/ErrorState'
-import { LoadingBlock } from '../components/Loading'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Disclosure } from '../components/controls/Disclosure'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
@@ -136,8 +136,8 @@ export function CorrelatesView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Correlates</h2>
-        <LoadingBlock height={420} label="Loading the Correlates view" />
+        <h2 className="visually-hidden">Correlates</h2>
+        <PagePlaceholder label="Loading the Correlates view" />
       </section>
     )
   }

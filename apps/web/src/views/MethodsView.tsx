@@ -122,8 +122,16 @@ export function MethodsView() {
           {/* In plain words first; the survey-weighted, design-based
               sentence sits in the first fold (Confidence intervals). */}
           Every number here is estimated from a survey, so each comes with a{' '}
-          <strong>{ciLevel !== undefined ? `${Math.round(ciLevel * 100)}% CI` : 'CI'}</strong> — the
-          band drawn through each dot — and the number of people behind it.
+          {ciLevel !== undefined ? (
+            <strong>{`${Math.round(ciLevel * 100)}% CI`}</strong>
+          ) : (
+            // Until the served level arrives its words keep their room, so
+            // the lead never reflows under the reader (H7).
+            <strong className={styles.pending} aria-hidden="true">
+              00% CI
+            </strong>
+          )}{' '}
+          — the band drawn through each dot — and the number of people behind it.
           {suppression && suppression.threshold > 0 ? (
             <>
               {' '}

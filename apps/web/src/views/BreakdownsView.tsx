@@ -19,10 +19,10 @@ import { summarizeCells } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
-import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
@@ -165,8 +165,8 @@ export function BreakdownsView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Segments</h2>
-        <Skeleton height={420} label="Loading segments" />
+        <h2 className="visually-hidden">Segments</h2>
+        <PagePlaceholder label="Loading segments" />
       </section>
     )
   }

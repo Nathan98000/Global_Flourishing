@@ -21,10 +21,10 @@ import { CSV_SENTENCE, summarizeDistribution, summarizeExtremes } from '../chart
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice, StatusNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
-import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
@@ -202,8 +202,8 @@ export function AtlasView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Atlas</h2>
-        <Skeleton height={420} label="Loading the Atlas" />
+        <h2 className="visually-hidden">Atlas</h2>
+        <PagePlaceholder label="Loading the Atlas" />
       </section>
     )
   }
