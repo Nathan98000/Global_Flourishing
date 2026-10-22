@@ -26,7 +26,10 @@ export function filterVariables(
   search: CodebookSearch,
 ): VariableSummary[] {
   const needle = search.q.trim().toLowerCase()
-  return variables.filter((variable) => {
+  // By name, the order a reader looks things up in (G7) — a list to pick
+  // from, not a chart.
+  const byName = [...variables].sort((a, b) => a.display_name.localeCompare(b.display_name))
+  return byName.filter((variable) => {
     if (search.family && variable.family !== search.family) return false
     if (search.wave && !variable.waves_available.includes(search.wave)) return false
     if (search.scale && variable.scale_type !== search.scale) return false
@@ -147,7 +150,7 @@ export function CodebookView() {
           </select>
         </div>
         <div className={styles.field}>
-          <label htmlFor={`${searchId}-wave`}>Wave</label>
+          <label htmlFor={`${searchId}-wave`}>Year</label>
           <select
             id={`${searchId}-wave`}
             value={search.wave ?? ''}

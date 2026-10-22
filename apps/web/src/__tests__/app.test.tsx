@@ -529,9 +529,16 @@ test('a derived score explains itself in the Codebook (item 11)', async () => {
     screen.getByText(/mean of the 12 questions below, computed when at least 10 are answered/),
   ).toBeInTheDocument()
   expect(screen.getByText('The questions behind it')).toBeInTheDocument()
-  // Each component question renders with its exact wording and options.
+  // Each component question renders with its exact wording and its
+  // answers in words (G7); the codes wait in the fold.
   expect(screen.getByText('How would you rate: happiness?')).toBeInTheDocument()
-  expect(screen.getByText('Worst')).toBeInTheDocument()
+  const fold = screen.getByText('For the technically minded').closest('details') as HTMLElement
+  expect(fold).not.toHaveAttribute('open')
+  const outside = [...document.querySelectorAll('li, p')].filter(
+    (node) => !fold.contains(node) && /Worst/.test(node.textContent ?? ''),
+  )
+  expect(outside.length).toBeGreaterThan(0)
+  expect(within(fold).getAllByText('Worst').length).toBeGreaterThan(0)
 })
 
 test('a codebook entry’s tables each sit in a box that scrolls sideways on a phone', async () => {

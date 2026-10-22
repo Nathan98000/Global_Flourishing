@@ -199,8 +199,8 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   // since §9 the sentence stands alone — no mini-label above it.
   await expect(page.getByText('What people were asked')).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'The exact question and answers →' })).toBeVisible()
-  // The wording under the chart's header (the question bar's trigger
-  // carries it too).
+  // The wording under the chart's header (the question bar's button
+  // shows the name alone, G13).
   await expect(
     page.locator('figure').getByText('How would you rate: service attendance?'),
   ).toBeVisible()
@@ -1209,11 +1209,19 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
   // Each stop with what shows it has rendered, whether its options sheet
   // opens before it is measured, and its widths where a phone's are not
   // all.
-  const stops: { path: string; rendered: Locator; open?: boolean; widths?: number[] }[] = [
-    // The entry's value labels scroll in a box of their own.
+  const stops: {
+    path: string
+    rendered: Locator
+    open?: boolean
+    unfold?: Locator
+    widths?: number[]
+  }[] = [
+    // The entry's value labels scroll in a box of their own, in the fold
+    // "For the technically minded" (G7).
     {
       path: '/codebook/MARITAL_STATUS',
       rendered: page.getByRole('cell', { name: UNBREAKABLE_LABEL }),
+      unfold: page.getByText('For the technically minded'),
     },
     // Segments' second split ("then by") lists every categorical question
     // by name, in the question bar; its options sheet holds the order and
@@ -1233,12 +1241,13 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
       widths: [...PHONE_WIDTHS, 680],
     },
   ]
-  for (const { path, rendered, open, widths = PHONE_WIDTHS } of stops) {
+  for (const { path, rendered, open, unfold, widths = PHONE_WIDTHS } of stops) {
     for (const font of PHONE_FONTS) {
       for (const width of widths) {
         const where = `${path} at ${width}px in ${font.name}`
         await page.setViewportSize({ width, height: 844 })
         await page.goto(path)
+        if (unfold) await unfold.click()
         await expect(rendered).toBeVisible()
         if (font.css) await page.addStyleTag({ content: font.css })
         const options = page.getByRole('button', { name: 'Options' })
