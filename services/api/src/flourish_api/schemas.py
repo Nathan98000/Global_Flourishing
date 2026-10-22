@@ -301,12 +301,12 @@ class EstimateResponse(BaseModel):
 
 class PairLevelModel(BaseModel):
     """One answer of either question in a cross-tab (/v1/correlations/pair),
-    or one equal-width bin of a long scale."""
+    or one whole-number bin of a long scale."""
 
     #: the answer's code as the release codes it (binned: the bin's index)
     code: int
     #: the answer's short label ("Getting by"), its number on a 0–10 or
-    #: count scale, or the bin's range ("2.5–3.2")
+    #: count scale, or the bin's range ("8–9", "below 3", "9 and above")
     label: str
 
 
@@ -353,8 +353,9 @@ class PairResponse(BaseModel):
     #: the question on the columns, and the one on the rows
     x: str
     y: str
-    #: ``answers`` (one level per answer, up to 11) or ``bins`` (ten
-    #: equal-width bins between the weighted 1st and 99th percentiles)
+    #: ``answers`` (one level per answer, up to 11) or ``bins`` (at most
+    #: ten whole-number bins between the weighted 1st and 99th
+    #: percentiles; one point wide for a 0–10 score — ADR-0030)
     x_grouping: str
     y_grouping: str
     #: the weighted correlation over the people who answered both (a

@@ -398,10 +398,11 @@ of their answers.
   header gives the two questions' weighted correlation.
 - **Long scales are cut into ranges.** A question with more than eleven
   answers (a count such as age, or a score that is an average of
-  answers) is cut, on either axis, into equal-width ranges between its
-  weighted 1st and 99th percentiles — ten ranges for a score,
-  whole-number ranges for a count — the two end ranges taking in the few
-  people beyond them, and their labels say so.
+  answers) is cut, on either axis, into ranges between its weighted 1st
+  and 99th percentiles, at whole numbers: one point wide for a 0–10
+  score ("8–9"), whole-number ranges for a count, at most ten either way
+  — the two end ranges taking in the few people beyond them, and their
+  labels say so ("below 3", "9 and above").
 - **Both axes run from least to most** of what the question's label
   names, the most of the second question at the top.
 - **The tints use fixed steps** (0, 5, 10, 20, 30, 45, 60, 75 and 90% or

@@ -192,8 +192,9 @@ export interface paths {
          *     answer, a count), asked at the wave and not built from the same
          *     answers (a score and its own question go together by construction:
          *     422). ``columns`` are x's answers (its levels: up to eleven answers,
-         *     else ten equal-width bins between its weighted 1st and 99th
-         *     percentiles, the end bins taking in the tails), each with the weighted
+         *     else at most ten whole-number bins between its weighted 1st and 99th
+         *     percentiles — one point wide, "8–9", for a 0–10 score — the end bins
+         *     taking in the tails), each with the weighted
          *     share of the people who answered both who gave it; ``rows`` are y's,
          *     levelled the same way; both run from least to most of what the item's
          *     label names. ``cells`` gives, column by column, the weighted share of
@@ -647,7 +648,7 @@ export interface components {
         /**
          * PairLevelModel
          * @description One answer of either question in a cross-tab (/v1/correlations/pair),
-         *     or one equal-width bin of a long scale.
+         *     or one whole-number bin of a long scale.
          */
         PairLevelModel: {
             /** Code */
