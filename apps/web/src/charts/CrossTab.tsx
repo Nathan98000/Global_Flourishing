@@ -22,7 +22,7 @@
 import * as Plot from '@observablehq/plot'
 import { textMeasurer, wrapLabel } from './RankedBar'
 import { FONT_FAMILY, GRID, INK, INK_MUTED, INK_SECONDARY, SHARE_RAMP, TIP_OPTIONS } from './theme'
-import { tintInk } from './TransitionTable'
+import { tintInk } from './HeatTable'
 import { chartWidth, usePlot } from './usePlot'
 
 /** The tint bins' lower edges, in percent: 0, 5, 10, 20, 30, 45, 60, 75,

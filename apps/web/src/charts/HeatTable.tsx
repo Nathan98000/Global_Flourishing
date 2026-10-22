@@ -1,13 +1,11 @@
 // The tinted matrix (Phase 5, generalised in Phase 6): a small heatmap
 // table whose cells carry a number over a token-only tint, with its CI
-// and n in the hover card (ADR-0011: every cell is shown; ADR-0022). `HeatTable` is
-// the matrix itself — row keys, column keys, one cell lookup — and
-// `TransitionTable` is the transition matrix of an ordinal/nominal item
-// built on it: rows are the earlier answer, columns the later one, each
-// cell the share of the row's people who gave that later answer (the
-// engine's conditional measure; each row sums to 100%), tinted with the
-// accent at graded opacity. The Correlates view builds its measures × countries matrix on
-// the same component with the diverging ramp. Never fetches.
+// and n in the hover card (ADR-0011: every cell is shown; ADR-0022) —
+// row keys, column keys, one cell lookup. What Matters builds its
+// importance matrix on it with the sequential ramp, the Correlates view
+// its measures × countries matrix with the diverging one. (The Change
+// view's transition matrix was built on it too, until ADR-0027 retired
+// it.) Never fetches.
 
 import {
   useEffect,
@@ -18,37 +16,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import type { EstimateRow } from '../api/types'
-import { formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
-import { TIP_OPTIONS, ciLine, sizeLine } from './theme'
+import { TIP_OPTIONS } from './theme'
 import { TipCardText } from './TipCard'
-import styles from './TransitionTable.module.css'
-
-export interface TransitionCell {
-  from: number
-  to: number
-  row: EstimateRow
-}
-
-export interface TransitionGrid {
-  levels: number[]
-  cells: Map<string, EstimateRow>
-}
-
-/** The k × k grid of one country's conditional transitions, in level order. */
-export function transitionGrid(rows: readonly EstimateRow[]): TransitionGrid {
-  const levels = new Set<number>()
-  const cells = new Map<string, EstimateRow>()
-  for (const row of rows) {
-    if (row.from_level === null || row.from_level === undefined) continue
-    if (row.to_level === null || row.to_level === undefined) continue
-    levels.add(row.from_level)
-    levels.add(row.to_level)
-    cells.set(`${row.from_level}:${row.to_level}`, row)
-  }
-  return { levels: [...levels].sort((a, b) => a - b), cells }
-}
+import styles from './HeatTable.module.css'
 
 /** The ink a ramp tint's text wears: every `--seq-*` and `--div-*` step
  * names its own `-ink` companion in tokens.css (dark ink on the light
@@ -57,13 +28,6 @@ export function transitionGrid(rows: readonly EstimateRow[]): TransitionGrid {
 export function tintInk(tint: string): string | undefined {
   const match = /^var\((--(?:seq|div)-[\w-]+)\)$/.exec(tint)
   return match ? `var(${match[1]}-ink)` : undefined
-}
-
-/** Accent at graded opacity — a token-only heat scale. */
-export function cellTint(share: number | null): string {
-  if (share === null) return 'transparent'
-  const percent = 6 + Math.round(Math.min(1, Math.max(0, share)) * 44)
-  return `color-mix(in srgb, var(--accent) ${percent}%, transparent)`
 }
 
 export interface HeatCell {
@@ -127,12 +91,12 @@ function ariaSort(dir: SortDir | undefined): 'descending' | 'ascending' | undefi
 }
 
 /** A fixed-width column's side padding (--space-2 in
- * TransitionTable.module.css): a caller sizing columns to their labels
+ * HeatTable.module.css): a caller sizing columns to their labels
  * adds it twice to the text width. */
 export const HEAT_CELL_PAD = 8
 
 /** The canvas font of a column header — the table's --text-sm at weight
- * 500 in the page face (TransitionTable.module.css) — resolved against
+ * 500 in the page face (HeatTable.module.css) — resolved against
  * the page, for measuring how a label wraps. */
 export function headerFont(): string {
   const root = getComputedStyle(document.documentElement)
@@ -512,52 +476,5 @@ export function HeatTable({
         </div>
       )}
     </div>
-  )
-}
-
-/** A transition cell's hover card: the move it counts, then the share
- * of the first answer's people who made it, its CI, and how many people
- * in the sample made it. */
-export function transitionTip(cell: EstimateRow, from: string, to: string): string {
-  const share = formatEstimate(cell.estimate, cell.stat)
-  return [
-    `First “${from}”, later “${to}”`,
-    cell.estimate === null ? 'No estimate' : `${share} of the people who first said “${from}”`,
-    ciLine(cell),
-    sizeLine(cell),
-  ]
-    .filter(Boolean)
-    .join('\n')
-}
-
-export function TransitionTable({
-  rows,
-  levelLabel,
-  caption,
-}: {
-  /** One country's `transition_conditional` rows. */
-  rows: readonly EstimateRow[]
-  /** Answer labels from the variable's own value labels (server truth). */
-  levelLabel: (level: number) => string
-  caption: string
-}) {
-  const grid = transitionGrid(rows)
-  const axis = grid.levels.map((level) => ({ key: String(level), label: levelLabel(level) }))
-  return (
-    <HeatTable
-      caption={caption}
-      corner="First answer ↓ · later answer →"
-      rows={axis}
-      columns={axis}
-      cellAt={(from, to) => {
-        const cell = grid.cells.get(`${from.key}:${to.key}`)
-        if (!cell) return undefined
-        return {
-          text: formatEstimate(cell.estimate, cell.stat),
-          title: transitionTip(cell, from.label, to.label),
-          tint: cellTint(cell.estimate),
-        }
-      }}
-    />
   )
 }

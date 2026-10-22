@@ -31,7 +31,7 @@ import {
   tipText,
 } from '../charts/theme'
 import { RankedBar, wrapLabel } from '../charts/RankedBar'
-import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, columnsPastEdge } from '../charts/TransitionTable'
+import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, columnsPastEdge } from '../charts/HeatTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'

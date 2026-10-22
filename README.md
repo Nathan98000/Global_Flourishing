@@ -12,8 +12,8 @@ behind every number.
 **Status: Phase 6 complete — correlates and adjusted models (statistics
 review pending).** Atlas (ranked dots, distributions,
 medians), **Change** (how the same people answered a year later:
-within-person change with its interval and a marked zero, the histogram
-of individual change, and where people moved between answers),
+within-person change with its interval and a marked zero, and the
+histogram of individual change),
 **What Matters** (the midyear survey: what people said mattered most by
 country and by age),
 **Correlates** (how answers to different questions go together, by

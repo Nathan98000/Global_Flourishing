@@ -241,11 +241,10 @@ would mix real change with changes in who answered.
   of a 0/1 indicator (gave it in 2024 minus gave it in 2023), averaged
   over the same people with the longitudinal weight, with a
   design-based interval.
-- **Two more views of the same pairs.** The histogram of individual
-  change (drawn for 0–10 scales and counts) and the transition matrix
-  ("of the people who said X in 2023, what did they say in 2024?") are
-  estimated on the same pairs, each cell with its own confidence
-  interval.
+- **One more view of the same pairs.** The histogram of individual
+  change (drawn for 0–10 scales and counts) is estimated on the same
+  pairs, each bar with its own confidence interval. A categorical item
+  shows its overall change alone.
 
 ### Why fewer second answers widen the interval
 

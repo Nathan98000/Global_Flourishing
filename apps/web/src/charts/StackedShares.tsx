@@ -25,7 +25,7 @@ import {
   plotValue,
   tipText,
 } from './theme'
-import { tintInk } from './TransitionTable'
+import { tintInk } from './HeatTable'
 import { chartWidth, usePlot } from './usePlot'
 
 /** The most answers the bars can tell apart: one ramp step each. */
