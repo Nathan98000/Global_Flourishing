@@ -19,7 +19,7 @@ import {
 import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
-import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
@@ -57,18 +57,44 @@ function absoluteY(node: Element): number {
   return y
 }
 
-/** Every column (fx) label sits at least one text line above the
- * highest top-axis tick label — the two shared a baseline before. */
-function expectColumnLabelsAboveTicks(svg: SVGSVGElement | null) {
-  const columnLabels = [...(svg?.querySelectorAll('[aria-label="fx-axis tick label"] text') ?? [])]
-  const tickLabels = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])]
-  expect(columnLabels.length).toBeGreaterThan(0)
-  expect(tickLabels.length).toBeGreaterThan(0)
-  const highestTick = Math.min(...tickLabels.map(absoluteY))
-  for (const label of columnLabels) {
-    expect(absoluteY(label), `${label.textContent} above the ticks`).toBeLessThanOrEqual(
-      highestTick - 12,
-    )
+/** A text's x in the SVG, like absoluteY. */
+function absoluteX(node: Element): number {
+  let x = 0
+  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
+    if (match) x += Number(match[1])
+  }
+  return x
+}
+
+/** A tick label's horizontal extent: about 6.6 px a glyph of the 11 px
+ * plot text, placed by its text-anchor (inherited from its group). */
+function labelExtent(node: Element): [number, number] {
+  const width = (node.textContent ?? '').length * 6.6
+  const x = absoluteX(node)
+  const anchor = node.closest('[text-anchor]')?.getAttribute('text-anchor') ?? 'middle'
+  if (anchor === 'start') return [x, x + width]
+  if (anchor === 'end') return [x - width, x]
+  return [x - width / 2, x + width / 2]
+}
+
+/** Every pair of neighbouring tick labels on one row of panels leaves a
+ * gap — across facets too, where "10" and "0" once read "100" (F15). */
+function expectTickLabelsApart(svg: SVGSVGElement) {
+  const labels = [...svg.querySelectorAll('[aria-description="panel tick label"] text')]
+  expect(labels.length).toBeGreaterThan(0)
+  const rows = new Map<number, [number, number][]>()
+  for (const label of labels) {
+    const y = Math.round(absoluteY(label))
+    rows.set(y, [...(rows.get(y) ?? []), labelExtent(label)])
+  }
+  for (const extents of rows.values()) {
+    extents.sort((a, b) => a[0] - b[0])
+    extents.slice(1).forEach((extent, index) => {
+      expect(extent[0], 'a gap before the next tick label').toBeGreaterThanOrEqual(
+        (extents[index] as [number, number])[1] + 4,
+      )
+    })
   }
 }
 
@@ -706,19 +732,63 @@ describe('SmallMultiples', () => {
       />,
     )
     const svg = container.querySelector('svg')
-    // The shared axis states the window's edges (data spans 5.9–7.5)…
-    const axisTicks = [
-      ...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? []),
-    ].map((node) => node.textContent)
-    expect(axisTicks[0]).toBe('5.5')
-    expect(axisTicks[axisTicks.length - 1]).toBe('8.0')
-    expect(axisTicks).not.toContain('0.0')
+    // The shared window states its edges (data spans 5.9–7.5)…
+    const ticks = [
+      ...new Set(
+        [...(svg?.querySelectorAll('[aria-description="panel tick label"] text') ?? [])].map(
+          (node) => Number(node.textContent),
+        ),
+      ),
+    ].sort((a, b) => a - b)
+    expect(ticks[0]).toBe(5.5)
+    expect(ticks[ticks.length - 1]).toBe(8)
+    expect(ticks).not.toContain(0)
     // …and each of the two panels carries its own copy of the ticks, so
-    // no panel is read against an axis a page away.
+    // no panel is read against an axis a page away; there is none on top.
     const inPanelTicks = [...(svg?.querySelectorAll('text') ?? [])].filter(
       (node) => node.textContent === '6.0',
     )
-    expect(inPanelTicks.length).toBeGreaterThanOrEqual(2)
+    expect(inPanelTicks).toHaveLength(2)
+    expect(svg?.querySelector('[aria-label="x-axis tick label"]')).toBeNull()
+  })
+
+  test("each panel's title is its country, top-left in ink over its rows — not at the right edge", () => {
+    const { container } = render(
+      <SmallMultiples
+        rows={cellRows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ by: ['country_code', 'gender'] })}
+        variable={happyVariable}
+        color="var(--series-1)"
+        levelColumn="gender"
+        levelDomain={['Male', 'Female']}
+        sort="estimate"
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    expect(svg.querySelector('[aria-label="fy-axis tick label"]')).toBeNull()
+    const titles = [...svg.querySelectorAll('[aria-description="panel title"] text')]
+    expect(titles.map((node) => node.textContent)).toEqual(['United States', 'Testland'])
+    const style = titles[0]?.parentElement
+    expect(style?.getAttribute('fill')).toBe('var(--ink)')
+    expect(style?.getAttribute('font-size')).toBe('13.5')
+    expect(style?.getAttribute('font-weight')).toBe('600')
+    expect(style?.getAttribute('text-anchor')).toBe('start')
+    // At the chart's left edge, where the row labels start…
+    for (const title of titles) expect(absoluteX(title)).toBeLessThan(8)
+    // …and above its own panel's frame and first row label.
+    const frames = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
+      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
+    )
+    const rowLabels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
+      .filter((node) => node.textContent === 'Male')
+      .map(absoluteY)
+    titles.forEach((title, index) => {
+      const top = absoluteY(title)
+      expect(top).toBeLessThan(frames[index] as number)
+      expect(top).toBeLessThan(rowLabels[index] as number)
+      if (index > 0) expect(top).toBeGreaterThan(frames[index - 1] as number)
+    })
   })
 })
 
@@ -737,7 +807,7 @@ describe('column labels and the top axis', () => {
     ),
   )
 
-  test('a second breakdown puts its column labels a line above the top ticks', () => {
+  test("each facet of a grid names its column, under its country's title", () => {
     const { container } = render(
       <SmallMultiples
         rows={gridRows}
@@ -752,9 +822,124 @@ describe('column labels and the top axis', () => {
         sort="estimate"
       />,
     )
-    const svg = container.querySelector('svg')
-    expect(svg?.textContent).toContain('Female')
-    expectColumnLabelsAboveTicks(svg)
+    const svg = container.querySelector('svg') as SVGSVGElement
+    expect(svg.querySelector('[aria-label="fx-axis tick label"]')).toBeNull()
+    const heads = [...svg.querySelectorAll('[aria-description="column label"] text')]
+    expect(heads.map((node) => node.textContent).sort()).toEqual([
+      'Female',
+      'Female',
+      'Male',
+      'Male',
+    ])
+    // One title per country, on its first facet; each column label sits
+    // under its country's title and over its own frame.
+    const titles = [...svg.querySelectorAll('[aria-description="panel title"] text')]
+    expect(titles).toHaveLength(2)
+    const frameTops = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
+      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
+    )
+    for (const head of heads) {
+      const y = absoluteY(head)
+      const title = Math.max(...titles.map(absoluteY).filter((top) => top <= y))
+      expect(y).toBeGreaterThan(title + 12)
+      expect(frameTops.some((top) => top > y && top - y < 20)).toBe(true)
+    }
+  })
+
+  // Eight 0–10 facets, as "gender, then by age band" draws them (F15):
+  // side by side in the page column at a 1280 px window (896 px), three
+  // to a row at a 390 px phone (358 px).
+  const eightBands = Array.from({ length: 8 }, (_, index) => ({
+    value: String(index + 1),
+    label: `Band ${index + 1}`,
+  }))
+  const eightMeta = {
+    ...testMeta,
+    breakdown_labels: {
+      ...testMeta.breakdown_labels,
+      age_band: { display_name: 'Age band', levels: eightBands },
+    },
+  }
+  const wideRows = [1, 22].flatMap((code) =>
+    eightBands.flatMap((band) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, age_band: band.value, gender },
+          estimate: 5,
+          ci_lo: 0.2,
+          ci_hi: 9.8,
+        }),
+      ),
+    ),
+  )
+  test.each([
+    [896, '1280'],
+    [358, '390'],
+  ])('at %i px (a %s px window) no tick label touches its neighbour', (available) => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width: available }) as DOMRect)
+    try {
+      const { container } = render(
+        <SmallMultiples
+          rows={wideRows}
+          meta={eightMeta}
+          responseMeta={testResponseMeta({ by: ['country_code', 'gender', 'age_band'] })}
+          variable={happyVariable}
+          color="var(--series-1)"
+          levelColumn="gender"
+          levelDomain={['Male', 'Female']}
+          seriesColumn="age_band"
+          seriesDomain={eightBands.map((band) => band.label)}
+          sort="estimate"
+        />,
+      )
+      const svg = container.querySelector('svg') as SVGSVGElement
+      expect(svg.getAttribute('width')).toBe(String(available))
+      expectTickLabelsApart(svg)
+      // Sixteen facets — two countries by eight bands — and no empty ones
+      // where a wrapped row runs short.
+      expect(svg.querySelectorAll('[aria-label="frame"] rect')).toHaveLength(16)
+      // The window's two ends are labelled in every facet, turned inward.
+      const ends = [...svg.querySelectorAll('[aria-description="panel tick label"] text')]
+      expect(ends.filter((node) => node.textContent === '0')).toHaveLength(16)
+      expect(ends.filter((node) => node.textContent === '10')).toHaveLength(16)
+      // Facets of a row stand at least 16 px apart.
+      const lefts = [
+        ...new Set(
+          [...svg.querySelectorAll('[aria-label="frame"] rect')].map((frame) =>
+            Math.round(absoluteX(frame) + Number(frame.getAttribute('x'))),
+          ),
+        ),
+      ].sort((a, b) => a - b)
+      const width = Number(svg.querySelector('[aria-label="frame"] rect')?.getAttribute('width'))
+      lefts.slice(1).forEach((left, index) => {
+        expect(left - ((lefts[index] as number) + width)).toBeGreaterThanOrEqual(15)
+      })
+    } finally {
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+describe('panelTicks', () => {
+  const label = (tick: number) => String(tick)
+  test('keeps every tick when the facet is wide, its ends always', () => {
+    expect(panelTicks([0, 2, 4, 6, 8, 10], [0, 10], label, 400)).toEqual([0, 2, 4, 6, 8, 10])
+  })
+  test('thins the inner ticks when the facet is narrow, never the ends', () => {
+    const kept = panelTicks([0, 2, 4, 6, 8, 10], [0, 10], label, 80)
+    expect(kept[0]).toBe(0)
+    expect(kept[kept.length - 1]).toBe(10)
+    expect(kept.length).toBeLessThan(6)
   })
 })
 
