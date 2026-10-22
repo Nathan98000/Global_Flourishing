@@ -35,6 +35,7 @@ import { HEAT_CELL_PAD, HeatTable, columnsPastEdge } from '../charts/HeatTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
+import { MIDYEAR_NOTE } from '../waves'
 import { headingColumnWidth } from '../views/correlates/CompareSeveral'
 import {
   attendVariable,
@@ -1515,7 +1516,7 @@ describe('Correlates view', () => {
     )
   })
 
-  test('on a phone Year and Where stay in view; Options opens the sheet with Measured as (ADR-0029)', async () => {
+  test('on a phone Year and Where join Measured as in the Options sheet, the line naming all three (H8, ADR-0033)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('40rem'),
       media: query,
@@ -1527,26 +1528,31 @@ describe('Correlates view', () => {
       dispatchEvent: () => false,
     }))
     mockFetch(tier)
-    await renderAt('/correlates')
+    const router = await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
-    // The question bar: Year and Where, never folded away.
-    expect(screen.getByRole('group', { name: 'Year' })).toBeVisible()
-    expect(screen.getByLabelText('Where')).toBeVisible()
-    // The old "Change" button is gone (it collided with the Change page).
-    expect(screen.queryByRole('button', { name: /^Change wave/ })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Measured as' })).toBeNull()
-    // The line names only what Options holds (G12): Where is right above.
-    expect(screen.getByText('Measured as: straight-line')).toBeVisible()
+    // The answer first: no help line (the question sentence says it), and
+    // Year and Where wait in the sheet; the line says all three.
+    expect(screen.queryByText(/^Pick two questions to see/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
+    expect(screen.queryByLabelText('Where')).toBeNull()
+    expect(screen.getByText('2023 · all countries, averaged · straight-line')).toBeVisible()
+    // Swap is its arrows at the sentence's end, its word still its name.
+    expect(screen.getByRole('button', { name: 'Swap' })).toHaveTextContent('⇄ Swap')
     const options = screen.getByRole('button', { name: 'Options' })
     fireEvent.click(options)
     const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+    expect(within(sheet).getByRole('group', { name: 'Year' })).toBeInTheDocument()
+    expect(within(sheet).getByText(MIDYEAR_NOTE)).toBeInTheDocument()
     expect(within(sheet).getByRole('group', { name: 'Measured as' })).toBeInTheDocument()
     expect(
       within(sheet).getByRole('button', { name: 'What’s the difference?' }),
     ).toBeInTheDocument()
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    fireEvent.change(within(sheet).getByLabelText('Where'), { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?country=22'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(options).toHaveFocus()
+    expect(screen.getByText('2023 · United States · straight-line')).toBeVisible()
   })
 
   test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {

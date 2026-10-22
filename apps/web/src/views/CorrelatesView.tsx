@@ -26,7 +26,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { Disclosure } from '../components/controls/Disclosure'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { groupValueLabel } from '../labels'
+import { groupValueLabel, lowerFirst } from '../labels'
 import { searchNavigation } from '../state/navigate'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import {
@@ -37,6 +37,7 @@ import {
 } from '../state/search'
 import { MIDYEAR_NOTE, WAVE_CHIPS } from '../waves'
 import { ALL_COUNTRIES, METHOD_DIFFERENCE, countriesByName, waveNote } from './correlatesRows'
+import { stateLine } from './viewState'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
@@ -209,12 +210,23 @@ export function CorrelatesView() {
 
   // One row — Year · Where, each under its label — and, under the whole
   // row, why a wave is unavailable; the correlation type is the chart's
-  // (its toolbar). On a phone, one line says how the chart is drawn, with
-  // Options to change it.
+  // (its toolbar). On a phone the row goes into the Options sheet with
+  // the correlation type, and one line says all three (H8, ADR-0033 —
+  // the answer on the first screen): "2023 · all countries, averaged ·
+  // straight-line".
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
-  // The phone's line names only what its Options sheet holds (G12): Year
-  // and Where are in view right above it.
-  const summary = method ? `Measured as: ${method.label.toLowerCase()}` : ''
+  // The control's words in lower case; a country keeps its name.
+  const whereWords =
+    where === EACH_COUNTRY
+      ? lowerFirst(WHERE_EACH)
+      : where === 'all'
+        ? lowerFirst(WHERE_ALL)
+        : countryName
+  const summary = stateLine(
+    WAVE_CHIPS[search.wave] ?? search.wave,
+    whereWords,
+    method?.label.toLowerCase(),
+  )
   // How the chart is drawn: in its header's toolbar (`inline`, ADR-0029),
   // or in the phone's options sheet — the correlation type, with what
   // tells the two apart.
@@ -239,57 +251,74 @@ export function CorrelatesView() {
       </Disclosure>
     </span>
   )
-  const controls = (
+  const yearControl = (
+    <RadioRow
+      legend="Year"
+      name="wave"
+      options={waveOptions}
+      value={search.wave}
+      onChange={(wave) => apply(chooseWave(search, wave, byName, shown))}
+      noteId={note ? noteId : undefined}
+    />
+  )
+  // Why a year is unavailable, or what happens at Midyear — else what
+  // the midyear survey is.
+  const rowNote = (
+    <p id={noteId} className={own.rowNote}>
+      {note ?? MIDYEAR_NOTE}
+    </p>
+  )
+  // What changed on its own (ADR-0020): always in the page, so the polite
+  // region is there before it speaks.
+  const noticeLine = (
+    <p role="status" className={own.notice}>
+      {notice}
+    </p>
+  )
+  const whereControl = (
+    <label className={styles.field}>
+      <span className={styles.fieldLabel}>Where</span>
+      <select
+        value={where}
+        onChange={(event) => {
+          const value = event.target.value
+          if (value === EACH_COUNTRY) setSearch({ scope: 'all' })
+          else if (value === 'all') setSearch({ country: undefined, scope: 'country' })
+          else setSearch({ country: Number(value), scope: 'country' })
+        }}
+      >
+        {/* The average first, then side by side, then each country
+                A–Z (a list to pick from, not a sort). */}
+        <option value="all">{WHERE_ALL}</option>
+        {sideBySide && <option value={EACH_COUNTRY}>{WHERE_EACH}</option>}
+        {countries.map((entry) => (
+          <option key={entry.code} value={entry.code}>
+            {entry.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+  const controls = narrow ? (
+    <div className={own.controlRow}>
+      {noticeLine}
+      <div className={own.sheetLine}>
+        <OptionsSheet summary={summary}>
+          {yearControl}
+          {rowNote}
+          {whereControl}
+          {methodControl(false)}
+        </OptionsSheet>
+      </div>
+    </div>
+  ) : (
     <div className={own.controlRow}>
       <div className={own.controlCells} data-bar="question">
-        <RadioRow
-          legend="Year"
-          name="wave"
-          options={waveOptions}
-          value={search.wave}
-          onChange={(wave) => apply(chooseWave(search, wave, byName, shown))}
-          noteId={note ? noteId : undefined}
-        />
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Where</span>
-          <select
-            value={where}
-            onChange={(event) => {
-              const value = event.target.value
-              if (value === EACH_COUNTRY) setSearch({ scope: 'all' })
-              else if (value === 'all') setSearch({ country: undefined, scope: 'country' })
-              else setSearch({ country: Number(value), scope: 'country' })
-            }}
-          >
-            {/* The average first, then side by side, then each country
-                A–Z (a list to pick from, not a sort). */}
-            <option value="all">{WHERE_ALL}</option>
-            {sideBySide && <option value={EACH_COUNTRY}>{WHERE_EACH}</option>}
-            {countries.map((entry) => (
-              <option key={entry.code} value={entry.code}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {yearControl}
+        {whereControl}
       </div>
-      {/* Why a year is unavailable, or what happens at Midyear — else
-          what the midyear survey is. */}
-      <p id={noteId} className={own.rowNote}>
-        {note ?? MIDYEAR_NOTE}
-      </p>
-      {/* What changed on its own (ADR-0020): always in the page, so the
-          polite region is there before it speaks. */}
-      <p role="status" className={own.notice}>
-        {notice}
-      </p>
-      {/* On a phone, Year and Where stay in view; how the chart is drawn
-          goes in the options sheet (ADR-0029). */}
-      {narrow && (
-        <div className={own.sheetLine}>
-          <OptionsSheet summary={summary}>{methodControl(false)}</OptionsSheet>
-        </div>
-      )}
+      {rowNote}
+      {noticeLine}
     </div>
   )
   const chartControls = narrow ? undefined : methodControl(true)
@@ -308,7 +337,7 @@ export function CorrelatesView() {
   }
 
   return (
-    <section>
+    <section className={own.page}>
       <h2 className="visually-hidden">Correlates</h2>
       <p className={styles.deck}>See how answers to different questions go together.</p>
       <InvalidParamsNotice
@@ -332,7 +361,8 @@ export function CorrelatesView() {
           onChange={(view) => setSearch(viewPatch(search, view))}
         />
       </div>
-      <p className={own.purpose}>{PURPOSE[search.view]}</p>
+      {/* On a phone the question sentence says it (H8). */}
+      {!narrow && <p className={own.purpose}>{PURPOSE[search.view]}</p>}
       {search.view === 'pair' ? (
         <ComparePair {...props} />
       ) : search.view === 'matrix' ? (

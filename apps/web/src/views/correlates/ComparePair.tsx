@@ -206,7 +206,8 @@ export function ComparePair({
               className={own.swap}
               onClick={() => setSearch({ a: bName, b: aName })}
             >
-              <span aria-hidden="true">⇄ </span>Swap
+              <span aria-hidden="true">⇄</span>
+              <span className={own.swapWord}> Swap</span>
             </button>
           </span>
         </p>

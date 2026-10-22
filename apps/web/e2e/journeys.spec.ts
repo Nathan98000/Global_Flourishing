@@ -1065,17 +1065,24 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     ),
   ).toBeVisible()
 
-  // A phone: Year and Where stay in view; one line says how the chart
-  // is drawn, and Options opens the sheet with the correlation type.
+  // A phone (H8): Year and Where join the correlation type in the
+  // Options sheet, one line naming all three, so the answer — the
+  // strip's number — is on the first screen.
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/correlates')
+  const answer = page.getByText(/^All countries: [+−]\d/)
+  await expect(answer).toBeVisible()
+  expect((await answer.boundingBox())!.y).toBeLessThanOrEqual(600)
   await page.goto('/correlates?country=22')
-  await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
-  await expect(page.getByLabel('Where')).toHaveValue('22')
-  // The line names only what Options holds (G12).
-  await expect(page.getByText('Measured as: straight-line', { exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Year' })).toHaveCount(0)
+  await expect(
+    page.getByText('2023 · United States · straight-line', { exact: true }),
+  ).toBeVisible()
   const options = page.getByRole('button', { name: 'Options' })
   await options.click()
   const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('group', { name: 'Year' })).toBeVisible()
+  await expect(sheet.getByLabel('Where')).toHaveValue('22')
   await sheet.getByText('By rank', { exact: true }).click()
   await expect(page).toHaveURL(/country=22&method=spearman$/)
   await sheet.getByRole('button', { name: 'Done' }).click()
