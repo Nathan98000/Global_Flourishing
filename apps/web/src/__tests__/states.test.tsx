@@ -314,7 +314,7 @@ describe('US States view', () => {
   test('the chart’s value label reverses the order and writes dir; the map has none (ADR-0029)', async () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars')
-    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
     expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
     const value = screen.getByRole('columnheader', { name: /^Mean/ })
     fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
@@ -400,7 +400,7 @@ describe('US States view', () => {
   test('the states chart’s subtitle carries its state in the controls’ words, and a control off says why', async () => {
     mockFetch(tier)
     await renderAt('/states?view=bars')
-    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
     // No weight jargon: the year and the order (ADR-0029).
     expect(
       screen.getByText('Mean score, 0–10 · 2023 · highest first', { selector: 'figcaption *' }),
@@ -418,7 +418,7 @@ describe('US States view', () => {
   test('adjusted weights: unavailable on Wave 1 with the reason, offered on Wave 2, never sent for Y1', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/states?view=bars')
-    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
     const adj = screen.getByLabelText(/Adjust for who answered in each state/) as HTMLInputElement
     expect(adj).toBeDisabled()
     // A year the question wasn't asked in says why, in view (F6).
@@ -436,7 +436,7 @@ describe('US States view', () => {
     const adjY2 = await screen.findByLabelText(/Adjust for who answered in each state/)
     expect(adjY2).not.toBeDisabled()
     fireEvent.click(adjY2)
-    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
     expect(router.state.location.searchStr).toContain('adj=true')
     expect(
       calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y2&stat=mean&adj=true')),
@@ -447,7 +447,9 @@ describe('US States view', () => {
   test('with no view the page opens on the chart: each state by value, the US line labelled (ADR-0030)', async () => {
     mockFetch(tier)
     const router = await renderAt('/states')
-    const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    const figure = await screen.findByRole('group', {
+      name: /Secure Flourishing Index by US state/,
+    })
     expect(router.state.location.searchStr).toBe('')
     expect(
       within(screen.getByRole('group', { name: 'View' })).getByLabelText('Chart'),
@@ -461,7 +463,9 @@ describe('US States view', () => {
   test('Find a state picks it out on the chart and the map and holds its card open, until cleared', async () => {
     mockFetch(tier)
     const router = await renderAt('/states')
-    const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    const figure = await screen.findByRole('group', {
+      name: /Secure Flourishing Index by US state/,
+    })
     const find = screen.getByLabelText('Find a state') as HTMLSelectElement
     // The server's state names, a list to pick from.
     expect([...find.options].map((option) => option.textContent)).toEqual([

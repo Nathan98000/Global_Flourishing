@@ -178,7 +178,7 @@ const RENAMED = /\bAverage\b|Middle value|All answers|likely range/
 test('no control, subtitle or card renames a statistic: Mean, Median, Distribution, 95% CI', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByRole('img', { name: /United States/ })
+  await screen.findByRole('group', { name: /United States/ })
   const main = screen.getByRole('main')
   expect(within(main).getByText(/^Mean score, 0–10/)).toBeInTheDocument()
   expect(main.textContent).not.toMatch(RENAMED)
@@ -205,7 +205,7 @@ test('no control, subtitle or card renames a statistic: Mean, Median, Distributi
 test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByRole('img', { name: /United States/ })
+  await screen.findByRole('group', { name: /United States/ })
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
   expect(within(screen.getByRole('figure')).getByText(/Mean of 12 questions/)).toBeInTheDocument()
@@ -617,7 +617,7 @@ test('the chart header: the state in the subtitle, the key, and a toolbar — Sh
     screen.getByRole('button', { name: /^Question: / }),
     within(toolbar).getAllByRole('radio')[0] as HTMLElement,
     download,
-    within(figure).getByRole('img'),
+    within(figure).getByRole('group', { name: /by country/ }),
   ]
   for (let at = 1; at < order.length; at += 1) {
     expect(

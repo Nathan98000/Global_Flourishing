@@ -56,10 +56,11 @@ export function usePlot(build: (available: number | null) => Element, deps: read
     for (const svg of rendered instanceof SVGSVGElement
       ? [rendered]
       : rendered.querySelectorAll('svg')) {
-      // The ChartFigure container carries role="img" + the summary; the
-      // SVG internals (Plot labels its mark groups with aria-label on
-      // plain <g>, which ARIA prohibits) stay out of the a11y tree —
-      // the summary speaks for the chart, the CSV carries its numbers.
+      // The ChartFigure container carries the summary; the SVG
+      // internals (Plot labels its mark groups with aria-label on plain
+      // <g>, which ARIA prohibits) stay out of the a11y tree — the
+      // summary speaks for the chart, a ranked chart's rows read out
+      // their cards, the CSV carries its numbers.
       svg.setAttribute('aria-hidden', 'true')
     }
     host.replaceChildren(rendered)

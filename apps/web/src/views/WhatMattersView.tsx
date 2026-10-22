@@ -527,6 +527,7 @@ export function WhatMattersView() {
                   csv={csvFor(countryItemsResponse, countryItemsName)}
                   exportName={countryItemsName}
                   isRefreshing={rankingQuery.isPlaceholderData}
+                  interactive
                 >
                   <RankedBar
                     rows={countryItems}
@@ -642,6 +643,7 @@ export function WhatMattersView() {
               )}
               exportName={{ ...rankingName, measure: item.display_name }}
               isRefreshing={itemQuery.isPlaceholderData}
+              interactive
             >
               <RankedBar
                 rows={itemRows}

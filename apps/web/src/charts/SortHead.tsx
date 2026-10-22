@@ -4,8 +4,8 @@
 // a button that reverses the order (highest first ↔ lowest first), with
 // an arrow and `aria-sort`. A column header is the only element
 // `aria-sort` belongs on, so the two labels are a one-row table header:
-// the chart under them is its body, drawn. Outside the chart's role="img"
-// node, so assistive tech reaches the button.
+// the chart under them is its body, drawn. Outside the chart node, so
+// assistive tech reaches the button where that node is an image.
 
 import type { SortDir } from '../sortRows'
 import { orderPhrase } from '../views/viewState'

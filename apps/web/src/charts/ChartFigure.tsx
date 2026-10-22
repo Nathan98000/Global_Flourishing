@@ -1,9 +1,10 @@
 // The frame around every chart (§2.10): a figure with a figcaption, a
-// role="img" chart node whose aria-label states what it shows and its
-// extremes, and CSV/PNG export — no data table and no line under the
-// chart (ADR-0022, ADR-0024): each mark's hover card carries its value,
-// its 95% CI and its n, and the CSV carries every number. Charts render
-// inside; this never fetches.
+// chart node whose aria-label states what it shows and its extremes —
+// role="img", or a labelled group when the chart holds things to reach
+// by keyboard (ADR-0032) — and CSV/PNG export; no data table and no
+// line under the chart (ADR-0022, ADR-0024): each mark's hover card
+// carries its value, its 95% CI and its n, and the CSV carries every
+// number. Charts render inside; this never fetches.
 //
 // The header (ADR-0029, G4): the title and the subtitle — which carries
 // the view's state in the controls' words — at full width; under them one
@@ -181,12 +182,12 @@ export function ChartFigure({
   /** What the chart shows and its extremes — the screen-reader summary. */
   ariaLabel: string
   /** Rendered between the header and the chart — the question wording
-   * lives here (decision 3), outside the role="img" node so assistive
-   * tech reads it. */
+   * lives here (decision 3), outside the chart node so assistive tech
+   * reads it. */
   intro?: ReactNode
   /** Rendered right under the chart: a key that reads the marks above it
-   * (Compare two's shades), outside the role="img" node so assistive
-   * tech reads it — never a note about the numbers (ADR-0024). */
+   * (Compare two's shades), outside the chart node so assistive tech
+   * reads it — never a note about the numbers (ADR-0024). */
   legend?: ReactNode
   /** The page's display controls, first in the header's toolbar. */
   toolbar?: ReactNode
@@ -200,7 +201,7 @@ export function ChartFigure({
    * under the chart (ADR-0024). */
   hint?: ReactNode
   /** The labels over the chart's columns, the value's a sort button
-   * (SortHead) — right above the chart, outside its role="img" node. */
+   * (SortHead) — right above the chart, outside its chart node. */
   sortHead?: ReactNode
   csv?: CsvExport
   /** What the PNG download is called, in words (export/filename.ts); the
@@ -212,8 +213,10 @@ export function ChartFigure({
    * `wide`, which scrolls in its own box below 1200px): the chart node
    * lets it out rather than clipping it. */
   wide?: boolean
-  /** The chart holds controls (the Correlates list's row buttons): it is
-   * a labelled group, not an image, so they stay in the a11y tree. */
+  /** The chart holds things to reach by keyboard (a ranked chart's rows,
+   * the Correlates list's row buttons, a matrix's cells): it is a
+   * labelled group, not an image, so they stay in the a11y tree
+   * (ADR-0018, ADR-0032). */
   interactive?: boolean
   children: ReactNode
 }) {
@@ -301,6 +304,7 @@ export function ChartFigure({
         role={interactive ? 'group' : 'img'}
         aria-label={ariaLabel}
         className={styles.chart}
+        data-chart=""
         data-refreshing={isRefreshing || undefined}
         data-wide={wide || undefined}
       >

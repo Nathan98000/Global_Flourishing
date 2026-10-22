@@ -1,7 +1,8 @@
-/* The Correlates list's rows as buttons (ADR-0018): each a transparent
-   band over its row of the plot, label and dot alike; a faint wash on
-   hover, the focus ring for the keyboard. The plot under them is drawn
-   as before. */
+/* A ranked chart's rows over its plot: each a transparent band over its
+   row, label and dot alike — the Correlates list's buttons (ADR-0018),
+   or rows a keyboard reads one by one (ADR-0032); a faint wash on hover
+   or focus, the focus ring for the keyboard. The plot under them is
+   drawn as before. */
 .interactive {
   position: relative;
 }
@@ -34,6 +35,13 @@
 .row:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+/* A row only to read: the pointer passes through to the plot, whose own
+   tip it keeps. */
+.reading {
+  cursor: inherit;
+  pointer-events: none;
 }
 
 /* The tooltip in the Plot tips' look (face, size and hairline set inline

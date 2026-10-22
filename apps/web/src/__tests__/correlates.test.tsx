@@ -631,7 +631,7 @@ describe('All countries (ADR-0020)', () => {
   test('Compare two country by country, All countries: nothing picked out; the strip reads the average', async () => {
     mockFetch(pooledTier)
     await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=all&scope=all')
-    const figure = await screen.findByRole('img', {
+    const figure = await screen.findByRole('group', {
       name: /their correlation in each of 2 countries, strongest first, on a fixed scale from −1 to 1\. /,
     })
     expect(figure.innerHTML).not.toContain('var(--control-selected)')
@@ -1262,7 +1262,7 @@ describe('Correlates view', () => {
     })
     fireEvent.change(screen.getByLabelText('Where'), { target: { value: 'each' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
-    const figure = await screen.findByRole('img', {
+    const figure = await screen.findByRole('group', {
       name: /their correlation in each of 2 countries/,
     })
     // Only this chart: the grid has left.
@@ -1309,7 +1309,7 @@ describe('Correlates view', () => {
       },
     })
     await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&scope=all')
-    const figure = await screen.findByRole('img', {
+    const figure = await screen.findByRole('group', {
       name: /their correlation in each of 1 countries/,
     })
     expect(figure.querySelector('svg')?.textContent ?? '').not.toContain('Testland')

@@ -536,6 +536,7 @@ function EveryCountry({
       }}
       exportName={name}
       isRefreshing={isRefreshing}
+      interactive
     >
       <RankedBar
         rows={sorted.rows}

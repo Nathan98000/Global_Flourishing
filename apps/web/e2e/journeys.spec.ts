@@ -53,7 +53,12 @@ async function serveApi(page: Page, routes: Record<string, unknown>) {
 
 const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage/i
 
-const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
+// The Atlas's ranked chart is a group, its rows read by keyboard
+// (ADR-0032); Segments' panels are an image.
+const chartRegion = (page: Page) =>
+  page
+    .getByRole('group', { name: /by country/ })
+    .or(page.getByRole('img', { name: /panel per country/ }))
 // The chart title is the measure alone since §7 (the wave rides last in
 // the subtitle), so title assertions scope to the figure's caption — the
 // bare measure name also labels the question picker's button.
@@ -436,7 +441,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await views.getByText('Within a country', { exact: true }).click()
   await expect(page).toHaveURL(/\/what-matters\?view=within&by=none$/)
   await expect(
-    page.getByRole('img', {
+    page.getByRole('group', {
       name: /^United States: how important people rate 1 item, most important first/,
     }),
   ).toBeVisible()
@@ -466,7 +471,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   // Other questions: one question's bar chart, alone on screen — the
   // synthetic family's one chartable item, Daily social media time.
   await views.getByText('Other questions', { exact: true }).click()
-  const question = page.getByRole('img', { name: /Daily social media time/ })
+  const question = page.getByRole('group', { name: /Daily social media time/ })
   await expect(question).toBeVisible()
   // Rounded bars render as paths in Plot's "bar" mark group.
   await expect(question.locator('[aria-label="bar"] > *').first()).toBeVisible()
@@ -486,7 +491,7 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   // The chart by default (ADR-0030): each state's interval; the subtitle
   // carries the state in the controls' words (ADR-0029).
-  const chart = page.getByRole('img', { name: /Happiness by US state/ })
+  const chart = page.getByRole('group', { name: /Happiness by US state/ })
   await expect(chart).toBeVisible()
   await expect(page.getByRole('group', { name: 'View' }).getByLabel('Chart')).toBeChecked()
   await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()
@@ -557,7 +562,7 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   await sheet.getByLabel('Find a state').selectOption({ label: lastState })
   await sheet.getByRole('button', { name: 'Done' }).click()
   const card = page
-    .getByRole('img', { name: /Happiness by US state/ })
+    .getByRole('group', { name: /Happiness by US state/ })
     .locator('g[aria-label="tip"]', { hasText: lastState })
   await expect(card).toBeVisible()
   const cardBox = (await card.boundingBox())!
@@ -753,7 +758,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // still picked out; then back. Where writes what the old toggle wrote.
   await page.getByLabel('Where').selectOption('each')
   await expect(page).toHaveURL(/scope=all&country=22$/)
-  const everyCountry = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  const everyCountry = page.getByRole('group', { name: /their correlation in each of 2 countries/ })
   await expect(everyCountry).toBeVisible()
   await expect(everyCountry).toHaveAttribute(
     'aria-label',
@@ -864,7 +869,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // Each country side by side: every country, none picked out; the strip
   // reads the average.
   await where.selectOption('each')
-  const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
+  const pooledAcross = page.getByRole('group', { name: /their correlation in each of 2 countries/ })
   await expect(pooledAcross).toBeVisible()
   expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
   await expect(page.getByText('All countries:', { exact: true })).toBeVisible()
@@ -1276,7 +1281,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
   // The chart starts on the first screen (G3): its first dot about 600 px
   // down (594 on the real data on macOS, 757 before), held at 640 so the
   // Linux runner's wider font has room — eight rows still in view.
-  const firstDot = page.locator('main figure [role="img"] svg circle').first()
+  const firstDot = page.locator('main figure [data-chart] svg circle').first()
   await expect(firstDot).toBeVisible()
   expect((await firstDot.boundingBox())!.y).toBeLessThanOrEqual(640)
   // The question bar: the question and the year; the picker is a sheet.
@@ -1319,6 +1324,89 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
       .getByRole('dialog', { name: 'Chart options' })
       .getByRole('radio', { name: 'Distribution' }),
   ).toBeChecked()
+})
+
+test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End, each row’s card with its 95% CI and n; Find a state’s row first', async ({
+  page,
+}) => {
+  // The live service up, as a visitor would have it.
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await page.goto('/')
+  const chart = page.getByRole('group', { name: /by country/ })
+  const rows = chart.getByRole('listitem')
+  await expect(rows.first()).toBeAttached()
+  const count = await rows.count()
+  expect(count).toBeGreaterThanOrEqual(2)
+  // The pointer is unchanged: a dot's hover card is Plot's own.
+  await chart.locator('svg circle').first().hover()
+  await expect(chart.locator('g[aria-label="tip"]')).toContainText(/95% CI: \[.+\]/)
+  await page.mouse.move(0, 0)
+
+  // Into the chart from its value label: one stop, on the first row,
+  // its card open beside it and read out as its description.
+  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(rows.first()).toBeFocused()
+  const card = chart.getByRole('tooltip')
+  await expect(card).toBeVisible()
+  const name = async (index: number) => (await rows.nth(index).getAttribute('aria-label')) ?? ''
+  await expect(card).toContainText(await name(0))
+  await expect(card).toContainText('Mean:')
+  await expect(card).toContainText(/95% CI: \[.+\]/)
+  await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
+  await expect(rows.first()).toHaveAccessibleDescription(/Mean: .*95% CI: \[.+\]/)
+  const rowBox = (await rows.first().boundingBox())!
+  const cardBox = (await card.boundingBox())!
+  const chartBox = (await chart.boundingBox())!
+  expect(cardBox.y).toBeLessThan(rowBox.y + rowBox.height)
+  expect(cardBox.y + cardBox.height).toBeGreaterThan(rowBox.y)
+  expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(chartBox.x + chartBox.width + 1)
+  // ↓ ↑ move between rows, Home and End to the ends; the card follows.
+  await page.keyboard.press('ArrowDown')
+  await expect(rows.nth(1)).toBeFocused()
+  await expect(card).toContainText(await name(1))
+  await page.keyboard.press('End')
+  await expect(rows.nth(count - 1)).toBeFocused()
+  await expect(card).toContainText(await name(count - 1))
+  await page.keyboard.press('ArrowUp')
+  await expect(rows.nth(count - 2)).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(rows.first()).toBeFocused()
+  // Escape closes the card; focus stays on the row.
+  await page.keyboard.press('Escape')
+  await expect(card).toBeHidden()
+  await expect(rows.first()).toBeFocused()
+  // One tab stop: Tab leaves the chart, Shift+Tab comes back to the row
+  // last read.
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Tab')
+  await expect(chart.locator(':focus')).toHaveCount(0)
+  await page.keyboard.press('Shift+Tab')
+  await expect(rows.nth(1)).toBeFocused()
+  await expect(card).toContainText(await name(1))
+
+  // US States: a found state holds the tab stop, and its pinned card
+  // steps aside while the row's own card is open.
+  await serveApi(page, {
+    '/v1/states': apiFixture('states-HAPPY-Y1.json'),
+    '/v1/aggregate': apiFixture('states-HAPPY-Y1-overall.json'),
+  })
+  await page.goto('/states?outcome=HAPPY')
+  const states = page.getByRole('group', { name: /Happiness by US state/ })
+  await expect(states.getByRole('listitem').first()).toBeAttached()
+  const find = page.getByLabel('Find a state')
+  const someState = (await find.locator('option').nth(2).textContent()) ?? ''
+  await find.selectOption({ label: someState })
+  const pinned = states.locator('g[aria-label="tip"]', { hasText: someState })
+  await expect(pinned).toBeVisible()
+  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(states.getByRole('listitem', { name: someState, exact: true })).toBeFocused()
+  await expect(states.getByRole('tooltip')).toContainText(someState)
+  await expect(pinned).toBeHidden()
+  await page.keyboard.press('ArrowDown')
+  await expect(pinned).toBeVisible()
+  await expect(states.getByRole('tooltip')).not.toContainText(someState)
 })
 
 async function streamToString(download: {

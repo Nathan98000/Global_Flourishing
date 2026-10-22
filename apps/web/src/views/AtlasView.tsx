@@ -531,6 +531,8 @@ export function AtlasView() {
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
+                // The ranked chart's rows are read by keyboard (ADR-0032).
+                interactive={!allAnswers && stat !== 'distribution'}
               >
                 {allAnswers ? (
                   levels.length > 0 ? (

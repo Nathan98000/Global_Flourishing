@@ -34,7 +34,10 @@ see [Verified against R](#verified-against-r) below).
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
   it is, its value in words (a mean, a median or a share), its CI
   written as `95% CI: [low, high]`, and how many people in the sample it
-  rests on.
+  rests on. **By keyboard**, on the Atlas, US States, What Matters and
+  Correlates' country-by-country chart, Tab into the chart and move
+  between its rows with ↑ and ↓ (Home and End for the ends): the row in
+  focus shows its card.
 - **Distribution**, for a question with answer options ("A lot / Some /
   Not very much / Not at all"), shows every answer's share as one bar
   per country, the deeper shades for more of what the question names;
