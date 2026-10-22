@@ -70,21 +70,22 @@ export function rankEntries(
   }))
 }
 
-/** A reference estimate drawn as a dashed rule with its label (the US
- * overall figure behind the states; the All countries average across the
- * countries). */
+/** A reference estimate drawn as a dashed rule with its label at the
+ * rule's top, above the chart, in ink (the US overall figure behind the
+ * states; the All countries average across the countries) — never at its
+ * foot, where a share chart's axis labels sit. */
 export interface Reference {
   value: number
   label: string
-  /** The label at the rule's top, above the axis, in ink (the label sits
-   * under the chart otherwise). */
-  atTop?: boolean
 }
 
-/** Room above the top axis for a reference label at the rule's top, and
- * where it sits: its baseline clears the axis's tick labels. */
+/** Room above the top axis for the reference label, and where it sits:
+ * its baseline clears the axis's tick labels. A share chart has no top
+ * axis: its label sits just over the first row. */
 const REFERENCE_TOP_ROOM = 18
 const REFERENCE_TOP_DY = -26
+const REFERENCE_SHARE_DY = -6
+const REFERENCE_SHARE_MARGIN = 28
 
 /** A window that is not fitted to the data: its edges, its ticks, and
  * fewer ticks on a phone. */
@@ -261,45 +262,31 @@ export function RankedBar({
         tipOf
           ? tipOf(entry.row, entry.label)
           : tipText(entry.row, entry.label, { answer: levelLabel, range: variable })
-      const topLabel = reference?.atTop === true
-      // A label at the top anchors toward the middle near either end of a
-      // fixed window, so it never runs off the chart.
+      // The label anchors toward the middle near either end of the
+      // window, so it never runs off the chart.
       const topAnchor = (domain: [number, number]) => {
         if (!reference) return 'middle'
         const t = (reference.value - domain[0]) / (domain[1] - domain[0])
         return t > 0.75 ? 'end' : t < 0.25 ? 'start' : 'middle'
       }
-      const referenceMarks = (domain: [number, number]) =>
+      const referenceMarks = (domain: [number, number], dy = REFERENCE_TOP_DY) =>
         reference
           ? [
               Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
-              Plot.text(
-                [reference.value],
-                topLabel
-                  ? {
-                      x: (value: number) => value,
-                      text: () => reference.label,
-                      frameAnchor: 'top',
-                      dy: REFERENCE_TOP_DY,
-                      lineAnchor: 'bottom',
-                      textAnchor: topAnchor(domain),
-                      fill: INK,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }
-                  : {
-                      x: (value: number) => value,
-                      text: () => reference.label,
-                      frameAnchor: 'bottom',
-                      dy: 14,
-                      fill: INK_SECONDARY,
-                      fontSize: 11,
-                    },
-              ),
+              Plot.text([reference.value], {
+                x: (value: number) => value,
+                text: () => reference.label,
+                frameAnchor: 'top',
+                dy,
+                lineAnchor: 'bottom',
+                textAnchor: topAnchor(domain),
+                fill: INK,
+                fontSize: 12,
+                fontWeight: 600,
+              }),
             ]
           : []
-      const topRoom = topLabel ? REFERENCE_TOP_ROOM : 0
-      const bottomRoom = reference && !topLabel ? 18 : 0
+      const topRoom = reference ? REFERENCE_TOP_ROOM : 0
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -471,7 +458,7 @@ export function RankedBar({
           available !== null,
         )
         const plot = Plot.plot({
-          height: height + 16 + bottomRoom + topRoom + (axisEnds ? ends.room - 8 : 0),
+          height: height + 16 + topRoom + (axisEnds ? ends.room - 8 : 0),
           width,
           marginLeft,
           marginRight,
@@ -548,8 +535,8 @@ export function RankedBar({
         (reference?.value ?? 0) * 1.05,
       )
       return Plot.plot({
-        height: height + bottomRoom + topRoom,
-        ...(topRoom ? { marginTop: 30 + topRoom } : {}),
+        height: height + topRoom,
+        ...(reference ? { marginTop: REFERENCE_SHARE_MARGIN } : {}),
         width,
         marginLeft,
         marginRight,
@@ -592,7 +579,7 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
-          ...referenceMarks([0, xMax]),
+          ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
         ],
       })
     },

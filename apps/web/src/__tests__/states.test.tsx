@@ -275,6 +275,50 @@ describe('state rows', () => {
   })
 })
 
+describe('the US overall label', () => {
+  /** An element's drawn y: its own translate, plus its group's. */
+  const drawnY = (element: Element) =>
+    [element, element.parentElement].reduce((y, node) => {
+      const match = /translate\([^,]+,([-\d.]+)\)/.exec(node?.getAttribute('transform') ?? '')
+      return y + (match ? Number(match[1]) : 0)
+    }, 0)
+
+  test('on a share chart it sits above the first bar, never on the axis below', () => {
+    const rows = ['CA', 'TX', 'VT', 'NY'].map((state, index) =>
+      testRow({
+        group: { state },
+        stat: 'proportion',
+        level: 1,
+        estimate: 0.4 + index / 10,
+        ci_lo: 0.35 + index / 10,
+        ci_hi: 0.45 + index / 10,
+      }),
+    )
+    const { container } = render(
+      <RankedBar
+        rows={rows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'proportion', scope: 'us_state', by: ['state'] })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        labelColumn="state"
+        reference={{ value: 55, label: 'US overall (state weights)' }}
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const label = [...svg.querySelectorAll('text')].find(
+      (text) => text.textContent === 'US overall (state weights)',
+    ) as SVGTextElement
+    // Its baseline (the text runs up from it) above the first bar's top.
+    const firstBar = svg.querySelector('g[aria-label="bar"] > path') as SVGPathElement
+    const barTop = Number(/^M[-\d.]+,([-\d.]+)/.exec(firstBar.getAttribute('d') ?? '')?.[1])
+    expect(drawnY(label)).toBeLessThan(barTop)
+    // The axis's labels are under the bars, far from it.
+    const tick = svg.querySelector('g[aria-label="x-axis tick label"] text') as SVGTextElement
+    expect(drawnY(tick)).toBeGreaterThan(barTop)
+  })
+})
+
 describe('US States view', () => {
   test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
     const calls = mockFetch(tier)

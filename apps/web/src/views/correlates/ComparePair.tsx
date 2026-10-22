@@ -538,7 +538,6 @@ function EveryCountry({
               reference: {
                 value: average.estimate,
                 label: `${ALL_COUNTRIES} ${averageText}`,
-                atTop: true,
               },
             }
           : {})}

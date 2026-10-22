@@ -436,6 +436,25 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   // No line under the chart (ADR-0024); the subtitle names the weights.
   await expect(page.getByText(/weighted so each/)).toHaveCount(0)
   await expect(page.locator('figcaption').getByText(/state weights/)).toBeVisible()
+  // The US overall figure's label sits above the chart, clear of every
+  // row, value and tick.
+  const chart = page.getByRole('img', { name: /Happiness by US state/ })
+  const LABEL = 'US overall (state weights)'
+  const box = await chart.locator('svg text', { hasText: LABEL }).boundingBox()
+  expect(box).not.toBeNull()
+  const overlaps: string[] = []
+  for (const other of await chart.locator('svg text, svg circle, svg rect').all()) {
+    const text = (await other.textContent()) ?? ''
+    const area = await other.boundingBox()
+    if (text === LABEL || !box || !area) continue
+    const clear =
+      area.x + area.width <= box.x ||
+      area.x >= box.x + box.width ||
+      area.y + area.height <= box.y ||
+      area.y >= box.y + box.height
+    if (!clear) overlaps.push(text || 'a mark')
+  }
+  expect(overlaps).toEqual([])
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */
