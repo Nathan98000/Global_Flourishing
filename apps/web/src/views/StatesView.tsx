@@ -9,7 +9,7 @@
 // absent.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useId, useMemo, useState } from 'react'
+import { Suspense, lazy, useId, useMemo, useRef, useState } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimates } from '../api/estimates'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -20,6 +20,7 @@ import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
+import { holdPointerTips } from '../charts/pointerHold'
 import { RankedBar, type Reference } from '../charts/RankedBar'
 import { CSV_SENTENCE } from '../charts/summary'
 import { outcomeColor, people, plotValue } from '../charts/theme'
@@ -64,12 +65,15 @@ export function StatesView() {
   const adjReasonId = useId()
   // Find a state: the state picked out, until cleared.
   const [found, setFound] = useState<string | undefined>()
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Finding a state shows it (G5): once the chart has drawn its pinned
   // card (or the map its outline), that part of the chart comes to the
-  // middle of the screen — smoothly, unless motion is reduced.
-  const find = (code: string | undefined) => {
-    setFound(code)
-    if (code === undefined) return
+  // middle of the screen — smoothly, unless motion is reduced, when it is
+  // there at once. On a phone the state is found in the Options sheet:
+  // the page moves once the sheet has closed (H4), never under it.
+  const scrollPending = useRef(false)
+  const showFound = () => {
+    scrollPending.current = false
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         const chart = document.querySelector('main figure [data-chart]')
@@ -79,11 +83,21 @@ export function StatesView() {
         )
         const target = pinned ?? chart
         const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        // The page moves under a resting mouse: no second card (H4).
+        holdPointerTips()
         target?.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
       }),
     )
   }
-  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const find = (code: string | undefined) => {
+    setFound(code)
+    if (code === undefined) return
+    if (narrow) scrollPending.current = true
+    else showFound()
+  }
+  const sheetClosed = () => {
+    if (scrollPending.current) showFound()
+  }
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
   const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
@@ -410,7 +424,9 @@ export function StatesView() {
         {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
       </div>
       {narrow && chartable && (
-        <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
+        <OptionsSheet summary={phoneSummary} onClosed={sheetClosed}>
+          {chartControls(false)}
+        </OptionsSheet>
       )}
 
       {!chartable ? (

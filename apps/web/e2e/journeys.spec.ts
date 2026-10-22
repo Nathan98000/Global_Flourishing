@@ -566,6 +566,24 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   const cardBox = (await card.boundingBox())!
   expect(cardBox.x).toBeGreaterThanOrEqual(0)
   expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(390)
+
+  // With reduced motion, the page moves at once — once the sheet has
+  // closed, never under it (H4): the found state's row is on the screen.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/states?outcome=HAPPY')
+  await page.getByRole('button', { name: 'Options' }).click()
+  await sheet.getByLabel('Find a state').selectOption({ label: lastState })
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('button', { name: 'Options' })).toBeFocused()
+  const row = page
+    .getByRole('group', { name: /Happiness by US state/ })
+    .getByRole('listitem', { name: new RegExp(`^${lastState}, `) })
+  await expect
+    .poll(async () => {
+      const rowBox = await row.boundingBox()
+      return rowBox !== null && rowBox.y >= 0 && rowBox.y + rowBox.height <= 844
+    })
+    .toBe(true)
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */

@@ -16,11 +16,15 @@ import styles from './OptionsSheet.module.css'
 export function OptionsSheet({
   summary,
   title = 'Chart options',
+  onClosed,
   children,
 }: {
   /** The chart's state in the controls' words. */
   summary: string
   title?: string
+  /** Once the sheet has closed and focus is back on Options (US States'
+   * Find a state scrolls to its state then — H4). */
+  onClosed?: () => void
   /** The controls, in their full-width phone layout. */
   children: ReactNode
 }) {
@@ -31,9 +35,12 @@ export function OptionsSheet({
   const sheetId = useId()
   const chartActions = useSheetChartActions()
 
+  // Focus goes back to Options without scrolling to it: a page that
+  // moved while the sheet was open (Find a state) stays where it went.
   const close = () => {
     setOpen(false)
-    button.current?.focus()
+    button.current?.focus({ preventScroll: true })
+    onClosed?.()
   }
 
   // Open: focus moves to the sheet's first control.
