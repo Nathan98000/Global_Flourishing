@@ -4,8 +4,8 @@
 // crops zero is a lie. Built from DotPlot's marks, not a new mark set.
 // A three-point response facets into one column per leg (2023 →
 // Midyear, Midyear → 2024, 2023 → 2024), each with its own zero rule.
-// Rows arrive ordered (sortRows.ts — the data table's order); every
-// cell is shown (ADR-0011): a row with no interval draws its dot alone.
+// Rows arrive ordered (sortRows.ts — the CSV's order); every cell is
+// shown (ADR-0011): a row with no interval draws its dot alone.
 
 import * as Plot from '@observablehq/plot'
 import type { ChangeLeg } from '../api/change'
@@ -29,13 +29,19 @@ import { chartWidth, usePlot } from './usePlot'
 
 /** Entries keyed by country (y) and, for a three-point panel, by leg (fx). */
 export function changeEntries(rows: EstimateRow[], meta: Meta): DotEntry[] {
-  return rows.map((row) => ({
-    row,
-    level: groupValueLabel('country_code', row.group['country_code'] ?? null, meta),
-    facet: row.leg ? legTitle(row.leg) : '',
-    value: plotValue(row),
-    ci: plotCI(row),
-  }))
+  return rows.map((row) => {
+    const country = groupValueLabel('country_code', row.group['country_code'] ?? null, meta)
+    return {
+      row,
+      level: country,
+      facet: row.leg ? legTitle(row.leg) : '',
+      value: plotValue(row),
+      ci: plotCI(row),
+      // The card names the country, then (a three-point panel) the period.
+      heading: country,
+      detail: row.leg ? legTitle(row.leg) : undefined,
+    }
+  })
 }
 
 /** The fitted window, widened to contain zero: with zero among the

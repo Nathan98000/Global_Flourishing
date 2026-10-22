@@ -187,7 +187,7 @@ export function Failure({ error, apiReachable }: { error: unknown; apiReachable:
 /** The key to a diverging matrix, in its caption's place (outside the
  * scroll box, regular weight), on one line where it fits: the eleven ramp
  * tokens between the window's two ends — the tokens themselves, so it
- * reads true in either theme — what the two hues mean (unless the ends
+ * reads true to the chart — what the two hues mean (unless the ends
  * say it), the asterisk, and one more entry if given. */
 export function DivergingLegend({
   extent,

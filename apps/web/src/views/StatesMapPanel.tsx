@@ -3,7 +3,7 @@
 // initial route.
 
 import { useEffect, useState } from 'react'
-import type { EstimateRow, Meta, ResponseMeta } from '../api/types'
+import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { MapLegend, mapDomain } from '../charts/mapScale'
 import { StateChoropleth } from '../charts/StateChoropleth'
 import { loadUsStateFeatures, type UsFeature } from '../charts/usTopology'
@@ -14,10 +14,15 @@ export default function StatesMapPanel({
   rows,
   responseMeta,
   meta,
+  variable,
+  answer,
 }: {
   rows: EstimateRow[]
   responseMeta: ResponseMeta
   meta: Meta
+  /** For the hover cards: the measure's scale, and a share's answer. */
+  variable?: VariableSummary
+  answer?: string
 }) {
   const [features, setFeatures] = useState<UsFeature[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -38,7 +43,7 @@ export default function StatesMapPanel({
   if (failed) {
     return (
       <p role="status">
-        The map of states failed to load — the data table below still has every number.
+        The map of states failed to load — the CSV download still has every number.
       </p>
     )
   }
@@ -48,12 +53,15 @@ export default function StatesMapPanel({
 
   return (
     <div>
-      <MapLegend
-        domain={mapDomain(rows, responseMeta)}
-        isShare={isShareStat(responseMeta.stat)}
-        pooled
+      <MapLegend domain={mapDomain(rows, responseMeta)} isShare={isShareStat(responseMeta.stat)} />
+      <StateChoropleth
+        rows={rows}
+        responseMeta={responseMeta}
+        features={features}
+        meta={meta}
+        variable={variable}
+        answer={answer}
       />
-      <StateChoropleth rows={rows} responseMeta={responseMeta} features={features} meta={meta} />
     </div>
   )
 }

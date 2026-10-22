@@ -59,7 +59,7 @@ export function usePlot(build: (available: number | null) => Element, deps: read
       // The ChartFigure container carries role="img" + the summary; the
       // SVG internals (Plot labels its mark groups with aria-label on
       // plain <g>, which ARIA prohibits) stay out of the a11y tree —
-      // the data table is the accessible path.
+      // the summary speaks for the chart, the CSV carries its numbers.
       svg.setAttribute('aria-hidden', 'true')
     }
     host.replaceChildren(rendered)

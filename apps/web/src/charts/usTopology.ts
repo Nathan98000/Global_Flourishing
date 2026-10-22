@@ -4,9 +4,8 @@
 // 36 KB gz) fetched only inside the lazy US States map chunk, never in
 // the initial route — exactly the way the world topology loads.
 //
-// The release keys states by two-letter code — plus four pooled groups
-// of small states (ME_NH_RI_VT, DE_MS_WV, AK_HI_MT, ND_SD_WY) so state
-// estimates keep adequate n — while us-atlas keys features by FIPS. The
+// The server keys states by two-letter postal code, every state its own
+// (ADR-0028), while us-atlas keys features by FIPS. The
 // postal → FIPS table below is a rendering-asset concern, like the
 // world map's ISO3 → numeric join; the labels the page shows are the
 // server's own codes, and the topology's names appear only in the tip.
@@ -85,12 +84,6 @@ export const POSTAL_TO_FIPS: Record<string, string> = {
 
 const KNOWN_FIPS = new Set(Object.values(POSTAL_TO_FIPS))
 
-/** A pooled group's members: the release joins small states' codes with
- * underscores (`ME_NH_RI_VT`), so the code itself says who is in it. */
-export function stateMembers(code: string): string[] {
-  return code.split('_').filter(Boolean)
-}
-
 export function featuresFromUsTopology(topology: unknown): UsFeature[] {
   const us = topology as Topology<{ states: GeometryCollection<{ name?: string }> }>
   const collection = feature(us, us.objects.states)
@@ -117,7 +110,7 @@ export function loadUsStateFeatures(): Promise<UsFeature[]> {
 
 export interface StateEntry {
   feature: UsFeature
-  /** The server's state code (a state, or the pooled group it belongs to). */
+  /** The server's state code. */
   code: string | null
   row: EstimateRow | null
   /** The topology's name for the feature — tip copy only. */
@@ -126,8 +119,8 @@ export interface StateEntry {
 }
 
 /** Join state rows to the fifty-one features: every feature is drawn,
- * a pooled group fills each of its members, and codes the topology
- * cannot place are reported rather than dropped silently. */
+ * and codes the topology cannot place are reported rather than dropped
+ * silently. */
 export function joinStates(
   rows: readonly EstimateRow[],
   features: readonly UsFeature[],
@@ -138,15 +131,9 @@ export function joinStates(
   for (const row of rows) {
     const code = String(row.group['state'] ?? '')
     if (!code) continue
-    let placed = false
-    for (const member of stateMembers(code)) {
-      const fips = POSTAL_TO_FIPS[member]
-      if (fips && byFips.has(fips)) {
-        rowByFips.set(fips, { row, code })
-        placed = true
-      }
-    }
-    if (!placed) unmatched.push(code)
+    const fips = POSTAL_TO_FIPS[code]
+    if (fips && byFips.has(fips)) rowByFips.set(fips, { row, code })
+    else unmatched.push(code)
   }
   const entries = features.map((item) => {
     const hit = rowByFips.get(String(item.id))

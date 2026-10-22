@@ -12,7 +12,6 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
 import { ChangeDots, changeScale } from '../charts/ChangeDots'
-import { cellTint, transitionGrid, TransitionTable } from '../charts/TransitionTable'
 import { formatChange, formatEstimate } from '../format'
 import { createAppRouter } from '../router'
 import {
@@ -261,12 +260,13 @@ describe('Change view', () => {
     expect(
       within(figure.closest('figure') as HTMLElement).getByText(/2023 → 2024/),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getAllByText('Data table')[0] as HTMLElement)
-    const table = screen.getAllByRole('table')[0] as HTMLElement
-    expect(within(table).getByText('+0.30')).toBeInTheDocument()
-    expect(within(table).getByText('−0.12')).toBeInTheDocument()
-    expect(within(table).getByText('[−0.17, −0.07]')).toBeInTheDocument()
-    expect(within(table).getByText('1,500')).toBeInTheDocument()
+    // No data table anywhere (ADR-0022): the chart's own value labels
+    // carry the estimates; each dot's hover card its CI and n.
+    expect(screen.queryByText('Data table')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    const values = figure.querySelector('svg')?.textContent ?? ''
+    expect(values).toContain('+0.30')
+    expect(values).toContain('−0.12')
     // The Countries control stands alone: no hint beside it (25 Sept).
     expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
@@ -303,13 +303,11 @@ describe('Change view', () => {
     // No mean of codes anywhere, no histogram of individual change; the
     // value labels are signed percentage points.
     expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
-    fireEvent.click(within(caption).getByText('Data table'))
-    const table = within(caption).getByRole('table')
-    expect(within(table).getByText('+5.0 pp')).toBeInTheDocument()
-    expect(within(table).getByText('+1.2 pp')).toBeInTheDocument()
-    expect(within(table).queryByText('−3.0 pp')).toBeNull() // another level's row
-    // The chart's value labels carry the unit too.
-    expect(figure.querySelector('svg')?.textContent).toContain('+5.0 pp')
+    // The chart's value labels carry the unit; only the chosen level.
+    const values = figure.querySelector('svg')?.textContent ?? ''
+    expect(values).toContain('+5.0 pp')
+    expect(values).toContain('+1.2 pp')
+    expect(values).not.toContain('−3.0 pp') // another level's row
   })
 
   test('a directional yes/no item says whether a rise in the share is better', async () => {
@@ -336,27 +334,16 @@ describe('Change view', () => {
     ).toBeInTheDocument()
   })
 
-  test('a categorical item gets the transition heatmap for chosen countries, labels from the codebook', async () => {
+  test('a categorical item shows its overall change alone, even with countries chosen (ADR-0027)', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=ATTEND_SVCS&countries=1')
-    const moves = await screen.findByRole('img', {
-      name: /share of the same people giving each later answer/,
-    })
-    const table = within(moves).getByRole('table')
-    // The caption sits above the scrolling table, so a wide matrix never
-    // widens the page to fit it; the table is labelled by it.
-    expect(within(moves).getByText(/Testland — each row sums to 100%/)).toBeInTheDocument()
-    expect(table).toHaveAttribute('aria-labelledby')
     expect(
-      within(table)
-        .getAllByRole('columnheader')
-        .map((th) => th.textContent),
-    ).toEqual(['First answer ↓ · later answer →', 'Weekly', 'Sometimes', 'Never'])
-    expect(within(table).getAllByText('60.0%')).toHaveLength(3)
-    // Only the conditional measure is charted; the joint cell stays in
-    // the data table, in words.
-    fireEvent.click(within(moves.closest('figure') as HTMLElement).getByText('Data table'))
-    expect(screen.getAllByText('share within the first answer').length).toBeGreaterThan(0)
+      await screen.findByRole('img', { name: /change in the share of the same people answering/ }),
+    ).toBeInTheDocument()
+    // No matrix of moves between answers, served rows or not.
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
+    expect(screen.queryByText('Where people moved between answers')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
   })
 
   test('a measure asked only once says so instead of asking the API', async () => {
@@ -519,39 +506,6 @@ describe('change chart helpers', () => {
     expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 pp')
     expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 pp')
     expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 pp')
-  })
-
-  test('TransitionTable: a k × k grid, token-only tints, every cell with its n', () => {
-    const rows = [1, 2].flatMap((from) =>
-      [1, 2].map((to) => transitionCell(1, from, to, from === to ? 0.7 : 0.3)),
-    )
-    const grid = transitionGrid(rows)
-    expect(grid.levels).toEqual([1, 2])
-    expect(grid.cells.size).toBe(4)
-    expect(cellTint(null)).toBe('transparent')
-    expect(cellTint(0)).toBe('color-mix(in srgb, var(--accent) 6%, transparent)')
-    expect(cellTint(1)).toBe('color-mix(in srgb, var(--accent) 50%, transparent)')
-    render(
-      <TransitionTable
-        rows={rows}
-        levelLabel={(level) => (level === 1 ? 'Yes' : 'No')}
-        caption="Testland — each row sums to 100%"
-      />,
-    )
-    expect(screen.getAllByText('70.0%')).toHaveLength(2)
-    expect(screen.getAllByText('30.0%')).toHaveLength(2)
-    // The interval rides in the (styled) tooltip; the n lives in the
-    // data table.
-    expect(screen.queryAllByText(/n = 30/)).toHaveLength(0)
-    const cells = screen.getAllByRole('cell')
-    expect(cells).toHaveLength(4)
-    for (const cell of cells) {
-      expect(cell).not.toHaveAttribute('title')
-      fireEvent.pointerEnter(cell)
-      expect(screen.getByRole('tooltip').textContent).toMatch(/later said “(Yes|No)”\n95% CI \[/)
-      fireEvent.pointerLeave(cell)
-    }
-    expect(screen.getByRole('rowheader', { name: 'Yes' })).toBeInTheDocument()
   })
 
   test('a three-point response facets by leg with its legs in words', () => {

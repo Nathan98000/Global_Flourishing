@@ -160,7 +160,7 @@ export function midyearTag(
   return wave === 'MY' && isMidyear(variable) ? 'Midyear' : undefined
 }
 
-/** A label with its tag, where text is all there is (a data table, a
+/** A label with its tag, where text is all there is (a hover card, a
  * CSV): "Daily social media time (Midyear)". */
 export function withTag(label: string, tag: string | undefined): string {
   return tag ? `${label} (${tag})` : label

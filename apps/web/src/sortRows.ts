@@ -1,4 +1,4 @@
-// One ordering, two consumers: the chart and the data table both render
+// One ordering, two consumers: the chart and the CSV both render
 // rows in the order these functions produce (round-2 items 5 and 13), so
 // they cannot drift. Direction is its own URL parameter with a
 // sort-appropriate default: values read high-first, names read A→Z.

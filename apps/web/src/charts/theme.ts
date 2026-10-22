@@ -1,5 +1,5 @@
 // Chart theme: every color is a `var(--token)` string straight into the
-// SVG, so charts re-theme live with tokens.css and no hex ever exists in
+// SVG, so charts follow tokens.css (ADR-0010) and no hex ever exists in
 // chart code. The map's sequential scale is *quantized* onto the seven
 // discrete ramp tokens for the same reason (no interpolation, no
 // resolved colors). Mark metrics follow the dataviz specs: thin bars
@@ -7,21 +7,49 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, ResponseMeta, VariableSummary } from '../api/types'
-import { ciText, formatEstimate, isShareChangeStat, isShareStat, roundsToZero } from '../format'
+import {
+  ciLabel,
+  formatCI,
+  formatCount,
+  formatEstimate,
+  isShareChangeStat,
+  isShareStat,
+  roundsToZero,
+} from '../format'
 
 export const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
-/** Every tooltip: the plot font at the 12px token, the hairline rule as
- * its stroke; its fill is Plot's --plot-background, which tokens.css
- * sets to the surface in both themes (the text is the plot's current
- * colour, secondary ink, AA on that fill). */
+export const INK = 'var(--ink)'
+
+/** A hover card's first line — what the mark is: a country, a state, a
+ * cell — set in ink at 600 over the card's secondary-ink lines. Plot
+ * lays a tip out after this runs (its text is measured once the
+ * pointer's render returns), so the heavier line still fits its box. */
+const headingFirst: Plot.RenderFunction = (index, scales, values, dimensions, context, next) => {
+  const tip = next?.(index, scales, values, dimensions, context) ?? null
+  for (const text of tip?.querySelectorAll('text') ?? []) {
+    const heading = text.querySelector(':scope > tspan')
+    heading?.setAttribute('font-weight', '600')
+    heading?.setAttribute('fill', INK)
+  }
+  return tip
+}
+
+/** Every hover card (ADR-0022): the plot font at 13px with room between
+ * its lines, the hairline rule as its stroke, its heading set apart;
+ * its fill is Plot's --plot-background, which tokens.css sets to the
+ * surface (the text is the plot's current colour,
+ * secondary ink, AA on that fill). The HTML cards (TipCard.tsx) take the
+ * face, size and stroke from here too. */
 export const TIP_OPTIONS = {
   fontFamily: FONT_FAMILY,
-  fontSize: 12,
+  fontSize: 13,
+  lineHeight: 1.3,
+  lineWidth: 30,
   stroke: 'var(--grid)',
+  render: headingFirst,
 } as const
 
-export const INK = 'var(--ink)'
 export const INK_SECONDARY = 'var(--ink-secondary)'
 export const INK_MUTED = 'var(--ink-muted)'
 export const GRID = 'var(--grid)'
@@ -29,7 +57,7 @@ export const AXIS = 'var(--axis)'
 export const SURFACE = 'var(--surface)'
 export const WHISKER = 'var(--whisker)'
 /** The neutral for "no estimate" and unsurveyed land, and the outline
- * that keeps it apart from the ramp's lowest bin in both themes. */
+ * that keeps it apart from the ramp's lowest bin. */
 export const MAP_EMPTY = 'var(--map-empty)'
 export const MAP_EMPTY_OUTLINE = 'var(--map-empty-outline)'
 
@@ -105,8 +133,8 @@ export const POSITIVE_MARK = 'var(--div-pos-mark)'
 export const ZERO_MARK = INK_SECONDARY
 
 /** The diverging tint for a value in [−extent, extent], quantized onto
- * the eleven ramp tokens (no interpolation, no resolved colors — the
- * theme switch recolors live); null → transparent. */
+ * the eleven ramp tokens (no interpolation, no resolved colors — a
+ * token's change recolors every chart); null → transparent. */
 export function divergingTint(value: number | null | undefined, extent = 1): string {
   if (value === null || value === undefined || !Number.isFinite(value) || extent <= 0)
     return 'transparent'
@@ -204,20 +232,117 @@ export function axisLabel(
   return `${stat}${range}`
 }
 
-/** Tooltip text: value leads, the interval follows — never the n, which
- * lives in the data table (ADR-0016). A missing interval says why: none
- * is computed for the statistic (a plain correlation), or no SE was
- * computable (a single sampling unit). */
-export function tipText(row: EstimateRow, label: string): string {
-  const lines = [`${formatEstimate(row.estimate, row.stat)}  ${label}`]
-  if (hasCI(row)) {
-    lines.push(ciText(row))
-  } else if (row.ci_method === 'none') {
-    lines.push('point estimate — no interval is computed for this statistic')
-  } else {
-    lines.push('no interval (single sampling unit)')
+/** What a hover card needs beyond the row to say what its number is. */
+export interface TipContext {
+  /** A line under the heading that places the mark (a breakdown level,
+   * a period). */
+  detail?: string
+  /** The answer a share counts, in its own words ("Yes", "7"). */
+  answer?: string
+  /** The measure's range: a mean or median reads "on a 0–10 scale". */
+  range?: Pick<VariableSummary, 'min' | 'max'>
+  /** A derived score: its shares read "scored 7–8", not "answered". */
+  score?: boolean
+}
+
+/** "answered “Yes”", or "answered 7" for a bare number. */
+export function answered(answer: string, verb = 'answered'): string {
+  return /^[\d.,–−+-]+$/.test(answer) ? `${verb} ${answer}` : `${verb} “${answer}”`
+}
+
+/** A share change in words: "+3.2 percentage points". */
+function shareChangeWords(text: string): string {
+  return text.replace(/ pp$/, ' percentage points')
+}
+
+/** A hover card's value line: the number, said as what it is — "Mean:
+ * 7.71 on a 0–10 scale", "45.0% answered “Yes”", "Mean change: +0.05".
+ * Means and shares are never re-coded (ADR-0015). */
+export function valueLine(row: EstimateRow, context: TipContext = {}): string {
+  if (row.estimate === null) return 'No estimate'
+  const value = formatEstimate(row.estimate, row.stat)
+  const { min, max } = context.range ?? { min: null, max: null }
+  const scale = min !== null && max !== null ? ` on a ${min}–${max} scale` : ''
+  switch (row.stat) {
+    case 'mean':
+      return `Mean: ${value}${scale}`
+    case 'quantile':
+      return `Median: ${value}${scale}`
+    case 'proportion':
+    case 'distribution':
+      return context.answer
+        ? `${value} ${answered(context.answer, context.score ? 'scored' : 'answered')}`
+        : `${value} of people`
+    case 'change':
+      return `Mean change: ${value}`
+    case 'change_share':
+      return `Change in share: ${shareChangeWords(value)}`
+    case 'change_distribution':
+      if (context.answer === undefined) return `${value} of people`
+      return /^[0.]+$/.test(context.answer)
+        ? `${value} gave the same answer both times`
+        : `${value} changed their answer by ${context.answer}`
+    case 'pearson_r':
+    case 'spearman_r':
+      return `Correlation: ${value}`
+    default:
+      return value
   }
-  return lines.join('\n')
+}
+
+/** A hover card's interval line: "95% CI: [7.66, 7.76]" — the
+ * confidence interval named with the row's own level (`format.ts
+ * ciLabel`, never a literal 95), in the brackets every surface uses
+ * (`formatCI`). A statistic shipped without one (a median, a plain
+ * correlation) gets no line; an estimate with no computable interval
+ * says why (ADR-0024). */
+export function ciLine(row: EstimateRow): string | undefined {
+  if (row.estimate === null) return undefined
+  if (hasCI(row)) return `${ciLabel(row.ci_level)}: ${formatCI(row)}`
+  return row.ci_method === 'none'
+    ? undefined
+    : `${ciLabel(row.ci_level)}: none (one sampling unit only)`
+}
+
+/** "1 person", "1,204 people". */
+export function people(n: number): string {
+  return `${formatCount(n)} ${n === 1 ? 'person' : 'people'}`
+}
+
+/** A hover card's sample-size line (ADR-0022), in words that say what
+ * the count is: a mean rests on everyone who answered ("Based on 1,204
+ * people"), a change on the people who answered both times; a share's
+ * row counts the people who gave its answer ("312 people in the sample
+ * gave this answer"), a transition cell the people who made its move. */
+export function sizeLine(row: EstimateRow): string | undefined {
+  if (row.estimate === null) return undefined
+  const n = row.n
+  switch (row.stat) {
+    case 'proportion':
+    case 'distribution':
+      return `${people(n)} in the sample gave this answer`
+    case 'transition':
+      return `${people(n)} in the sample made this move`
+    case 'change_distribution':
+      return `${people(n)} in the sample answered this way`
+    case 'change':
+    case 'change_share':
+      return `Based on ${people(n)} who answered both times`
+    case 'pearson_r':
+    case 'spearman_r':
+      return `Based on ${people(n)} who answered both`
+    default:
+      return `Based on ${people(n)}`
+  }
+}
+
+/** A hover card, one line each (ADR-0022): the heading — what the mark
+ * is — then the value in words, its CI, and how many people it rests
+ * on. */
+export function tipText(row: EstimateRow, heading: string, context: TipContext = {}): string {
+  return [heading, context.detail, valueLine(row, context), ciLine(row), sizeLine(row)]
+    .filter((line): line is string => Boolean(line))
+    .join('\n')
 }
 
 /** Percent-scaled value for share stats (Plot draws 0–100, not 0–1) and

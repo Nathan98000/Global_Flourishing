@@ -1,7 +1,7 @@
 # Validation report
 
 Pipeline `flourish-pipeline 0.2.0` — regenerate with `make data`.
-**62 / 62 checks passed.**
+**64 / 64 checks passed.**
 
 ## Checks
 
@@ -33,6 +33,8 @@ Pipeline `flourish-pipeline 0.2.0` — regenerate with `make data`.
 | age range | pass | (18, 99) | (18, 99) |
 | US respondents with a state | pass | 38155 | 38155 |
 | state weight present iff state present | pass | 0 | 0 |
+| every state its own, none pooled (ADR-0028) | pass | 50 | 50 |
+| Wave 2 state weight present iff Wave 2 state present | pass | 0 | 0 |
 | responses_long rows | pass | 33,295,632 | > 30,000,000 |
 | duplicate (id, wave, variable) keys | pass | 0 | 0 |
 | non-response rows with a value | pass | 0 | 0 |
@@ -158,7 +160,7 @@ Weighted means of the 12-item Secure Flourishing Index; unweighted n.
 | File | Size |
 |---|---|
 | catalog.json | 0.8 MiB |
-| flourish.duckdb | 143.5 MiB |
+| flourish.duckdb | 143.0 MiB |
 | parquet/countries.parquet | 0.0 MiB |
 | parquet/coverage.parquet | 0.0 MiB |
 | parquet/derived.parquet | 2.8 MiB |
@@ -171,12 +173,12 @@ Weighted means of the 12-item Secure Flourishing Index; unweighted n.
 
 | Stage | Seconds |
 |---|---|
-| aggregate | 71.9 |
-| codebook | 2.5 |
-| derive | 2.3 |
-| ingest | 0.6 |
-| manifest | 0.2 |
-| reshape | 2.7 |
+| aggregate | 113.7 |
+| codebook | 2.8 |
+| derive | 2.6 |
+| ingest | 1.1 |
+| manifest | 0.4 |
+| reshape | 3.7 |
 | validate | 0.8 |
 
 All figures above are aggregates; no raw microdata appears in this report.

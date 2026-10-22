@@ -153,8 +153,17 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await insideColumn()
 })
 
-test('2 — Codebook: search, open the entry, chart it, read the wording', async ({ page }) => {
-  await page.goto('/codebook')
+test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({
+  page,
+}) => {
+  // The Codebook is not in the nav; Methods links to it, and stays the
+  // nav's current item while it is open (ADR-0021).
+  await page.goto('/methods')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: 'Codebook' })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Browse the Codebook →' }).click()
+  await expect(page).toHaveURL(/\/codebook$/)
+  await expect(nav.getByRole('link', { name: 'Methods' })).toHaveAttribute('data-status', 'active')
   await page.getByLabel('Search name, label or wording').fill('service attendance')
   await expect(page.getByText(/1 of \d+ questions/)).toBeVisible()
 
@@ -174,20 +183,26 @@ test('2 — Codebook: search, open the entry, chart it, read the wording', async
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
-test('3 — a small cell renders with its n and no flag, not a gap', async ({ page }) => {
+test('3 — a small cell renders with its hover card and no flag, not a gap', async ({ page }) => {
   // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
-  // were withheld; since ADR-0011 every cell is shown, with its n in the
-  // data table so a reader can see what the number rests on.
+  // were withheld; since ADR-0011 every cell is shown. The page shows the
+  // chart alone (ADR-0022): no data table, each dot's card its numbers.
   await page.goto('/segments?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
 
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.getByRole('table')
-  await expect(table.getByText(/withheld|†/)).toHaveCount(0)
-  // Every row carries an estimate and its n (the small cells included).
-  const cells = await table.locator('tbody tr').count()
-  expect(cells).toBeGreaterThan(0)
+  // A dot's hover card: the country first, set apart, then the level by
+  // its breakdown, the mean, its CI and how many people it rests on.
+  await chartRegion(page).locator('svg circle').first().hover()
+  const tip = chartRegion(page).locator('g[aria-label="tip"] text')
+  await expect(tip).toContainText('Gender:')
+  await expect(tip).toContainText('Mean:')
+  await expect(tip).toContainText(/95% CI: (\[.+\]|none)/)
+  await expect(tip).toContainText(/Based on \d[\d,]* (person|people)/)
+  await expect(tip).not.toContainText(/average|likely range/i)
+  await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
 })
 
 test('4 — CSV export downloads with the # meta header lines', async ({ page }) => {
@@ -213,21 +228,19 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   )
 })
 
-test('5 — dark mode toggles and survives a reload', async ({ page }) => {
+test('5 — one light theme, whatever the OS prefers', async ({ page }) => {
+  // There is no dark mode (ADR-0023): an OS that prefers dark still gets
+  // the warm paper page, and the header has no theme switch.
+  await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
-  const html = page.locator('html')
-  await expect(html).not.toHaveAttribute('data-theme', 'dark')
-
-  // The button names its action (F15).
-  await page.getByRole('button', { name: 'Switch to dark' }).click()
-  await expect(html).toHaveAttribute('data-theme', 'dark')
-
-  await page.reload()
-  await expect(html).toHaveAttribute('data-theme', 'dark')
-  await expect(page.getByRole('button', { name: 'Switch to light' })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Switch to light' }).click()
-  await expect(html).toHaveAttribute('data-theme', 'light')
+  await expect(caption(page).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /Switch to (dark|light)/ })).toHaveCount(0)
+  expect(await page.evaluate<string>('getComputedStyle(document.body).backgroundColor')).toBe(
+    'rgb(246, 244, 238)',
+  )
+  expect(
+    await page.evaluate<string>('getComputedStyle(document.documentElement).colorScheme'),
+  ).toBe('light')
 })
 
 test('6 — with the API blocked at the network level, the Atlas still renders and says so', async ({
@@ -252,7 +265,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   // shrink its follow-up group to a fifth — fixture rows, never real
   // data. The view must show its estimate and interval like any other
   // country's: no caution sentence (withdrawn — ADR-0013, revised), no
-  // rate, no jargon; the n rides in the data table.
+  // rate, no jargon; the n rides in the CSV (and the screen-reader table).
   const change = apiFixture('change-HAPPY-Y1-Y2.json')
   for (const row of change.rows) {
     if (row.stat === 'change' && row.group['country_code'] === 1) row.n = 10
@@ -278,21 +291,26 @@ test('7 — Change with a country where fewer people answered again: the interva
   const text = await page.locator('main').innerText()
   expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
   expect(text).not.toMatch(JARGON)
-  // No retention or coverage percentage: the only "%" on the page is the
-  // interval level in the footnote.
+  // No retention or coverage percentage anywhere on the page (and no
+  // footnote under the chart since ADR-0024).
   expect((text.match(/\d+(\.\d+)?\s?%/g) ?? []).filter((match) => match !== '95%')).toEqual([])
   expect(await figure.innerText()).not.toMatch(/%/)
 
-  // The estimate and its interval still appear, and the n is one click
-  // away on every table row.
+  // The estimate still appears; no data table (ADR-0022): Testland's
+  // card gives its mean change, its CI and its ten pairs.
   await expect(figure.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
-  await page.getByText('Data table', { exact: true }).first().click()
-  const table = page.getByRole('table').first()
-  await expect(table.getByRole('columnheader', { name: 'Estimate' })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: '95% CI' })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
-  await expect(table.getByText('10', { exact: true })).toBeVisible()
-  await expect(table.getByText(/^\[[+−]\d\.\d\d, [+−]\d\.\d\d\]$/).first()).toBeVisible()
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
+  const row = await figure
+    .locator('[aria-label="y-axis tick label"] text', { hasText: 'Testland' })
+    .boundingBox()
+  await page.mouse.move(row!.x + row!.width + 120, row!.y + row!.height / 2)
+  const tip = figure.locator('g[aria-label="tip"] text')
+  await expect(tip).toContainText('Testland')
+  await expect(tip).toContainText(/Mean change: [+−]\d\.\d\d/)
+  await expect(tip).toContainText(/95% CI: \[[+−]\d\.\d\d, [+−]\d\.\d\d\]/)
+  await expect(tip).toContainText('Based on 10 people who answered both times')
+  await page.mouse.move(0, 0)
 
   // The URL is the state.
   await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()
@@ -318,11 +336,21 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
     caption(page).getByText('What matters most, by country', { exact: true }),
   ).toBeVisible()
   await expect(caption(page).getByText(/Midyear survey, Nov 2023–Dec 2024/)).toBeVisible()
-  const matrix = page.getByRole('img', {
+  const matrix = page.getByRole('group', {
     name: /How important people rate 1 item in each of 2 countries, as a matrix/,
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
+  // Its labels sort it (ADR-0026): no drop-down, no order buttons; the
+  // same label twice reverses the order.
+  await expect(page.getByLabel(/Sort countries by/)).toHaveCount(0)
+  const item = matrix.locator('thead th').nth(1).getByRole('button')
+  await item.click()
+  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+$/)
+  await item.click()
+  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+&dir=asc$/)
+  await matrix.getByRole('button', { name: /^Country/ }).click()
+  await expect(page).toHaveURL(/\/what-matters$/)
   await expect(page.locator('figure')).toHaveCount(1)
   // A switcher, not anchors; the crossings section is gone.
   await expect(page.getByRole('navigation', { name: 'On this page' })).toHaveCount(0)
@@ -332,11 +360,13 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   expect(text).not.toMatch(JARGON)
   expect(text).not.toMatch(/midyear_type|standalone|combined/i)
 
-  // The n rides on every row of the data table.
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.locator('details').first().getByRole('table')
-  await expect(table.getByRole('columnheader', { name: 'n', exact: true })).toBeVisible()
-  await expect(table.getByRole('columnheader', { name: 'Measure' })).toBeVisible()
+  // No data table (ADR-0022): a cell's card carries its mean, CI and n.
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await matrix.getByRole('cell').first().hover()
+  const card = page.getByRole('tooltip')
+  await expect(card).toContainText('Mean:')
+  await expect(card).toContainText(/95% CI: \[/)
+  await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
 
   // Within a country: the United States unless another is chosen, its
   // age bands as the matrix's rows, alone on screen.
@@ -353,6 +383,18 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await page.getByLabel('Split by').selectOption('gender')
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
+  // No split: the country's items as one list, most important first.
+  await page.getByLabel('Split by').selectOption('none')
+  await expect(page).toHaveURL(/view=within&by=none$/)
+  await expect(
+    page.getByRole('img', {
+      name: /^United States: how important people rate 1 item, most important first/,
+    }),
+  ).toBeVisible()
+  await expect(
+    caption(page).getByText('United States: what matters most', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('figure')).toHaveCount(1)
 
   // Other questions: one question's bar chart, alone on screen — the
   // synthetic family's one chartable item, Daily social media time.
@@ -389,11 +431,30 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   // The chart view and the table carry the server's state codes.
   await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
-  await page.getByText('Data table', { exact: true }).click()
-  const table = page.getByRole('table')
-  await expect(table.getByRole('columnheader', { name: 'State' })).toBeVisible()
-  await expect(table.getByText('California', { exact: true })).toBeVisible()
-  await expect(page.getByText(/weighted so each state's sample/).first()).toBeVisible()
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('table')).toHaveCount(0)
+  // No line under the chart (ADR-0024); the subtitle names the weights.
+  await expect(page.getByText(/weighted so each/)).toHaveCount(0)
+  await expect(page.locator('figcaption').getByText(/state weights/)).toBeVisible()
+  // The US overall figure's label sits above the chart, clear of every
+  // row, value and tick.
+  const chart = page.getByRole('img', { name: /Happiness by US state/ })
+  const LABEL = 'US overall (state weights)'
+  const box = await chart.locator('svg text', { hasText: LABEL }).boundingBox()
+  expect(box).not.toBeNull()
+  const overlaps: string[] = []
+  for (const other of await chart.locator('svg text, svg circle, svg rect').all()) {
+    const text = (await other.textContent()) ?? ''
+    const area = await other.boundingBox()
+    if (text === LABEL || !box || !area) continue
+    const clear =
+      area.x + area.width <= box.x ||
+      area.x >= box.x + box.width ||
+      area.y + area.height <= box.y ||
+      area.y >= box.y + box.height
+    if (!clear) overlaps.push(text || 'a mark')
+  }
+  expect(overlaps).toEqual([])
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */
@@ -520,7 +581,9 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // the answer's own words.
   await expect
     .poll(() => cellTip(grid))
-    .toMatch(/^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( Likely range: .+)?$/)
+    .toMatch(
+      /^Life evaluation today: \d+ (<1|\d+)% — \D.* on present income( 95% CI: \[.+\])? [\d,]+ (person|people) in the sample gave both answers$/,
+    )
   // The strip names its scope; where is chosen under the shared row.
   await expect(page.getByText('United States:', { exact: true })).toBeVisible()
   expect(await page.locator('main').innerText()).not.toMatch(/cause/i)
@@ -564,7 +627,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     .poll(() => cellTip(swapped))
     .toMatch(
       new RegExp(
-        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( Likely range: .+)?$`,
+        `^Feelings about household income: \\D.* (<1|\\d+)% answered \\d+ on ${plan.picked.display_name}( 95% CI: \\[.+\\])? [\\d,]+ (person|people) in the sample gave both answers$`,
       ),
     )
 
@@ -868,15 +931,15 @@ const PHONE_FONTS = [
 /** The least the phone nav leaves between two items (AppShell.module.css). */
 const NAV_LEAST_GAP = 2
 // The pages journey 11 holds the rule on, each with what shows it has
-// rendered: a chart, or — the Codebook and Methods have none — a table
-// wider than a phone, which scrolls in a box of its own. The Codebook's
-// is found by its last column's header: only a screen reader meets it,
-// and it once widened the page from inside that box (30 Sept).
+// rendered: a chart; the Codebook has none — a table wider than a
+// phone, which scrolls in a box of its own, found by its last column's
+// header: only a screen reader meets it, and it once widened the page
+// from inside that box (30 Sept); Methods, its first diagram.
 const PHONE_PAGES: { path: string; rendered: (page: Page) => Locator }[] = [
   { path: '/', rendered: (page) => page.locator('main figure').first() },
   { path: '/correlates', rendered: (page) => page.locator('main figure').first() },
   { path: '/codebook', rendered: (page) => page.getByRole('columnheader', { name: 'Chartable' }) },
-  { path: '/methods', rendered: (page) => page.getByRole('table').first() },
+  { path: '/methods', rendered: (page) => page.locator('[data-figure] svg').first() },
 ]
 
 /** How far the page can scroll sideways, in px — never less than none.

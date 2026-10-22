@@ -1,11 +1,11 @@
 // Dots with CI whiskers for compact comparisons (breakdown levels within
 // one panel). One hue; the level axis carries identity. Every cell is
 // shown (ADR-0011): a level with no computable interval draws its dot
-// without a whisker; the tip and table carry its n.
+// without a whisker, and its hover card says why.
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
-import { groupValueLabel } from '../labels'
+import { columnLabel, groupValueLabel } from '../labels'
 import { ciExtents, fittedScale, measureBounds } from './domain'
 import {
   FONT_FAMILY,
@@ -18,6 +18,7 @@ import {
   plotCI,
   plotValue,
   tipText,
+  type TipContext,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
@@ -31,6 +32,17 @@ export interface DotEntry {
   column?: string
   value: number | null
   ci: [number, number] | null
+  /** The hover card's heading and the line under it (theme.ts tipText);
+   * absent, the facet, column and level name the dot in one line. */
+  heading?: string
+  detail?: string
+}
+
+/** A dot's hover card: what it is, then its value, CI and n. */
+function dotTip(entry: DotEntry, context: TipContext): string {
+  const heading =
+    entry.heading ?? [entry.facet, entry.column, entry.level].filter(Boolean).join(' · ')
+  return tipText(entry.row, heading, { ...context, detail: entry.detail })
 }
 
 export type LevelLabeler = (column: string, value: string | number) => string | undefined
@@ -42,15 +54,23 @@ export function dotEntries(
   facetColumn: string | null,
   labeler?: LevelLabeler,
 ): DotEntry[] {
-  return rows.map((row) => ({
-    row,
-    level: groupValueLabel(levelColumn, row.group[levelColumn] ?? null, meta, labeler),
-    facet: facetColumn
+  return rows.map((row) => {
+    const level = groupValueLabel(levelColumn, row.group[levelColumn] ?? null, meta, labeler)
+    const facet = facetColumn
       ? groupValueLabel(facetColumn, row.group[facetColumn] ?? null, meta, labeler)
-      : '',
-    value: plotValue(row),
-    ci: plotCI(row),
-  }))
+      : ''
+    return {
+      row,
+      level,
+      facet,
+      value: plotValue(row),
+      ci: plotCI(row),
+      // The card names the panel (a country), then the level by its
+      // breakdown: "Indonesia", "Age band: 30–39".
+      heading: facet || level,
+      detail: facet ? `${columnLabel(levelColumn, meta)}: ${level}` : undefined,
+    }
+  })
 }
 
 export function dotMarks(
@@ -60,6 +80,8 @@ export function dotMarks(
   /** Where the pointer anchors for a valueless row — the fitted
    * domain's left edge, not 0 (F1). */
   anchorX = 0,
+  /** What the hover cards need to say what the values are. */
+  tipContext: TipContext = {},
 ) {
   const valid = entries.filter((entry) => entry.value !== null)
   return [
@@ -91,9 +113,8 @@ export function dotMarks(
         ...facetChannel,
         y: 'level',
         x: (entry: DotEntry) => entry.value ?? anchorX,
-        // Every facet value rides in the tip: country, column, level.
-        title: (entry: DotEntry) =>
-          tipText(entry.row, [entry.facet, entry.column, entry.level].filter(Boolean).join(' · ')),
+        // Every facet value rides in the card: country, column, level.
+        title: (entry: DotEntry) => dotTip(entry, tipContext),
         ...TIP_OPTIONS,
       }),
     ),
@@ -152,7 +173,7 @@ export function DotPlot({
           // Row labels at 13.5 in ink (§6) — identity at comparable weight
           // to the values, while the value axis stays the 11px plot size.
           Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
-          ...dotMarks(entries, color, {}, scale.domain[0]),
+          ...dotMarks(entries, color, {}, scale.domain[0], { range: variable }),
         ],
       })
     },

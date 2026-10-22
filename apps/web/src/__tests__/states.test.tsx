@@ -1,6 +1,6 @@
 // US States (Phase 5): the shipped topology (us-atlas states-10m)
-// resolves every state and DC, pooled groups fill each member and wear
-// an outline, the choropleth wears token fills with the "no estimate"
+// resolves every state and DC, every state is its own (none pooled,
+// ADR-0028), the choropleth wears token fills with the "no estimate"
 // swatch for absent states, every state is named by the server, the
 // adjusted-weight control is unavailable on Wave 1 with its reason, and
 // the states are read beside the US overall figure on the same weight.
@@ -9,18 +9,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
 import { RankedBar } from '../charts/RankedBar'
 import { StateChoropleth, stateTipText } from '../charts/StateChoropleth'
-import {
-  POSTAL_TO_FIPS,
-  featuresFromUsTopology,
-  joinStates,
-  stateMembers,
-} from '../charts/usTopology'
+import { POSTAL_TO_FIPS, featuresFromUsTopology, joinStates } from '../charts/usTopology'
 import { createAppRouter } from '../router'
 import {
   happyVariable,
@@ -57,7 +52,7 @@ const stateRow = (state: string, estimate: number, extra = {}) =>
   })
 
 const statesResponse = testResponse(
-  [stateRow('CA', 7.1), stateRow('TX', 6.8), stateRow('ME_NH_RI_VT', 7.4), stateRow('NY', 6.5)],
+  [stateRow('CA', 7.1), stateRow('TX', 6.8), stateRow('VT', 7.4), stateRow('NY', 6.5)],
   {
     outcome: 'sfi',
     scope: 'us_state',
@@ -164,22 +159,27 @@ describe('the states topology', () => {
     expect(ids.has('72')).toBe(false)
   })
 
-  test('a pooled group fills each member; an unknown code is reported, not dropped silently', () => {
-    expect(stateMembers('ME_NH_RI_VT')).toEqual(['ME', 'NH', 'RI', 'VT'])
-    expect(stateMembers('CA')).toEqual(['CA'])
-    const { entries, unmatched } = joinStates([...statesResponse.rows, stateRow('ZZ', 1)], features)
-    expect(unmatched).toEqual(['ZZ'])
+  test('each state fills its own feature; an unknown code is reported, not dropped silently', () => {
+    // A pooled group's code is no state's: reported, never spread over
+    // its members (ADR-0028).
+    const { entries, unmatched } = joinStates(
+      [...statesResponse.rows, stateRow('ZZ', 1), stateRow('ME_NH_RI_VT', 7)],
+      features,
+    )
+    expect(unmatched).toEqual(['ZZ', 'ME_NH_RI_VT'])
     expect(entries).toHaveLength(51)
     const byName = new Map(entries.map((entry) => [entry.name, entry]))
-    expect(byName.get('Maine')?.code).toBe('ME_NH_RI_VT')
+    expect(byName.get('Vermont')?.code).toBe('VT')
     expect(byName.get('Vermont')?.value).toBe(7.4)
     expect(byName.get('California')?.code).toBe('CA')
-    // A state with no estimate keeps its feature, with no row.
+    // A state with no estimate keeps its feature, with no row — Maine
+    // included, whatever its neighbour shows.
     expect(byName.get('Ohio')?.row).toBeNull()
-    expect(entries.filter((entry) => entry.row !== null)).toHaveLength(7)
+    expect(byName.get('Maine')?.row).toBeNull()
+    expect(entries.filter((entry) => entry.row !== null)).toHaveLength(4)
   })
 
-  test('the choropleth paints token fills, the empty fill for absent states, names from meta, and outlines pooled members', () => {
+  test('the choropleth paints token fills, the empty fill for absent states and names from meta', () => {
     const { container } = render(
       <StateChoropleth
         rows={statesResponse.rows}
@@ -199,22 +199,29 @@ describe('the states topology', () => {
     expect(html).toContain('var(--seq-700)')
     expect(html).not.toMatch(/--seq-[89]00/)
     expect(svg?.querySelectorAll('path').length).toBeGreaterThanOrEqual(51)
-    // The four pooled members wear a dashed outline on top of the fill
-    // (Plot sets a mark's constant stroke on its group).
-    const outlined = svg?.querySelector('g[stroke-dasharray]')
-    expect(outlined?.querySelectorAll('path').length).toBe(4)
-    // Tips name the state as the server does, pooled groups in full,
-    // with the interval and never the n (Plot renders tips on hover, so
-    // the text is checked through the function the mark uses).
+    // No state wears a pooled group's dashed outline.
+    expect(svg?.querySelector('g[stroke-dasharray]')).toBeNull()
+    // Cards name the state as the server does, then the value in words,
+    // its CI and its n (Plot renders tips on hover, so the text is
+    // checked through the function the mark uses).
     const { entries } = joinStates(statesResponse.rows, features)
     const tip = (name: string) =>
       stateTipText(
         entries.find((entry) => entry.name === name) as (typeof entries)[number],
         testMeta,
+        { range: { min: 0, max: 10 } },
       )
-    expect(tip('California')).toBe('7.10  California\n95% CI [7.00, 7.20]')
-    expect(tip('Maine')).toContain('Maine — Maine, New Hampshire, Rhode Island & Vermont (pooled)')
-    expect(tip('Ohio')).toBe('Ohio\nno estimate')
+    expect(tip('California').split('\n')).toEqual([
+      'California',
+      'Mean: 7.10 on a 0–10 scale',
+      '95% CI: [7.00, 7.20]',
+      expect.stringMatching(/^Based on \d[\d,]* people$/),
+    ])
+    expect(tip('Vermont').split('\n').slice(0, 2)).toEqual([
+      'Vermont',
+      'Mean: 7.40 on a 0–10 scale',
+    ])
+    expect(tip('Ohio')).toBe('Ohio\nNo estimate')
   })
 })
 
@@ -235,13 +242,13 @@ describe('state rows', () => {
       'NY',
       'TX',
     ])
-    // By the server's names, the pooled group sorts under "Maine…".
-    const named = [stateRow('TX', 6.8), stateRow('ME_NH_RI_VT', 7.4), stateRow('CA', 7.1)]
+    // By the server's names: Vermont after Texas, whatever its code.
+    const named = [stateRow('VT', 7.4), stateRow('TX', 6.8), stateRow('CA', 7.1)]
     const label = (code: string) => testMeta.state_labels[code]?.name ?? code
     expect(sortStateRows(named, 'name', 'asc', label).map((row) => row.group['state'])).toEqual([
       'CA',
-      'ME_NH_RI_VT',
       'TX',
+      'VT',
     ])
   })
 
@@ -258,24 +265,68 @@ describe('state rows', () => {
       />,
     )
     const text = container.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('Maine, New Hampshire, Rhode Island & Vermont (pooled)')
+    expect(text).toContain('Vermont')
     expect(text).toContain('California')
-    expect(text).not.toContain('ME_NH_RI_VT')
+    expect(text).not.toContain('VT')
     expect(text).toContain('US overall (state weights)')
   })
 })
 
+describe('the US overall label', () => {
+  /** An element's drawn y: its own translate, plus its group's. */
+  const drawnY = (element: Element) =>
+    [element, element.parentElement].reduce((y, node) => {
+      const match = /translate\([^,]+,([-\d.]+)\)/.exec(node?.getAttribute('transform') ?? '')
+      return y + (match ? Number(match[1]) : 0)
+    }, 0)
+
+  test('on a share chart it sits above the first bar, never on the axis below', () => {
+    const rows = ['CA', 'TX', 'VT', 'NY'].map((state, index) =>
+      testRow({
+        group: { state },
+        stat: 'proportion',
+        level: 1,
+        estimate: 0.4 + index / 10,
+        ci_lo: 0.35 + index / 10,
+        ci_hi: 0.45 + index / 10,
+      }),
+    )
+    const { container } = render(
+      <RankedBar
+        rows={rows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'proportion', scope: 'us_state', by: ['state'] })}
+        variable={sfiVariable}
+        color="var(--series-1)"
+        labelColumn="state"
+        reference={{ value: 55, label: 'US overall (state weights)' }}
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const label = [...svg.querySelectorAll('text')].find(
+      (text) => text.textContent === 'US overall (state weights)',
+    ) as SVGTextElement
+    // Its baseline (the text runs up from it) above the first bar's top.
+    const firstBar = svg.querySelector('g[aria-label="bar"] > path') as SVGPathElement
+    const barTop = Number(/^M[-\d.]+,([-\d.]+)/.exec(firstBar.getAttribute('d') ?? '')?.[1])
+    expect(drawnY(label)).toBeLessThan(barTop)
+    // The axis's labels are under the bars, far from it.
+    const tick = svg.querySelector('g[aria-label="x-axis tick label"] text') as SVGTextElement
+    expect(drawnY(tick)).toBeGreaterThan(barTop)
+  })
+})
+
 describe('US States view', () => {
-  test('the map view: states on state weights beside the US overall figure on the same weight, names in the table', async () => {
+  test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
     const calls = mockFetch(tier)
     await renderAt('/states')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     expect(figure).toBeInTheDocument()
     // The header line is the whole US on the state weight; the national
-    // figure is in the footnote, in words.
+    // figure follows it, in words.
     expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
-    // The n, and no weight code: the footnote says the weighting in words.
+    // The n, and no weight code: the weighting is said in words.
     expect(screen.getByText('n = 38,142')).toBeInTheDocument()
     expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
     expect(
@@ -287,31 +338,26 @@ describe('US States view', () => {
         url.includes('/v1/aggregate?outcome=sfi&wave=Y1&stat=mean&scope=us_state'),
       ),
     ).toBe(true)
-    // The topology arrives inside the lazy chunk, never before; the
-    // legend explains the pooled outline.
+    // The topology arrives inside the lazy chunk, never before; nothing
+    // is pooled, so the legend has no pooled entry (ADR-0028).
     expect(await screen.findByText('no estimate')).toBeInTheDocument()
-    expect(screen.getByText(/pooled small states/)).toBeInTheDocument()
+    expect(screen.queryByText(/pooled/i)).toBeNull()
     // The aria summary names states, not codes.
-    expect(figure.getAttribute('aria-label')).toContain(
-      'Highest: Maine, New Hampshire, Rhode Island & Vermont (pooled) 7.40',
-    )
-    fireEvent.click(screen.getByText('Data table'))
-    const table = screen.getByRole('table')
-    expect(within(table).getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
-    expect(
-      within(table).getByText('Maine, New Hampshire, Rhode Island & Vermont (pooled)'),
-    ).toBeInTheDocument()
-    expect(within(table).queryByText('ME_NH_RI_VT')).toBeNull()
-    expect(within(table).getByText(/Weighted estimates \(w_state_c1\)/)).toBeInTheDocument()
+    expect(figure.getAttribute('aria-label')).toContain('Highest: Vermont 7.40')
+    // No data table (ADR-0022): each state's card carries its numbers.
+    expect(screen.queryByText('Data table')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryByText('VT')).toBeNull()
   })
 
-  test('the states chart is weighted by state, says so, and gives the reason a control is off', async () => {
+  test('the states chart is weighted by state, says so in its subtitle, and gives the reason a control is off', async () => {
     mockFetch(tier)
     await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.getByText(/· state weights ·/, { selector: 'figcaption *' })).toBeInTheDocument()
+    // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
-    expect(text).toContain("weighted so each state's sample stands for its adult population")
-    expect(text).not.toContain("each country's sample")
+    expect(text).not.toContain('weighted so each')
     const reason = screen.getByText(/The release has no adjusted state weight for Wave 1, 2023/)
     expect(reason.className).toContain('reason')
   })

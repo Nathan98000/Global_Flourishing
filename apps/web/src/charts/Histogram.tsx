@@ -1,6 +1,7 @@
 // The distribution stat: weighted share per answer (0–10), with per-bin
 // CIs. Empty bins ship because the API passes the catalog's [min, max]
-// grid; every bin is shown (ADR-0011), with its n in the tip. The
+// grid; every bin is shown (ADR-0011), its hover card naming the country,
+// the share giving that answer, its CI and how many gave it. The
 // y-domain fits the tallest bin across the countries being compared
 // (F1), with the fitted top always a labelled tick. Multiple selected
 // countries facet into columns with shared scales.
@@ -182,11 +183,13 @@ export function Histogram({
               ...facetChannel,
               x: 'level',
               y: (entry: BinEntry) => entry.value ?? 0,
+              // "Kenya" / "23.0% answered 7" (a score's bin: "scored
+              // 7–8"; a change bucket: "changed their answer by +2").
               title: (entry: BinEntry) =>
-                tipText(
-                  entry.row,
-                  `${entry.facet} · ${levelsProp ? 'change' : 'answer'} ${label(entry.level)}`,
-                ),
+                tipText(entry.row, entry.facet, {
+                  answer: label(entry.level),
+                  score: variable.is_derived,
+                }),
               ...TIP_OPTIONS,
             }),
           ),

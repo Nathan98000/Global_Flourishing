@@ -4,8 +4,8 @@
 // marked, on values aligned so a rise means more of what the measure
 // names — ADR-0015) and the histogram of individual change for chosen
 // countries; for a categorical item the change in the share answering a
-// chosen level, in percentage points, and where people moved between
-// answers. Every number is the server's; this view chooses, filters,
+// chosen level, in percentage points (the overall change alone — no
+// matrix of moves between answers, ADR-0027). Every number is the server's; this view chooses, filters,
 // orders and renders. Retention is for the
 // maths (owner decision 2): the longitudinal weights carry it, and the
 // interval and the n show it — nothing on the page says more.
@@ -17,12 +17,11 @@ import {
   changeRows,
   changeShareRows,
   legsPresent,
-  transitionRows,
   useChange,
 } from '../api/change'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateResponse, EstimateRow, Wave } from '../api/types'
+import type { EstimateRow, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
@@ -30,7 +29,6 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { Histogram } from '../charts/Histogram'
 import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
-import { TransitionTable } from '../charts/TransitionTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -41,7 +39,7 @@ import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
+import { defaultLevel, outcomeLevels } from '../labels'
 import { defaultDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
@@ -148,17 +146,6 @@ export function ChangeView() {
     [response, chosen],
   )
   const hasDistribution = response ? changeDistributionRows(response.rows).length > 0 : false
-  const transitions = useMemo(
-    () =>
-      response
-        ? transitionRows(response.rows).filter((row) =>
-            chosen.includes(Number(row.group['country_code'])),
-          )
-        : [],
-    [response, chosen],
-  )
-  const hasTransitions = response ? transitionRows(response.rows).length > 0 : false
-  const levelLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   if (meta.isPending || variables.isPending) {
     return (
       <section>
@@ -264,8 +251,6 @@ export function ChangeView() {
             downloadTextFile(exportFilename(name, 'csv'), responseToCsv({ ...response, rows })),
         }
       : undefined
-  const withRows = (rows: EstimateRow[]): EstimateResponse =>
-    response ? { ...response, rows } : { meta: meta.data.meta as never, rows }
   // The lede's years come from the supported pair, never from literals:
   // if the only pair ever changes, the lede follows.
   const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
@@ -427,8 +412,6 @@ export function ChangeView() {
                 ? `${title}: change in the share of the same people answering “${activeLevelLabel ?? activeLevel}”, ${pair}, by country, in percentage points.`
                 : `${title}: average change among the same people, ${pair}, by country.`,
             )}
-            marks="dots"
-            levelLabel={levelLabel}
             intro={
               detail && (
                 <div className={styles.wording}>
@@ -436,8 +419,6 @@ export function ChangeView() {
                 </div>
               )
             }
-            response={withRows(display.rows)}
-            meta={meta.data.meta}
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
@@ -457,10 +438,7 @@ export function ChangeView() {
               <ChartFigure
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
-                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries. The data table below carries every number.`}
-                marks="bins"
-                response={withRows(distribution)}
-                meta={meta.data.meta}
+                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
                 csv={csvFor(distribution, nameFor('Change distribution'))}
                 exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}
@@ -480,30 +458,6 @@ export function ChangeView() {
                 )}
               </ChartFigure>
             ))}
-
-          {hasTransitions && chosen.length > 0 && (
-            <ChartFigure
-              title="Where people moved between answers"
-              subtitle={`Of the people who gave each answer first, the share giving each answer later · ${pair}`}
-              ariaLabel={`${title}: for each first answer, the share of the same people giving each later answer, ${pair}. Each row sums to 100%. The data table below carries every number.`}
-              marks="table"
-              response={withRows(transitions)}
-              meta={meta.data.meta}
-              csv={csvFor(transitions, nameFor('Transitions'))}
-              exportName={nameFor('Transitions')}
-              isRefreshing={change.isPlaceholderData}
-              levelLabel={levelLabel}
-            >
-              {chosen.map((code) => (
-                <TransitionTable
-                  key={code}
-                  rows={transitions.filter((row) => Number(row.group['country_code']) === code)}
-                  levelLabel={(level) => levelLabel(level) ?? String(level)}
-                  caption={`${groupValueLabel('country_code', code, meta.data.meta)} — each row sums to 100%`}
-                />
-              ))}
-            </ChartFigure>
-          )}
         </>
       ) : null}
     </section>

@@ -32,7 +32,6 @@ import {
 import { RankedBar } from '../../charts/RankedBar'
 import { SHARE_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
-import { EstimateTable } from '../../components/EstimateTable'
 import { LoadingBlock } from '../../components/Loading'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
 import { RadioRow } from '../../components/controls/RadioRow'
@@ -52,12 +51,11 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
   ALL_COUNTRIES,
-  CORRELATES_NOTE,
   CORRELATION_SCALE,
   averagedOver,
   FEW_PEOPLE_KEY,
   fewPeople,
-  likelyRange,
+  shareCI,
   pooledPlace,
   scopeLabel,
   pairAxisTitle,
@@ -65,7 +63,6 @@ import {
   pairCellTip,
   rankedTip,
   statisticPhrase,
-  tableCaption,
 } from '../correlatesRows'
 import {
   otherWaveOf,
@@ -300,8 +297,8 @@ function HeaderRow({ children }: { children: ReactNode }) {
   return <div className={own.headerRow}>{children}</div>
 }
 
-/** The key to the grid: how to read it, its nine fixed bins in the grid
- * ramp's own tokens, and the asterisk. */
+/** The key to the grid, right under it: how to read it, its nine fixed
+ * bins in the grid ramp's own tokens, and the asterisk. */
 function ShareLegend() {
   return (
     <p className={`${styles.legend} ${own.shareLegend}`}>
@@ -372,7 +369,8 @@ function PairFigure({
           level: column.label,
           short: aShort,
           share: column.share,
-          range: likelyRange(column.ci_lo, column.ci_hi),
+          ci: shareCI(column.ci_lo, column.ci_hi, pair.shares.meta.ci_level),
+          n: column.n,
         }),
       })),
     [pair, aShort],
@@ -397,7 +395,8 @@ function PairFigure({
             bLevel: rowLabel.get(cell.y) ?? String(cell.y),
             bShort,
             share: cell.share,
-            range: record ? likelyRange(record.ci_lo, record.ci_hi) : undefined,
+            ci: record ? shareCI(record.ci_lo, record.ci_hi, record.ci_level) : undefined,
+            n: cell.n,
           }),
         }
       }),
@@ -412,115 +411,26 @@ function PairFigure({
   const flaggedCount = pair.cells.filter((cell) => cell.flagged).length
   const pooled = pair.shares.meta.pooled === 'average'
   const place = pooled ? pooledPlace(pair.shares.meta.countries, served.countries) : countryName
-  const ariaLabel = `${a.display_name} and ${b.display_name}${pooled ? `, ${averagedOver(pair.shares.meta.countries, served.countries)}` : ` in ${countryName}`}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}. The data table below carries every number.${
+  const ariaLabel = `${a.display_name} and ${b.display_name}${pooled ? `, ${averagedOver(pair.shares.meta.countries, served.countries)}` : ` in ${countryName}`}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}.${
     flaggedCount === 1
       ? ' 1 cell is starred: small sample size.'
       : flaggedCount > 1
         ? ` ${flaggedCount} cells are starred: small sample size.`
         : ''
   }`
-  // The data table names both questions' answers (a binned axis already
-  // carries its bin's label).
-  const label = (column: string, value: string | number) => {
-    const code = typeof value === 'number' ? value : Number.NaN
-    if (column === pair.x) return columnLabel.get(code) ?? String(value)
-    if (column === pair.y) return rowLabel.get(code) ?? String(value)
-    return undefined
-  }
-  const columnName = (column: string) =>
-    column === pair.x
-      ? yearTagged(a.display_name, a, wave, other)
-      : column === pair.y
-        ? yearTagged(b.display_name, b, wave, other)
-        : undefined
-  // Every number the chart shows is in its data table (review M6): the
-  // bars, the grid and the correlation, each with its asterisk.
-  const weighting = tableCaption(pooled)
-  const cellFlagged = new Map(
-    pair.shares.rows.map((row, index) => [row, pair.cells[index]?.flagged === true]),
-  )
-  const bars: EstimateResponse = {
-    meta: { ...pair.shares.meta, by: [pair.x] },
-    rows: pair.columns.map((column) => ({
-      group: { [pair.x]: column.label },
-      stat: 'proportion',
-      estimate: column.share,
-      se: null,
-      ci_lo: column.ci_lo,
-      ci_hi: column.ci_hi,
-      ci_level: pair.shares.meta.ci_level,
-      ci_method: 'normal',
-      n: column.n,
-      sum_w: 0,
-      n_psu: null,
-      n_strata: null,
-      df: null,
-      se_method: pair.shares.meta.se_method,
-      weight: pair.shares.meta.weight,
-      suppressed: false,
-      flagged: column.flagged,
-      n_countries: pooled ? (pair.shares.meta.countries?.length ?? null) : null,
-    })),
-  }
-  const correlation: EstimateResponse = {
-    meta: { ...pair.shares.meta, by: [], stat: pair.correlation.stat },
-    rows: [pair.correlation],
-  }
-  const dataTable = (
-    <>
-      <EstimateTable
-        response={bars}
-        meta={served}
-        caption={`Share of respondents who gave each answer to ${aShort}`}
-        columnName={columnName}
-        weightCaption={weighting}
-        estimateHeader="Share"
-        smallSampleOf={(row) => row.flagged}
-      />
-      <EstimateTable
-        response={pair.shares}
-        meta={served}
-        caption="Share of each column (columns add to 100%)"
-        groupLabel={label}
-        columnName={columnName}
-        weightCaption={weighting}
-        estimateHeader="Share of column"
-        smallSampleOf={(row) => cellFlagged.get(row) === true}
-      />
-      <EstimateTable
-        response={correlation}
-        meta={served}
-        caption="Correlation"
-        predictorLabel={() => `${a.display_name} and ${b.display_name}`}
-        predictorHeader="Questions"
-        weightCaption={weighting}
-        estimateHeader="Correlation"
-        smallSampleOf={(row) => fewPeople(row, pair.min_n)}
-      />
-    </>
-  )
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
       subtitle={`${place} · ${waveTitle(wave, other)}`}
       ariaLabel={ariaLabel}
-      marks="table"
-      intro={
-        <>
-          {header}
-          <ShareLegend />
-        </>
-      }
-      response={pair.shares}
-      meta={served}
+      intro={header}
+      legend={<ShareLegend />}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), pairToCsv(pair)),
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      dataTable={dataTable}
-      note={CORRELATES_NOTE}
     >
       <CrossTab
         columns={columns}
@@ -601,41 +511,19 @@ function EveryCountry({
     top && bottom
       ? ` From ${labelOf(top)} (${formatEstimate(top.estimate, top.stat)}) to ${labelOf(bottom)} (${formatEstimate(bottom.estimate, bottom.stat)}).`
       : ''
-  }${averageText ? ` A dashed line marks the All countries average, ${averageText}.` : ''} The data table below carries every number.`
-  // The data table: every country's dot, then the average the rule marks.
-  const table: EstimateResponse =
-    average && average.estimate !== null
-      ? {
-          ...sorted,
-          rows: [...sorted.rows, { ...average, group: { country_code: ALL_COUNTRIES } }],
-        }
-      : sorted
+  }${averageText ? ` A dashed line marks the All countries average, ${averageText}.` : ''}`
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
       subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
-      marks="dots"
       intro={header}
-      response={table}
-      meta={served}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(sorted)),
       }}
       exportName={name}
       isRefreshing={isRefreshing}
-      predictorLabel={(predictor) =>
-        predictor === b.name ? yearTagged(b.display_name, b, wave, other) : undefined
-      }
-      groupLabel={(column, value) =>
-        column === 'country_code' && value === ALL_COUNTRIES ? 'All countries (average)' : undefined
-      }
-      tableCaption={tableCaption(response.meta.pooled === 'average')}
-      predictorHeader="Question"
-      estimateHeader="Correlation"
-      smallSampleOf={(row) => fewPeople(row, minN)}
-      note={CORRELATES_NOTE}
     >
       <RankedBar
         rows={sorted.rows}
@@ -650,7 +538,6 @@ function EveryCountry({
               reference: {
                 value: average.estimate,
                 label: `${ALL_COUNTRIES} ${averageText}`,
-                atTop: true,
               },
             }
           : {})}

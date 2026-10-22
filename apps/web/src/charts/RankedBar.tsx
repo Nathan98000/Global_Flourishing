@@ -1,5 +1,6 @@
 // Ranked countries, one series, one hue (no legend — the title names
-// it), a hover tip carrying estimate, CI and n, and a direct value label
+// it), a hover card naming the row, its value, its CI and its n
+// (theme.ts tipText, ADR-0022), and a direct value label
 // on every row (F16). Two marks by scale (F1 / ADR-0010 revised): shares
 // keep zero-based bars; 0–10 location stats (means, medians) render as
 // dot + CI on a data-fitted window whose edges are always labelled
@@ -22,6 +23,7 @@ import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
 import { ciExtents, fittedScale, measureBounds } from './domain'
 import styles from './RankedBar.module.css'
+import { fillTipCard } from './tipLines'
 import {
   BAR_RADIUS,
   FONT_FAMILY,
@@ -47,7 +49,7 @@ interface Entry {
 }
 
 /** Rows arrive already ordered (src/sortRows.ts — the same order the
- * data table renders); the chart never re-sorts. Rows are countries
+ * CSV takes); the chart never re-sorts. Rows are countries
  * unless another group column is named (the US States view's `state`,
  * whose codes are the server's own labels) or the caller labels rows
  * itself (the Correlates view: one measure per row, named from the
@@ -68,21 +70,22 @@ export function rankEntries(
   }))
 }
 
-/** A reference estimate drawn as a dashed rule with its label (the US
- * overall figure behind the states; the All countries average across the
- * countries). */
+/** A reference estimate drawn as a dashed rule with its label at the
+ * rule's top, above the chart, in ink (the US overall figure behind the
+ * states; the All countries average across the countries) — never at its
+ * foot, where a share chart's axis labels sit. */
 export interface Reference {
   value: number
   label: string
-  /** The label at the rule's top, above the axis, in ink (the label sits
-   * under the chart otherwise). */
-  atTop?: boolean
 }
 
-/** Room above the top axis for a reference label at the rule's top, and
- * where it sits: its baseline clears the axis's tick labels. */
+/** Room above the top axis for the reference label, and where it sits:
+ * its baseline clears the axis's tick labels. A share chart has no top
+ * axis: its label sits just over the first row. */
 const REFERENCE_TOP_ROOM = 18
 const REFERENCE_TOP_DY = -26
+const REFERENCE_SHARE_DY = -6
+const REFERENCE_SHARE_MARGIN = 28
 
 /** A window that is not fitted to the data: its edges, its ticks, and
  * fewer ticks on a phone. */
@@ -228,7 +231,8 @@ export function RankedBar({
   /** On a phone: each label on its own line, its value at the right, the
    * dot track under it at full width. */
   stackOnNarrow?: boolean
-  /** The tooltip, in words (default: value · CI). */
+  /** The hover card, in words (default: theme.ts tipText — the row,
+   * its value as what it is, its CI and n). */
   tipOf?: (row: EstimateRow, label: string) => string
   /** A row few people are behind: its value wears an asterisk. */
   flagOf?: (row: EstimateRow) => boolean
@@ -255,46 +259,34 @@ export function RankedBar({
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
       const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
       const tip = (entry: Entry) =>
-        tipOf ? tipOf(entry.row, entry.label) : tipText(entry.row, entry.label)
-      const topLabel = reference?.atTop === true
-      // A label at the top anchors toward the middle near either end of a
-      // fixed window, so it never runs off the chart.
+        tipOf
+          ? tipOf(entry.row, entry.label)
+          : tipText(entry.row, entry.label, { answer: levelLabel, range: variable })
+      // The label anchors toward the middle near either end of the
+      // window, so it never runs off the chart.
       const topAnchor = (domain: [number, number]) => {
         if (!reference) return 'middle'
         const t = (reference.value - domain[0]) / (domain[1] - domain[0])
         return t > 0.75 ? 'end' : t < 0.25 ? 'start' : 'middle'
       }
-      const referenceMarks = (domain: [number, number]) =>
+      const referenceMarks = (domain: [number, number], dy = REFERENCE_TOP_DY) =>
         reference
           ? [
               Plot.ruleX([reference.value], { stroke: INK, strokeDasharray: '3 3' }),
-              Plot.text(
-                [reference.value],
-                topLabel
-                  ? {
-                      x: (value: number) => value,
-                      text: () => reference.label,
-                      frameAnchor: 'top',
-                      dy: REFERENCE_TOP_DY,
-                      lineAnchor: 'bottom',
-                      textAnchor: topAnchor(domain),
-                      fill: INK,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }
-                  : {
-                      x: (value: number) => value,
-                      text: () => reference.label,
-                      frameAnchor: 'bottom',
-                      dy: 14,
-                      fill: INK_SECONDARY,
-                      fontSize: 11,
-                    },
-              ),
+              Plot.text([reference.value], {
+                x: (value: number) => value,
+                text: () => reference.label,
+                frameAnchor: 'top',
+                dy,
+                lineAnchor: 'bottom',
+                textAnchor: topAnchor(domain),
+                fill: INK,
+                fontSize: 12,
+                fontWeight: 600,
+              }),
             ]
           : []
-      const topRoom = topLabel ? REFERENCE_TOP_ROOM : 0
-      const bottomRoom = reference && !topLabel ? 18 : 0
+      const topRoom = reference ? REFERENCE_TOP_ROOM : 0
       const domain = entries.map((entry) => entry.label)
       const valid = entries.filter((entry) => entry.value !== null)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -466,7 +458,7 @@ export function RankedBar({
           available !== null,
         )
         const plot = Plot.plot({
-          height: height + 16 + bottomRoom + topRoom + (axisEnds ? ends.room - 8 : 0),
+          height: height + 16 + topRoom + (axisEnds ? ends.room - 8 : 0),
           width,
           marginLeft,
           marginRight,
@@ -543,8 +535,8 @@ export function RankedBar({
         (reference?.value ?? 0) * 1.05,
       )
       return Plot.plot({
-        height: height + bottomRoom + topRoom,
-        ...(topRoom ? { marginTop: 30 + topRoom } : {}),
+        height: height + topRoom,
+        ...(reference ? { marginTop: REFERENCE_SHARE_MARGIN } : {}),
         width,
         marginLeft,
         marginRight,
@@ -587,7 +579,7 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
-          ...referenceMarks([0, xMax]),
+          ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
         ],
       })
     },
@@ -748,8 +740,8 @@ function emphasizeTurns(plot: Element): void {
 }
 
 /** The rows as real buttons over the plot, one per row across its full
- * width (label and dot alike), in row order for the keyboard; a tooltip
- * in the Plot tips' look follows hover and focus. */
+ * width (label and dot alike), in row order for the keyboard; a hover
+ * card in the Plot tips' look (TipCard.tsx) follows hover and focus. */
 function withRowButtons(
   plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
   entries: Entry[],
@@ -788,7 +780,7 @@ function withRowButtons(
     button.style.height = `${step}px`
     button.setAttribute('aria-label', nameOf ? nameOf(entry.row, entry.label) : entry.label)
     const show = () => {
-      tipBox.textContent = tip(entry)
+      fillTipCard(tipBox, tip(entry))
       tipBox.hidden = false
       const width = tipBox.offsetWidth
       const center = x.apply(entry.value ?? 0)

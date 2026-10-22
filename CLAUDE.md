@@ -10,7 +10,7 @@ midyear administration modes), and the phase plan.
 
 | Path | Contents |
 |---|---|
-| `apps/web/` | React 18 + TS + Vite. Views (`src/views/`: Atlas, Segments (`BreakdownsView`), Codebook, Methods) over a static-first fetch layer (`src/api/` — ADR-0009), Observable Plot charts (`src/charts/`, colors are `var(--token)` strings only), design tokens (`src/styles/tokens.css`, both themes, contrast-tested), typed URL state (`src/state/`, API param names, defaults omitted). Tests: vitest (`src/__tests__/`, needs `make web-fixtures`), Playwright journeys (`e2e/`), Lighthouse (`lighthouserc.cjs`) + bundle budget (`scripts/check-budget.mjs`). `src/config.ts` is the only reader of `import.meta.env`. |
+| `apps/web/` | React 18 + TS + Vite. Views (`src/views/`: Atlas, Segments (`BreakdownsView`), Codebook (reached from Methods, not the nav — ADR-0021), Methods (renders `docs/METHODS.md` with the diagrams of `src/views/methods/`)) over a static-first fetch layer (`src/api/` — ADR-0009), Observable Plot charts (`src/charts/`, colors are `var(--token)` strings only), design tokens (`src/styles/tokens.css`, one light theme — ADR-0023 — contrast-tested), typed URL state (`src/state/`, API param names, defaults omitted). Tests: vitest (`src/__tests__/`, needs `make web-fixtures`), Playwright journeys (`e2e/`), Lighthouse (`lighthouserc.cjs`) + bundle budget (`scripts/check-budget.mjs`). `src/config.ts` is the only reader of `import.meta.env`. |
 | `services/api/` | FastAPI (`flourish_api`), `create_app()` factory, `FA_*` settings in `config.py`. `/v1` endpoints over a read-only DuckDB (`data.py`; absent data → honest 503s), catalog-validated queries (`queries.py`), frame assembly with filters-as-domains (`frames.py`), ETag/LRU/rate-limit middleware (`ops.py`), every country's correlations precomputed when the image is built (`country_correlations.py`, ADR-0020). Tests run against a synthetic DuckDB (`tests/synthetic_db.py`); `built` marker for real-data tests. |
 | `stats/` | `flourish_stats` — survey-weighted estimators with design-based CIs (Taylor over strata/PSU, Kish fallback), the wave→weight→eligibility table (with the midyear pairings), the plain average over countries behind "All countries" and the coverage its ranked lists need — a question asked in at least half the countries (`averaging.py`, ADR-0020), suppression machinery (serving default: `NO_SUPPRESSION`, ADR-0011 — every cell shown; `FA_SUPPRESSION_*` restores the 50/100 rule), the correlates ranking floor (`CORRELATES_MIN_N`, ADR-0015), the derived-score bin rule (`outcomes.score_bins`) and the US state names (`states.py`). `stats/verify/` holds the R `survey` parity harness. |
 | `pipeline/` | `flourish_pipeline` — codebook parser (`codebook/`), curated overrides (`overrides/*.yaml`), and the run pipeline: ingest → reshape → derive → validate → manifest. `notebooks/01_data_quirks.ipynb` documents the release's surprises. |
@@ -60,7 +60,9 @@ TAG=vX.Y.Z` (main only, clean tree; pushes the tag that triggers
   column each state-scope weight is calibrated to (`state` for the Wave 1
   weight, `state_y2` for every later one — `spec.state_column`), which
   spec a midyear answer paired with another wave's takes (`pairing_spec`:
-  `y1_my` for 2023, `y1_my_y2` for 2024 — never `my_y2`). No weight
+  `y1_my` for 2023, `y1_my_y2` for 2024 — never `my_y2`). A US
+  respondent's `state`/`state_y2` is the state they live in (`REGION1`),
+  never the release's pooled small-state group (ADR-0028). No weight
   pools the countries: "All countries" is the plain average of the
   countries' own estimates (`flourish_stats.averaging`, ADR-0020). Engine,
   API and docs read from it; never restate those rules elsewhere.
@@ -112,11 +114,14 @@ TAG=vX.Y.Z` (main only, clean tree; pushes the tag that triggers
 - **Health endpoint is `/health`, never `/healthz`.** Cloud Run's front end
   intercepts the exact path `/healthz` on `*.run.app` and returns its own 404
   before the container sees the request.
-- Numbers shown to users always carry weight and CI; the unweighted n
-  lives in the data table and the CSV, never in a tooltip (ADR-0016, on
-  every page again since ADR-0019); an estimate few people are behind is
-  shown with an asterisk, never withheld (ADR-0019); associations, not
-  causes (proposal §4.4).
+- Numbers shown to users always carry weight and CI; the page shows no
+  data table and no line under a chart (ADR-0022, ADR-0024): every hover
+  card is `charts/theme.ts tipText`'s — what the mark is, the value as
+  what it is (mean, median, share), `95% CI: [X, Y]` (the level from the
+  row), and the unweighted n in words that say what it counts (a share's
+  n is the people who gave that answer); an estimate few people are
+  behind is shown with an asterisk, never withheld (ADR-0019);
+  associations, not causes (proposal §4.4).
 
 ## Phases (docs/PROPOSAL.md §7)
 

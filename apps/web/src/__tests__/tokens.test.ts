@@ -1,7 +1,8 @@
-// Both themes must be AA-clean (exit criterion 4): text tokens ≥ 4.5:1,
-// chart marks ≥ 3:1 against the plot surface — except the three light
-// hues documented under the dataviz relief rule (ADR-0010), which is why
-// every chart also ships direct labels and a data table.
+// The one theme must be AA-clean (exit criterion 4; light only since
+// ADR-0023): text tokens ≥ 4.5:1, chart marks ≥ 3:1 against the plot
+// surface — except the three hues documented under the dataviz relief
+// rule (ADR-0010), which is why every chart also ships direct labels and
+// a hover card for every mark.
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -25,8 +26,6 @@ function block(after: string): Record<string, string> {
 }
 
 const light = block(':root {')
-const darkStamped = block(":root[data-theme='dark']")
-const darkMedia = block(":root:not([data-theme='light'])")
 
 function luminance(hex: string): number {
   const raw = hex.replace('#', '')
@@ -120,10 +119,7 @@ const DIVERGING = [
 // burnt orange / violet) all clear 3:1 on the paper surface.
 const LIGHT_RELIEF = new Set(['--sfi-happiness', '--sfi-health', '--sfi-relationships'])
 
-describe.each([
-  ['light', light],
-  ['dark', darkStamped],
-] as const)('%s theme', (theme, vars) => {
+describe.each([['light', light]] as const)('%s theme', (theme, vars) => {
   test('text tokens clear AA (4.5:1)', () => {
     assertContrast(vars, '--ink', '--surface', 4.5, theme)
     assertContrast(vars, '--ink', '--page', 4.5, theme)
@@ -187,7 +183,7 @@ describe.each([
 
   test('chart marks clear 3:1 against the plot surface', () => {
     for (const mark of MARKS) {
-      if (theme === 'light' && LIGHT_RELIEF.has(mark)) continue
+      if (LIGHT_RELIEF.has(mark)) continue
       assertContrast(vars, mark, '--surface', 3, theme)
     }
   })
@@ -229,21 +225,6 @@ describe.each([
   })
 })
 
-test('dark diverging steps stay apart: every neighbouring pair clears 1.3:1 (ADR-0018)', () => {
-  // The review found +0.35 … +0.70 all near-black green in dark mode;
-  // the widened ramp keeps each step visibly apart from the next, both
-  // ways from the neutral middle.
-  for (const side of [DIVERGING.slice(0, 5).reverse(), DIVERGING.slice(6)]) {
-    for (let i = 1; i < side.length; i += 1) {
-      const [a, b] = [side[i - 1] as string, side[i] as string]
-      expect(
-        contrast(darkStamped[a] as string, darkStamped[b] as string),
-        `dark: ${a} vs ${b}`,
-      ).toBeGreaterThanOrEqual(1.3)
-    }
-  }
-})
-
 test('the charts read the ramps by these tokens: seven for the map and the matrix, nine for the grid', () => {
   const token = (name: string) => `var(${name})`
   expect([...SEQUENTIAL_RAMP]).toEqual(SEQUENTIAL.map(token))
@@ -253,17 +234,10 @@ test('the charts read the ramps by these tokens: seven for the map and the matri
   expect(SHARE_RAMP).toHaveLength(9)
 })
 
-test('the dark media block and the dark stamp define identical tokens', () => {
-  expect(darkMedia).toEqual(darkStamped)
-})
-
-test('native controls follow the stamped theme, not the OS', () => {
-  // A stamped light theme forces light form controls and scrollbars
-  // under an OS dark preference, and vice versa.
-  const lightStamp = css.slice(css.indexOf(":root[data-theme='light']"))
-  expect(lightStamp.slice(0, lightStamp.indexOf('}'))).toContain('color-scheme: light')
-  const darkStamp = css.slice(css.indexOf(":root[data-theme='dark']"))
-  expect(darkStamp.slice(0, darkStamp.indexOf('}'))).toContain('color-scheme: dark')
+test('there is no dark theme: one light scheme, whatever the OS prefers (ADR-0023)', () => {
+  expect(css).not.toMatch(/prefers-color-scheme|data-theme/)
+  const root = css.slice(css.indexOf(':root {'))
+  expect(root.slice(0, root.indexOf('}'))).toContain('color-scheme: light;')
 })
 
 test('the relief exception list matches reality (light marks below 3:1)', () => {

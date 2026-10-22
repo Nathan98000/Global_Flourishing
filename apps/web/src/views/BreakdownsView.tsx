@@ -103,7 +103,7 @@ export function BreakdownsView() {
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
-    // One ordering for the panels and the data table (items 5/13): the
+    // One ordering for the panels and the CSV (items 5/13): the
     // same facetOrder call the chart makes, then the served level order.
     if (!metaForSort) return rows
     const served = metaForSort
@@ -397,15 +397,7 @@ export function BreakdownsView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
-                ariaLabel={
-                  `${title}: one panel per country, ` +
-                  `${levelDomain(primary, meta.data.meta).length} levels each. ` +
-                  `The data table below carries every number, with its n.`
-                }
-                marks="dots"
-                levelLabel={(level) =>
-                  outcomeLevelOptions.find((entry) => entry.value === level)?.label
-                }
+                ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -413,8 +405,6 @@ export function BreakdownsView() {
                     </div>
                   )
                 }
-                response={{ ...response, rows: displayRows }}
-                meta={meta.data.meta}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
@@ -434,6 +424,7 @@ export function BreakdownsView() {
                   sort={search.sort}
                   dir={dir}
                   labeler={labeler}
+                  answer={isCategorical ? levelLabel : undefined}
                 />
               </ChartFigure>
             </>

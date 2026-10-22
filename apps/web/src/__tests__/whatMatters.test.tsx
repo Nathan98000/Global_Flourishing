@@ -9,7 +9,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableSummary } from '../api/types'
 import { SEQUENTIAL_RAMP } from '../charts/theme'
-import { tintInk } from '../charts/TransitionTable'
+import { tintInk } from '../charts/HeatTable'
 import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
@@ -389,8 +389,9 @@ describe('the midyear family from the catalog', () => {
 describe('What Matters view', () => {
   test('the ranking by country as one matrix, alone on screen under the view switcher — no jargon', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/what-matters')
-    const ranking = await screen.findByRole('img', {
+    const router = await renderAt('/what-matters')
+    // A labelled group, not an image: its labels are sort buttons (ADR-0026).
+    const ranking = await screen.findByRole('group', {
       name: /How important people rate 2 items in each of 2 countries, as a matrix: a row per country, a column per item, Midyear/,
     })
     // One matrix: a row per country, a column per item (catalog order),
@@ -400,7 +401,7 @@ describe('What Matters view', () => {
       within(matrix)
         .getAllByRole('columnheader')
         .map((th) => th.textContent),
-    ).toEqual(['Country ↓ · what matters →', 'Money', 'Good relationships'])
+    ).toEqual(['Country\u00a0▲', 'Money', 'Good relationships'])
     // One width for every column, the labels wrapping over it; the scale
     // is said once, in the subtitle.
     expect(matrix).toHaveAttribute('data-fixed')
@@ -415,15 +416,18 @@ describe('What Matters view', () => {
     ).toEqual(['Testland', 'United States'])
     const cells = within(matrix).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['6.00', '7.00', '7.00', '8.00'])
-    // The interval rides in a styled tooltip, at once on hover — never a
-    // native title; the n lives in the data table (ADR-0016).
+    // The CI and n ride in a styled hover card, at once on hover — never
+    // a native title (ADR-0022).
     const first = cells[0] as HTMLElement
     expect(first).not.toHaveAttribute('title')
     expect(first).not.toHaveAttribute('tabindex')
     fireEvent.pointerEnter(first)
     const tip = within(ranking).getByRole('tooltip')
-    expect(tip.textContent).toMatch(/^6\.00 {2}Testland · Money\n95% CI \[/)
-    expect(tip.textContent).not.toContain('n =')
+    const lines = [...tip.children].map((line) => line.textContent ?? '')
+    expect(lines[0]).toBe('Testland · Money')
+    expect(lines[1]).toMatch(/^Mean: 6\.00/)
+    expect(lines[2]).toMatch(/^95% CI: \[/)
+    expect(lines[3]).toMatch(/^Based on \d[\d,]* people$/)
     fireEvent.pointerLeave(first)
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
     // Each column is shaded on its own range: the same 7.00 is the low
@@ -437,7 +441,7 @@ describe('What Matters view', () => {
     expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
     expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
     // A legend replaces the caption: the seven ramp tokens, lower to
-    // higher (so it reads true in either theme), and the column rule.
+    // higher (the tokens themselves), and the column rule.
     const legend = within(ranking).getByText(/· each column shaded on its own range/)
     expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
       'Lower Higher · each column shaded on its own range',
@@ -452,16 +456,30 @@ describe('What Matters view', () => {
     expect(ranking.innerHTML).not.toMatch(/--seq-[89]00/)
     expect(within(ranking).queryByText(/deeper tint/i)).toBeNull()
     expect(ranking.getAttribute('aria-label')).not.toMatch(/deeper tint|thing/)
-    // The sort control, always in view: country name or one of the items.
-    const sort = screen.getByLabelText(/^Sort countries by/) as HTMLSelectElement
-    expect([...sort.options].map((option) => option.textContent)).toEqual([
-      'Country name',
-      'Money',
-      'Good relationships',
-    ])
-    expect(screen.queryByText(/Options — sort/)).toBeNull()
-    // Sorted by name, no item column is marked.
-    expect(within(matrix).queryByText(/[▼▲]/)).toBeNull()
+    // No sort drop-down or order buttons: the labels sort (ADR-0026).
+    expect(screen.queryByLabelText(/^Sort countries by/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
+    // Sorted by name: the corner wears the arrow, no item column is marked.
+    const [corner, ...items] = within(matrix).getAllByRole('columnheader')
+    expect(corner).toHaveAttribute('aria-sort', 'ascending')
+    for (const item of items) expect(item).not.toHaveAttribute('aria-sort')
+    // An item's label sorts by it, high first; again, low first; the
+    // corner goes back to the names, and again reverses them.
+    const money = within(matrix).getByRole('button', { name: /^Money/ })
+    fireEvent.click(money)
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Money/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY&dir=asc'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?dir=desc'))
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['United States', 'Testland'])
+    expect(screen.getByText(/Select a column’s label to sort by it/)).toBeInTheDocument()
     // One switcher under the lede picks the view; the section headings
     // and the "On this page" anchors are gone.
     const views = screen.getByRole('group', { name: 'View' })
@@ -496,10 +514,6 @@ describe('What Matters view', () => {
       ),
     ).toBeInTheDocument()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(/standalone|combined|administ/i)
-    // Every select sits under its label, as RadioRow's legend does.
-    const sortField = sort.closest('label') as HTMLElement
-    expect(sortField.className).toContain('field')
-    expect(sortField.firstElementChild?.textContent).toBe('Sort countries by')
   })
 
   test('Other questions: the first chartable item alone, with its answer levels from the codebook', async () => {
@@ -520,6 +534,28 @@ describe('What Matters view', () => {
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
   })
 
+  test('within a country with no split: its items as one list, most important first', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/what-matters?view=within&by=none')
+    const list = await screen.findByRole('img', {
+      name: /^United States: how important people rate 2 items, most important first/,
+    })
+    expect(list.getAttribute('aria-label')).toContain(
+      'Most important: Good relationships 8.00; least: Money 7.00.',
+    )
+    // The rows top to bottom, by value: the items' labels, high first.
+    const labels = [...list.querySelectorAll('svg [aria-label="y-axis tick label"] text')].map(
+      (text) => text.textContent,
+    )
+    expect(labels).toEqual(['Good relationships', 'Money'])
+    expect(screen.getByText('United States: what matters most')).toBeInTheDocument()
+    expect((screen.getByLabelText(/^Split by/) as HTMLSelectElement).value).toBe('none')
+    // The by-country files answer it; no split is fetched.
+    expect(calls.filter((url) => url.includes('/MY/mean_by-country_code.json')).length).toBe(2)
+    expect(calls.filter((url) => url.includes('age_band'))).toEqual([])
+    expect(document.querySelectorAll('figure')).toHaveLength(1)
+  })
+
   test('an old anchor link opens its view and drops the hash', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters#other-questions')
@@ -534,7 +570,9 @@ describe('What Matters view', () => {
     const router = await renderAt('/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY')
     await screen.findByRole('img', { name: /share answering “More than an hour”/ })
     fireEvent.click(screen.getByRole('radio', { name: 'By country' }))
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     expect(
       within(within(ranking).getByRole('table'))
         .getAllByRole('rowheader')
@@ -553,7 +591,9 @@ describe('What Matters view', () => {
   test('sorting by an item reorders the rows, high to low, and marks its column', async () => {
     mockFetch(tier)
     await renderAt('/what-matters?sort=MONEY')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const matrix = within(ranking).getByRole('table')
     expect(
       within(matrix)
@@ -581,7 +621,9 @@ describe('What Matters view', () => {
     )
     mockFetch(tier)
     await renderAt('/what-matters')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const cells = within(within(ranking).getByRole('table')).getAllByRole('cell')
     const [, second, third] = cells as HTMLElement[]
     const touch = { pointerType: 'touch' }
@@ -606,7 +648,9 @@ describe('What Matters view', () => {
   test('low to high flips the marker', async () => {
     mockFetch(tier)
     await renderAt('/what-matters?sort=MONEY&dir=asc')
-    const ranking = await screen.findByRole('img', { name: /as a matrix/ })
+    const ranking = await screen.findByRole('group', {
+      name: /in each of 2 countries, as a matrix/,
+    })
     const matrix = within(ranking).getByRole('table')
     expect(
       within(matrix)
@@ -623,8 +667,9 @@ describe('What Matters view', () => {
     const order = async (path: string) => {
       await renderAt(path)
       const chart = await screen.findByRole('img', { name: /Daily social media time/ })
-      const rows = chart.closest('figure')?.querySelectorAll('details tbody tr') ?? []
-      const countries = [...rows].map((row) => row.querySelector('td')?.textContent)
+      // The rows in the order the chart draws them: its row labels.
+      const labels = chart.querySelectorAll('svg [aria-label="y-axis tick label"] text')
+      const countries = [...labels].map((label) => label.textContent)
       cleanup()
       return countries
     }

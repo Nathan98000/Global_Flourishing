@@ -1,5 +1,5 @@
 // Atlas (§2.5): pick a measure and a wave, see ranked dots/bars or the
-// distribution — CI on every value, n in the data table, the question on
+// distribution — CI on every value, n in the CSV, the question on
 // the page, weight and suppression rule in plain words under the chart,
 // coverage on Y2/MY, the URL carrying all of it. Statistics come from
 // the server; this view only chooses, filters and renders.
@@ -11,9 +11,10 @@ import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
-import { ChartFigure, type ChartMarks, type CsvExport } from '../charts/ChartFigure'
+import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
+import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
 import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
@@ -28,7 +29,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
-import { defaultLevel, outcomeLevels, scaleSubtitle } from '../labels'
+import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
@@ -57,14 +58,23 @@ export function AtlasView() {
   const metaForSort = meta.data?.meta
   const dir = search.dir ?? defaultDir(search.sort)
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
+  // A categorical question's every answer, as stacked bars (ADR-0025):
+  // offered where the ramp tells its answers apart (still loading its
+  // answers counts — the chart waits for them); otherwise a link's
+  // `stat=distribution` shows the share view.
+  const answersAvailable =
+    isCategorical && (detail === undefined || (levels.length >= 2 && levels.length <= MAX_ANSWERS))
+  const requested: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
+  const stat: Stat =
+    isCategorical && requested === 'distribution' && !answersAvailable ? 'proportion' : requested
+  const allAnswers = isCategorical && stat === 'distribution'
   const activeLevel = search.level ?? defaultLevel(detail)
   const levelLabel = levels.find((entry) => entry.value === activeLevel)?.label
   // A derived score's distribution bins arrive as its value labels
   // ("0–1" … "9–10", the server's rule — ADR-0015); an item's answer
-  // codes wear their own labels in the data table (ADR-0016).
+  // codes wear their own labels in the hover cards (ADR-0016).
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
@@ -75,6 +85,28 @@ export function AtlasView() {
   const displayRows = useMemo(() => {
     if (!response) return []
     let rows = response.rows
+    if (allAnswers) {
+      // Every answer for every country shown, countries in the order of
+      // the chosen answer's share (or their names), answers in code order.
+      if (search.countries.length) {
+        rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
+      }
+      const level = search.level ?? defaultLevel(detail, rows)
+      const ordered = metaForSort
+        ? sortAtlasRows(
+            rows.filter((row) => row.level === level),
+            metaForSort,
+            search.sort,
+            dir,
+          )
+        : []
+      const rank = new Map(ordered.map((row, index) => [row.group['country_code'], index]))
+      const at = (row: (typeof rows)[number]) =>
+        rank.get(row.group['country_code']) ?? Number.MAX_SAFE_INTEGER
+      return rows
+        .filter((row) => row.level !== null && row.level !== undefined)
+        .sort((a, b) => at(a) - at(b) || (a.level ?? 0) - (b.level ?? 0))
+    }
     if (stat === 'proportion') {
       const level = search.level ?? defaultLevel(detail, rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
@@ -87,10 +119,23 @@ export function AtlasView() {
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
-    // One ordering for the chart and the data table (items 5/13).
+    // One ordering for the chart and the CSV (items 5/13).
     if (!metaForSort) return rows
     return sortAtlasRows(rows, metaForSort, search.sort, dir)
-  }, [response, stat, activeLevel, search.countries, metaForSort, search.sort, dir])
+  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, search.sort, dir])
+  const countryOrder = useMemo(
+    () =>
+      metaForSort && allAnswers
+        ? [
+            ...new Set(
+              displayRows.map((row) =>
+                groupValueLabel('country_code', row.group['country_code'] ?? null, metaForSort),
+              ),
+            ),
+          ]
+        : [],
+    [displayRows, metaForSort, allAnswers],
+  )
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -149,7 +194,12 @@ export function AtlasView() {
             { value: 'default', label: 'Mean' },
             { value: 'quantile', label: 'Median', title: 'Computed live by the data service' },
           ]
-        : null
+        : answersAvailable
+          ? [
+              { value: 'default', label: 'Share' },
+              { value: 'distribution', label: 'Distribution' },
+            ]
+          : null
 
   // The title is the measure alone; the wave clause rides last in the
   // subtitle, which therefore always shows (§7).
@@ -160,14 +210,16 @@ export function AtlasView() {
       ? levelLabel
         ? `share answering “${levelLabel}”`
         : undefined
-      : stat === 'distribution'
-        ? undefined
-        : variable
-          ? scaleSubtitle(variable, stat, detail)
-          : undefined
+      : allAnswers
+        ? search.sort === 'estimate' && levelLabel
+          ? `share giving each answer · sorted by “${levelLabel}”`
+          : 'share giving each answer'
+        : stat === 'distribution'
+          ? undefined
+          : variable
+            ? scaleSubtitle(variable, stat, detail)
+            : undefined
   const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
-  const marks: ChartMarks =
-    stat === 'distribution' ? 'bins' : stat === 'proportion' ? 'bars' : 'dots'
 
   // What a download is called, in words (ADR-0016); the server names its
   // CSV the same way.
@@ -207,7 +259,7 @@ export function AtlasView() {
           selectOnNarrow
         />
       )}
-      {stat !== 'distribution' && (
+      {(stat !== 'distribution' || allAnswers) && (
         <>
           <RadioRow
             legend="Sort"
@@ -243,9 +295,9 @@ export function AtlasView() {
         selected={search.countries}
         onChange={(countries) => setSearch({ countries })}
       />
-      {isCategorical && levels.length > 0 && (
+      {isCategorical && levels.length > 0 && !(allAnswers && search.sort === 'name') && (
         <RadioRow
-          legend="Answer level"
+          legend={allAnswers ? 'Sort by answer' : 'Answer level'}
           name="level"
           wide
           selectOnNarrow
@@ -334,7 +386,7 @@ export function AtlasView() {
         </EmptyState>
       ) : (
         <>
-          {stat === 'distribution' && search.countries.length === 0 ? (
+          {stat === 'distribution' && !allAnswers && search.countries.length === 0 ? (
             <EmptyState title="Choose countries to compare">
               <p>
                 The distribution view shows the full shape of answers for up to four countries —
@@ -360,12 +412,19 @@ export function AtlasView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
-                ariaLabel={summarizeExtremes(
-                  stat === 'distribution' ? [] : displayRows,
-                  meta.data.meta,
-                  `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
-                )}
-                marks={marks}
+                ariaLabel={
+                  allAnswers
+                    ? summarizeExtremes(
+                        displayRows.filter((row) => row.level === activeLevel),
+                        meta.data.meta,
+                        `${title}: the share giving each of ${levels.length} answers (${levels.map((entry) => entry.label).join(', ')}) in each of ${countryOrder.length} countries, ${waveTitle}. Answering “${levelLabel ?? activeLevel}”:`,
+                      )
+                    : summarizeExtremes(
+                        stat === 'distribution' ? [] : displayRows,
+                        meta.data.meta,
+                        `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
+                      )
+                }
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -373,14 +432,24 @@ export function AtlasView() {
                     </div>
                   )
                 }
-                response={{ ...response, rows: displayRows }}
-                meta={meta.data.meta}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
-                levelLabel={binLabel}
               >
-                {stat === 'distribution' ? (
+                {allAnswers ? (
+                  levels.length > 0 ? (
+                    <StackedShares
+                      rows={displayRows}
+                      meta={meta.data.meta}
+                      answers={levels}
+                      polarity={variable.polarity}
+                      countryOrder={countryOrder}
+                      sortedBy={search.sort === 'estimate' ? activeLevel : undefined}
+                    />
+                  ) : (
+                    <LoadingBlock height={420} label="Loading the answers" />
+                  )
+                ) : stat === 'distribution' ? (
                   <>
                     <Histogram
                       rows={displayRows}

@@ -12,8 +12,8 @@ behind every number.
 **Status: Phase 6 complete — correlates and adjusted models (statistics
 review pending).** Atlas (ranked dots, distributions,
 medians), **Change** (how the same people answered a year later:
-within-person change with its interval and a marked zero, the histogram
-of individual change, and where people moved between answers),
+within-person change with its interval and a marked zero, and the
+histogram of individual change),
 **What Matters** (the midyear survey: what people said mattered most by
 country and by age),
 **Correlates** (how answers to different questions go together, by
@@ -25,11 +25,12 @@ number — ADR-0019; the engine's adjusted models are off the site,
 ADR-0018), **US States** (a state choropleth on the
 state-calibrated weights beside the national figure), Segments (small
 multiples by country × demographic), a searchable Codebook with exact
-question wording, and a Methods page rendered from
-[docs/METHODS.md](docs/METHODS.md). The URL is the state — every view
-survives reload and pastes into another browser — with CSV/PNG export,
-dark mode, and every cell shown with its n — small cells included
-(ADR-0011), with intervals that widen honestly. The app is
+question wording (reached from Methods), and a Methods page rendered from
+[docs/METHODS.md](docs/METHODS.md) with diagrams. The URL is the state —
+every view survives reload and pastes into another browser — with CSV/PNG
+export, and every cell shown — small cells included (ADR-0011), with
+intervals that widen honestly; each mark's hover card gives its value,
+its CI and its n (ADR-0022). The app is
 **static-first** ([ADR-0009](docs/adr/ADR-0009-static-first-fetch-layer.md)):
 the common views load from 2,158 precomputed JSON files on the app's own
 origin and the Atlas renders with the API cold, down or data-less;
@@ -153,7 +154,8 @@ are **per-variable** (for `AGE`, 98 and 99 are real ages), the midyear
 survey was administered two ways — sometimes both in one country, income
 bands are country-specific and changed at Wave 2 in Argentina, Türkiye and
 Egypt, the US file is a subset missing 11 columns with 15 extras (string
-FIPS with leading zeros, pooled small states), the PHQ-2/GAD-2 items are
+FIPS with leading zeros, small states pooled into four groups — the app
+shows each state on its own, ADR-0028), the PHQ-2/GAD-2 items are
 coded in reverse of the standard direction, the whole release contains
 exactly one fractional cell, and the "rectangular" panel weight
 `ANNUAL_WEIGHT_R2` is populated for **all** 207,919 rows — including the

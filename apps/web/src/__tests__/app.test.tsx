@@ -10,7 +10,14 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
 import { createAppRouter } from '../router'
-import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
+import {
+  attendVariable,
+  happyVariable,
+  sfiVariable,
+  testMeta,
+  testResponse,
+  testRow,
+} from '../test-utils/fixtures'
 
 const okHealth: ApiHealth = {
   status: 'ok',
@@ -128,21 +135,13 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
-  // Phase 6 nav order less Compare (ADR-0017) — eight items.
+  // Phase 6 nav order less Compare (ADR-0017) and the Codebook, which
+  // Methods links to instead (ADR-0021) — seven items.
   expect(
     within(nav)
       .getAllByRole('link')
       .map((link) => link.textContent),
-  ).toEqual([
-    'Atlas',
-    'Change',
-    'What Matters',
-    'Correlates',
-    'US States',
-    'Segments',
-    'Codebook',
-    'Methods',
-  ])
+  ).toEqual(['Atlas', 'Change', 'What Matters', 'Correlates', 'US States', 'Segments', 'Methods'])
   // The deck says what this is, above the fold (F5); the count sits in
   // its own ink-colored span (§6), so match the two parts.
   expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
@@ -156,11 +155,11 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   // The footer carries the citation only (decision 5).
   expect(screen.queryByText(/data version/)).toBeNull()
   expect(screen.queryByText(/associations, not causes/)).toBeNull()
-  // The theme button names its action (F15).
-  expect(screen.getByRole('button', { name: /Switch to (dark|light)/ })).toBeInTheDocument()
+  // One light theme (ADR-0023): no theme switch in the header.
+  expect(screen.queryByRole('button', { name: /Switch to (dark|light)/ })).toBeNull()
 })
 
-test('the Atlas renders from the static tier, question on the page, plain footnote', async () => {
+test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
   // In the chart/table as well as the country filter.
@@ -168,10 +167,85 @@ test('the Atlas renders from the static tier, question on the page, plain footno
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
   expect(screen.getByText(/Mean of the 12 SFI items/)).toBeInTheDocument()
-  // The footnote names the interval level and nothing more (item 7).
-  expect(screen.getByText(/Lines are 95% confidence intervals/)).toBeInTheDocument()
+  // No footnote under the chart (ADR-0024): the cards name the CI's level.
+  expect(screen.queryByText(/Lines are 95% confidence intervals/)).toBeNull()
+  expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
   expect(screen.queryByText(/withheld|flagged|true value/)).toBeNull()
   expect(calls.some((url) => url.includes('/v1/aggregate'))).toBe(false)
+})
+
+test('a categorical question shows every answer, country by country, from its share file', async () => {
+  const attendDetail: VariableDetail = {
+    ...attendVariable,
+    value_labels: ['Weekly', 'Sometimes', 'Never'].map((label, index) => ({
+      code: index + 1,
+      label,
+      wave: null,
+      country_code: null,
+      is_nonresponse: false,
+    })),
+    missingness: [],
+    scoring: null,
+    components: [],
+  }
+  // Every answer's share for both countries: Testland mostly "Weekly",
+  // the United States mostly "Never".
+  const shares: Record<number, number[]> = { 1: [0.6, 0.3, 0.1], 22: [0.2, 0.3, 0.5] }
+  const proportion = testResponse(
+    Object.entries(shares).flatMap(([code, values]) =>
+      values.map((estimate, index) =>
+        testRow({
+          group: { country_code: Number(code) },
+          stat: 'proportion',
+          level: index + 1,
+          estimate,
+          ci_lo: estimate - 0.02,
+          ci_hi: estimate + 0.02,
+        }),
+      ),
+    ),
+    { outcome: 'ATTEND_SVCS', stat: 'proportion' },
+  )
+  const calls = mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, attendVariable] },
+    '/data/v1/ATTEND_SVCS/variable.json': attendDetail,
+    '/data/v1/ATTEND_SVCS/Y1/proportion_by-country_code.json': proportion,
+  })
+  const router = await renderAt('/?outcome=ATTEND_SVCS')
+  // Share is the default; Distribution is offered beside it.
+  const statistic = await screen.findByRole('group', { name: 'Statistic' })
+  expect(within(statistic).getByLabelText('Share')).toBeChecked()
+  fireEvent.click(within(statistic).getByLabelText('Distribution'))
+  await waitFor(() => expect(router.state.location.searchStr).toContain('stat=distribution'))
+  // One stacked bar per country, a segment per answer, keyed in the
+  // codebook's order; sorted by the first answer's share, high first.
+  const figure = await screen.findByRole('img', { name: /the share giving each of 3 answers/ })
+  expect(
+    within(screen.getByRole('list', { name: 'Answers' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent),
+  ).toEqual(['Weekly', 'Sometimes', 'Never'])
+  expect(screen.getByText(/Share giving each answer · sorted by “Weekly”/)).toBeInTheDocument()
+  const svg = figure.querySelector('svg') as SVGSVGElement
+  expect(svg.querySelectorAll('g[aria-label="bar"] rect')).toHaveLength(6)
+  expect(
+    [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')].map((t) => t.textContent),
+  ).toEqual(['Testland', 'United States'])
+  // Sorted by another answer, the order follows it.
+  fireEvent.click(
+    within(screen.getByRole('group', { name: 'Sort by answer' })).getByLabelText('Never'),
+  )
+  await waitFor(() =>
+    expect(
+      [
+        ...svg.ownerDocument.querySelectorAll('figure svg [aria-label="y-axis tick label"] text'),
+      ].map((t) => t.textContent),
+    ).toEqual(['United States', 'Testland']),
+  )
+  // The share file serves it: no distribution request for a categorical item.
+  expect(calls.some((url) => url.includes('ATTEND_SVCS/Y1/distribution'))).toBe(false)
+  expect(calls.filter((url) => url.includes('ATTEND_SVCS/Y1/proportion')).length).toBeGreaterThan(0)
 })
 
 test('the topic → measure picker: topics carry counts, search jumps across topics', async () => {
@@ -389,7 +463,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   expect(statistic).toHaveDisplayValue('Mean')
 })
 
-test('on a phone the secondary four nav items collapse behind "More" (type unchanged)', async () => {
+test('on a phone the secondary three nav items collapse behind "More" (type unchanged)', async () => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn((query: string) => ({
@@ -418,14 +492,17 @@ test('on a phone the secondary four nav items collapse behind "More" (type uncha
     'Correlates',
     'US States',
     'Segments',
-    'Codebook',
     'Methods',
   ])
   const more = within(nav).getByText('More')
   expect(more.closest('details')).not.toBeNull()
-  // The current view lives inside "More", so its summary reads active.
+  // A codebook page is reached from Methods, which lives inside "More":
+  // the summary and Methods both read active (ADR-0021).
   expect(more).toHaveAttribute('data-status', 'active')
-  expect(within(nav).getByRole('link', { name: 'Codebook' }).closest('details')).not.toBeNull()
+  const methods = within(nav).getByRole('link', { name: 'Methods' })
+  expect(methods.closest('details')).not.toBeNull()
+  expect(methods).toHaveAttribute('data-status', 'active')
+  expect(within(nav).queryByRole('link', { name: 'Codebook' })).toBeNull()
   expect(within(nav).getByRole('link', { name: 'Atlas' }).closest('details')).toBeNull()
 })
 

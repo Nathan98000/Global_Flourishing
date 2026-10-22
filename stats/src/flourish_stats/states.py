@@ -1,12 +1,16 @@
-"""The US state codes the release uses, with their display names.
+"""The US state codes, with their display names.
 
 Shared data semantics for the engine's two consumers, like the breakdown
-registry: the release keys US respondents by a two-letter postal code —
-or by one of four **pooled groups** of small states, whose codes join the
-members with underscores — and the API (``/v1/meta``) and the static
-exporter (``meta.json``) both serve these labels, so the front end never
-owns a state name. Only 37 states and the 4 groups occur in the data;
-every state and DC is named here so a code can never fall back to itself.
+registry: a US respondent's ``state`` is the two-letter postal code of the
+state they live in, and the API (``/v1/meta``) and the static exporter
+(``meta.json``) both serve these labels, so the front end never owns a
+state name. Every state has its own estimate (ADR-0028): the release's
+``STATE_FOR_ANALYSIS`` pools 13 small states into four groups, to which
+its state weights are calibrated, but the pipeline keys respondents by
+their own state (``REGION1``), so a small state's estimate is a domain
+of its group's weights — fewer people, a wider interval, never pooled.
+All 50 states occur in the data; DC is named too, so a code can never
+fall back to itself.
 """
 
 from __future__ import annotations
@@ -68,28 +72,13 @@ US_STATE_NAMES: dict[str, str] = {
     "WY": "Wyoming",
 }
 
-#: The four pooled small-state groups the release keys (the state-weight
-#: file's STATE_FOR_ANALYSIS columns): small states are pooled so every
-#: state estimate rests on enough people.
-POOLED_STATE_GROUPS: tuple[str, ...] = ("ME_NH_RI_VT", "DE_MS_WV", "AK_HI_MT", "ND_SD_WY")
-
-
-def state_members(code: str) -> list[str]:
-    """A code's member states: itself, or a pooled group's members."""
-    return [part for part in code.split("_") if part]
-
 
 def state_label(code: str) -> str:
-    """The display name: the state's, or ``A, B & C (pooled)`` for a group."""
-    members = state_members(code)
-    if len(members) == 1:
-        return US_STATE_NAMES.get(code, code)
-    names = [US_STATE_NAMES.get(member, member) for member in members]
-    return f"{', '.join(names[:-1])} & {names[-1]} (pooled)"
+    """The display name: the state's."""
+    return US_STATE_NAMES.get(code, code)
 
 
 def state_labels() -> dict[str, dict[str, Any]]:
-    """Every code the release can carry → ``{name, members}``, for
-    ``/v1/meta`` and the static ``meta.json``."""
-    codes = [*US_STATE_NAMES, *POOLED_STATE_GROUPS]
-    return {code: {"name": state_label(code), "members": state_members(code)} for code in codes}
+    """Every state code → ``{name}``, for ``/v1/meta`` and the static
+    ``meta.json``."""
+    return {code: {"name": state_label(code)} for code in US_STATE_NAMES}

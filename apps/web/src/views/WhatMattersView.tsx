@@ -1,7 +1,8 @@
 // What Matters (Phase 5): the midyear survey — what people said mattered
 // most, as one matrix of countries × the seven importance items (the
-// tinted-table component the Correlates view uses); how that ranking
-// shifts within one country by age band (or another demographic); and
+// tinted-table component the Correlates view uses); one country's
+// ranking as a list, or how it shifts there by age band (or another
+// demographic); and
 // the family's other questions, chartable one at a time. One of the
 // three is on screen at a time (`view`, owner decision 25 Sept 2026):
 // the others mount nothing and fetch nothing. The item list comes from
@@ -18,8 +19,8 @@ import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
-import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential } from '../charts/theme'
-import { HEAT_CELL_PAD, HeatTable, headerFont, intervalText } from '../charts/TransitionTable'
+import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
+import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -33,6 +34,7 @@ import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitl
 import { defaultDir, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
+  NO_SPLIT,
   whatMattersRequest,
   whatMattersSearchParams,
   type WhatMattersSearch,
@@ -48,6 +50,7 @@ import {
   matrixCountryOrder,
   narrowestWrap,
   orderMatrixRows,
+  rankItems,
   rankingRows,
   splitGroupOrder,
 } from './whatMattersRows'
@@ -156,6 +159,13 @@ export function WhatMattersView() {
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
   }
+  // A column's label sorts the countries by it (the corner: by name); the
+  // same label again reverses the order (ADR-0026).
+  const sortMatrix = (column: string) => {
+    const next = column === ROW_LABELS ? 'name' : column
+    if (next === matrixSort) setSearch({ dir: dir === 'asc' ? 'desc' : 'asc' })
+    else setSearch({ sort: next, dir: undefined })
+  }
 
   // An old link's anchor (#within-country) selects its view; the hash
   // goes, replacing the entry rather than adding one.
@@ -167,19 +177,25 @@ export function WhatMattersView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hash])
 
-  // 1. The ranking by country: one midyear cross-section per item.
+  // 1. The ranking by country: one midyear cross-section per item —
+  // also one country's own list, "Within a country" with no split.
+  const noSplit = search.by === NO_SPLIT
   const rankingRequests = useMemo(
     () => ranking.map((item) => whatMattersRequest(item.name, item)),
     [ranking],
   )
-  const rankingQuery = useEstimatesMany(rankingRequests, { enabled: search.view === 'country' })
+  const rankingQuery = useEstimatesMany(rankingRequests, {
+    enabled: search.view === 'country' || (search.view === 'within' && noSplit),
+  })
   // 2. The same seven items split by a demographic; one country's rows
   // are kept (the United States until another is chosen).
   const splitRequests = useMemo(
     () => ranking.map((item) => whatMattersRequest(item.name, item, search.by)),
     [ranking, search.by],
   )
-  const splitQuery = useEstimatesMany(splitRequests, { enabled: search.view === 'within' })
+  const splitQuery = useEstimatesMany(splitRequests, {
+    enabled: search.view === 'within' && !noSplit,
+  })
   // 3. One chartable item by country.
   const item: VariableSummary | undefined =
     (search.item !== undefined ? byName[search.item] : undefined) ?? chartable[0]
@@ -215,6 +231,18 @@ export function WhatMattersView() {
         splitCountry !== undefined ? [splitCountry] : [],
       ),
     [splitQuery.results, ranking, splitCountry],
+  )
+  // No split: the country's items, most important first.
+  const countryItems = useMemo(
+    () =>
+      rankItems(
+        rankingRows(
+          rankingQuery.results.map((result) => result?.response),
+          ranking,
+          splitCountry !== undefined ? [splitCountry] : [],
+        ),
+      ),
+    [rankingQuery.results, ranking, splitCountry],
   )
   const splitGroups = useMemo(
     () => (metaData ? splitGroupOrder(splitAll, search.by, metaData) : []),
@@ -255,6 +283,11 @@ export function WhatMattersView() {
   const demographics = served.breakdowns.filter((column) => column !== 'country_code')
   const countryName = (code: number) => groupValueLabel('country_code', code, served)
   const splitLabel = columnLabel(search.by, served)
+  const itemOf = new Map(ranking.map((entry) => [entry.name, entry]))
+  const itemName = (row: EstimateRow) => {
+    const entry = itemOf.get(String(row.group['outcome']))
+    return entry ? itemLabel(entry) : String(row.group['outcome'])
+  }
   const first = ranking[0]
   // The scale, said once (the columns drop "Importance:").
   const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
@@ -286,6 +319,24 @@ export function WhatMattersView() {
     ranking.map((entry) => entry.name).join(','),
     ['outcome', 'country_code'],
   )
+  const countryItemsName: ExportName = {
+    ...rankingName,
+    ...(splitCountry !== undefined ? { country: countryName(splitCountry) } : {}),
+  }
+  const countryItemsResponse = withMeta(
+    countryItems,
+    rankingQuery.results[0]?.response,
+    served,
+    ranking.map((entry) => entry.name).join(','),
+    ['outcome', 'country_code'],
+  )
+  const countryItemsValid = countryItems.filter((row) => row.estimate !== null)
+  const mostImportant = countryItemsValid[0]
+  const leastImportant = countryItemsValid[countryItemsValid.length - 1]
+  const countryItemsSummary =
+    mostImportant && leastImportant
+      ? ` Most important: ${itemName(mostImportant)} ${formatEstimate(mostImportant.estimate, mostImportant.stat)}; least: ${itemName(leastImportant)} ${formatEstimate(leastImportant.estimate, leastImportant.stat)}.`
+      : ' No estimates to show.'
   const splitResponse = withMeta(
     splitOrdered,
     splitQuery.results[0]?.response,
@@ -293,8 +344,6 @@ export function WhatMattersView() {
     ranking.map((entry) => entry.name).join(','),
     ['outcome', 'country_code', search.by],
   )
-  const groupLabel = (column: string, value: string | number) =>
-    column === 'outcome' ? byName[String(value)]?.display_name : undefined
   const offline = (error: unknown) =>
     error instanceof NetworkError && !boot.apiReachable ? (
       <p className={styles.hint} role="status">
@@ -360,27 +409,6 @@ export function WhatMattersView() {
 
       {search.view === 'country' && ranking.length > 0 && (
         <>
-          <div className={styles.controls}>
-            <SelectField
-              label="Sort countries by"
-              value={matrixSort}
-              onChange={(event) => setSearch({ sort: event.target.value, dir: undefined })}
-            >
-              <option value="name">Country name</option>
-              {ranking.map((entry) => (
-                <option key={entry.name} value={entry.name}>
-                  {itemLabel(entry)}
-                </option>
-              ))}
-            </SelectField>
-            <RadioRow
-              legend="Order"
-              name="dir"
-              options={sortKey === 'name' ? NAME_ORDER : VALUE_ORDER}
-              value={dir}
-              onChange={(value) => setSearch({ dir: value })}
-            />
-          </div>
           {rankingQuery.isPending ? (
             <LoadingBlock height={720} label="Loading estimates" />
           ) : rankingQuery.isError ? (
@@ -389,25 +417,26 @@ export function WhatMattersView() {
             <ChartFigure
               title="What matters most, by country"
               subtitle={rankingSubtitle}
-              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
-              marks="table"
-              response={rankingResponse}
-              meta={served}
+              interactive
+              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`}
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
-              groupLabel={groupLabel}
             >
               <ImportanceMatrix
                 rows={rankingAll}
                 items={ranking}
                 rowColumn="country_code"
                 rowOrder={countryOrder}
-                corner="Country ↓ · what matters →"
+                corner="Country"
                 served={served}
                 columnWidth={columnWidth}
-                sort={matrixSort === 'name' ? undefined : { column: matrixSort, dir }}
+                sort={{ column: matrixSort === 'name' ? ROW_LABELS : matrixSort, dir }}
+                onSort={sortMatrix}
               />
+              <p className={styles.hint}>
+                Select a column&rsquo;s label to sort by it, and again to reverse the order.
+              </p>
             </ChartFigure>
           )}
         </>
@@ -437,6 +466,7 @@ export function WhatMattersView() {
               value={search.by}
               onChange={(event) => setSearch({ by: event.target.value })}
             >
+              <option value={NO_SPLIT}>No split</option>
               {demographics.map((column) => (
                 <option key={column} value={column}>
                   {columnLabel(column, served)}
@@ -444,7 +474,35 @@ export function WhatMattersView() {
               ))}
             </SelectField>
           </div>
-          {splitQuery.isPending ? (
+          {noSplit ? (
+            rankingQuery.isPending ? (
+              <LoadingBlock height={360} label="Loading estimates" />
+            ) : rankingQuery.isError ? (
+              offline(rankingQuery.error)
+            ) : (
+              splitCountry !== undefined &&
+              first && (
+                <ChartFigure
+                  title={`${countryName(splitCountry)}: what matters most`}
+                  subtitle={rankingSubtitle}
+                  ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, most important first, ${MIDYEAR_TITLE}.${countryItemsSummary}`}
+                  csv={csvFor(countryItemsResponse, countryItemsName)}
+                  exportName={countryItemsName}
+                  isRefreshing={rankingQuery.isPlaceholderData}
+                >
+                  <RankedBar
+                    rows={countryItems}
+                    meta={served}
+                    responseMeta={countryItemsResponse.meta}
+                    variable={first}
+                    color={outcomeColor(first.name)}
+                    labelOf={itemName}
+                    fitLabels
+                  />
+                </ChartFigure>
+              )
+            )
+          ) : splitQuery.isPending ? (
             <LoadingBlock height={520} label="Loading estimates" />
           ) : splitQuery.isError ? (
             offline(splitQuery.error)
@@ -453,14 +511,10 @@ export function WhatMattersView() {
               <ChartFigure
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                 subtitle={rankingSubtitle}
-                ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}. The data table below carries every number, with its n.`}
-                marks="table"
-                response={splitResponse}
-                meta={served}
+                ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}.`}
                 csv={csvFor(splitResponse, splitName)}
                 exportName={splitName}
                 isRefreshing={splitQuery.isPlaceholderData}
-                groupLabel={groupLabel}
               >
                 <ImportanceMatrix
                   rows={splitAll}
@@ -542,7 +596,6 @@ export function WhatMattersView() {
                 served,
                 `${item.display_name} (${itemSubtitle}) by country.`,
               )}
-              marks={itemStat === 'proportion' ? 'bars' : 'dots'}
               intro={
                 itemDetail && (
                   <div className={styles.wording}>
@@ -550,8 +603,6 @@ export function WhatMattersView() {
                   </div>
                 )
               }
-              response={{ ...itemResponse, rows: itemRows }}
-              meta={served}
               csv={csvFor(
                 { ...itemResponse, rows: itemRows },
                 { ...rankingName, measure: item.display_name },
@@ -625,7 +676,7 @@ function TintLegend() {
 
 /** Rows × the importance items — countries, or one country's groups —
  * each cell the weighted mean, tinted on its column's own range across
- * the rows shown (the legend says so), the interval in its tooltip;
+ * the rows shown (the legend says so), the interval in its hover card;
  * every column one width, its short label wrapping over it; the first
  * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
@@ -637,6 +688,7 @@ function ImportanceMatrix({
   served,
   columnWidth,
   sort,
+  onSort,
 }: {
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
@@ -646,8 +698,11 @@ function ImportanceMatrix({
   corner: string
   served: Meta
   columnWidth: number
-  /** The item the rows are ordered by (none: the rows' own order). */
+  /** The item the rows are ordered by (`ROW_LABELS`: their names; none:
+   * the rows' own order). */
   sort?: { column: string; dir: SortDir }
+  /** The labels are sort buttons (the By country matrix). */
+  onSort?: (column: string) => void
 }) {
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
@@ -670,12 +725,15 @@ function ImportanceMatrix({
       columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
       columnWidth={columnWidth}
       sort={sort}
+      onSort={onSort}
       cellAt={(row, column) => {
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined
         return {
           text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
+          title: tipText(cell, `${row.label} · ${column.label}`, {
+            range: items.find((item) => item.name === column.key),
+          }),
           tint:
             cell.estimate === null
               ? 'transparent'

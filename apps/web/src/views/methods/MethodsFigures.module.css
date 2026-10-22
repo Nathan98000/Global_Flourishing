@@ -1,0 +1,97 @@
+/* The Methods diagrams (MethodsFigures.tsx): set in the reading column
+   like a chart — no card, a hairline above — drawn at most 30rem wide so
+   their 11–13px words stay about that size on a laptop and legible
+   (≈ 9px) on a phone. Every colour is a token. */
+.figure {
+  margin: var(--space-5) 0 var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--grid);
+}
+
+.drawing {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  height: auto;
+  overflow: visible;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.caption {
+  margin-top: var(--space-3);
+  color: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* The reading diagram's key: numbered like the badges it explains. */
+.key {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.key li + li {
+  margin-top: var(--space-1);
+}
+
+.title {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.group {
+  fill: var(--ink-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.label {
+  fill: var(--ink-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.small {
+  fill: var(--ink-secondary);
+  font-size: 11px;
+}
+
+.tick {
+  fill: var(--ink-secondary);
+  font-size: 11.5px;
+}
+
+.code {
+  fill: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.badge {
+  fill: var(--surface);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* The example hover card: the Plot tips' soft shadow. */
+.card {
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 20%));
+}
+
+.cardHeading {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cardLine {
+  fill: var(--ink-secondary);
+  font-size: 12px;
+}

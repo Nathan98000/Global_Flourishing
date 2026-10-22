@@ -1,14 +1,11 @@
 // The tinted matrix (Phase 5, generalised in Phase 6): a small heatmap
-// table whose cells carry a number over a token-only tint, with the CI
-// in the tooltip and the n in the data table beneath the figure
-// (ADR-0011: every cell is shown). `HeatTable` is the matrix itself —
-// row keys, column keys, one cell lookup — and `TransitionTable` is the
-// transition matrix of an ordinal/nominal item built on it: rows are the
-// earlier answer, columns the later one, each cell the share of the
-// row's people who gave that later answer (the engine's conditional
-// measure; each row sums to 100%), tinted with the accent at graded
-// opacity. The Correlates view builds its measures × countries matrix on
-// the same component with the diverging ramp. Never fetches.
+// table whose cells carry a number over a token-only tint, with its CI
+// and n in the hover card (ADR-0011: every cell is shown; ADR-0022) —
+// row keys, column keys, one cell lookup. What Matters builds its
+// importance matrix on it with the sequential ramp, the Correlates view
+// its measures × countries matrix with the diverging one. (The Change
+// view's transition matrix was built on it too, until ADR-0027 retired
+// it.) Never fetches.
 
 import {
   useEffect,
@@ -19,36 +16,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import type { EstimateRow } from '../api/types'
-import { ciText, formatEstimate } from '../format'
 import type { SortDir } from '../sortRows'
 import { TIP_OPTIONS } from './theme'
-import styles from './TransitionTable.module.css'
-
-export interface TransitionCell {
-  from: number
-  to: number
-  row: EstimateRow
-}
-
-export interface TransitionGrid {
-  levels: number[]
-  cells: Map<string, EstimateRow>
-}
-
-/** The k × k grid of one country's conditional transitions, in level order. */
-export function transitionGrid(rows: readonly EstimateRow[]): TransitionGrid {
-  const levels = new Set<number>()
-  const cells = new Map<string, EstimateRow>()
-  for (const row of rows) {
-    if (row.from_level === null || row.from_level === undefined) continue
-    if (row.to_level === null || row.to_level === undefined) continue
-    levels.add(row.from_level)
-    levels.add(row.to_level)
-    cells.set(`${row.from_level}:${row.to_level}`, row)
-  }
-  return { levels: [...levels].sort((a, b) => a - b), cells }
-}
+import { TipCardText } from './TipCard'
+import styles from './HeatTable.module.css'
 
 /** The ink a ramp tint's text wears: every `--seq-*` and `--div-*` step
  * names its own `-ink` companion in tokens.css (dark ink on the light
@@ -59,26 +30,12 @@ export function tintInk(tint: string): string | undefined {
   return match ? `var(${match[1]}-ink)` : undefined
 }
 
-/** Accent at graded opacity — a token-only heat scale. */
-export function cellTint(share: number | null): string {
-  if (share === null) return 'transparent'
-  const percent = 6 + Math.round(Math.min(1, Math.max(0, share)) * 44)
-  return `color-mix(in srgb, var(--accent) ${percent}%, transparent)`
-}
-
-/** The interval clause of a cell's tooltip: the CI, or why there is none. */
-export function intervalText(row: EstimateRow): string {
-  if (row.ci_lo !== null && row.ci_hi !== null) return ciText(row)
-  return row.ci_method === 'none'
-    ? 'point estimate — no interval is computed for this statistic'
-    : 'no interval (single sampling unit)'
-}
-
 export interface HeatCell {
   /** The number in the cell (formatted by the caller). */
   text: string
-  /** The tooltip — value, context, interval (never the n — ADR-0016) —
-   * shown styled on hover or tap, never as a native title. */
+  /** The hover card — "\n"-joined lines: what the cell is, its value
+   * in words, its CI and n (theme.ts tipText, ADR-0022) — shown styled
+   * on hover or tap, never as a native title. */
   title: string
   /** A token-only background (`var(--…)` or a color-mix of one). */
   tint: string
@@ -119,13 +76,27 @@ function AxisLabel({ axis }: { axis: HeatAxis }) {
   )
 }
 
+/** The `sort` column that stands for the rows' own labels (the matrix
+ * ordered by its row names): the corner header wears its arrow. */
+export const ROW_LABELS = ':rows'
+
+/** ▼ for a descending sort, ▲ for an ascending one. */
+function SortArrow({ dir }: { dir: SortDir | undefined }) {
+  if (!dir) return null
+  return <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
+}
+
+function ariaSort(dir: SortDir | undefined): 'descending' | 'ascending' | undefined {
+  return dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
+}
+
 /** A fixed-width column's side padding (--space-2 in
- * TransitionTable.module.css): a caller sizing columns to their labels
+ * HeatTable.module.css): a caller sizing columns to their labels
  * adds it twice to the text width. */
 export const HEAT_CELL_PAD = 8
 
 /** The canvas font of a column header — the table's --text-sm at weight
- * 500 in the page face (TransitionTable.module.css) — resolved against
+ * 500 in the page face (HeatTable.module.css) — resolved against
  * the page, for measuring how a label wraps. */
 export function headerFont(): string {
   const root = getComputedStyle(document.documentElement)
@@ -165,13 +136,16 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * an "N more →" button say so — the button pages the box sideways. With
  * `columnWidth` every column takes that width and its header wraps over
  * it; without, columns fit their labels on one line. A `sort` column
- * wears ▼ or ▲ and aria-sort, and a new sort brings it into view. A
+ * (or the corner, for the rows' own labels — `ROW_LABELS`) wears ▼ or ▲
+ * and aria-sort, and a new sort brings it into view; with `onSort`, the
+ * corner and every column label are buttons that ask for that sort
+ * (What Matters, ADR-0026). A
  * `highlight` column (the chosen country, pinned first) wears a marked
  * header and an outline. `wide`: from 1200px the matrix leaves the text
  * column — centred on it, up to 1216px — and its column headers stand
  * upright, so two dozen columns fit without scrolling. A cell's tooltip
  * is the Plot tips' look, at once on hover and on tap for touch; cells
- * are never tab stops (the data table carries the same numbers and
+ * are never tab stops (the CSV carries the same numbers and
  * intervals). */
 export function HeatTable({
   caption,
@@ -181,6 +155,7 @@ export function HeatTable({
   cellAt,
   columnWidth,
   sort,
+  onSort,
   highlight,
   wide = false,
   rowsWrap = false,
@@ -195,8 +170,12 @@ export function HeatTable({
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
   /** One width (px) for every column, headers wrapping to fit it. */
   columnWidth?: number
-  /** The column the rows are ordered by, and which way. */
+  /** The column the rows are ordered by (`ROW_LABELS`: their own
+   * labels), and which way. */
   sort?: { column: string; dir: SortDir }
+  /** The labels are sort buttons: a column's key, or `ROW_LABELS` for
+   * the corner. */
+  onSort?: (column: string) => void
   /** The key of a column to mark: a highlighted header, an outline. */
   highlight?: string
   /** From 1200px: out of the text column, up to 1216px, upright headers. */
@@ -327,8 +306,23 @@ export function HeatTable({
             <thead>
               <tr>
                 {corner ? (
-                  <th scope="col" className={styles.corner}>
-                    <span className={styles.axis}>{corner}</span>
+                  <th
+                    scope="col"
+                    className={styles.corner}
+                    aria-sort={ariaSort(sort?.column === ROW_LABELS ? sort.dir : undefined)}
+                  >
+                    {onSort ? (
+                      <button
+                        type="button"
+                        className={styles.sortButton}
+                        onClick={() => onSort(ROW_LABELS)}
+                      >
+                        <span className={styles.axis}>{corner}</span>
+                        <SortArrow dir={sort?.column === ROW_LABELS ? sort.dir : undefined} />
+                      </button>
+                    ) : (
+                      <span className={styles.axis}>{corner}</span>
+                    )}
                   </th>
                 ) : (
                   <td className={`${styles.corner} ${styles.cornerBlank}`} aria-hidden="true" />
@@ -339,9 +333,7 @@ export function HeatTable({
                     <th
                       key={column.key}
                       scope="col"
-                      aria-sort={
-                        dir === 'desc' ? 'descending' : dir === 'asc' ? 'ascending' : undefined
-                      }
+                      aria-sort={ariaSort(dir)}
                       aria-label={column.title}
                       data-highlight={column.key === highlight || undefined}
                       onPointerEnter={
@@ -364,12 +356,21 @@ export function HeatTable({
                           : undefined
                       }
                     >
-                      <span className={styles.head}>
-                        <AxisLabel axis={column} />
-                        {dir && (
-                          <span aria-hidden="true">{`\u00a0${dir === 'desc' ? '▼' : '▲'}`}</span>
-                        )}
-                      </span>
+                      {onSort ? (
+                        <button
+                          type="button"
+                          className={`${styles.head} ${styles.sortButton}`}
+                          onClick={() => onSort(column.key)}
+                        >
+                          <AxisLabel axis={column} />
+                          <SortArrow dir={dir} />
+                        </button>
+                      ) : (
+                        <span className={styles.head}>
+                          <AxisLabel axis={column} />
+                          <SortArrow dir={dir} />
+                        </span>
+                      )}
                     </th>
                   )
                 })}
@@ -471,41 +472,9 @@ export function HeatTable({
             ...(tipAt ? { left: tipAt.left, top: tipAt.top } : { visibility: 'hidden' }),
           }}
         >
-          {tip.text}
+          <TipCardText text={tip.text} />
         </div>
       )}
     </div>
-  )
-}
-
-export function TransitionTable({
-  rows,
-  levelLabel,
-  caption,
-}: {
-  /** One country's `transition_conditional` rows. */
-  rows: readonly EstimateRow[]
-  /** Answer labels from the variable's own value labels (server truth). */
-  levelLabel: (level: number) => string
-  caption: string
-}) {
-  const grid = transitionGrid(rows)
-  const axis = grid.levels.map((level) => ({ key: String(level), label: levelLabel(level) }))
-  return (
-    <HeatTable
-      caption={caption}
-      corner="First answer ↓ · later answer →"
-      rows={axis}
-      columns={axis}
-      cellAt={(from, to) => {
-        const cell = grid.cells.get(`${from.key}:${to.key}`)
-        if (!cell) return undefined
-        return {
-          text: formatEstimate(cell.estimate, cell.stat),
-          title: `${formatEstimate(cell.estimate, cell.stat)} of those who first said “${from.label}” later said “${to.label}”\n${intervalText(cell)}`,
-          tint: cellTint(cell.estimate),
-        }
-      }}
-    />
   )
 }

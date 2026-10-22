@@ -214,10 +214,14 @@ export function atlasRequest(
   search: AtlasSearch,
   variable: VariableSummary | undefined,
 ): AggregateRequest {
+  const stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   return {
     outcome: search.outcome,
     wave: search.wave,
-    stat: search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean',
+    // A categorical question's distribution is its share at every answer:
+    // the proportion response, which carries every level for every
+    // country (ADR-0025) — static, and the same numbers.
+    stat: stat === 'distribution' && variable?.default_stat === 'proportion' ? 'proportion' : stat,
     by: ['country_code'],
   }
 }
@@ -463,6 +467,8 @@ export interface WhatMattersSearch {
   /** The country whose ranking is split by `by`; absent = the United
    * States (else the first country A–Z), resolved from meta. */
   country?: number
+  /** The demographic column the country's ranking is split by, or
+   * NO_SPLIT: the country's items as one list, most important first. */
   by: string
   /** A chartable (non-ranking) midyear item to show by country. */
   item?: string
@@ -479,6 +485,9 @@ export interface WhatMattersSearch {
   invalid?: string[]
   invalidRaw?: RawParams
 }
+
+/** "Within a country" without a split: the country's own ranking. */
+export const NO_SPLIT = 'none'
 
 export const WHAT_MATTERS_DEFAULTS = {
   view: 'country' as const,

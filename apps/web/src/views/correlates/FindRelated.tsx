@@ -15,7 +15,7 @@ import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
 import { RankedBar } from '../../charts/RankedBar'
 import { divergingTint, signMark } from '../../charts/theme'
-import { HeatTable, intervalText } from '../../charts/TransitionTable'
+import { HeatTable } from '../../charts/HeatTable'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { WordingPanel } from '../../components/WordingPanel'
@@ -34,7 +34,6 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
-  CORRELATES_NOTE,
   CORRELATION_SCALE,
   FEW_PEOPLE_HIDDEN,
   NO_ESTIMATE,
@@ -48,16 +47,16 @@ import {
   pinnedFirst,
   rankedSubtitle,
   rankedTip,
+  correlationTip,
   coverageLine,
   pooledPlace,
   scopeLabel,
   withCoverage,
   starred,
   statisticPhrase,
-  tableCaption,
   tooFewCountries,
 } from '../correlatesRows'
-import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle, withTag } from './midyear'
+import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle } from './midyear'
 import {
   DivergingLegend,
   Failure,
@@ -108,11 +107,9 @@ export function FindRelated({
   const cells = useMemo(() => heatCells(acrossRows), [acrossRows])
 
   // A question by its name; at Midyear a midyear question wears a small
-  // tag (the subtitle names the other answers' year), and in text alone —
-  // the data table — says it in words.
+  // tag (the subtitle names the other answers' year).
   const nameOf = (entry: string) => variables.byName[entry]?.display_name ?? entry
   const tagOf = (entry: string) => midyearTag(variables.byName[entry], search.wave)
-  const textName = (entry: string) => withTag(nameOf(entry), tagOf(entry))
   const title = variable?.display_name ?? name
   const short = variable ? shortName(variable) : title
   const rankedRows = rankedResponse?.rows ?? []
@@ -149,7 +146,7 @@ export function FindRelated({
     strongest?.predictor
       ? ` Strongest: ${nameOf(strongest.predictor)} ${formatEstimate(strongest.estimate, strongest.stat)}.`
       : ''
-  } The data table below carries every number.`
+  }`
 
   const problem =
     variable === undefined || !variable.servable
@@ -238,7 +235,6 @@ export function FindRelated({
                 otherWave,
               )}
               ariaLabel={rankedAria}
-              marks="dots"
               interactive
               intro={
                 <>
@@ -249,16 +245,9 @@ export function FindRelated({
                   )}
                 </>
               }
-              response={rankedResponse}
-              meta={served}
               csv={csvFor(rankedResponse, rankedName)}
               exportName={rankedName}
               isRefreshing={ranked.isPlaceholderData}
-              predictorLabel={textName}
-              tableCaption={tableCaption(pooled)}
-              predictorHeader="Question"
-              estimateHeader="Correlation"
-              note={CORRELATES_NOTE}
             >
               <RankedBar
                 rows={rankedRows}
@@ -309,18 +298,10 @@ export function FindRelated({
               search.method,
               otherWave,
             )}
-            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones; the data table below carries every number.`}
-            marks="table"
-            response={acrossResponse}
-            meta={served}
+            ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones.`}
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}
-            predictorLabel={textName}
-            tableCaption={tableCaption(pooled)}
-            predictorHeader="Question"
-            estimateHeader="Correlation"
-            note={CORRELATES_NOTE}
             wide
           >
             <CountryMatrix
@@ -399,7 +380,7 @@ function CountryMatrix({
         const value = formatEstimate(cell.estimate, cell.stat)
         return {
           text: starred(value, flagged),
-          title: `${starred(value, flagged)}  ${row.label} · ${column.label}\n${intervalText(cell)}`,
+          title: correlationTip(`${row.label} · ${column.label}`, cell, flagged),
           tint: divergingTint(cell.estimate, extent),
           hidden: flagged ? FEW_PEOPLE_HIDDEN : undefined,
           flagged,

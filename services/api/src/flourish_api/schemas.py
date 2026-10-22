@@ -67,11 +67,10 @@ class BreakdownLabelsModel(BaseModel):
 
 
 class StateLabelModel(BaseModel):
-    """A US state code's display name and member states (a pooled group
-    of small states lists several; ``flourish_stats.states``)."""
+    """A US state code's display name (``flourish_stats.states``); every
+    state is its own, none pooled (ADR-0028)."""
 
     name: str
-    members: list[str]
 
 
 class MidyearTimingModel(BaseModel):
@@ -102,7 +101,7 @@ class MetaResponse(BaseModel):
     breakdown_labels: dict[str, BreakdownLabelsModel]
     families: list[str]
     #: US state codes → display names (the US States view owns no
-    #: state name); pooled groups read "A, B & C (pooled)"
+    #: state name)
     state_labels: dict[str, StateLabelModel]
     #: per country and midyear pairing, how its people took the midyear
     #: survey (ADR-0020); empty in a tier baked before it

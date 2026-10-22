@@ -14,7 +14,8 @@ import type {
 import { WAVES } from '../api/types'
 import type { CorrelationMethod } from '../api/correlates'
 import { shareLabel } from '../charts/CrossTab'
-import { formatEstimate } from '../format'
+import { people } from '../charts/theme'
+import { ciLabel, formatEstimate } from '../format'
 import { endpointsClause, shortName } from '../labels'
 import { WAVE_CHIPS, WAVE_NAMES } from '../waves'
 import { waveTitle, type OtherWave } from './correlates/midyear'
@@ -208,19 +209,6 @@ export const FEW_PEOPLE_KEY = '* small sample size'
 /** What a screen reader hears after a flagged value, in place of "*". */
 export const FEW_PEOPLE_HIDDEN = ', small sample size'
 
-/** The one note under every Correlates chart, after its data table
- * (ADR-0020): in place of the interval clause, where the n lives, any
- * footnote and the Methods link. */
-export const CORRELATES_NOTE = "Weighted so each country's sample stands for its adult population."
-
-/** The data tables' weighting, in plain words — never a weight code
- * (review M6): one country's, or the average of every country's. */
-export function tableCaption(pooled: boolean): string {
-  return pooled
-    ? 'Each country weighted to its adult population; countries averaged equally.'
-    : 'Weighted to each country’s adult population.'
-}
-
 /** A value, with its asterisk when few people are behind it. */
 export function starred(text: string, flagged: boolean): string {
   return flagged ? `${text}*` : text
@@ -293,15 +281,33 @@ export function axisEnds(short: string): [string, string] {
   return [`← goes with lower answers to ${short}`, `goes with higher answers to ${short} →`]
 }
 
-/** A ranked row's tooltip: the signed value — with its asterisk when
- * few people are behind it — and the question; never the n (ADR-0016,
- * restored by ADR-0019). */
+/** A correlation's hover card (ADR-0022): what it is — a question, a
+ * country, a cell — then the signed value, with its asterisk when few
+ * people are behind it, then how many people answered both (an
+ * average's: summed over its countries) and the asterisk's words. An
+ * average's coverage line follows (`withCoverage`). */
+export function correlationTip(
+  heading: string,
+  row: Pick<EstimateRow, 'estimate' | 'stat'> & { n?: number },
+  flagged = false,
+): string {
+  return [
+    heading,
+    `Correlation: ${starred(formatEstimate(row.estimate, row.stat), flagged)}`,
+    ...(row.n !== undefined && row.estimate !== null
+      ? [`Based on ${people(row.n)} who answered both`]
+      : []),
+    ...(flagged ? [FEW_PEOPLE_KEY] : []),
+  ].join('\n')
+}
+
+/** A ranked row's hover card: its question (or country) as the heading. */
 export function rankedTip(
-  row: Pick<EstimateRow, 'estimate' | 'stat'>,
+  row: Pick<EstimateRow, 'estimate' | 'stat'> & { n?: number },
   label: string,
   flagged = false,
 ): string {
-  return `${starred(formatEstimate(row.estimate, row.stat), flagged)} · ${label}`
+  return correlationTip(label, row, flagged)
 }
 
 // --- Compare two ------------------------------------------------------------
@@ -323,58 +329,68 @@ export function pairAxisTitle(
   return ends ? `${short} · ${ends.slice(1, -1)}` : short
 }
 
-/** A share's interval in plain words (review M2): "Likely range:
- * 44%–86%", whole percents, never below 0% or above 100%; none when the
- * interval can't be computed. */
-export function likelyRange(lo: number | null, hi: number | null): string | undefined {
+/** A share's interval for a hover card: "95% CI: [44%, 86%]" — named
+ * with the response's level and in the brackets every card uses
+ * (ADR-0022, ADR-0024) — in whole percents, never below 0% or above
+ * 100%; none when the interval can't be computed. */
+export function shareCI(lo: number | null, hi: number | null, level: number): string | undefined {
   if (lo === null || hi === null) return undefined
   const percent = (value: number) => `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
-  return `Likely range: ${percent(lo)}–${percent(hi)}`
+  return `${ciLabel(level)}: [${percent(lo)}, ${percent(hi)}]`
 }
 
-/** A cell's tooltip, in three lines (review M2): the column — "Life
+/** A cell's hover card (review M2, ADR-0022): the column — "Life
  * evaluation today: 0" — then the share and the row's answer — "65% —
  * Finding it very difficult on present income", or, when the answer is a
  * bare number (a 0–10 scale, a count), with its question: "20% answered
- * 10 on Life evaluation today" — then its likely range. No asterisk here
- * (the cell carries it) and never the n (ADR-0016). */
+ * 10 on Life evaluation today" — then its CI and how many people in the
+ * sample gave both answers. No asterisk here (the cell carries it). */
 export function pairCellTip({
   aLevel,
   aShort,
   bLevel,
   bShort,
   share,
-  range,
+  ci,
+  n,
 }: {
   aLevel: string
   aShort: string
   bLevel: string
   bShort: string
   share: number | null
-  range: string | undefined
+  ci: string | undefined
+  n: number
 }): string {
   const column = `${aShort}: ${aLevel}`
   if (share === null) return `${column}\nNobody here gave this answer.`
   const answer = /^\d+$/.test(bLevel)
     ? `${shareLabel(share)} answered ${bLevel} on ${bShort}`
     : `${shareLabel(share)} — ${bLevel}`
-  return [column, answer, ...(range ? [range] : [])].join('\n')
+  return [column, answer, ...(ci ? [ci] : []), `${people(n)} in the sample gave both answers`].join(
+    '\n',
+  )
 }
 
-/** A bar's tooltip: "Life evaluation today: 8", "25% of people", then
- * its likely range. */
+/** A bar's hover card: "Life evaluation today: 8", "25% of people", then
+ * its CI and how many people in the sample gave that answer. */
 export function pairBarTip({
   level,
   short,
   share,
-  range,
+  ci,
+  n,
 }: {
   level: string
   short: string
   share: number
-  range: string | undefined
+  ci: string | undefined
+  n: number
 }): string {
-  return [`${short}: ${level}`, `${shareLabel(share)} of people`, ...(range ? [range] : [])].join(
-    '\n',
-  )
+  return [
+    `${short}: ${level}`,
+    `${shareLabel(share)} of people`,
+    ...(ci ? [ci] : []),
+    `${people(n)} in the sample gave this answer`,
+  ].join('\n')
 }

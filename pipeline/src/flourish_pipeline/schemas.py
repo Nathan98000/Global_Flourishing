@@ -62,8 +62,10 @@ respondents_schema = pa.DataFrameSchema(
         "doi_annual_y1": pa.Column(pl.Date, nullable=False),
         "doi_annual_y2": pa.Column(pl.Date, nullable=True),
         "doi_my": pa.Column(pl.Date, nullable=True),
-        "state": pa.Column(pl.String, nullable=True),
-        "state_y2": pa.Column(pl.String, nullable=True),
+        # A respondent's own state's postal code — never a pooled group
+        # (ADR-0028).
+        "state": pa.Column(pl.String, pa.Check.str_matches(r"^[A-Z]{2}$"), nullable=True),
+        "state_y2": pa.Column(pl.String, pa.Check.str_matches(r"^[A-Z]{2}$"), nullable=True),
         "fips": pa.Column(pl.String, pa.Check.str_matches(r"^\d{5}$"), nullable=True),
         "fips_y2": pa.Column(pl.String, pa.Check.str_matches(r"^\d{5}$"), nullable=True),
         "w_state_c1": pa.Column(pl.Float64, nullable=True),

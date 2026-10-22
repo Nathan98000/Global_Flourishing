@@ -52,17 +52,14 @@ def test_meta_503_without_data(absent_client: TestClient) -> None:
     assert "without data" in resp.json()["detail"]
 
 
-def test_meta_names_the_us_states_and_pooled_groups(client: TestClient) -> None:
-    """The US States view owns no state name: every code the release can
-    carry is labelled here, pooled groups as 'A, B & C (pooled)'."""
+def test_meta_names_every_us_state_none_pooled(client: TestClient) -> None:
+    """The US States view owns no state name: every state and DC is
+    labelled here, each its own — no pooled small-state group (ADR-0028)."""
     labels = client.get("/v1/meta").json()["state_labels"]
-    assert len(labels) == 55  # fifty states, DC, four pooled groups
-    assert labels["CA"] == {"name": "California", "members": ["CA"]}
-    assert labels["ND_SD_WY"] == {
-        "name": "North Dakota, South Dakota & Wyoming (pooled)",
-        "members": ["ND", "SD", "WY"],
-    }
-    assert labels["ME_NH_RI_VT"]["name"] == "Maine, New Hampshire, Rhode Island & Vermont (pooled)"
+    assert len(labels) == 51  # fifty states and DC
+    assert labels["CA"] == {"name": "California"}
+    assert labels["ND"] == {"name": "North Dakota"}
+    assert not any("_" in code for code in labels)
 
 
 def test_meta_serves_each_countrys_midyear_timing(client: TestClient, store) -> None:

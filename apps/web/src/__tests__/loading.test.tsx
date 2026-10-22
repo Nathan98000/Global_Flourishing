@@ -14,7 +14,6 @@ import {
   STILL_WORKING_COPY,
   useDelayedFlags,
 } from '../components/Loading'
-import { testMeta, testResponse, testRow } from '../test-utils/fixtures'
 
 // The figure's Methods link needs no router here: a plain anchor stands in.
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -86,8 +85,6 @@ describe('LoadingBlock', () => {
 })
 
 describe('ChartFigure while refetching', () => {
-  const response = testResponse([testRow()])
-
   // The host toggles the refetch the way a view's query would.
   function Host() {
     const [isRefreshing, setRefreshing] = useState(true)
@@ -99,8 +96,6 @@ describe('ChartFigure while refetching', () => {
         <ChartFigure
           title="Happiness"
           ariaLabel="Happiness by country."
-          response={response}
-          meta={testMeta}
           isRefreshing={isRefreshing}
         >
           <svg />

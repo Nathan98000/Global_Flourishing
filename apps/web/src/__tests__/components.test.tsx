@@ -7,9 +7,8 @@ import { ApiError, NetworkError } from '../api/errors'
 import { CountryFilter, countryTriggerText } from '../components/controls/CountryFilter'
 import { RadioRow, SELECT_ABOVE } from '../components/controls/RadioRow'
 import { ErrorState } from '../components/ErrorState'
-import { EstimateTable } from '../components/EstimateTable'
 import { Stat } from '../components/Stat'
-import { attendVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
+import { testMeta, testRow } from '../test-utils/fixtures'
 
 describe('Stat', () => {
   test('an estimate never appears without CI and n — and never with a weight code', () => {
@@ -60,82 +59,6 @@ describe('ErrorState', () => {
       "Couldn't load this view — the data service returned an error.",
     )
     expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500: Internal server error: X')
-  })
-})
-
-describe('EstimateTable', () => {
-  test('labels come from meta; a small cell keeps its estimate and n', () => {
-    const response = testResponse(
-      [
-        testRow({ group: { country_code: 22 } }),
-        // A 31-person cell with no computable interval (lone PSU): shown,
-        // with its n, the interval as an em dash — never a gap (ADR-0011).
-        testRow({
-          group: { country_code: 1 },
-          estimate: 6.4,
-          se: null,
-          ci_lo: null,
-          ci_hi: null,
-          n: 31,
-        }),
-      ],
-      { by: ['country_code'] },
-    )
-    render(<EstimateTable response={response} meta={testMeta} />)
-    expect(screen.getByRole('columnheader', { name: 'Country' })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: '95% CI' })).toBeInTheDocument()
-    expect(screen.getByText('United States')).toBeInTheDocument()
-    expect(screen.getByText('Testland')).toBeInTheDocument()
-    expect(screen.getByText('6.40')).toBeInTheDocument()
-    expect(screen.getByText('31')).toBeInTheDocument()
-    expect(screen.getByText('—')).toBeInTheDocument() // the missing interval
-    expect(screen.queryByText(/withheld/)).toBeNull()
-    // The weight is a caption, not a column (§6).
-    expect(screen.queryByRole('columnheader', { name: 'Weight' })).toBeNull()
-    expect(screen.getByText(/Weighted estimates \(w_c1\)/)).toBeInTheDocument()
-  })
-
-  test('breakdown levels use the served labels', () => {
-    const response = testResponse([testRow({ group: { country_code: 1, gender: 2 } })], {
-      by: ['country_code', 'gender'],
-    })
-    render(<EstimateTable response={response} meta={testMeta} />)
-    expect(screen.getByRole('columnheader', { name: 'Gender' })).toBeInTheDocument()
-    expect(screen.getByText('Female')).toBeInTheDocument()
-  })
-
-  test('level sub-rows appear for distributions', () => {
-    const response = testResponse(
-      [
-        testRow({ group: { country_code: 1 }, level: 0, stat: 'distribution', estimate: 0.05 }),
-        testRow({ group: { country_code: 1 }, level: 1, stat: 'distribution', estimate: 0.07 }),
-      ],
-      { stat: 'distribution', outcome: attendVariable.name },
-    )
-    render(<EstimateTable response={response} meta={testMeta} />)
-    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
-    expect(screen.getByText('5.0%')).toBeInTheDocument()
-  })
-})
-
-describe('EstimateTable answers', () => {
-  test('the Answer column wears the value labels; a blank or missing label falls back to the code (ADR-0016)', () => {
-    const response = testResponse([
-      testRow({ stat: 'proportion', level: 1 }),
-      testRow({ stat: 'proportion', level: 2 }),
-      testRow({ stat: 'proportion', level: 3 }),
-    ])
-    const labels: Record<number, string> = { 1: 'Always', 2: '' }
-    render(<EstimateTable response={response} meta={testMeta} levelLabel={(l) => labels[l]} />)
-    expect(screen.getByRole('columnheader', { name: 'Answer' })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: 'Level' })).toBeNull()
-    expect(screen.getByRole('cell', { name: 'Always' })).toBeInTheDocument()
-    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument()
-    expect(screen.getByRole('cell', { name: '3' })).toBeInTheDocument()
-    // A derived score's bins keep their "0–1" … labels the same way.
-    const bins = testResponse([testRow({ stat: 'distribution', level: 0 })])
-    render(<EstimateTable response={bins} meta={testMeta} levelLabel={() => '0–1'} />)
-    expect(screen.getByRole('cell', { name: '0–1' })).toBeInTheDocument()
   })
 })
 

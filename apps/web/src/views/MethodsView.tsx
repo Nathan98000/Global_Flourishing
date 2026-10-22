@@ -1,14 +1,21 @@
 // Methods (§2.8): docs/METHODS.md is the single source — rendered, not
 // paraphrased into JSX. Above it, a plain-language summary whose
-// thresholds and CI level come from meta (never hard-coded), and the
-// "associations, not causes" note. This whole route (marked included)
-// is a lazy chunk.
+// thresholds and CI level come from meta (never hard-coded), the
+// "associations, not causes" note, and the way into the Codebook, which
+// lives here rather than in the nav (ADR-0021). Beside it on a wide
+// screen (above it on a phone), the page's sections as a contents list.
+// The document's "figure:" comments become the diagrams of
+// views/methods/. This whole route (marked included) is a lazy chunk.
 
+import { Link } from '@tanstack/react-router'
 import { Marked, Renderer } from 'marked'
 import { useMemo } from 'react'
 import methodsSource from '../../../../docs/METHODS.md?raw'
 import { useMeta } from '../api/meta'
 import { formatCount } from '../format'
+import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
+import { methodsParts, methodsSections } from './methods/document'
+import { MethodsFigure } from './methods/MethodsFigures'
 import styles from './MethodsView.module.css'
 
 const STUDY_LINKS = [
@@ -67,20 +74,55 @@ export function renderMethods(source: string): string {
   return markdown.parse(source, { async: false })
 }
 
+/** The page's sections as links: beside the prose on a wide screen; on
+ * a phone, folded above it, so the first section is not pushed a screen
+ * down. */
+function Contents({ sections }: { sections: readonly { id: string; title: string }[] }) {
+  const narrow = useMediaQuery(NAV_FOLD_VIEWPORT)
+  const list = (
+    <ol className={styles.contentsList}>
+      {sections.map((section) => (
+        <li key={section.id}>
+          <a href={`#${section.id}`}>{section.title}</a>
+        </li>
+      ))}
+    </ol>
+  )
+  return (
+    <nav aria-label="On this page" className={styles.contents}>
+      {narrow ? (
+        <details>
+          <summary className={styles.asideHeading}>On this page</summary>
+          {list}
+        </details>
+      ) : (
+        <>
+          <h3 className={styles.asideHeading}>On this page</h3>
+          {list}
+        </>
+      )}
+    </nav>
+  )
+}
+
 export function MethodsView() {
   const meta = useMeta()
   const html = useMemo(() => renderMethods(methodsSource), [])
-  const suppression = meta.data?.meta.suppression
-  const ciLevel = meta.data?.meta.ci_level
+  const parts = useMemo(() => methodsParts(html), [html])
+  const sections = useMemo(() => methodsSections(html), [html])
+  const served = meta.data?.meta
+  const suppression = served?.suppression
+  const ciLevel = served?.ci_level
 
   return (
     <section className={styles.methods}>
       <h2>Methods</h2>
       <div className={styles.summary}>
         <p>
-          Every number in this app is a <strong>survey-weighted estimate</strong> carrying its
-          weight, its unweighted n, and a design-based
-          {ciLevel !== undefined ? ` ${Math.round(ciLevel * 100)}%` : ''} confidence interval.
+          Every number in this app is a <strong>survey-weighted estimate</strong> with a
+          design-based
+          {ciLevel !== undefined ? ` ${Math.round(ciLevel * 100)}%` : ''}{' '}
+          <strong>confidence interval</strong>, drawn through each dot.
           {suppression && suppression.threshold > 0 ? (
             <>
               {' '}
@@ -91,7 +133,8 @@ export function MethodsView() {
           ) : (
             <>
               {' '}
-              Every cell is shown, however small — read the n behind a number before leaning on it.
+              Every cell is shown, however small — a long interval is the sign that few people are
+              behind a number, and each one&rsquo;s hover card says how many.
             </>
           )}
         </p>
@@ -107,8 +150,35 @@ export function MethodsView() {
           ))}
         </ul>
       </div>
-      {/* Our own docs/METHODS.md, parsed at build time — not user input. */}
-      <div className={styles.prose} dangerouslySetInnerHTML={{ __html: html }} />
+      <div className={styles.layout}>
+        <aside className={styles.aside}>
+          <div className={styles.codebook}>
+            <h3 className={styles.asideHeading}>The questions</h3>
+            <p>
+              Every question&rsquo;s exact wording, its answers, and how many people answered it in
+              each country and wave.
+            </p>
+            <Link to="/codebook" className={styles.codebookLink}>
+              Browse the Codebook →
+            </Link>
+          </div>
+          <Contents sections={sections} />
+        </aside>
+        {/* Our own docs/METHODS.md, parsed at build time — not user input. */}
+        <div className={styles.prose}>
+          {parts.map((part, index) =>
+            'html' in part ? (
+              <div
+                key={index}
+                className={styles.run}
+                dangerouslySetInnerHTML={{ __html: part.html }}
+              />
+            ) : (
+              <MethodsFigure key={index} name={part.figure} meta={served} />
+            ),
+          )}
+        </div>
+      </div>
     </section>
   )
 }

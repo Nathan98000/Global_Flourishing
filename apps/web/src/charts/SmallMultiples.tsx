@@ -7,7 +7,7 @@
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
-import { groupValueLabel } from '../labels'
+import { columnLabel, groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale, measureBounds } from './domain'
@@ -25,7 +25,7 @@ import { chartWidth, usePlot } from './usePlot'
 export type PanelSort = 'estimate' | 'name' | 'gap'
 
 /** Facet (country) order under each sort rule and direction — the one
- * ordering the panels and the data table both consume. */
+ * ordering the panels and the screen-reader table both consume. */
 export function facetOrder(
   rows: EstimateRow[],
   meta: Meta,
@@ -72,6 +72,7 @@ export function SmallMultiples({
   facetColumn = 'country_code',
   facetDomain,
   labelWidth,
+  answer,
 }: {
   rows: EstimateRow[]
   meta: Meta
@@ -88,6 +89,9 @@ export function SmallMultiples({
   /** Room for the row labels, when they run longer than a demographic's
    * levels (What Matters' item names); the phone keeps its own margin. */
   labelWidth?: number
+  /** The answer a share counts, for the hover cards ("45.0% answered
+   * “Yes”"). */
+  answer?: string
   /** Optional second breakdown → facet columns (one hue, no legend). */
   seriesColumn?: string
   seriesDomain?: string[]
@@ -101,8 +105,16 @@ export function SmallMultiples({
         const series = seriesColumn
           ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
           : ''
-        // `column` rides into the tip with the facet and the level.
-        return { ...entry, series, column: series || undefined }
+        // The second breakdown rides into the card under the first.
+        return {
+          ...entry,
+          series,
+          column: series || undefined,
+          detail:
+            seriesColumn && entry.detail
+              ? `${entry.detail} · ${columnLabel(seriesColumn, meta)}: ${series}`
+              : entry.detail,
+        }
       })
       const facets = facetDomain ?? facetOrder(rows, meta, facetColumn, sort, dir)
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
@@ -169,7 +181,10 @@ export function SmallMultiples({
             fill: INK_SECONDARY,
             fontSize: 11,
           }),
-          ...dotMarks(entries, color, facetChannel, scale.domain[0]),
+          ...dotMarks(entries, color, facetChannel, scale.domain[0], {
+            answer,
+            range: variable,
+          }),
         ],
       })
     },
@@ -189,6 +204,7 @@ export function SmallMultiples({
       facetColumn,
       facetDomain,
       labelWidth,
+      answer,
     ],
   )
 

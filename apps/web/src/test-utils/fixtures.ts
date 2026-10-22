@@ -57,13 +57,10 @@ export const testMeta: Meta = {
     { country_code: 22, other_wave: 'Y2', type_1: 0, type_2: 60 },
   ],
   state_labels: {
-    CA: { name: 'California', members: ['CA'] },
-    NY: { name: 'New York', members: ['NY'] },
-    TX: { name: 'Texas', members: ['TX'] },
-    ME_NH_RI_VT: {
-      name: 'Maine, New Hampshire, Rhode Island & Vermont (pooled)',
-      members: ['ME', 'NH', 'RI', 'VT'],
-    },
+    CA: { name: 'California' },
+    NY: { name: 'New York' },
+    TX: { name: 'Texas' },
+    VT: { name: 'Vermont' },
   },
 }
 
