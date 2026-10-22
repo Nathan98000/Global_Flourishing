@@ -145,6 +145,7 @@ export function ChartFigure({
   toolbar,
   chartKey,
   hint,
+  sortHead,
   csv,
   exportName,
   isRefreshing = false,
@@ -172,6 +173,9 @@ export function ChartFigure({
    * ("Showing the first four countries…") — the header's, never a line
    * under the chart (ADR-0024). */
   hint?: ReactNode
+  /** The labels over the chart's columns, the value's a sort button
+   * (SortHead) — right above the chart, outside its role="img" node. */
+  sortHead?: ReactNode
   csv?: CsvExport
   /** What the PNG download is called, in words (export/filename.ts); the
    * view's CSV shares it. Absent: the title alone names the file. */
@@ -236,6 +240,7 @@ export function ChartFigure({
         </p>
       )}
       {intro}
+      {sortHead}
       <div
         ref={chartRef}
         role={interactive ? 'group' : 'img'}

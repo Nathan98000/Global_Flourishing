@@ -220,6 +220,7 @@ export function FindRelated({
               interactive
               toolbar={chartControls}
               chartKey={<ChartKey mark="dot" label="correlation" color={signMark(1)} />}
+              hint="Select a row to see the two questions together."
               intro={
                 <>
                   {detail && (
@@ -258,7 +259,6 @@ export function FindRelated({
                 rowName={rowName}
                 tagOf={(row) => tagOf(row.predictor ?? '')}
               />
-              <p className={styles.hint}>Select a row to see the two questions together.</p>
             </ChartFigure>
           </>
         ) : predictors.length === 0 ? (

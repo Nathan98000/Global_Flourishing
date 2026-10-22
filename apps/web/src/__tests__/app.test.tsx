@@ -621,19 +621,54 @@ function stubViewport(matcher: (query: string) => boolean) {
   }))
 }
 
-test('under 40rem the display options fold into a disclosure; Measure and Wave stay out (§8)', async () => {
+test('under 40rem the countries fold into a disclosure; Question and Year stay out (§8)', async () => {
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   await renderAt('/')
   await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
-  const summary = screen.getByText('More options — order, countries')
+  const summary = screen.getByText('More options — countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
-  // Year stays visible outside the fold; Order lives inside it.
+  // Year stays visible outside the fold; Countries lives inside it.
   const wave = screen.getByRole('group', { name: 'Year' })
   expect(details?.contains(wave)).toBe(false)
-  const order = screen.getByRole('group', { name: 'Order' })
-  expect(details?.contains(order)).toBe(true)
+  expect(details?.querySelector('summary + div details')).not.toBeNull()
+})
+
+test('the value label sorts: a click (or Enter, or Space) reverses the order and writes dir (ADR-0029)', async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/')
+  const figure = await screen.findByRole('img', { name: /United States/ })
+  const order = () =>
+    [...figure.querySelectorAll('[aria-label="y-axis tick label"] text')].map(
+      (text) => text.textContent,
+    )
+  expect(order()).toEqual(['United States', 'Testland'])
+  // No Sort or Order control anywhere: the label over the values is it.
+  expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
+  expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
+  // The names are a plain label, never a sort.
+  const names = screen.getByRole('columnheader', { name: 'Country' })
+  expect(within(names).queryByRole('button')).toBeNull()
+  expect(names).not.toHaveAttribute('aria-sort')
+  const value = screen.getByRole('columnheader', { name: /^Mean/ })
+  expect(value).toHaveAttribute('aria-sort', 'descending')
+  const button = within(value).getByRole('button', { name: 'Mean, highest first' })
+  expect(button).toHaveTextContent('Mean▼')
+  // A click: lowest first, the URL as the old "Low to high" wrote it.
+  fireEvent.click(button)
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
+  expect(value).toHaveAttribute('aria-sort', 'ascending')
+  expect(button).toHaveAccessibleName('Mean, lowest first')
+  expect(order()).toEqual(['Testland', 'United States'])
+  expect(screen.getByText('Mean score, 0–10 · 2023 · all countries · lowest first')).toBeVisible()
+  // The keyboard: a native button, so Enter and Space click it.
+  button.focus()
+  fireEvent.keyDown(button, { key: 'Enter' })
+  fireEvent.click(button)
+  await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+  expect(button.tagName).toBe('BUTTON')
+  expect(button).toHaveAttribute('type', 'button')
 })
 
 test('the Statistic group becomes a native select under 30rem (§8)', async () => {

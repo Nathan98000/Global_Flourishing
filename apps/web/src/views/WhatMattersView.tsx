@@ -18,6 +18,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
 import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
@@ -34,7 +35,7 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { DEFAULT_DIR, VALUE_ORDER, reversed, sortAtlasRows, type SortDir } from '../sortRows'
+import { DEFAULT_DIR, reversed, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   NO_SPLIT,
@@ -419,6 +420,7 @@ export function WhatMattersView() {
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
+              hint="Select a column’s label to sort by it, and again to reverse the order."
             >
               <ImportanceMatrix
                 rows={rankingAll}
@@ -431,9 +433,6 @@ export function WhatMattersView() {
                 sort={{ column: matrixSort, dir }}
                 onSort={sortMatrix}
               />
-              <p className={styles.hint}>
-                Select a column&rsquo;s label to sort by it, and again to reverse the order.
-              </p>
             </ChartFigure>
           )}
         </>
@@ -556,15 +555,6 @@ export function WhatMattersView() {
               onPick={(name) => setSearch({ item: name, level: undefined })}
             />
           </div>
-          <div className={styles.controls}>
-            <RadioRow
-              legend="Order"
-              name="qdir"
-              options={VALUE_ORDER}
-              value={qdir}
-              onChange={(value) => setSearch({ qdir: value })}
-            />
-          </div>
           {itemQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : itemQuery.isError ? (
@@ -600,6 +590,15 @@ export function WhatMattersView() {
                     onChange={(value) => setSearch({ level: Number(value) })}
                   />
                 )
+              }
+              sortHead={
+                // The order is the value label's (ADR-0029), on `qdir`.
+                <SortHead
+                  names="Country"
+                  value={itemStat === 'proportion' ? 'Share' : 'Mean'}
+                  dir={qdir}
+                  onToggle={() => setSearch({ qdir: reversed(qdir) })}
+                />
               }
               chartKey={
                 <ChartKey

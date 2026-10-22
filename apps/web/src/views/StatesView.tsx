@@ -19,6 +19,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { RankedBar, type Reference } from '../charts/RankedBar'
 import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
@@ -35,10 +36,9 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
+import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
-import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
@@ -65,7 +65,6 @@ export function StatesView() {
   const chartable = variable !== undefined && variable.servable
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
-  const narrow = useMediaQuery(NARROW_VIEWPORT)
   const dir = search.dir ?? DEFAULT_DIR
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
@@ -287,15 +286,6 @@ export function StatesView() {
       </span>
     </>
   )
-  const displayOptions = search.view === 'bars' && (
-    <RadioRow
-      legend="Order"
-      name="dir"
-      options={VALUE_ORDER}
-      value={dir}
-      onChange={(value) => setSearch({ dir: value })}
-    />
-  )
 
   return (
     <section>
@@ -347,14 +337,7 @@ export function StatesView() {
             {yearNoteText}
           </p>
         )}
-        {narrow && displayOptions && (
-          <details className={styles.moreOptions}>
-            <summary>More options — order</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
-          </details>
-        )}
       </div>
-      {!narrow && displayOptions && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -402,6 +385,17 @@ export function StatesView() {
               </>
             }
             toolbar={chartControls}
+            sortHead={
+              // The chart's order is its value label's (ADR-0029).
+              search.view === 'bars' ? (
+                <SortHead
+                  names="State"
+                  value={stat === 'proportion' ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean'}
+                  dir={dir}
+                  onToggle={() => setSearch({ dir: reversed(dir) })}
+                />
+              ) : undefined
+            }
             chartKey={
               search.view === 'bars' ? (
                 <ChartKey

@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
@@ -309,6 +309,20 @@ describe('the US overall label', () => {
 })
 
 describe('US States view', () => {
+  test('the chart’s value label reverses the order and writes dir; the map has none (ADR-0029)', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states?view=bars')
+    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
+    const value = screen.getByRole('columnheader', { name: /^Mean/ })
+    fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?view=bars&dir=asc'))
+    cleanup()
+    await renderAt('/states?view=map')
+    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.queryByRole('columnheader')).toBeNull()
+  })
+
   test('the question bar: Question, then Year (ADR-0029)', async () => {
     mockFetch(tier)
     await renderAt('/states')
@@ -357,7 +371,9 @@ describe('US States view', () => {
     expect(figure.getAttribute('aria-label')).toContain('Highest: Vermont 7.40')
     // No data table (ADR-0022): each state's card carries its numbers.
     expect(screen.queryByText('Data table')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
     expect(screen.queryByText('VT')).toBeNull()
   })
 

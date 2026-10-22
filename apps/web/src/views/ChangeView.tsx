@@ -27,6 +27,7 @@ import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
@@ -42,7 +43,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, outcomeLevels } from '../labels'
-import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
+import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -293,15 +294,6 @@ export function ChangeView() {
       onChange={(value) => setSearch({ level: Number(value) })}
     />
   )
-  const displayOptions = (
-    <RadioRow
-      legend="Order"
-      name="dir"
-      options={VALUE_ORDER}
-      value={dir}
-      onChange={(value) => setSearch({ dir: value })}
-    />
-  )
 
   return (
     <section>
@@ -358,17 +350,13 @@ export function ChangeView() {
         )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — order, countries</summary>
-            <div className={styles.moreBody}>
-              {countryFilter}
-              {displayOptions}
-            </div>
+            <summary>More options — countries</summary>
+            <div className={styles.moreBody}>{countryFilter}</div>
           </details>
         ) : (
           countryFilter
         )}
       </div>
-      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -418,6 +406,15 @@ export function ChangeView() {
               )
             }
             toolbar={chartControls}
+            sortHead={
+              // The order is the value label's (ADR-0029).
+              <SortHead
+                names="Country"
+                value={isCategorical ? 'Change in share' : 'Mean change'}
+                dir={dir}
+                onToggle={() => setSearch({ dir: reversed(dir) })}
+              />
+            }
             chartKey={
               <ChartKey
                 mark="dot"

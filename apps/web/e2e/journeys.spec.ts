@@ -209,7 +209,7 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
 
   // A dot's hover card: the country first, set apart, then the level by
   // its breakdown, the mean, its CI and how many people it rests on.
@@ -346,7 +346,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   // card gives its mean change, its CI and its ten pairs.
   await expect(figure.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
   const row = await figure
     .locator('[aria-label="y-axis tick label"] text', { hasText: 'Testland' })
     .boundingBox()
@@ -358,12 +358,11 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(tip).toContainText('Based on 10 people who answered both times')
   await page.mouse.move(0, 0)
 
-  // The URL is the state; the order is by value only (ADR-0029).
-  await page
-    .getByRole('group', { name: 'Order' })
-    .getByText('Lowest first', { exact: true })
-    .click()
+  // The URL is the state; the order is by value only, and the value
+  // label over the column reverses it (ADR-0029).
+  await page.getByRole('button', { name: 'Mean change, highest first' }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&dir=asc$/)
+  await expect(page.getByRole('button', { name: 'Mean change, lowest first' })).toBeVisible()
 })
 
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
@@ -484,7 +483,7 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
   // No line under the chart (ADR-0024); the subtitle says the order.
   await expect(page.getByText(/weighted so each/)).toHaveCount(0)
   await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()

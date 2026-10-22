@@ -7,7 +7,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
@@ -267,7 +267,9 @@ describe('Change view', () => {
     // No data table anywhere (ADR-0022): the chart's own value labels
     // carry the estimates; each dot's hover card its CI and n.
     expect(screen.queryByText('Data table')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
     const values = figure.querySelector('svg')?.textContent ?? ''
     expect(values).toContain('+0.30')
     expect(values).toContain('−0.12')
@@ -348,7 +350,9 @@ describe('Change view', () => {
     // No matrix of moves between answers, served rows or not.
     expect(document.querySelectorAll('figure')).toHaveLength(1)
     expect(screen.queryByText('Where people moved between answers')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
   })
 
   test('a measure asked only once says so instead of asking the API', async () => {
@@ -363,6 +367,17 @@ describe('Change view', () => {
     await renderAt('/change?outcome=LONELY')
     expect(await screen.findByText('Asked only once')).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
+  })
+
+  test('the value label — "Mean change" — reverses the order and writes dir (ADR-0029)', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('img', { name: /mean change among the same people/ })
+    const value = screen.getByRole('columnheader', { name: /^Mean change/ })
+    expect(value).toHaveAttribute('aria-sort', 'descending')
+    fireEvent.click(within(value).getByRole('button'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&dir=asc'))
+    expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
   })
 
   test('the question bar: Question, then Countries — the years are fixed (ADR-0029)', async () => {

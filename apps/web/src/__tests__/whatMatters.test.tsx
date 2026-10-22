@@ -726,19 +726,23 @@ describe('What Matters view', () => {
     ])
   })
 
-  test('the other questions’ Order control writes qdir; there is no A–Z', async () => {
+  test('the other questions’ value label reverses the order and writes qdir; there is no A–Z', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters?view=questions&sort=MONEY')
     await screen.findByRole('img', { name: /Daily social media time/ })
     expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
     expect(screen.queryByText('A–Z')).toBeNull()
-    fireEvent.click(
-      within(screen.getByRole('group', { name: 'Order' })).getByRole('radio', {
-        name: 'Lowest first',
-      }),
-    )
+    // The value column's label: the statistic's own word, a sort button.
+    const head = screen.getByRole('columnheader', { name: /^Share/ })
+    expect(head).toHaveAttribute('aria-sort', 'descending')
+    fireEvent.click(within(head).getByRole('button', { name: 'Share, highest first' }))
     await waitFor(() =>
       expect(router.state.location.href).toBe('/what-matters?view=questions&sort=MONEY&qdir=asc'),
+    )
+    expect(screen.getByRole('columnheader', { name: /^Share/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
     )
   })
 

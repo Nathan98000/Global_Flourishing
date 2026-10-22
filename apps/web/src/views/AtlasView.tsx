@@ -13,6 +13,7 @@ import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
@@ -32,7 +33,7 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
-import { DEFAULT_DIR, VALUE_ORDER, sortAtlasRows } from '../sortRows'
+import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -320,13 +321,16 @@ export function AtlasView() {
       )}
     </>
   )
-  const displayOptions = ordered && (
-    <RadioRow
-      legend="Order"
-      name="dir"
-      options={VALUE_ORDER}
-      value={dir}
-      onChange={(value) => setSearch({ dir: value })}
+  // The order is the value label's (ADR-0029): a click reverses it, and
+  // writes `dir` as the Order buttons did.
+  const sortHead = ordered && (
+    <SortHead
+      names="Country"
+      value={
+        stat === 'proportion' || allAnswers ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean'
+      }
+      dir={dir}
+      onToggle={() => setSearch({ dir: reversed(dir) })}
     />
   )
 
@@ -392,17 +396,13 @@ export function AtlasView() {
         )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — order, countries</summary>
-            <div className={styles.moreBody}>
-              {countryFilter}
-              {displayOptions}
-            </div>
+            <summary>More options — countries</summary>
+            <div className={styles.moreBody}>{countryFilter}</div>
           </details>
         ) : (
           countryFilter
         )}
       </div>
-      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         // No measure is selected — the state of the data service is
@@ -467,6 +467,7 @@ export function AtlasView() {
                 }
                 toolbar={chartControls}
                 chartKey={chartKey}
+                sortHead={sortHead}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
