@@ -26,6 +26,7 @@ import {
 import { useBootStatus } from '../api/meta'
 import { HOW_TO_READ } from '../charts/ChartFigure'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
+import { useCarriedQuestion, type CarriedSearch } from '../state/carryQuestion'
 import { NARROW_VIEWPORT, NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import styles from './AppShell.module.css'
 
@@ -80,16 +81,20 @@ function NavLink({
   item,
   pathname,
   down,
+  carry,
 }: {
   item: NavItem
   pathname: string
   down: LiveDown | undefined
+  carry: CarriedSearch
 }) {
   const marked = item.live && down !== undefined
   return (
     <Link
       to={item.to}
-      activeOptions={{ exact: item.to === '/' }}
+      // The question in view, where this page can show it (H10).
+      search={carry(item.to) as never}
+      activeOptions={{ exact: item.to === '/', includeSearch: false }}
       aria-label={marked ? `${item.label} — ${down.reason}` : undefined}
       {...(navCovers(item, pathname) ? { 'data-status': 'active' } : {})}
     >
@@ -108,7 +113,15 @@ function NavLink({
  * active when the current view lives inside it. The row never pushes the
  * page sideways: a stretch of space follows each link, giving way before
  * the row wraps (AppShell.module.css). */
-function NarrowNav({ pathname, down }: { pathname: string; down: LiveDown | undefined }) {
+function NarrowNav({
+  pathname,
+  down,
+  carry,
+}: {
+  pathname: string
+  down: LiveDown | undefined
+  carry: CarriedSearch
+}) {
   const details = useRef<HTMLDetailsElement | null>(null)
   const panel = useRef<HTMLDivElement | null>(null)
   // The open panel hangs from "More"'s right edge, moved right by however
@@ -140,7 +153,7 @@ function NarrowNav({ pathname, down }: { pathname: string; down: LiveDown | unde
     <>
       {primary.map((item) => (
         <Fragment key={item.to}>
-          <NavLink item={item} pathname={pathname} down={down} />
+          <NavLink item={item} pathname={pathname} down={down} carry={carry} />
           <span className={styles.navGap} />
         </Fragment>
       ))}
@@ -162,7 +175,7 @@ function NarrowNav({ pathname, down }: { pathname: string; down: LiveDown | unde
           style={{ '--panel-shift': `${shift}px` } as CSSProperties}
         >
           {secondary.map((item) => (
-            <NavLink key={item.to} item={item} pathname={pathname} down={down} />
+            <NavLink key={item.to} item={item} pathname={pathname} down={down} carry={carry} />
           ))}
         </div>
       </details>
@@ -208,6 +221,7 @@ export function AppShell() {
   const header = useRef<HTMLElement | null>(null)
   const copy = useRef<HTMLSpanElement | null>(null)
   const down = useLiveDown()
+  const carry = useCarriedQuestion()
   const fits = useNavFits(header, copy)
   const narrow = phone || (ownRow && !fits)
   return (
@@ -228,18 +242,18 @@ export function AppShell() {
         </h1>
         <nav aria-label="Main" className={styles.nav}>
           {narrow ? (
-            <NarrowNav pathname={pathname} down={down} />
+            <NarrowNav pathname={pathname} down={down} carry={carry} />
           ) : ownRow ? (
             // Its own row, all seven: the spacing gives way first (.navGap).
             NAV_ITEMS.map((item) => (
               <Fragment key={item.to}>
-                <NavLink item={item} pathname={pathname} down={down} />
+                <NavLink item={item} pathname={pathname} down={down} carry={carry} />
                 <span className={styles.navGap} />
               </Fragment>
             ))
           ) : (
             NAV_ITEMS.map((item) => (
-              <NavLink key={item.to} item={item} pathname={pathname} down={down} />
+              <NavLink key={item.to} item={item} pathname={pathname} down={down} carry={carry} />
             ))
           )}
         </nav>

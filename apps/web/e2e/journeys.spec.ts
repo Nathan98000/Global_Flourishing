@@ -174,6 +174,25 @@ test('1 — Atlas: change the question through the picker and the year, share th
   const sheetBox = await sheet.boundingBox()
   expect(sheetBox!.x).toBeGreaterThanOrEqual(0)
   expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(390)
+
+  // The question travels (H10): from the Atlas with Happiness for 2024,
+  // the nav takes it, and its year, to the pages that can show it —
+  // Change opens on Happiness.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/?outcome=HAPPY&wave=Y2')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: 'Segments', exact: true })).toHaveAttribute(
+    'href',
+    '/segments?outcome=HAPPY&wave=Y2',
+  )
+  // (Offline here: the live-only pages' names say so — H6.)
+  await expect(nav.getByRole('link', { name: /^Correlates\b/ })).toHaveAttribute(
+    'href',
+    '/correlates',
+  )
+  await nav.getByRole('link', { name: /^Change\b/ }).click()
+  await expect(page).toHaveURL(/\/change\?outcome=HAPPY$/)
+  await expect(page.getByRole('button', { name: /^Question: Happiness/ })).toBeVisible()
 })
 
 test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({

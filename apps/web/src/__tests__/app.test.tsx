@@ -393,6 +393,51 @@ test("the Atlas says what changed: the subtitle's words and a count of countries
   )
 })
 
+test('the nav carries the question, and its year, to the pages that can show it (H10)', async () => {
+  const byCountry = (codes: number[]) =>
+    testResponse(
+      codes.map((code) => testRow({ group: { country_code: code }, estimate: 7 })),
+      { outcome: 'HAPPY', waves: ['Y2'] },
+    )
+  const onceOnly = {
+    ...happyVariable,
+    name: 'ONCE',
+    display_name: 'Asked once',
+    waves_available: ['Y2'],
+  }
+  mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, onceOnly] },
+    '/data/v1/HAPPY/Y2/mean_by-country_code.json': byCountry([1, 22]),
+    '/data/v1/ONCE/Y2/mean_by-country_code.json': byCountry([1]),
+  })
+  await renderAt('/?outcome=HAPPY&wave=Y2')
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  const href = (name: string) => within(nav).getByRole('link', { name }).getAttribute('href')
+  await waitFor(() => expect(href('US States')).toBe('/states?outcome=HAPPY&wave=Y2'))
+  expect(href('Atlas')).toBe('/?outcome=HAPPY&wave=Y2')
+  expect(href('Segments')).toBe('/segments?outcome=HAPPY&wave=Y2')
+  // Change takes no year; Correlates, What Matters and Methods stay plain.
+  expect(href('Change')).toBe('/change?outcome=HAPPY')
+  expect(href('Correlates')).toBe('/correlates')
+  expect(href('What Matters')).toBe('/what-matters')
+  expect(href('Methods')).toBe('/methods')
+  cleanup()
+  // A question asked once has no Change to show, and one the United States
+  // did not answer has no US States: those links carry nothing.
+  await renderAt('/?outcome=ONCE&wave=Y2')
+  const again = screen.getByRole('navigation', { name: 'Main' })
+  await waitFor(() =>
+    expect(within(again).getByRole('link', { name: 'Atlas' })).toHaveAttribute(
+      'href',
+      '/?outcome=ONCE&wave=Y2',
+    ),
+  )
+  await screen.findAllByText('Testland')
+  expect(within(again).getByRole('link', { name: 'Change' })).toHaveAttribute('href', '/change')
+  expect(within(again).getByRole('link', { name: 'US States' })).toHaveAttribute('href', '/states')
+})
+
 test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
   mockFetch({
     ...staticTier,
