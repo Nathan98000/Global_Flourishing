@@ -249,7 +249,29 @@ export function StatesView() {
 
   // How the chart is drawn: in its header's toolbar (`inline`), or in
   // the phone's options sheet (ADR-0029).
-  const chartControls = (inline: boolean) => (
+  // The switch with its reason in view when it is off (F6); on a desktop
+  // it sits on its own line under the toolbar's row (G4).
+  const adjustSwitch = (row: boolean) => (
+    <span className={styles.switch} data-row={row || undefined}>
+      <label className={styles.oriented}>
+        <input
+          type="checkbox"
+          checked={search.adj ?? false}
+          disabled={!adjAvailable}
+          aria-describedby={adjAvailable ? undefined : adjReasonId}
+          onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
+        />{' '}
+        Adjust for who answered in each state
+      </label>
+      {!adjAvailable && (
+        <span id={adjReasonId} className={styles.reason}>
+          {adjReason}
+        </span>
+      )}
+    </span>
+  )
+
+  const chartControls = (inline: boolean, withSwitch = true) => (
     <>
       {statOptions && (
         <RadioRow
@@ -300,24 +322,7 @@ export function StatesView() {
           ))}
         </select>
       </label>
-      {/* The switch with its reason in view when it is off (F6). */}
-      <span className={styles.switch} data-inline={inline || undefined}>
-        <label className={styles.oriented}>
-          <input
-            type="checkbox"
-            checked={search.adj ?? false}
-            disabled={!adjAvailable}
-            aria-describedby={adjAvailable ? undefined : adjReasonId}
-            onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
-          />{' '}
-          Adjust for who answered in each state
-        </label>
-        {!adjAvailable && (
-          <span id={adjReasonId} className={styles.reason}>
-            {adjReason}
-          </span>
-        )}
-      </span>
+      {withSwitch && adjustSwitch(false)}
     </>
   )
 
@@ -438,7 +443,8 @@ export function StatesView() {
                 )}
               </>
             }
-            toolbar={narrow ? undefined : chartControls(true)}
+            toolbar={narrow ? undefined : chartControls(true, false)}
+            afterToolbar={narrow ? undefined : adjustSwitch(true)}
             sortHead={
               // The chart's order is its value label's (ADR-0029).
               search.view === 'bars' ? (

@@ -143,6 +143,7 @@ export function ChartFigure({
   intro,
   legend,
   toolbar,
+  afterToolbar,
   chartKey,
   hint,
   sortHead,
@@ -167,6 +168,9 @@ export function ChartFigure({
   legend?: ReactNode
   /** The page's display controls, first in the header's toolbar. */
   toolbar?: ReactNode
+  /** A control too long for the toolbar's row (US States' adjustment
+   * switch and its reason): on its own line under it. */
+  afterToolbar?: ReactNode
   /** The chart's one-line key in the header ("● mean ⟝⟞ 95% CI"). */
   chartKey?: ReactNode
   /** A line in the header about what is shown or how to work the chart
@@ -222,17 +226,20 @@ export function ChartFigure({
         <span className={styles.title}>{title}</span>
         {subtitle && <span className={styles.subtitle}>{capitalize(subtitle)}</span>}
       </figcaption>
+      {/* One row under the title (G4): how it's drawn on the left; the
+          key, then how to read it and the downloads, on the right. */}
       <div className={styles.toolbar} data-toolbar="">
-        <div className={styles.tools}>
-          {toolbar}
+        {toolbar && <div className={styles.tools}>{toolbar}</div>}
+        <div className={styles.aside}>
+          {chartKey && <div className={styles.key}>{chartKey}</div>}
           <span className={styles.links}>
             <HowToRead />
             <span aria-hidden="true">·</span>
             <DownloadMenu csv={csv} onPng={() => void exportPng()} />
           </span>
         </div>
-        {chartKey && <div className={styles.key}>{chartKey}</div>}
       </div>
+      {afterToolbar && <div className={styles.afterToolbar}>{afterToolbar}</div>}
       {hint && <p className={styles.hint}>{hint}</p>}
       {pngFailed && (
         <p role="status" className={styles.exportNote}>

@@ -272,6 +272,17 @@
   text-align: right;
 }
 
+/* Under a chart's toolbar (G4): the switch and its reason on one line. */
+.switch[data-row] {
+  flex-flow: row wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+}
+
+.switch[data-row] .reason {
+  margin-top: 0;
+}
+
 .switch .reason {
   font-size: var(--text-xs);
   margin-top: 2px;
