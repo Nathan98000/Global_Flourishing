@@ -150,6 +150,7 @@ export function HeatTable({
   columns,
   cellAt,
   columnWidth,
+  fill = false,
   sort,
   onSort,
   highlight,
@@ -166,6 +167,9 @@ export function HeatTable({
   cellAt: (row: HeatAxis, column: HeatAxis) => HeatCell | undefined
   /** One width (px) for every column, headers wrapping to fit it. */
   columnWidth?: number
+  /** The table spans its box, the columns sharing what the row labels
+   * leave (each at least `columnWidth`) — What Matters on a wide screen. */
+  fill?: boolean
   /** The column the rows are ordered by, and which way. */
   sort?: { column: string; dir: SortDir }
   /** The column labels are sort buttons: each asks for its column. */
@@ -290,6 +294,7 @@ export function HeatTable({
             className={styles.table}
             aria-labelledby={captionId}
             data-fixed={columnWidth !== undefined || undefined}
+            data-fill={fill || undefined}
             data-rows-wrap={rowsWrap || undefined}
             style={
               columnWidth !== undefined

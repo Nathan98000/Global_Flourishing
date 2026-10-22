@@ -190,6 +190,17 @@
   text-align: center;
 }
 
+/* Filling its box (What Matters on a wide screen, F2): the row labels
+   keep their own width, the columns share the rest evenly. */
+.table[data-fill] {
+  width: 100%;
+}
+
+.table[data-fill] th[scope='row'],
+.table[data-fill] .corner {
+  width: 0;
+}
+
 /* A wrapped corner label keeps to two or three lines, its arrows with
    their words ("Age band ↓ · what / matters →"). */
 .table[data-fixed] .corner {

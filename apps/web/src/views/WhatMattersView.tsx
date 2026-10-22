@@ -48,11 +48,11 @@ import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
-  columnRanges,
   defaultSplitCountry,
   itemLabel,
   itemList,
   matrixCountryOrder,
+  matrixRange,
   narrowestWrap,
   orderMatrixRows,
   rankItems,
@@ -404,7 +404,9 @@ export function WhatMattersView() {
           name="view"
           options={VIEW_OPTIONS}
           value={search.view}
-          onChange={(view) => setSearch({ view })}
+          // "Within a country" opens on the country's own ranking (F16):
+          // the tab writes by=none; a bare ?view=within keeps its default.
+          onChange={(view) => setSearch(view === 'within' ? { view, by: NO_SPLIT } : { view })}
         />
       </div>
       <InvalidParamsNotice
@@ -450,6 +452,7 @@ export function WhatMattersView() {
                 corner="Country"
                 served={served}
                 columnWidth={columnWidth}
+                narrowMatrix={narrow}
                 sort={{ column: matrixSort, dir }}
                 onSort={sortMatrix}
               />
@@ -483,7 +486,7 @@ export function WhatMattersView() {
               value={search.by}
               onChange={(event) => setSearch({ by: event.target.value })}
             >
-              <option value={NO_SPLIT}>No split</option>
+              <option value={NO_SPLIT}>Nothing — one ranked list</option>
               {demographics.map((column) => (
                 <option key={column} value={column}>
                   {columnLabel(column, served)}
@@ -549,6 +552,7 @@ export function WhatMattersView() {
                   corner={`${splitLabel} ↓ · what matters →`}
                   served={served}
                   columnWidth={columnWidth}
+                  narrowMatrix={narrow}
                 />
               </ChartFigure>
             )
@@ -672,28 +676,28 @@ function count(n: number, one: string, many = `${one}s`): string {
 }
 
 /** The matrix's key, in its caption's place: the seven ramp steps from
- * lower to higher — the tokens themselves, so it reads true in either
- * theme — and the rule that each column is shaded on its own range. */
-function TintLegend() {
+ * the lowest to the highest number in the matrix — the tokens
+ * themselves, one range for every column (ADR-0030). */
+function TintLegend({ range }: { range: [number, number] | undefined }) {
+  const [lo, hi] = range ?? [undefined, undefined]
   return (
     <span className={styles.legend}>
       <span className={styles.legendKey}>
-        Lower{' '}
+        Lower{lo !== undefined ? ` (${formatEstimate(lo, 'mean')})` : ''}{' '}
         <span className={styles.ramp} aria-hidden="true">
           {SEQUENTIAL_RAMP.map((token) => (
             <span key={token} style={{ background: token }} />
           ))}
         </span>{' '}
-        Higher
-      </span>{' '}
-      · each column shaded on its own range
+        Higher{hi !== undefined ? ` (${formatEstimate(hi, 'mean')})` : ''}
+      </span>
     </span>
   )
 }
 
 /** Rows × the importance items — countries, or one country's groups —
- * each cell the weighted mean, tinted on its column's own range across
- * the rows shown (the legend says so), the interval in its hover card;
+ * each cell the weighted mean, tinted on one range across every cell
+ * shown (ADR-0030; the key gives its ends), the interval in its hover card;
  * every column one width, its short label wrapping over it; the first
  * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
@@ -704,6 +708,7 @@ function ImportanceMatrix({
   corner,
   served,
   columnWidth,
+  narrowMatrix = false,
   sort,
   onSort,
 }: {
@@ -715,6 +720,9 @@ function ImportanceMatrix({
   corner: string
   served: Meta
   columnWidth: number
+  /** A phone: columns at their narrowest, the box scrolling; elsewhere
+   * they share the page column (F2). */
+  narrowMatrix?: boolean
   /** The item the rows are ordered by (none: the rows' own order). */
   sort?: { column: string; dir: SortDir }
   /** The labels are sort buttons (the By country matrix). */
@@ -723,16 +731,14 @@ function ImportanceMatrix({
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
     cells.set(`${String(row.group['outcome'])}:${String(row.group[rowColumn])}`, row)
-  // One scale per column, over the rows on screen.
+  // One scale for the whole matrix, over the rows on screen (F2): a
+  // shade is the same number in every column.
   const shown = new Set<unknown>(rowOrder)
-  const tints = new Map(
-    [...columnRanges(rows.filter((row) => shown.has(row.group[rowColumn])))].map(
-      ([item, range]) => [item, quantizeSequential(range)],
-    ),
-  )
+  const range = matrixRange(rows.filter((row) => shown.has(row.group[rowColumn])))
+  const tint = range ? quantizeSequential(range) : undefined
   return (
     <HeatTable
-      caption={<TintLegend />}
+      caption={<TintLegend range={range} />}
       corner={corner}
       rows={rowOrder.map((value) => ({
         key: String(value),
@@ -740,6 +746,7 @@ function ImportanceMatrix({
       }))}
       columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
       columnWidth={columnWidth}
+      fill={!narrowMatrix}
       sort={sort}
       onSort={onSort}
       cellAt={(row, column) => {
@@ -750,10 +757,7 @@ function ImportanceMatrix({
           title: tipText(cell, `${row.label} · ${column.label}`, {
             range: items.find((item) => item.name === column.key),
           }),
-          tint:
-            cell.estimate === null
-              ? 'transparent'
-              : (tints.get(column.key)?.(cell.estimate) ?? 'transparent'),
+          tint: cell.estimate === null || !tint ? 'transparent' : tint(cell.estimate),
         }
       }}
     />

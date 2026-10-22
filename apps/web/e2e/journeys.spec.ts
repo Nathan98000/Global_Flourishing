@@ -423,9 +423,25 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await expect(card).toContainText(/95% CI: \[/)
   await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
 
-  // Within a country: the United States unless another is chosen, its
-  // age bands as the matrix's rows, alone on screen.
+  // Within a country: the tab opens on the United States's own ranking,
+  // one list, most important first (F16: the tab writes by=none).
   await views.getByText('Within a country', { exact: true }).click()
+  await expect(page).toHaveURL(/\/what-matters\?view=within&by=none$/)
+  await expect(
+    page.getByRole('img', {
+      name: /^United States: how important people rate 1 item, most important first/,
+    }),
+  ).toBeVisible()
+  await expect(
+    caption(page).getByText('United States: what matters most', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByLabel('Split by').locator('option:checked')).toHaveText(
+    'Nothing — one ranked list',
+  )
+  await expect(page.locator('figure')).toHaveCount(1)
+  // Split by age band: its bands as the matrix's rows, alone on screen —
+  // the bare link's own default.
+  await page.getByLabel('Split by').selectOption('age_band')
   await expect(page).toHaveURL(/\/what-matters\?view=within$/)
   const split = page.getByRole('img', {
     name: /United States: how important people rate 1 item, as a matrix: a row per age band/,
@@ -438,18 +454,6 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await page.getByLabel('Split by').selectOption('gender')
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
-  // No split: the country's items as one list, most important first.
-  await page.getByLabel('Split by').selectOption('none')
-  await expect(page).toHaveURL(/view=within&by=none$/)
-  await expect(
-    page.getByRole('img', {
-      name: /^United States: how important people rate 1 item, most important first/,
-    }),
-  ).toBeVisible()
-  await expect(
-    caption(page).getByText('United States: what matters most', { exact: true }),
-  ).toBeVisible()
-  await expect(page.locator('figure')).toHaveCount(1)
 
   // Other questions: one question's bar chart, alone on screen — the
   // synthetic family's one chartable item, Daily social media time.

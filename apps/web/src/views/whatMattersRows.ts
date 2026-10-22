@@ -1,7 +1,8 @@
 // The What Matters view's row bookkeeping, kept out of the component so
 // fast refresh stays clean: the seven items' rows as one set, the row
 // order a matrix and its CSV share (countries, or one country's
-// groups), each column's tint window, and the columns' labels and width.
+// groups), the matrix's one tint window, and the columns' labels and
+// width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
@@ -173,26 +174,26 @@ export function splitGroupOrder(
     .filter((value) => present.has(value))
 }
 
-/** Each column's tint window, keyed by item: its own [lowest, highest]
- * estimate across the rows shown, so a column's shades compare the
- * rows on that item alone — widened to at least `minSpan` points about
- * its midpoint, or a column of near-equal values (US money by age runs
- * 7.46–7.66) would spread a fifth of a point over the whole ramp. */
-export function columnRanges(
+/** The matrix's one tint window (F2, ADR-0030): the [lowest, highest]
+ * estimate of every cell shown, so a shade means the same number in
+ * every column and reading across a row reads the order — fitted to the
+ * data (ADR-0010's rule), widened to at least `minSpan` points about its
+ * midpoint, or near-equal values (US money by age runs 7.46–7.66) would
+ * spread a fifth of a point over the whole ramp. Undefined: no
+ * estimate to shade. */
+export function matrixRange(
   rows: readonly EstimateRow[],
   minSpan = 1,
-): Map<string, [number, number]> {
-  const ranges = new Map<string, [number, number]>()
+): [number, number] | undefined {
+  let lo = Infinity
+  let hi = -Infinity
   for (const row of rows) {
     if (row.estimate === null) continue
-    const item = String(row.group['outcome'])
-    const [lo, hi] = ranges.get(item) ?? [Infinity, -Infinity]
-    ranges.set(item, [Math.min(lo, row.estimate), Math.max(hi, row.estimate)])
+    lo = Math.min(lo, row.estimate)
+    hi = Math.max(hi, row.estimate)
   }
-  for (const [item, [lo, hi]] of ranges) {
-    if (hi - lo >= minSpan) continue
-    const mid = (lo + hi) / 2
-    ranges.set(item, [mid - minSpan / 2, mid + minSpan / 2])
-  }
-  return ranges
+  if (lo > hi) return undefined
+  if (hi - lo >= minSpan) return [lo, hi]
+  const mid = (lo + hi) / 2
+  return [mid - minSpan / 2, mid + minSpan / 2]
 }

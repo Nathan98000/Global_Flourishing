@@ -15,11 +15,11 @@ import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../
 import { barLabels } from '../test-utils/bar'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
-  columnRanges,
   defaultSplitCountry,
   itemLabel,
   itemList,
   matrixCountryOrder,
+  matrixRange,
   narrowestWrap,
   orderMatrixRows,
   rankingRows,
@@ -306,31 +306,31 @@ describe('the midyear family from the catalog', () => {
     expect(defaultSplitCountry({ countries: [] })).toBeUndefined()
   })
 
-  test('each column is tinted on its own range, never narrower than a point', () => {
+  test('the whole matrix is tinted on one range, never narrower than a point (F2)', () => {
     const at = (outcome: string, code: number, estimate: number | null) => ({
       ...testRow({ group: { outcome, country_code: code }, estimate }),
     })
-    const ranges = columnRanges([
-      at('GOOD_RELATION', 1, 6),
-      at('GOOD_RELATION', 2, 9),
-      at('GOOD_RELATION', 3, null),
-      // A near-flat column (US money by age runs 7.46–7.66) widens to one
-      // point about its midpoint instead of spanning the whole ramp.
-      at('MONEY', 1, 7.46),
-      at('MONEY', 2, 7.66),
-      at('MEANINGFUL', 1, 5),
-      at('REL_LIFE', 1, null),
-    ])
-    expect(ranges.get('GOOD_RELATION')).toEqual([6, 9])
-    const [lo, hi] = ranges.get('MONEY') ?? [0, 0]
+    // Every cell's estimate, whatever its column: 5 to 9.
+    expect(
+      matrixRange([
+        at('GOOD_RELATION', 1, 6),
+        at('GOOD_RELATION', 2, 9),
+        at('GOOD_RELATION', 3, null),
+        at('MONEY', 1, 7.46),
+        at('MEANINGFUL', 1, 5),
+        at('REL_LIFE', 1, null),
+      ]),
+    ).toEqual([5, 9])
+    // A near-flat matrix (US money by age runs 7.46–7.66) widens to one
+    // point about its midpoint instead of spanning the whole ramp.
+    const [lo, hi] = matrixRange([at('MONEY', 1, 7.46), at('MONEY', 2, 7.66)]) ?? [0, 0]
     expect(lo).toBeCloseTo(7.06)
     expect(hi).toBeCloseTo(8.06)
-    expect(ranges.get('MEANINGFUL')).toEqual([4.5, 5.5])
-    // A column with no estimate has no range (its cells are untinted).
-    expect(ranges.has('REL_LIFE')).toBe(false)
+    // No estimate: no range (the cells are untinted).
+    expect(matrixRange([at('REL_LIFE', 1, null)])).toBeUndefined()
     // Exactly a point wide is wide enough; a wider minimum can be asked for.
-    expect(columnRanges([at('MONEY', 1, 6), at('MONEY', 2, 7)]).get('MONEY')).toEqual([6, 7])
-    expect(columnRanges([at('MONEY', 1, 6), at('MONEY', 2, 7)], 2).get('MONEY')).toEqual([5.5, 7.5])
+    expect(matrixRange([at('MONEY', 1, 6), at('MONEY', 2, 7)])).toEqual([6, 7])
+    expect(matrixRange([at('MONEY', 1, 6), at('MONEY', 2, 7)], 2)).toEqual([5.5, 7.5])
   })
 
   test('a ramp tint names its ink; the accent tints and "no cell" keep the page ink', () => {
@@ -435,22 +435,25 @@ describe('What Matters view', () => {
     expect(lines[3]).toMatch(/^Based on \d[\d,]* people$/)
     fireEvent.pointerLeave(first)
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
-    // Each column is shaded on its own range: the same 7.00 is the low
-    // end of Good relationships (7–8) and the high end of Money (6–7).
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-700)')
-    expect(cells[1]?.getAttribute('style')).toContain('var(--seq-700)')
+    // One range for the whole matrix (F2): 6 to 8 across both columns,
+    // so the same 7.00 is the same shade in Money and in Good
+    // relationships, and reading across a row reads the order.
+    const style = (index: number) => cells[index]?.getAttribute('style') ?? ''
+    expect(style(2)).toContain('var(--seq-100)') // Testland, Money, 6.00
+    expect(style(0)).toContain('var(--seq-400)') // United States, Money, 7.00
+    expect(style(3)).toContain('var(--seq-400)') // Testland, Good relationships, 7.00
+    expect(style(1)).toContain('var(--seq-700)') // United States, Good relationships, 8.00
     // The number wears the ink its tint step names (light ink on the
     // deep teal), never the page ink at 1.9:1.
-    expect(cells[1]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
-    expect(cells[2]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
+    expect(style(1)).toContain('color: var(--seq-700-ink)')
+    expect(style(2)).toContain('color: var(--seq-100-ink)')
     // A legend replaces the caption: the seven ramp tokens, lower to
-    // higher (the tokens themselves), and the column rule.
-    const legend = within(ranking).getByText(/· each column shaded on its own range/)
-    expect(legend.textContent?.replace(/\s+/g, ' ')).toBe(
-      'Lower Higher · each column shaded on its own range',
-    )
+    // higher (the tokens themselves), with the range's two ends — one key.
+    const legend = within(ranking)
+      .getByText(/^Lower/)
+      .closest('span')?.parentElement as HTMLElement
+    expect(legend.textContent?.replace(/\s+/g, ' ')).toBe('Lower (6.00) Higher (8.00)')
+    expect(within(ranking).queryByText(/each column shaded on its own range/)).toBeNull()
     expect(
       [...legend.querySelectorAll('span[style]')].map((swatch) => swatch.getAttribute('style')),
     ).toEqual(SEQUENTIAL_RAMP.map((token) => `background: ${token};`))
@@ -766,10 +769,11 @@ describe('What Matters view', () => {
     ).toEqual(['18–24', '25–29'])
     const cells = within(matrix).getAllByRole('cell')
     expect(cells.map((cell) => cell.textContent)).toEqual(['5.22', '5.22', '6.22', '6.22'])
-    // Shaded per column across the groups.
+    // One range across the groups and the columns (F2).
     expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
     expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
-    within(split).getByText(/each column shaded on its own range/)
+    expect(within(split).queryByText(/each column shaded on its own range/)).toBeNull()
+    within(split).getByText(/^Lower \(5\.22\)/)
     // The country select starts on the United States: no "Choose a
     // country…" option, no hint; one figure on screen.
     const country = screen.getByLabelText(/^Country/) as HTMLSelectElement
@@ -795,6 +799,28 @@ describe('What Matters view', () => {
     )
     expect(await screen.findByText('Testland by age band')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText(/^Country/), { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?view=within'))
+  })
+
+  test('the Within a country tab opens on the ranking (by=none); a bare link keeps its split (F16)', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/what-matters')
+    await screen.findByRole('group', { name: /in each of 2 countries, as a matrix/ })
+    fireEvent.click(screen.getByRole('radio', { name: 'Within a country' }))
+    await waitFor(() =>
+      expect(router.state.location.href).toBe('/what-matters?view=within&by=none'),
+    )
+    // The first thing shown is the country's own ranking.
+    expect(
+      await screen.findByRole('img', {
+        name: /^United States: how important people rate 2 items, most important first/,
+      }),
+    ).toBeInTheDocument()
+    const split = screen.getByLabelText(/^Split by/) as HTMLSelectElement
+    expect(split.value).toBe('none')
+    expect(split.selectedOptions[0]?.textContent).toBe('Nothing — one ranked list')
+    // A split from here is a split; back to nothing, the URL says so.
+    fireEvent.change(split, { target: { value: 'age_band' } })
     await waitFor(() => expect(router.state.location.href).toBe('/what-matters?view=within'))
   })
 
