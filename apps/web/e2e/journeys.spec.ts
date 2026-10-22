@@ -1096,12 +1096,14 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // strip's number — is on the first screen.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/correlates')
-  // The whole number inside the 844 px screen, whatever the platform's
-  // sans font (Linux wraps the question names a line more than macOS).
+  // H8 aims for about 600 px (933 before). Linux's sans font wraps the
+  // question names a line more than macOS's, so CI puts the number's top
+  // at 621 px; its foot within 680 leaves that headroom and still catches
+  // a slide back down.
   const answer = page.getByText(/^All countries: [+−]\d/)
   await expect(answer).toBeVisible()
   const answerBox = (await answer.boundingBox())!
-  expect(answerBox.y + answerBox.height).toBeLessThanOrEqual(844)
+  expect(answerBox.y + answerBox.height).toBeLessThanOrEqual(680)
   await page.goto('/correlates?country=22')
   await expect(page.getByRole('group', { name: 'Year' })).toHaveCount(0)
   await expect(
