@@ -1340,6 +1340,28 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
       }
     }
   }
+
+  // Change's key never runs into its column labels (H15): beside them
+  // where it fits, else on its own line above — at 320 px too.
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.goto('/change?outcome=ATTEND_SVCS')
+  await expect(page.locator('main figure').first()).toBeVisible()
+  const key = page.locator('[data-head-key]')
+  const sortLabel = page.locator('[data-sort-value]')
+  const names = page.locator('[data-sort-names]')
+  const [keyBox, labelBox, namesBox] = await Promise.all([
+    key.boundingBox(),
+    sortLabel.boundingBox(),
+    names.boundingBox(),
+  ])
+  for (const other of [labelBox!, namesBox!]) {
+    const apart =
+      keyBox!.x + keyBox!.width <= other.x ||
+      other.x + other.width <= keyBox!.x ||
+      keyBox!.y + keyBox!.height <= other.y ||
+      other.y + other.height <= keyBox!.y
+    expect(apart, 'the key clear of the column labels at 320 px').toBe(true)
+  }
 })
 
 test('13 — a phone: the chart on the first screen; pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({

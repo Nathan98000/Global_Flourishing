@@ -336,6 +336,8 @@ function TableFigure({
   return (
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
+      // A grid drawn in HTML: the CSV, no PNG (H13).
+      picture={false}
       subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={`Correlations among ${order.length} questions ${pooled ? averagedOver(table.meta.countries, served.countries) : `in ${countryName}`}, as a table: ${order
         .map(nameOf)

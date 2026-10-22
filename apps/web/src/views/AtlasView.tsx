@@ -36,6 +36,7 @@ import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
 import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
@@ -45,6 +46,8 @@ import {
   countriesPhrase,
   keyCiLevel,
   keyThinBelow,
+  noAnswers,
+  noAnswersLine,
   orderPhrase,
   stateLine,
   updatedLine,
@@ -101,7 +104,16 @@ export function AtlasView() {
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
-  const request = chartable
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(searchNavigation(atlasSearchParams({ ...search, wave }), { replace: true })),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked
     ? atlasRequest(medianOffline ? { ...search, stat: undefined } : search, variable)
     : null
   const estimates = useEstimates(request)
@@ -115,7 +127,7 @@ export function AtlasView() {
   // never A–Z (G10).
   const numericDistribution = stat === 'distribution' && !allAnswers
   const orderEstimates = useEstimates(
-    chartable && numericDistribution
+    yearAsked && numericDistribution
       ? atlasRequest({ ...search, countries: [], stat: undefined }, variable)
       : null,
   )
@@ -434,15 +446,16 @@ export function AtlasView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               atlasSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {medianOffline && (
         <StatusNotice>
@@ -513,6 +526,16 @@ export function AtlasView() {
                 <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
               )}
             </>
+          ) : response && variable && noAnswers(search.countries, displayRows) ? (
+            <EmptyState
+              title={noAnswersLine(
+                search.countries.map((code) =>
+                  groupValueLabel('country_code', code, meta.data.meta),
+                ),
+              )}
+            >
+              <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+            </EmptyState>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">

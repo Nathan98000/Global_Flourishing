@@ -10,7 +10,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useSheetChartActions } from '../../charts/ChartActions'
-import { HowToRead, downloadCsv } from '../../charts/ChartFigure'
+import { HowToRead, NO_PICTURE, downloadCsv } from '../../charts/ChartFigure'
 import styles from './OptionsSheet.module.css'
 
 export function OptionsSheet({
@@ -143,15 +143,18 @@ export function OptionsSheet({
                         CSV
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={styles.link}
-                      aria-label="Download PNG"
-                      onClick={() => chartActions.current.png()}
-                    >
-                      PNG
-                    </button>
+                    {chartActions.current.png && (
+                      <button
+                        type="button"
+                        className={styles.link}
+                        aria-label="Download PNG"
+                        onClick={() => chartActions.current.png?.()}
+                      >
+                        PNG
+                      </button>
+                    )}
                   </span>
+                  {!chartActions.current.png && <p className={styles.note}>{NO_PICTURE}</p>}
                 </div>
               )}
             </div>

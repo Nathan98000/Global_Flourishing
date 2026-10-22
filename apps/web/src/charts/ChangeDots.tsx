@@ -18,6 +18,7 @@ import { formatValueLabel } from '../format'
 import { groupValueLabel } from '../labels'
 import { legTitle } from '../waves'
 import { dotMarks, dotTip, type DotEntry } from './DotPlot'
+import { textMeasurer } from './RankedBar'
 import { ciExtents, fittedScale } from './domain'
 import {
   plotRow,
@@ -40,6 +41,26 @@ import {
   starValue,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
+
+/** Room between a row label and the plot, and the labels' size. */
+const LABEL_PAD = 12
+const LABEL_SIZE = 13.5
+
+/** The label gutter (H15): the longest name as measured, plus what a
+ * reader's own text spacing adds to it (WCAG 1.4.12: letters 0.12 em
+ * apart, words 0.16 em), plus the room before the plot. */
+export function labelGutter(names: readonly string[], measure: (text: string) => number): number {
+  const widest = Math.max(
+    64,
+    ...names.map(
+      (name) =>
+        measure(name) +
+        name.length * 0.12 * LABEL_SIZE +
+        (name.split(' ').length - 1) * 0.16 * LABEL_SIZE,
+    ),
+  )
+  return Math.ceil(widest + LABEL_PAD)
+}
 
 /** Entries keyed by country (y) and, for a three-point panel, by leg (fx). */
 export function changeEntries(rows: EstimateRow[], meta: Meta): DotEntry[] {
@@ -115,8 +136,10 @@ export function ChangeDots({
       const width = chartWidth(faceted ? 820 : 660, available)
       const narrow = width < 480
       const scale = changeScale(entries, faceted || narrow ? 4 : 6, bounds)
-      // 'United Kingdom' at 13.5px needs the extra 8px on a phone.
-      const marginLeft = narrow ? 112 : 128
+      // The label gutter fits the longest country name (H15), with room
+      // for a reader's own wider letter and word spacing (WCAG 1.4.12),
+      // so "United Kingdom" is never cut to "ited Kingdom".
+      const marginLeft = labelGutter(countryDomain, textMeasurer(LABEL_SIZE, available !== null))
       const marginRight = faceted ? 24 : narrow ? 60 : 72
       const [lo, hi] = scale.domain
       const plot = Plot.plot({
@@ -156,7 +179,7 @@ export function ChangeDots({
           : {}),
         marks: [
           // Country labels at 13.5 in ink (§6); the value axis stays 11px.
-          Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
+          Plot.axisY({ tickSize: 0, label: null, fontSize: LABEL_SIZE, fill: INK }),
           ...(faceted ? [Plot.frame({ stroke: 'var(--grid)' })] : []),
           // Zero, visible and marked in every panel.
           Plot.ruleX([0], { stroke: INK, strokeWidth: 1 }),

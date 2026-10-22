@@ -23,3 +23,28 @@
 .list li + li {
   margin-top: var(--space-1);
 }
+
+/* "Try again" (H14): a quiet secondary button under the message. */
+.retry {
+  margin-top: var(--space-3);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.retry:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .retry {
+    min-height: 44px;
+  }
+}

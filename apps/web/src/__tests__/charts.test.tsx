@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { BAR_LABEL_ROOM, CrossTab, LINE, crossTabLayout, type Measurer } from '../charts/CrossTab'
+import { labelGutter } from '../charts/ChangeDots'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import {
   TIP_OPTIONS,
@@ -1162,6 +1163,45 @@ describe('spoken summaries (H1, H2)', () => {
       `Happiness. How people in Testland answered. ${CSV_SENTENCE}`,
     )
     expect(listWords(['a', 'b', 'c'])).toBe('a, b and c')
+  })
+})
+
+describe('phone headers that collided (H15)', () => {
+  test("Change's label gutter fits its longest name, with a reader's own text spacing", () => {
+    const measure = (text: string) => text.length * 7
+    const gutter = labelGutter(['Japan', 'United Kingdom'], measure)
+    // 14 letters at 7 px, 0.12 em each more, one word gap 0.16 em more.
+    expect(gutter).toBe(Math.ceil(14 * 7 + 14 * 0.12 * 13.5 + 0.16 * 13.5 + 12))
+    expect(labelGutter(['Peru'], measure)).toBe(76)
+  })
+
+  test("a distribution's panel names sit close over their panels, under the axis title", () => {
+    const panels = [1, 22].flatMap((code) =>
+      [0, 5, 10].map((level) =>
+        testRow({ group: { country_code: code }, stat: 'distribution', level, estimate: 0.3 }),
+      ),
+    )
+    const { container } = render(
+      <Histogram
+        rows={panels}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'distribution' })}
+        variable={happyVariable}
+        color="var(--series-1)"
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const lift = (label: string) =>
+      Number(
+        /translate\([-\d.]+,\s*([-\d.]+)\)/.exec(
+          svg.querySelector(`[aria-label="${label}"]`)?.getAttribute('transform') ?? '',
+        )?.[1],
+      )
+    // The y title's line ends about 15 px above the frame; the panel
+    // names (an 11 px line) start below that.
+    expect(svg.querySelector('[aria-label="fx-axis tick"]')).toBeNull()
+    expect(lift('fx-axis tick label')).toBeGreaterThan(-4)
+    expect(lift('y-axis label')).toBeLessThan(-20)
   })
 })
 

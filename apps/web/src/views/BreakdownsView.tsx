@@ -41,6 +41,7 @@ import {
 } from '../labels'
 import { DEFAULT_DIR, VALUE_ORDER, sortBreakdownRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
@@ -55,6 +56,8 @@ import {
   countriesPhrase,
   keyCiLevel,
   keyThinBelow,
+  noAnswers,
+  noAnswersLine,
   orderPhrase,
   stateLine,
   updatedLine,
@@ -88,7 +91,18 @@ export function BreakdownsView() {
   const activeLevel = search.level ?? outcomeLevelOptions[0]?.value
   const levelLabel = outcomeLevelOptions.find((entry) => entry.value === activeLevel)?.label
 
-  const request = chartable ? breakdownsRequest(search, variable) : null
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(
+        searchNavigation(breakdownsSearchParams({ ...search, wave }), { replace: true }),
+      ),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
   // Each country's own estimate, the same question, year and statistic —
@@ -423,15 +437,16 @@ export function BreakdownsView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               breakdownsSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {/* The question bar (ADR-0029): what — the question and its split —
           then when and where. */}
@@ -499,6 +514,16 @@ export function BreakdownsView() {
             ) : (
               <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
+          ) : response && variable && noAnswers(search.countries, displayRows) ? (
+            <EmptyState
+              title={noAnswersLine(
+                search.countries.map((code) =>
+                  groupValueLabel('country_code', code, meta.data.meta),
+                ),
+              )}
+            >
+              <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+            </EmptyState>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">

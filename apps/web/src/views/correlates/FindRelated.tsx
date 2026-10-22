@@ -293,6 +293,8 @@ export function FindRelated({
         ) : acrossResponse ? (
           <ChartFigure
             title={`What goes with ${title}, country by country`}
+            // A grid drawn in HTML: the CSV, no PNG (H13).
+            picture={false}
             subtitle={acrossSubtitle(
               predictors.length,
               countryName,

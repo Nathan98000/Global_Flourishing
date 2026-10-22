@@ -136,3 +136,11 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Why the chart offers no PNG (H13), under the downloads. */
+.note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}

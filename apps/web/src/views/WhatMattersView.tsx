@@ -443,6 +443,8 @@ export function WhatMattersView() {
           ) : (
             <ChartFigure
               title="What matters most, by country"
+              // A grid drawn in HTML: the CSV, no PNG (H13).
+              picture={false}
               subtitle={rankingSubtitle}
               interactive
               ariaLabel={`${summarizeCells(
@@ -554,6 +556,7 @@ export function WhatMattersView() {
             splitCountry !== undefined && (
               <ChartFigure
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
+                picture={false}
                 subtitle={rankingSubtitle}
                 ariaLabel={`${summarizeCells(
                   splitOrdered,

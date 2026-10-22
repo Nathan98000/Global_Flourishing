@@ -44,7 +44,7 @@ import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { defaultLevel, outcomeLevels } from '../labels'
+import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
@@ -57,6 +57,8 @@ import {
   countriesPhrase,
   keyCiLevel,
   keyThinBelow,
+  noAnswers,
+  noAnswersLine,
   orderPhrase,
   stateLine,
   updatedLine,
@@ -419,6 +421,14 @@ export function ChangeView() {
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={change.error} />
         )
+      ) : response && noAnswers(search.countries, display.rows) ? (
+        <EmptyState
+          title={noAnswersLine(
+            search.countries.map((code) => groupValueLabel('country_code', code, meta.data.meta)),
+          )}
+        >
+          <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+        </EmptyState>
       ) : response ? (
         <>
           <p role="status" className="visually-hidden">

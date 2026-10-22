@@ -33,11 +33,15 @@ export function SortHead({
       className={styles.head}
     >
       <div role="row" className={styles.row}>
-        <span role="columnheader" className={styles.names}>
+        <span role="columnheader" className={styles.names} data-sort-names="">
           {names}
         </span>
         {onToggle === undefined ? (
-          <span role="columnheader" className={`${styles.value} ${styles.plain}`}>
+          <span
+            role="columnheader"
+            className={`${styles.value} ${styles.plain}`}
+            data-sort-value=""
+          >
             {value}
           </span>
         ) : (
@@ -45,6 +49,7 @@ export function SortHead({
             role="columnheader"
             aria-sort={dir === 'desc' ? 'descending' : 'ascending'}
             className={styles.value}
+            data-sort-value=""
           >
             <button
               type="button"

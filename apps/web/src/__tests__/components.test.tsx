@@ -1,10 +1,12 @@
 // The shared primitives: suppression rendered in place, errors rendered
 // distinctly, coverage summarized honestly.
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { ApiError, NetworkError } from '../api/errors'
 import { CountryFilter, countryTriggerText } from '../components/controls/CountryFilter'
+import { Disclosure } from '../components/controls/Disclosure'
 import { RadioRow, SELECT_ABOVE } from '../components/controls/RadioRow'
 import { ErrorState } from '../components/ErrorState'
 import { Stat } from '../components/Stat'
@@ -49,19 +51,34 @@ describe('ErrorState', () => {
     expect(screen.getByRole('alert')).not.toHaveTextContent(/filters/)
   })
 
-  test('with /health fine, a failed request is the service’s error, not an outage', () => {
+  test('with /health fine, a failed request is ours, in plain words, with Try again (H14)', () => {
     const { rerender } = render(
       <ErrorState error={new NetworkError(new TypeError('x'))} apiReachable />,
     )
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      "Couldn't load this view — the data service returned an error.",
-    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Something went wrong on our side.')
     expect(screen.getByRole('alert')).not.toHaveTextContent('offline')
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     rerender(<ErrorState error={new ApiError('http', 500, ['Internal server error: X'])} />)
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      "Couldn't load this view — the data service returned an error.",
+    expect(screen.getByRole('alert')).toHaveTextContent('Something went wrong on our side.')
+    // No developer's words: no status, no server message.
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/HTTP|500|Internal server error/)
+  })
+
+  test('Try again asks once more for every request that failed', () => {
+    const client = new QueryClient()
+    const refetch = vi.spyOn(client, 'refetchQueries').mockResolvedValue()
+    render(
+      <QueryClientProvider client={client}>
+        <ErrorState error={new ApiError('http', 502, [])} />
+      </QueryClientProvider>,
     )
-    expect(screen.getByRole('alert')).toHaveTextContent('HTTP 500: Internal server error: X')
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+    const { predicate } = refetch.mock.calls[0]?.[0] as {
+      predicate: (query: { state: { status: string } }) => boolean
+    }
+    expect(predicate({ state: { status: 'error' } })).toBe(true)
+    expect(predicate({ state: { status: 'success' } })).toBe(false)
   })
 })
 
@@ -204,24 +221,77 @@ describe('CountryFilter', () => {
     expect(onChange).toHaveBeenCalledWith([])
   })
 
-  test('Escape closes the panel and returns focus to the trigger', () => {
-    renderFilter()
+  /** Open the panel as a click does: `open`, then its toggle event. */
+  const openPanel = () => {
     const details = document.querySelector('details') as HTMLDetailsElement
     details.open = true
+    fireEvent(details, new Event('toggle'))
+    return details
+  }
+
+  test('Escape closes the panel and returns focus to the trigger — from anywhere (H12)', () => {
+    renderFilter()
+    let details = openPanel()
     fireEvent.keyDown(details, { key: 'Escape' })
+    expect(details.open).toBe(false)
+    expect(document.activeElement?.tagName.toLowerCase()).toBe('summary')
+    fireEvent(details, new Event('toggle'))
+    // Escape pressed with focus elsewhere on the page closes it too.
+    details = openPanel()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(details.open).toBe(false)
     expect(document.activeElement?.tagName.toLowerCase()).toBe('summary')
   })
 
+  test('focus leaving the panel closes it (H12)', () => {
+    render(
+      <>
+        <CountryFilter countries={testMeta.countries} selected={[]} onChange={() => undefined} />
+        <button type="button">Next control</button>
+      </>,
+    )
+    const details = openPanel()
+    act(() => screen.getByRole('radio', { name: 'Choose countries' }).focus())
+    expect(details.open).toBe(true)
+    act(() => screen.getByRole('button', { name: 'Next control' }).focus())
+    expect(details.open).toBe(false)
+  })
+
   test('a pointerdown outside closes the panel and leaves focus alone', () => {
     renderFilter()
-    const details = document.querySelector('details') as HTMLDetailsElement
-    details.open = true
+    let details = openPanel()
     fireEvent.pointerDown(document.body)
     expect(details.open).toBe(false)
+    fireEvent(details, new Event('toggle'))
     // …while a pointerdown inside keeps it open.
-    details.open = true
+    details = openPanel()
     fireEvent.pointerDown(screen.getByRole('radio', { name: 'Choose countries' }))
     expect(details.open).toBe(true)
+  })
+})
+
+describe('Disclosure (H12)', () => {
+  test('"What’s the difference?" closes on Escape from anywhere and when focus leaves it', () => {
+    render(
+      <>
+        <Disclosure variant="info" label="What’s the difference?">
+          <p>
+            Two ways to measure. <a href="#more">More</a>
+          </p>
+        </Disclosure>
+        <button type="button">Next control</button>
+      </>,
+    )
+    const button = screen.getByRole('button', { name: 'What’s the difference?' })
+    fireEvent.click(button)
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(button).toHaveFocus()
+    fireEvent.click(button)
+    act(() => screen.getByRole('link', { name: 'More' }).focus())
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    act(() => screen.getByRole('button', { name: 'Next control' }).focus())
+    expect(button).toHaveAttribute('aria-expanded', 'false')
   })
 })

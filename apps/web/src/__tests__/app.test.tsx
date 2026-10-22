@@ -493,6 +493,65 @@ test('Segments with one country offers no order for the countries (H17)', async 
   expect(screen.getByLabelText('Order countries')).toBeInTheDocument()
 })
 
+test('a year the question was not asked opens the nearest year it was, with the link notice (H14)', async () => {
+  const onceOnly = {
+    ...happyVariable,
+    name: 'ONCE',
+    display_name: 'Asked once',
+    waves_available: ['Y1'],
+  }
+  const calls = mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, onceOnly] },
+    '/data/v1/ONCE/Y1/mean_by-country_code.json': testResponse(
+      [testRow({ group: { country_code: 1 } })],
+      { outcome: 'ONCE' },
+    ),
+  })
+  const router = await renderAt('/?outcome=ONCE&wave=Y2')
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=ONCE'))
+  expect(await screen.findByText(/This link asked for something we can’t show/)).toHaveAttribute(
+    'data-params',
+    'wave',
+  )
+  expect(await screen.findByText(/^Mean score, 0–10 .*· 2023/)).toBeInTheDocument()
+  // No request for the year it lacks, so no refusal to show.
+  expect(calls.some((url) => url.includes('ONCE/Y2') || url.includes('wave=Y2'))).toBe(false)
+  expect(screen.queryByText(/rejected/)).toBeNull()
+  // Choosing another year — or Dismiss — retires the notice.
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+  expect(screen.queryByText(/This link asked for something/)).toBeNull()
+})
+
+test('an unknown Codebook name says so in words, with the way back (H14)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/codebook/NOPE')
+  expect(
+    await screen.findByText('There’s no question called NOPE in this release'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Browse the Codebook' })).toHaveAttribute(
+    'href',
+    '/codebook',
+  )
+  expect(screen.queryByText(/HTTP|404|v1\/variables/)).toBeNull()
+})
+
+test('chosen countries with no answers say so in place of the chart (H14)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/HAPPY/Y1/mean_by-country_code.json': testResponse(
+      [
+        testRow({ group: { country_code: 1 }, estimate: null, ci_lo: null, ci_hi: null, n: 0 }),
+        testRow({ group: { country_code: 22 }, estimate: 7 }),
+      ],
+      { outcome: 'HAPPY' },
+    ),
+  })
+  await renderAt('/?outcome=HAPPY&countries=1')
+  expect(await screen.findByText('Testland has no answers to this question')).toBeInTheDocument()
+  expect(screen.queryByRole('figure')).toBeNull()
+})
+
 test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
   mockFetch({
     ...staticTier,

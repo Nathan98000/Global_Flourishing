@@ -1,8 +1,9 @@
 // A disclosure button (the WAI pattern): a real button with
 // aria-expanded that shows a panel under it, closed by default. The
 // panel hangs over the page rather than pushing the controls row apart;
-// it closes on Escape (focus back to the button) and on a pointer press
-// outside it (focus left alone), and anchors to the button's right edge
+// it closes on Escape from anywhere (focus back to the button), when
+// focus leaves it and on a pointer press outside it (usePopupDismiss,
+// H12), and anchors to the button's right edge
 // when a left-anchored panel would overflow the page column — the
 // country filter's rules, for settings that most readers never change.
 // The `info` variant is a small text button with an "i" — a note a reader
@@ -10,8 +11,9 @@
 // difference?") — whose panel is wider, a reading measure of about 26rem
 // on a desktop and the column's full width on a phone.
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import styles from './Disclosure.module.css'
+import { usePopupDismiss } from './usePopupDismiss'
 
 export function Disclosure({
   label,
@@ -29,15 +31,8 @@ export function Disclosure({
   const button = useRef<HTMLButtonElement | null>(null)
   const panel = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && root.current?.contains(event.target)) return
-      setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
+  const close = useCallback(() => setOpen(false), [])
+  usePopupDismiss(open, root, button, close)
 
   // Decided on each open: hang from the right edge when the panel,
   // opened at the end of the controls row, would leave the page column.
@@ -50,19 +45,7 @@ export function Disclosure({
   }, [open])
 
   return (
-    // The keydown is a bubbling Escape-to-close for the panel (focus
-    // returns to the button) — not a fake interactive element.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-    <div
-      ref={root}
-      className={styles.disclosure}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && open) {
-          setOpen(false)
-          button.current?.focus()
-        }
-      }}
-    >
+    <div ref={root} className={styles.disclosure}>
       <button
         ref={button}
         type="button"

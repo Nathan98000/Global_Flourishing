@@ -42,6 +42,7 @@ import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
@@ -118,7 +119,16 @@ export function StatesView() {
     void navigate(searchNavigation(statesSearchParams({ ...search, ...patch })))
   }
 
-  const request = chartable ? statesRequest(search, variable) : null
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(searchNavigation(statesSearchParams({ ...search, wave }), { replace: true })),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked ? statesRequest(search, variable) : null
   const states = useStates(request)
   const response = states.data
   // The US overall figure the states are read against: the whole US on
@@ -127,7 +137,7 @@ export function StatesView() {
   // weight. The national-weight figure (the Atlas's, from the static
   // tier) goes in the footnote.
   const overall = useEstimates(
-    chartable
+    yearAsked
       ? {
           outcome: search.outcome,
           wave: search.wave,
@@ -138,7 +148,7 @@ export function StatesView() {
       : null,
   )
   const national = useEstimates(
-    chartable ? { outcome: search.outcome, wave: search.wave, stat, by: ['country_code'] } : null,
+    yearAsked ? { outcome: search.outcome, wave: search.wave, stat, by: ['country_code'] } : null,
   )
   const pickLevel = (rows: readonly EstimateRow[]) => {
     const level = isCategorical ? (activeLevel ?? highestLevel([...rows])) : undefined
@@ -390,15 +400,16 @@ export function StatesView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               statesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {/* The question bar (ADR-0029): what, then when (one country). */}
       <div className={styles.questionBar} data-bar="question">

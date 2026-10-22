@@ -23,7 +23,9 @@ import type { CsvExport } from './ChartFigure'
  * moment the sheet draws them, so they are never stale. */
 export interface ChartActions {
   csv?: CsvExport
-  png: () => void
+  /** Absent for a chart drawn in HTML, not SVG (a grid): it can't be
+   * saved as a picture (H13). */
+  png?: () => void
 }
 
 interface Slot {

@@ -4,6 +4,7 @@
 // only; every data label still comes from the server.
 
 import type { EstimateRow } from '../api/types'
+import { listWords } from '../charts/summary'
 import { lowerFirst } from '../labels'
 import type { SortDir } from '../sortRows'
 
@@ -64,4 +65,15 @@ export function countOf(n: number, unit: keyof typeof UNITS): string {
 export function updatedLine(title: string, subtitle: string, ...counts: string[]): string {
   const state = subtitle ? ` — ${lowerFirst(subtitle)}` : ''
   return `Updated: ${title}${state}. ${counts.join(', ')}.`
+}
+
+/** The chosen countries gave no answers to the question (H14): said in
+ * place of the chart — "Indonesia has no answers to this question". */
+export function noAnswersLine(countries: readonly string[]): string {
+  return `${listWords(countries)} ${countries.length === 1 ? 'has' : 'have'} no answers to this question`
+}
+
+/** Whether the chosen countries' rows hold no answer at all. */
+export function noAnswers(chosen: readonly number[], rows: readonly EstimateRow[]): boolean {
+  return chosen.length > 0 && !rows.some((row) => row.estimate !== null)
 }
