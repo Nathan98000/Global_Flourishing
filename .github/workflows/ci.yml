@@ -95,8 +95,8 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install Chromium
-        run: pnpm -C apps/web exec playwright install --with-deps chromium
+      - name: Install Chromium and WebKit (WebKit runs journey 15 only)
+        run: pnpm -C apps/web exec playwright install --with-deps chromium webkit
       - name: Six journeys (incl. API blocked → static-first)
         run: pnpm -C apps/web e2e
       - uses: actions/upload-artifact@v7

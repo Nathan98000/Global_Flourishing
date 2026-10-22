@@ -45,6 +45,8 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  /* At least 24 px everywhere (axe target-size); 44 on a phone. */
+  min-height: 24px;
 }
 
 .button:hover {

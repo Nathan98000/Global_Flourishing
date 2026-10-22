@@ -135,10 +135,13 @@
 /* At Midyear, the year of the other answers is chosen inside the row
    note's sentence (review M3): a select in the note's own type. */
 .inlineSelect {
-  padding: 1px 4px;
+  padding: 1px 22px 1px 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 4px);
-  background: var(--surface);
+  background-color: var(--surface);
+  background-position:
+    right 12px center,
+    right 7px center;
   color: var(--ink);
   font: inherit;
   font-weight: 600;

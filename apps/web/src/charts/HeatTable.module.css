@@ -158,6 +158,17 @@
   text-underline-offset: 2px;
 }
 
+/* The button fills its header cell (H5): the whole cell is its target. */
+.table thead th:has(> .sortButton) {
+  padding: 0;
+}
+
+.table thead .sortButton {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+}
+
 .sortButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
@@ -336,6 +347,15 @@
 
 .cellButton:hover {
   box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* A finger's target on a phone (H5): every sort button and every
+   choosable cell (Compare several's rows) 44 px tall. */
+@media (max-width: 40rem) {
+  .table thead .sortButton,
+  .cellButton {
+    min-height: 44px;
+  }
 }
 
 .cellButton:focus-visible {

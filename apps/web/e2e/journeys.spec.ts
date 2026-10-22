@@ -640,28 +640,10 @@ function servePairs(page: Page) {
   })
 }
 
-/** The tooltip of a Compare two grid's first cell, its lines as one: the
- * pointer goes to the cell (its share label sits on top of it) and the
- * chart draws the tip. */
-async function cellTip(chart: Locator): Promise<string> {
-  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
-    force: true,
-  })
-  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
-  // (Plot starts each line with a zero-width space.)
-  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
-}
-
-test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
-  page,
-}) => {
-  // Every request is answered by the synthetic response made for it,
-  // named from the request's own parameters; scripts/web_fixtures.py
-  // plans the path and writes it down (journey-10.json).
-  const plan = JSON.parse(
-    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', 'journey-10.json'), 'utf8'),
-  ) as JourneyPlan
-  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+/** Every Correlates request — Find related's lists, Compare two's pairs,
+ * Compare several's tables — answered by the synthetic response made
+ * for it. */
+async function serveCorrelates(page: Page) {
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
     const outcome = url.searchParams.get('outcome')
@@ -685,6 +667,31 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       )
     },
   )
+}
+
+/** The tooltip of a Compare two grid's first cell, its lines as one: the
+ * pointer goes to the cell (its share label sits on top of it) and the
+ * chart draws the tip. */
+async function cellTip(chart: Locator): Promise<string> {
+  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
+    force: true,
+  })
+  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
+  // (Plot starts each line with a zero-width space.)
+  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
+}
+
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
+  page,
+}) => {
+  // Every request is answered by the synthetic response made for it,
+  // named from the request's own parameters; scripts/web_fixtures.py
+  // plans the path and writes it down (journey-10.json).
+  const plan = JSON.parse(
+    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', 'journey-10.json'), 'utf8'),
+  ) as JourneyPlan
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await serveCorrelates(page)
   const views = page.getByRole('group', { name: 'View' })
 
   // A first visit lands on Compare two with the default pair, on All
@@ -1478,3 +1485,78 @@ async function streamToString(download: {
   for await (const chunk of stream) chunks.push(Buffer.from(chunk as Buffer))
   return Buffer.concat(chunks).toString('utf8')
 }
+
+/** The controls on the screen (and in an open dialog) shorter than a
+ * finger's 44 px: buttons, selects, fold summaries, text fields, and the
+ * labels a radio or checkbox is chosen by — not links in running text,
+ * not a chart's marks. In-page code, as a string (the e2e files are
+ * type-checked without the DOM library). */
+const SMALL_CONTROLS = `(() => {
+  const scope = document.querySelector('[role="dialog"]') ?? document.querySelector('main')
+  const controls = scope.querySelectorAll(
+    'button, select, summary, input[type="search"], input[type="text"],' +
+      ' label:has(> input[type="radio"]), label:has(> input[type="checkbox"])',
+  )
+  const small = []
+  for (const control of controls) {
+    if (control.closest('svg, [hidden], .visually-hidden')) continue
+    const fold = control.closest('details')
+    if (fold && !fold.open && control.tagName !== 'SUMMARY') continue
+    const box = control.getBoundingClientRect()
+    if (box.width <= 1 || box.height <= 1) continue
+    if (box.height < 43.5) {
+      const name = (control.getAttribute('aria-label') || control.textContent || control.tagName)
+        .trim()
+        .replace(/\\s+/g, ' ')
+        .slice(0, 40)
+      small.push(control.tagName.toLowerCase() + ' "' + name + '" ' + Math.round(box.height))
+    }
+  }
+  return small
+})()`
+
+test('15 — on a phone every control is a finger’s target: 44 px tall at 390 px, the options sheets open too — in Chromium and WebKit', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await serveApi(page, {
+    '/v1/states': apiFixture('states-HAPPY-Y1.json'),
+    '/v1/aggregate': apiFixture('states-HAPPY-Y1-overall.json'),
+    '/v1/change': apiFixture('change-HAPPY-Y1-Y2.json'),
+  })
+  await serveCorrelates(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  const softly = expect.configure({ soft: true })
+  const pages: [string, (page: Page) => Locator][] = [
+    ['/', (page) => page.locator('main figure').first()],
+    ['/change?outcome=HAPPY', (page) => page.locator('main figure').first()],
+    ['/states?outcome=HAPPY', (page) => page.locator('main figure').first()],
+    ['/segments?outcome=HAPPY&by=gender', (page) => page.locator('main figure').first()],
+    ['/what-matters', (page) => page.locator('main figure').first()],
+    ['/what-matters?view=within', (page) => page.locator('main figure').first()],
+    ['/what-matters?view=questions', (page) => page.locator('main figure').first()],
+    ['/correlates', (page) => page.locator('main figure').first()],
+    ['/correlates?view=matrix', (page) => page.locator('main figure').first()],
+    ['/correlates?view=related', (page) => page.locator('main figure').first()],
+    ['/codebook', (page) => page.getByRole('columnheader', { name: 'Chartable' })],
+    ['/codebook/HAPPY', (page) => page.getByRole('heading', { level: 2 }).first()],
+    ['/methods', (page) => page.locator('[data-figure] svg').first()],
+  ]
+  for (const [path, rendered] of pages) {
+    await page.goto(path)
+    await expect(rendered(page)).toBeVisible()
+    softly(await page.evaluate<string[]>(SMALL_CONTROLS), `${path}: controls under 44 px`).toEqual(
+      [],
+    )
+    const options = page.getByRole('button', { name: 'Options' })
+    if ((await options.count()) > 0) {
+      await options.click()
+      await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+      softly(
+        await page.evaluate<string[]>(SMALL_CONTROLS),
+        `${path}, options open: controls under 44 px`,
+      ).toEqual([])
+      await page.keyboard.press('Escape')
+    }
+  }
+})

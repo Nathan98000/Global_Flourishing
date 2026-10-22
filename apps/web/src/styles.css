@@ -80,6 +80,48 @@ input[type='search'] {
   padding: 7px 9px;
 }
 
+/* Every select draws the app's chevron (H5): with the platform's look
+   switched off, WebKit honours the padding and height as other browsers
+   do (it drew 21 px pop-up buttons). Two hairline strokes in the
+   secondary ink, a "v" at the right. */
+select {
+  appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(
+      to bottom left,
+      transparent calc(50% - 1px),
+      var(--ink-secondary) calc(50% - 1px) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    ),
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 1px),
+      var(--ink-secondary) calc(50% - 1px) calc(50% + 0.75px),
+      transparent calc(50% + 0.75px)
+    );
+  background-position:
+    right 15px center,
+    right 10px center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* A finger's target on a phone (H5): 44 px tall, every select, text
+   field and fold's summary ("Why two US figures?", "On this page"). */
+@media (max-width: 40rem) {
+  select,
+  input[type='text'],
+  input[type='search'] {
+    min-height: 44px;
+  }
+
+  main summary {
+    min-height: 44px;
+    padding-block: 12px;
+  }
+}
+
 code {
   font-size: 0.9em;
 }
