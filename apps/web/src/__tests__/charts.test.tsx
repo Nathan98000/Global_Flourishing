@@ -253,6 +253,92 @@ describe('RankedBar', () => {
     expect(text).toContain('0%') // and keep their zero baseline
     expect(text).toContain('61.0%')
     expect(text).toContain('22.0%')
+    // A keyboard reads them as it reads the dot plots.
+    const items = screen.getAllByRole('listitem')
+    expect(items.map((item) => item.tabIndex)).toEqual([0, -1])
+    act(() => (items[0] as HTMLElement).focus())
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/61\.0% answered/)
+  })
+
+  test('a keyboard reads the rows one by one: one tab stop, ↑ ↓ Home End, the card on focus (G18)', () => {
+    const { container } = render(
+      <div role="group" aria-label="chart">
+        <RankedBar
+          rows={rows}
+          meta={metaWithHK}
+          responseMeta={testResponseMeta()}
+          variable={happyVariable}
+          color="var(--sfi-happiness)"
+        />
+      </div>,
+    )
+    const chart = screen.getByRole('group', { name: 'chart' })
+    const items = within(within(chart).getByRole('list')).getAllByRole('listitem')
+    const names = rankEntries(rows, metaWithHK).map((entry) => entry.label)
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual(names)
+    // One tab stop, on the first row.
+    const stops = () => items.map((item) => item.tabIndex)
+    expect(stops()).toEqual([0, -1, -1])
+    const [first, second, last] = items as [HTMLElement, HTMLElement, HTMLElement]
+    act(() => first.focus())
+    const card = within(chart).getByRole('tooltip')
+    expect(card).toHaveTextContent(names[0] as string)
+    expect(card).toHaveTextContent('95% CI: [7.30, 7.50]')
+    expect(first).toHaveAccessibleDescription(/Mean: 7\.40.*95% CI: \[7\.30, 7\.50\]/)
+    // ↓ moves focus and the tab stop to the next row; its card follows.
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(second).toHaveFocus()
+    expect(stops()).toEqual([-1, 0, -1])
+    expect(within(chart).getByRole('tooltip')).toHaveTextContent(names[1] as string)
+    expect(first).not.toHaveAttribute('aria-describedby')
+    // End and Home jump; the ends hold.
+    fireEvent.keyDown(second, { key: 'End' })
+    expect(last).toHaveFocus()
+    expect(within(chart).getByRole('tooltip')).toHaveTextContent('CI: none')
+    fireEvent.keyDown(last, { key: 'ArrowDown' })
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last, { key: 'Home' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first, { key: 'ArrowUp' })
+    expect(first).toHaveFocus()
+    // Escape closes the card where it stands (WCAG 1.4.13).
+    fireEvent.keyDown(first, { key: 'Escape' })
+    expect(within(chart).queryByRole('tooltip')).toBeNull()
+    expect(first).toHaveFocus()
+    act(() => first.blur())
+    expect(within(chart).queryByRole('tooltip')).toBeNull()
+    // The pointer keeps Plot's own tip.
+    expect(container.querySelector('[aria-label="tip"]')).not.toBeNull()
+  })
+
+  test('the tab stop starts at a found row, its pinned card steps aside, and a rebuild keeps the reader', async () => {
+    const props = {
+      meta: metaWithHK,
+      responseMeta: testResponseMeta(),
+      variable: happyVariable,
+      color: 'var(--sfi-happiness)',
+      pinnedOf: (row: (typeof rows)[number]) => row.group['country_code'] === 1,
+    }
+    const { container, rerender } = render(<RankedBar rows={rows} {...props} />)
+    const items = () => screen.getAllByRole('listitem')
+    expect(items().map((item) => item.tabIndex)).toEqual([-1, 0, -1])
+    const pinned = () =>
+      container.querySelector('g[aria-description="pinned tip"]') as SVGElement | null
+    expect(pinned()?.textContent).toContain('6.90')
+    const found = items()[1] as HTMLElement
+    act(() => found.focus())
+    expect(pinned()?.style.visibility).toBe('hidden')
+    fireEvent.keyDown(found, { key: 'ArrowDown' })
+    expect(pinned()?.style.visibility).toBe('')
+    // A new render rebuilds the chart under the reader: the same row
+    // keeps the tab stop and takes focus back, card and all.
+    const before = items()[2]
+    rerender(<RankedBar rows={[...rows]} {...props} />)
+    await act(async () => {})
+    expect(items()[2]).not.toBe(before)
+    expect(items().map((item) => item.tabIndex)).toEqual([-1, -1, 0])
+    expect(items()[2]).toHaveFocus()
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
   })
 
   test('quantile rows render without whiskers (no CIs yet, per METHODS)', () => {

@@ -7,7 +7,9 @@
 // ticks, with the axis on top so the window is stated before the rows.
 // Every cell is shown (ADR-0011); a row with no computable interval
 // draws its dot without a whisker, and a missing value reads "—".
-// Never fetches.
+// A keyboard reads the rows one by one (G18, ADR-0032): one tab stop on
+// the chart, ↑ ↓ Home End between rows, the row's card shown on focus;
+// the pointer keeps Plot's own tip. Never fetches.
 //
 // The Correlates list (ADR-0018) opts into more: a fixed window (−1 to
 // 1, never fitted, so "far right" means the same number for every
@@ -18,6 +20,7 @@
 // with a tooltip on hover and on keyboard focus alike.
 
 import * as Plot from '@observablehq/plot'
+import { useRef } from 'react'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
@@ -167,7 +170,21 @@ const TRACK_TICK = {
 /** The picked row's band: the selected control's tint. */
 const HIGHLIGHT = 'var(--control-selected)'
 
+/** The description of a pinned card's mark (how it is found again, to
+ * step aside while its row's keyboard card is open). */
+const PINNED_TIP = 'pinned tip'
+
 let tipCount = 0
+
+/** Where the keyboard is in a chart's rows, kept across its rebuilds (a
+ * resize, a new render): the row holding the tab stop, the pinned row it
+ * last moved to, and whether a row had focus when its layer was taken
+ * out — the new layer's row then takes it back. */
+interface RowFocus {
+  active: string | null
+  pinned: string | null
+  reading: boolean
+}
 
 export function RankedBar({
   rows,
@@ -249,6 +266,7 @@ export function RankedBar({
   /** A small muted tag after a row's label ("Midyear", ADR-0020). */
   tagOf?: (row: EstimateRow) => string | undefined
 }) {
+  const rowFocus = useRef<RowFocus>({ active: null, pinned: null, reading: false })
   const container = usePlot(
     (available) => {
       const entries = rankEntries(rows, meta, labelColumn, labelOf)
@@ -401,7 +419,9 @@ export function RankedBar({
         })
         emphasizeTurns(plot)
         muteTags(plot, tags)
-        return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
+        return interactive
+          ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
+          : withReadableRows(plot, entries, tip, lo, rowFocus.current, pinnedOf)
       }
 
       // The label gutter: fitted to the longest label (capped, wrapping
@@ -548,7 +568,9 @@ export function RankedBar({
         })
         emphasizeTurns(plot)
         muteTags(plot, tags)
-        return interactive ? withRowButtons(plot, entries, tip, onSelectRow, rowName) : plot
+        return interactive
+          ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
+          : withReadableRows(plot, entries, tip, lo, rowFocus.current, pinnedOf)
       }
 
       // Shares: zero-based bars (a length encoding needs its baseline).
@@ -559,7 +581,7 @@ export function RankedBar({
       )
       // The axis on top, as the dot plots carry it (G16): read with the
       // first rows, not under the last of twenty-three.
-      return Plot.plot({
+      const plot = Plot.plot({
         height: height - 44 + 34 + 8 + topRoom,
         marginTop: 34 + topRoom,
         marginBottom: 8,
@@ -619,6 +641,7 @@ export function RankedBar({
           ...referenceMarks([0, xMax]),
         ],
       })
+      return withReadableRows(plot, entries, tip, 0, rowFocus.current, pinnedOf)
     },
     [
       rows,
@@ -689,6 +712,7 @@ function pinnedTip(
       title: tip,
       ...TIP_OPTIONS,
       anchor: anchor(entry),
+      ariaDescription: PINNED_TIP,
     }),
   )
 }
@@ -821,16 +845,16 @@ function emphasizeTurns(plot: Element): void {
 /** The room between a mark and its hover card, in px. */
 const TIP_GAP = 10
 
-/** The rows as real buttons over the plot, one per row across its full
- * width (label and dot alike), in row order for the keyboard; a hover
- * card in the Plot tips' look (TipCard.tsx) follows hover and focus. */
-function withRowButtons(
+/** A layer over the plot for its rows, each a band across its full width
+ * (label and dot alike), and the hover card they open, in the Plot tips'
+ * look (TipCard.tsx), beside the row's mark; Escape closes it where it
+ * stands (WCAG 1.4.13). A row with no value places its card at
+ * `fallback`. */
+function rowLayer(
   plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
-  entries: Entry[],
   tip: (entry: Entry) => string,
-  onSelect: (row: EstimateRow) => void,
-  nameOf?: (row: EstimateRow, label: string) => string,
-): HTMLElement {
+  fallback: number,
+) {
   const wrap = document.createElement('div')
   wrap.className = styles.interactive ?? ''
   const layer = document.createElement('div')
@@ -853,50 +877,154 @@ function withRowButtons(
   const x = plot.scale('x') as unknown as { apply: (value: number) => number }
   const band = y.bandwidth ?? 0
   const step = y.step ?? band
+  const topOf = (entry: Entry) => y.apply(entry.label) - (step - band) / 2
+  const place = (row: HTMLElement, entry: Entry) => {
+    row.style.top = `${topOf(entry)}px`
+    row.style.height = `${step}px`
+  }
+  const show = (row: HTMLElement, entry: Entry) => {
+    fillTipCard(tipBox, tip(entry))
+    tipBox.hidden = false
+    const width = tipBox.offsetWidth
+    const height = tipBox.offsetHeight
+    const top = topOf(entry)
+    const mark = x.apply(entry.value ?? fallback)
+    const room = wrap.clientWidth || Number(plot.getAttribute('width')) || 0
+    // Beside the mark, level with its row — to the right when it fits,
+    // else to the left — so the card never covers the rows above (F22);
+    // over or under the row when neither side holds it (a phone).
+    const level = Math.max(0, top + step / 2 - height / 2)
+    const above = top - height - 4
+    const [left, cardTop] =
+      mark + TIP_GAP + width <= room
+        ? [mark + TIP_GAP, level]
+        : mark - TIP_GAP - width >= 0
+          ? [mark - TIP_GAP - width, level]
+          : [
+              Math.max(0, Math.min(mark - width / 2, room - width)),
+              above >= 0 ? above : top + step + 4,
+            ]
+    tipBox.style.left = `${left}px`
+    tipBox.style.top = `${cardTop}px`
+    row.setAttribute('aria-describedby', tipBox.id)
+  }
+  const hide = (row: HTMLElement) => {
+    tipBox.hidden = true
+    row.removeAttribute('aria-describedby')
+  }
+  layer.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || tipBox.hidden || !(event.target instanceof HTMLElement)) return
+    hide(event.target)
+  })
+  wrap.append(plot, layer, tipBox)
+  return { wrap, layer, place, show, hide }
+}
+
+/** The rows as real buttons over the plot, in row order for the
+ * keyboard; the card follows hover and focus. */
+function withRowButtons(
+  plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
+  entries: Entry[],
+  tip: (entry: Entry) => string,
+  onSelect: (row: EstimateRow) => void,
+  nameOf?: (row: EstimateRow, label: string) => string,
+): HTMLElement {
+  const rows = rowLayer(plot, tip, 0)
   for (const entry of entries) {
-    const top = y.apply(entry.label) - (step - band) / 2
     const button = document.createElement('button')
     button.type = 'button'
     button.className = styles.row ?? ''
-    button.style.top = `${top}px`
-    button.style.height = `${step}px`
+    rows.place(button, entry)
     button.setAttribute('aria-label', nameOf ? nameOf(entry.row, entry.label) : entry.label)
-    const show = () => {
-      fillTipCard(tipBox, tip(entry))
-      tipBox.hidden = false
-      const width = tipBox.offsetWidth
-      const height = tipBox.offsetHeight
-      const mark = x.apply(entry.value ?? 0)
-      const room = wrap.clientWidth || Number(plot.getAttribute('width')) || 0
-      // Beside the mark, level with its row — to the right when it fits,
-      // else to the left — so the card never covers the rows above (F22);
-      // over or under the row when neither side holds it (a phone).
-      const level = Math.max(0, top + step / 2 - height / 2)
-      const above = top - height - 4
-      const [left, cardTop] =
-        mark + TIP_GAP + width <= room
-          ? [mark + TIP_GAP, level]
-          : mark - TIP_GAP - width >= 0
-            ? [mark - TIP_GAP - width, level]
-            : [
-                Math.max(0, Math.min(mark - width / 2, room - width)),
-                above >= 0 ? above : top + step + 4,
-              ]
-      tipBox.style.left = `${left}px`
-      tipBox.style.top = `${cardTop}px`
-      button.setAttribute('aria-describedby', tipBox.id)
-    }
-    const hide = () => {
-      tipBox.hidden = true
-      button.removeAttribute('aria-describedby')
-    }
+    const show = () => rows.show(button, entry)
+    const hide = () => rows.hide(button)
     button.addEventListener('pointerenter', show)
     button.addEventListener('pointerleave', hide)
     button.addEventListener('focus', show)
     button.addEventListener('blur', hide)
     button.addEventListener('click', () => onSelect(entry.row))
-    layer.append(button)
+    rows.layer.append(button)
   }
-  wrap.append(plot, layer, tipBox)
-  return wrap
+  return rows.wrap
+}
+
+/** The rows as a list a keyboard reads one by one (G18, ADR-0032): one
+ * tab stop on the chart — the found row's (US States' Find a state) or
+ * where the reader left it, else the first — ↑ ↓ Home End to move it,
+ * and the row it rests on opens its card, announced as its description.
+ * The rows never take the pointer: hover keeps Plot's own tip. */
+function withReadableRows(
+  plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
+  entries: Entry[],
+  tip: (entry: Entry) => string,
+  fallback: number,
+  focus: RowFocus,
+  pinnedOf?: (row: EstimateRow) => boolean,
+): HTMLElement {
+  const rows = rowLayer(plot, tip, fallback)
+  rows.layer.setAttribute('role', 'list')
+  const pinned = entries.find((entry) => pinnedOf?.(entry.row))?.label ?? null
+  if (pinned !== null && pinned !== focus.pinned) focus.active = pinned
+  focus.pinned = pinned
+  const start = Math.max(
+    0,
+    entries.findIndex((entry) => entry.label === focus.active),
+  )
+  // A pinned card steps aside while its row's own card is open.
+  const pinnedCards = [...plot.querySelectorAll<SVGElement>(`g[aria-description="${PINNED_TIP}"]`)]
+  const items = entries.map((entry, index) => {
+    const item = document.createElement('div')
+    item.className = [styles.row, styles.reading].filter(Boolean).join(' ')
+    rows.place(item, entry)
+    item.setAttribute('role', 'listitem')
+    item.setAttribute('aria-label', entry.label)
+    item.tabIndex = index === start ? 0 : -1
+    item.addEventListener('focus', () => {
+      focus.active = entry.label
+      focus.reading = true
+      for (const other of items) other.tabIndex = other === item ? 0 : -1
+      if (entry.label === pinned) for (const card of pinnedCards) card.style.visibility = 'hidden'
+      rows.show(item, entry)
+    })
+    item.addEventListener('blur', () => {
+      rows.hide(item)
+      for (const card of pinnedCards) card.style.visibility = ''
+      // Once focus lands: still reading if it moved to another row; a
+      // row taken out by a rebuild leaves the flag for the new layer.
+      queueMicrotask(() => {
+        if (item.isConnected) focus.reading = rows.layer.contains(document.activeElement)
+      })
+    })
+    rows.layer.append(item)
+    return item
+  })
+  rows.layer.addEventListener('keydown', (event) => {
+    const at = items.indexOf(event.target as HTMLDivElement)
+    if (at < 0) return
+    const last = items.length - 1
+    const to =
+      event.key === 'ArrowDown'
+        ? Math.min(at + 1, last)
+        : event.key === 'ArrowUp'
+          ? Math.max(at - 1, 0)
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : undefined
+    if (to === undefined) return
+    event.preventDefault()
+    items[to]?.focus()
+  })
+  // Rebuilt under the reader (a resize, a new render): the same row
+  // takes focus back once the new layer is in the page.
+  if (focus.reading) {
+    queueMicrotask(() => {
+      const item = items[start]
+      if (item?.isConnected && !rows.layer.contains(document.activeElement)) {
+        item.focus({ preventScroll: true })
+      }
+    })
+  }
+  return rows.wrap
 }

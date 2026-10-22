@@ -536,7 +536,9 @@ describe('What Matters view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/what-matters?view=questions')
     expect(
-      await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
+      await screen.findByRole('group', {
+        name: /Daily social media time \(share answering “None”/,
+      }),
     ).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Showing % who said' })).toBeInTheDocument()
     expect(document.querySelectorAll('figure')).toHaveLength(1)
@@ -575,7 +577,7 @@ describe('What Matters view', () => {
   test('within a country with no split: its items as one list, most important first', async () => {
     const calls = mockFetch(tier)
     await renderAt('/what-matters?view=within&by=none')
-    const list = await screen.findByRole('img', {
+    const list = await screen.findByRole('group', {
       name: /^United States: how important people rate 2 items, most important first/,
     })
     expect(list.getAttribute('aria-label')).toContain(
@@ -597,7 +599,9 @@ describe('What Matters view', () => {
   test('an old anchor link opens its view and drops the hash', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters#other-questions')
-    expect(await screen.findByRole('img', { name: /Daily social media time/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('group', { name: /Daily social media time/ }),
+    ).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.hash).toBe(''))
     expect(router.state.location.search).toMatchObject({ view: 'questions' })
     expect(router.state.location.href).toBe('/what-matters?view=questions')
@@ -606,7 +610,7 @@ describe('What Matters view', () => {
   test('switching views keeps each view’s own settings', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY')
-    await screen.findByRole('img', { name: /share answering “More than an hour”/ })
+    await screen.findByRole('group', { name: /share answering “More than an hour”/ })
     fireEvent.click(screen.getByRole('radio', { name: 'By country' }))
     const ranking = await screen.findByRole('group', {
       name: /in each of 2 countries, as a matrix/,
@@ -619,7 +623,7 @@ describe('What Matters view', () => {
     expect(router.state.location.href).toBe('/what-matters?item=TIME_MEDIA&level=3&sort=MONEY')
     fireEvent.click(screen.getByRole('radio', { name: 'Other questions' }))
     expect(
-      await screen.findByRole('img', { name: /share answering “More than an hour”/ }),
+      await screen.findByRole('group', { name: /share answering “More than an hour”/ }),
     ).toBeInTheDocument()
     expect(router.state.location.href).toBe(
       '/what-matters?view=questions&item=TIME_MEDIA&level=3&sort=MONEY',
@@ -704,7 +708,7 @@ describe('What Matters view', () => {
     mockFetch(tier)
     const order = async (path: string) => {
       await renderAt(path)
-      const chart = await screen.findByRole('img', { name: /Daily social media time/ })
+      const chart = await screen.findByRole('group', { name: /Daily social media time/ })
       // The rows in the order the chart draws them: its row labels.
       const labels = chart.querySelectorAll('svg [aria-label="y-axis tick label"] text')
       const countries = [...labels].map((label) => label.textContent)
@@ -734,7 +738,7 @@ describe('What Matters view', () => {
   test('the other questions’ value label reverses the order and writes qdir; there is no A–Z', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters?view=questions&sort=MONEY')
-    await screen.findByRole('img', { name: /Daily social media time/ })
+    await screen.findByRole('group', { name: /Daily social media time/ })
     expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
     expect(screen.queryByText('A–Z')).toBeNull()
@@ -816,7 +820,7 @@ describe('What Matters view', () => {
     )
     // The first thing shown is the country's own ranking.
     expect(
-      await screen.findByRole('img', {
+      await screen.findByRole('group', {
         name: /^United States: how important people rate 2 items, most important first/,
       }),
     ).toBeInTheDocument()
@@ -856,7 +860,7 @@ describe('What Matters view', () => {
     mockFetch(tier)
     await renderAt('/what-matters?view=questions&level=3')
     expect(
-      await screen.findByRole('img', { name: /share answering “More than an hour”/ }),
+      await screen.findByRole('group', { name: /share answering “More than an hour”/ }),
     ).toBeInTheDocument()
   })
 })

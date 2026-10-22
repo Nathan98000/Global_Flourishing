@@ -71,7 +71,7 @@ export function StatesView() {
     if (code === undefined) return
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        const chart = document.querySelector('main figure [role="img"]')
+        const chart = document.querySelector('main figure [data-chart]')
         // The pinned card: the tip that holds text (the hover tip is empty).
         const pinned = [...(chart?.querySelectorAll('g[aria-label="tip"]') ?? [])].find(
           (tip) => tip.textContent,
@@ -504,6 +504,9 @@ export function StatesView() {
             }}
             exportName={exportName}
             isRefreshing={states.isPlaceholderData}
+            // The chart's rows are read by keyboard (ADR-0032); the map's
+            // are not.
+            interactive={search.view !== 'map'}
           >
             {search.view === 'map' ? (
               <Suspense fallback={<Skeleton height={450} label="Loading the map of states" />}>
