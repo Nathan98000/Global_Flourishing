@@ -15,7 +15,7 @@ import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/ty
 import { columnLabel, groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
 import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
-import { ciExtents, fittedScale, measureBounds } from './domain'
+import { ciExtents, fittedScale, measureBounds, phoneMinStep } from './domain'
 import {
   FACET_PADDING,
   FONT_FAMILY,
@@ -221,6 +221,7 @@ export function SmallMultiples({
         // Fewer ticks when a second breakdown splits the width into columns.
         targetTicks: seriesColumn || narrow ? 4 : 5,
         bounds: measureBounds(responseMeta.stat, variable),
+        minStep: narrow ? phoneMinStep(responseMeta.stat, variable) : 0,
       })
       const tickLabel = (tick: number) => (isShare ? `${scale.format(tick)}%` : scale.format(tick))
       const ticks = panelTicks(scale.ticks, scale.domain, tickLabel, facetWidth)

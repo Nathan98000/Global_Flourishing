@@ -17,7 +17,6 @@ import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
   defaultSplitCountry,
   itemLabel,
-  itemList,
   matrixCountryOrder,
   matrixRange,
   narrowestWrap,
@@ -355,15 +354,6 @@ describe('the midyear family from the catalog', () => {
     expect(itemLabel({ ...money, short_label: ' ' })).toBe('Money')
   })
 
-  test('the lede lists the items in column order, in words', () => {
-    const goodPerson = midyear('GOOD_PERSON', 'Importance: being a good person')
-    expect(itemList([goodPerson, relation, money])).toBe(
-      'being a good person, good relationships and money',
-    )
-    expect(itemList([money])).toBe('money')
-    expect(itemList([])).toBe('')
-  })
-
   test('the narrowest column: every label in at most N lines, never narrower than a word', () => {
     // One unit per character, spaces included.
     const measure = (text: string) => text.length
@@ -515,16 +505,17 @@ describe('What Matters view', () => {
     // The crossings section is gone.
     expect(screen.queryByText(/Two things that travel together/)).toBeNull()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
-    // The lede names the items from the catalog, in column order, and
-    // never the survey's administration modes.
+    // The deck says what you can see, then what to do (F18), counting
+    // the catalog's items in words — and never the survey's
+    // administration modes.
     expect(
       screen.getByText(
-        'How important people say 2 things are in their lives, rated 0–10: money and good relationships. From the midyear survey (Nov 2023–Dec 2024), a short questionnaire between the two annual waves.',
+        'How important two things are to people — from being a good person to money — in a shorter survey between the two years. Start with a country’s own ranking, or compare countries.',
       ),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'How important people say 2 things are in their lives, rated 0–10, in the midyear survey.',
+        'How important two things are to people. Start with a country’s own ranking.',
       ),
     ).toBeInTheDocument()
     expect(visibleText(screen.getByRole('main'))).not.toMatch(/standalone|combined|administ/i)

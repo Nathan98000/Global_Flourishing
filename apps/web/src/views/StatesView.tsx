@@ -333,13 +333,13 @@ export function StatesView() {
     <section>
       <h2 className="visually-hidden">US States</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what it means for reading it (F18). */}
         <span className={styles.deckLong}>
-          The United States state by state, on the survey&rsquo;s state weights, beside the
-          country&rsquo;s overall figure. Every state stands on its own; the smallest rest on fewer
+          How each US state compares with the country as a whole. Smaller states rest on fewer
           people, so their intervals are wider.
         </span>
         <span className={styles.deckShort}>
-          The United States state by state, beside the national figure.
+          How each US state compares with the country as a whole.
         </span>
       </p>
       <InvalidParamsNotice

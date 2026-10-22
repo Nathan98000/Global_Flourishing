@@ -1,5 +1,6 @@
 // The progress affordance for slow calls (Phase 5, owner decision 1):
-// the skeleton exactly as today at 0 ms, a thin indeterminate bar after
+// a skeleton in the chart's shape at 0 ms — an axis line and eight ghost
+// rows in --grid, not a grey slab (F21) — a thin indeterminate bar after
 // 600 ms, and one line of plain copy after 4 s. A progress bar attached
 // to a skeleton — never a spinner (the proposal's risk table commits to
 // skeletons; ADR-0013 records why this does not contradict it). The
@@ -10,7 +11,6 @@
 // mounts the same bar at its top edge — it never swaps in a block.
 
 import { useEffect, useState } from 'react'
-import skeleton from './Skeleton.module.css'
 import styles from './Loading.module.css'
 
 /** After this long, the indeterminate bar appears. */
@@ -19,6 +19,9 @@ export const PROGRESS_AFTER_MS = 600
 export const STILL_WORKING_AFTER_MS = 4000
 
 export const STILL_WORKING_COPY = 'Still working — the first data fetch can take a few seconds.'
+
+/** The ghost rows' lengths, in % of the track: a ranked list's shape. */
+const GHOST_ROWS = [78, 71, 66, 60, 55, 49, 43, 36]
 
 const DEFAULT_DELAYS: readonly number[] = [PROGRESS_AFTER_MS, STILL_WORKING_AFTER_MS]
 
@@ -66,13 +69,24 @@ export function LoadingBlock({ height, label }: { height: number | string; label
     // it appears; the note added at 4 s is a stable node inside a busy
     // region, so it is neither re-created nor re-announced on repaint.
     <div
-      className={`${skeleton.skeleton} ${styles.block}`}
+      className={styles.block}
       style={{ height }}
       role="status"
       aria-busy="true"
       aria-label={label ?? 'Loading'}
     >
       {showProgress && <ProgressBar />}
+      <div className={styles.ghost} aria-hidden="true">
+        <span className={styles.axis} data-ghost="axis" />
+        {GHOST_ROWS.map((length) => (
+          <span key={length} className={styles.row} data-ghost="row">
+            <span className={styles.label} />
+            <span className={styles.track}>
+              <span className={styles.mark} style={{ width: `${length}%` }} />
+            </span>
+          </span>
+        ))}
+      </div>
       {showNote && <p className={styles.note}>{STILL_WORKING_COPY}</p>}
     </div>
   )

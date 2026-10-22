@@ -21,7 +21,7 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { formatEstimate } from '../format'
 import { groupValueLabel } from '../labels'
-import { ciExtents, fittedScale, measureBounds } from './domain'
+import { ciExtents, fittedScale, measureBounds, phoneMinStep } from './domain'
 import styles from './RankedBar.module.css'
 import { fillTipCard } from './tipLines'
 import {
@@ -401,7 +401,8 @@ export function RankedBar({
       // The label gutter: fitted to the longest label (capped, wrapping
       // longer ones to two lines), or the caller's width.
       const lines = new Map<string, string[]>()
-      let marginLeft = labelWidth ?? (narrow ? 104 : 128)
+      // 'New Hampshire' and 'United Kingdom' at 13.5px need 112 on a phone.
+      let marginLeft = labelWidth ?? (narrow ? 112 : 128)
       if (fitLabels) {
         let widest = 0
         for (const entry of entries) {
@@ -451,6 +452,7 @@ export function RankedBar({
               {
                 targetTicks: narrow ? 5 : 7,
                 bounds: measureBounds(responseMeta.stat, variable),
+                minStep: narrow ? phoneMinStep(responseMeta.stat, variable) : 0,
               },
             )
         const [lo, hi] = scale.domain
@@ -460,13 +462,17 @@ export function RankedBar({
           width - marginLeft - marginRight,
           available !== null,
         )
+        // The top axis gets 34 px, or 60 with a title over its ticks, so it
+        // sits close under the chart's header (F19); a fixed window keeps
+        // its room under the last row.
+        const axisRoom = axisTitle ? 60 : 34
         const plot = Plot.plot({
-          height: height + 16 + topRoom + (axisEnds ? ends.room - 8 : 0),
+          height:
+            height + (fixedScale ? 16 : axisRoom - 44) + topRoom + (axisEnds ? ends.room - 8 : 0),
           width,
           marginLeft,
           marginRight,
-          // A fixed window without an axis title needs no room for one.
-          marginTop: (fixedScale && !axisTitle ? 34 : 60) + topRoom,
+          marginTop: axisRoom + topRoom,
           ...(axisEnds ? { marginBottom: ends.room } : {}),
           style,
           x: {
@@ -767,6 +773,9 @@ function emphasizeTurns(plot: Element): void {
   }
 }
 
+/** The room between a mark and its hover card, in px. */
+const TIP_GAP = 10
+
 /** The rows as real buttons over the plot, one per row across its full
  * width (label and dot alike), in row order for the keyboard; a hover
  * card in the Plot tips' look (TipCard.tsx) follows hover and focus. */
@@ -811,12 +820,25 @@ function withRowButtons(
       fillTipCard(tipBox, tip(entry))
       tipBox.hidden = false
       const width = tipBox.offsetWidth
-      const center = x.apply(entry.value ?? 0)
+      const height = tipBox.offsetHeight
+      const mark = x.apply(entry.value ?? 0)
       const room = wrap.clientWidth || Number(plot.getAttribute('width')) || 0
-      const left = Math.max(0, Math.min(center - width / 2, room - width))
-      const above = top - tipBox.offsetHeight - 4
+      // Beside the mark, level with its row — to the right when it fits,
+      // else to the left — so the card never covers the rows above (F22);
+      // over or under the row when neither side holds it (a phone).
+      const level = Math.max(0, top + step / 2 - height / 2)
+      const above = top - height - 4
+      const [left, cardTop] =
+        mark + TIP_GAP + width <= room
+          ? [mark + TIP_GAP, level]
+          : mark - TIP_GAP - width >= 0
+            ? [mark - TIP_GAP - width, level]
+            : [
+                Math.max(0, Math.min(mark - width / 2, room - width)),
+                above >= 0 ? above : top + step + 4,
+              ]
       tipBox.style.left = `${left}px`
-      tipBox.style.top = `${above >= 0 ? above : top + step + 4}px`
+      tipBox.style.top = `${cardTop}px`
       button.setAttribute('aria-describedby', tipBox.id)
     }
     const hide = () => {

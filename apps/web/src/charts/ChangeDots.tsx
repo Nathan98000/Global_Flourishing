@@ -104,11 +104,13 @@ export function ChangeDots({
       return Plot.plot({
         // Never shorter than four rows: the ticks clear the first row and
         // the zero rule is never a stub.
-        height: 60 + Math.max(countryDomain.length, MIN_ROWS) * ROW_HEIGHT,
+        // The axis sits close under the chart's header (F19): 34 px for its
+        // ticks, 44 under a row of leg titles.
+        height: (faceted ? 60 : 34) + Math.max(countryDomain.length, MIN_ROWS) * ROW_HEIGHT,
         width,
         marginLeft,
         marginRight,
-        marginTop: faceted ? 44 : 60,
+        marginTop: faceted ? 44 : 34,
         style: {
           fontFamily: FONT_FAMILY,
           fontSize: '11px',

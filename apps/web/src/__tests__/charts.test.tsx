@@ -111,6 +111,53 @@ describe('rankEntries', () => {
 })
 
 describe('RankedBar', () => {
+  // Means near the top of a 0–10 scale, where halves crowd a phone.
+  const highRows = [
+    testRow({ group: { country_code: 1 }, estimate: 9.6, ci_lo: 9.3, ci_hi: 9.9 }),
+    testRow({ group: { country_code: 22 }, estimate: 8.9, ci_lo: 8.6, ci_hi: 9.2 }),
+  ]
+  test.each([
+    [896, 'finer than whole units', (ticks: string[]) => ticks.some((tick) => tick.includes('.'))],
+    [358, 'every whole unit', (ticks: string[]) => ticks.join(' ') === '8 9 10'],
+  ])('at %i px a 0–10 mean ticks %s — whole units on a phone (F22)', (available, _, expected) => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width: available }) as DOMRect)
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    try {
+      const { container } = render(
+        <RankedBar
+          rows={highRows}
+          meta={testMeta}
+          responseMeta={testResponseMeta()}
+          variable={happyVariable}
+          color="var(--sfi-happiness)"
+        />,
+      )
+      const ticks = [...container.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+        (node) => node.textContent,
+      )
+      expect(expected(ticks as string[]), ticks.join(' ')).toBe(true)
+      // On a phone the label gutter holds "New Hampshire" at 13.5px: the
+      // track, and its first tick, start 112 px in.
+      if (available < 480) {
+        const first = container.querySelector('[aria-label="x-axis tick label"] text') as Element
+        expect(absoluteX(first)).toBeGreaterThanOrEqual(112)
+      }
+    } finally {
+      canvas.mockRestore()
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   test('0–10 means render as dot + CI on a fitted window, every row labelled', () => {
     const { container } = render(
       <RankedBar
@@ -331,7 +378,15 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     fireEvent.click(buttons[1] as HTMLElement)
     expect(selected).toEqual(['B'])
     fireEvent.focus(buttons[0] as HTMLElement)
-    expect(within(chart).getByRole('tooltip')).toHaveTextContent('0.76 · Life evaluation today')
+    const card = within(chart).getByRole('tooltip')
+    expect(card).toHaveTextContent('0.76 · Life evaluation today')
+    // Beside its mark, to the right and level with its row — not over
+    // the rows above (F22).
+    const dot = container.querySelector('[aria-label="dot"] circle') as SVGCircleElement
+    expect(parseFloat(card.style.left)).toBeGreaterThan(Number(dot.getAttribute('cx')))
+    expect(parseFloat(card.style.top)).toBeGreaterThanOrEqual(
+      parseFloat((buttons[0] as HTMLElement).style.top),
+    )
     fireEvent.blur(buttons[0] as HTMLElement)
     expect(within(chart).queryByRole('tooltip')).toBeNull()
     // The buttons carry the tip; Plot's pointer tip is not drawn twice.
@@ -586,6 +641,8 @@ describe('hover cards (ADR-0022)', () => {
     expect(TIP_OPTIONS.lineHeight).toBeGreaterThan(1)
     expect(TIP_OPTIONS.stroke).toBe('var(--grid)')
     expect(TIP_OPTIONS.fontFamily).toContain('system-ui')
+    // The card sits to the right of its mark whenever it fits (F22).
+    expect(TIP_OPTIONS.preferredAnchor).toBe('left')
   })
 
   test('heading first, then the value said as what it is, its CI, and its sample size', () => {

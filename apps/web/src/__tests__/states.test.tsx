@@ -328,6 +328,14 @@ describe('US States view', () => {
     await renderAt('/states')
     await screen.findByRole('button', { name: /^Question: / })
     expect(barLabels()).toEqual(['Question', 'Year'])
+    // The deck: what you can see, then how to read it (F18) — no "state
+    // weights".
+    expect(
+      screen.getByText(
+        'How each US state compares with the country as a whole. Smaller states rest on fewer people, so their intervals are wider.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/state weights/)).toBeNull()
   })
 
   test('the one question picker: every question; a pick writes the outcome and clears the answer', async () => {

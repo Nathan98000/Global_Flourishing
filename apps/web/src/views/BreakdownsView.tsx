@@ -327,8 +327,14 @@ export function BreakdownsView() {
     <section>
       <h2 className="visually-hidden">Segments</h2>
       <p className={styles.deck}>
-        One measure split by a demographic, one panel per country — the Atlas&rsquo;s estimates, cut
-        finer.
+        {/* What you can see, then how it is laid out (F18). */}
+        <span className={styles.deckLong}>
+          One question, split into groups of people — by age, gender, income and more — country by
+          country.
+        </span>
+        <span className={styles.deckShort}>
+          One question, split into groups of people, country by country.
+        </span>
       </p>
       <InvalidParamsNotice
         invalid={search.invalid}

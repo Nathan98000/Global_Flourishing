@@ -7,6 +7,27 @@ const count = new Intl.NumberFormat('en-US')
 const two = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const one = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
+/** A small count in words — "seven things" — and in figures past
+ * twelve. */
+export function countWord(value: number): string {
+  const words = [
+    'zero',
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+    'ten',
+    'eleven',
+    'twelve',
+  ]
+  return Number.isInteger(value) ? (words[value] ?? formatCount(value)) : formatCount(value)
+}
+
 export function formatCount(value: number): string {
   return count.format(value)
 }

@@ -34,7 +34,7 @@ import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { formatEstimate } from '../format'
+import { countWord, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { DEFAULT_DIR, reversed, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
@@ -50,7 +50,6 @@ import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
   defaultSplitCountry,
   itemLabel,
-  itemList,
   matrixCountryOrder,
   matrixRange,
   narrowestWrap,
@@ -293,9 +292,7 @@ export function WhatMattersView() {
   const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
   const rankingSubtitle = `How important${range ? `, ${range}` : ''} · ${MIDYEAR_TITLE}`
   // The lede names the items from the catalog, in column order.
-  const things = ranking.length === 1 ? '1 thing is' : `${ranking.length} things are`
-  const rated = range ? `, rated ${range}` : ''
-  const list = itemList(ranking)
+  const things = ranking.length === 1 ? 'one thing is' : `${countWord(ranking.length)} things are`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
     onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
@@ -389,13 +386,14 @@ export function WhatMattersView() {
     <section>
       <h2 className="visually-hidden">What Matters</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what to do (F18); the count is the
+            catalog's. */}
         <span className={styles.deckLong}>
-          How important people say {things} in their lives{rated}
-          {list ? `: ${list}` : ''}. From the midyear survey (Nov 2023–Dec 2024), a short
-          questionnaire between the two annual waves.
+          How important {things} to people — from being a good person to money — in a shorter survey
+          between the two years. Start with a country&rsquo;s own ranking, or compare countries.
         </span>
         <span className={styles.deckShort}>
-          How important people say {things} in their lives{rated}, in the midyear survey.
+          How important {things} to people. Start with a country&rsquo;s own ranking.
         </span>
       </p>
       <div className={styles.controls}>

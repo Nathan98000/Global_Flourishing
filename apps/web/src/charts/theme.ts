@@ -47,6 +47,10 @@ export const TIP_OPTIONS = {
   lineHeight: 1.3,
   lineWidth: 30,
   stroke: 'var(--grid)',
+  // The card's left edge at the mark — to its right — whenever it fits,
+  // so it never covers the rows above (F22); Plot picks another side
+  // when it does not.
+  preferredAnchor: 'left',
   render: headingFirst,
 } as const
 

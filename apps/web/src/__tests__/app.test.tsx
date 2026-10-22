@@ -146,12 +146,13 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
       .getAllByRole('link')
       .map((link) => link.textContent),
   ).toEqual(['Atlas', 'Change', 'What Matters', 'Correlates', 'US States', 'Segments', 'Methods'])
-  // The deck says what this is, above the fold (F5); the count sits in
-  // its own ink-colored span (§6), so match the two parts.
-  expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
-  expect(
-    screen.getByText(/rate their own lives — the Global Flourishing Study, 2023–2024/),
-  ).toBeInTheDocument()
+  // The deck says what you can see, then what to do (F5, F18); the
+  // count, from meta, sits in its own ink-colored span (§6).
+  const deck = await screen.findByText(
+    /rate their own lives, from the Global Flourishing Study \(2023–2024\)\. Choose a question to compare countries\./,
+  )
+  expect(deck).toHaveTextContent(/^How people in 2 countries rate their own lives/)
+  expect(within(deck).getByText('2 countries')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Global Flourishing Study/ })).toHaveAttribute(
     'href',
     'https://doi.org/10.17605/OSF.IO/3JTZ8',
@@ -333,6 +334,13 @@ test('the question bar: the same order on every page — what, then when and whe
   await renderAt('/segments')
   await screen.findByRole('button', { name: /^Question: / })
   expect(barLabels()).toEqual(['Question', 'Split by', 'then by', 'Year', 'Countries'])
+  // Segments' deck in the same voice (F18), never "estimates, cut finer".
+  expect(
+    screen.getByText(
+      'One question, split into groups of people — by age, gender, income and more — country by country.',
+    ),
+  ).toBeInTheDocument()
+  expect(screen.queryByText(/cut finer/)).toBeNull()
 })
 
 test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {
@@ -707,7 +715,7 @@ test('on a phone the secondary three nav items collapse behind "More" (type unch
 test('entering an API-only view fires one warm-up ping; the Atlas does not', async () => {
   const atlasCalls = mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText(/207,919 people across/)
+  await screen.findAllByText(/rate their own lives/)
   await waitFor(() => expect(atlasCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
 
   const changeCalls = mockFetch(staticTier)

@@ -379,19 +379,17 @@ export function AtlasView() {
     <section>
       <h2 className="visually-hidden">Atlas</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what to do (F18). */}
         <span className={styles.deckLong}>
-          How{' '}
-          <span className={styles.deckCount}>
-            207,919 people across {formatCount(countryCount)} countries
-          </span>{' '}
-          rate their own lives — the Global Flourishing Study, 2023&ndash;2024. Pick a measure
-          below; every number carries its sample size and margin of error.
+          How people in{' '}
+          <span className={styles.deckCount}>{formatCount(countryCount)} countries</span> rate their
+          own lives, from the Global Flourishing Study (2023&ndash;2024). Choose a question to
+          compare countries.
         </span>
         <span className={styles.deckShort}>
-          <span className={styles.deckCount}>
-            207,919 people in {formatCount(countryCount)} countries
-          </span>
-          , 2023&ndash;2024. Every number shows how precise it is.
+          How people in{' '}
+          <span className={styles.deckCount}>{formatCount(countryCount)} countries</span> rate their
+          own lives. Choose a question to compare them.
         </span>
       </p>
       <InvalidParamsNotice
