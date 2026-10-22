@@ -93,7 +93,7 @@ function mockFetch(routes: Routes) {
 const phq2Variable = {
   ...sfiVariable,
   name: 'phq2_score',
-  display_name: 'PHQ-2 depression score',
+  display_name: 'Depression screening score (PHQ-2)',
   label: 'Sum of the two PHQ-2 items rescored 0–3 each; 0–6.',
   scale_type: 'count',
   direction: 'lower_better',
@@ -201,9 +201,7 @@ test('the Atlas renders from the static tier, question on the page, no line unde
   await screen.findByRole('img', { name: /United States/ })
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
-  expect(
-    within(screen.getByRole('figure')).getByText(/Mean of the 12 SFI items/),
-  ).toBeInTheDocument()
+  expect(within(screen.getByRole('figure')).getByText(/Mean of 12 questions/)).toBeInTheDocument()
   // No footnote under the chart (ADR-0024): the cards name the CI's level.
   expect(screen.queryByText(/Lines are 95% confidence intervals/)).toBeNull()
   expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
@@ -298,7 +296,7 @@ test('the one question picker: closed, the question and its wording; open, topic
   // Closed: one button — the short name in bold, a line of wording, and
   // "Change"; its name says what it is.
   const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
-  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexMean of the 12 SFI items.*Change$/)
+  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexMean of 12 questions.*Change$/)
   expect(screen.queryByLabelText('Topic')).toBeNull()
   expect(screen.queryByLabelText('Measure')).toBeNull()
   // Open: the panel browses the question's own topic, with counts; the

@@ -10,6 +10,7 @@ not in aggregate responses — Phase 4 reads it once per variable.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated
 
 import polars as pl
@@ -18,6 +19,7 @@ from flourish_stats.outcomes import (
     DERIVED_OUTCOMES,
     NON_SUBSTANTIVE_SCALE_TYPES,
     default_stat,
+    derived_description,
     score_bins,
 )
 
@@ -64,12 +66,24 @@ def _catalog_summary(store: DataStore, row: dict[str, object]) -> VariableSummar
     )
 
 
-def _derived_summary(name: str) -> VariableSummary:
+def _display_name_of(store: DataStore) -> Callable[[str], str]:
+    """The catalog's name for a variable, its code when this build's
+    catalog lacks it (synthetic databases carry a subset)."""
+    assert store.catalog is not None
+    names = {
+        str(row["name"]): str(row["display_name"])
+        for row in store.catalog.variables.select("name", "display_name").iter_rows(named=True)
+    }
+    return lambda name: names.get(name, name)
+
+
+def _derived_summary(store: DataStore, name: str) -> VariableSummary:
     derived = DERIVED_OUTCOMES[name]
     return VariableSummary(
         name=name,
         display_name=derived.display_name,
-        label=derived.description,
+        # Its questions by their catalog names, never their codes (F11).
+        label=derived_description(derived, _display_name_of(store)),
         wording=None,
         family="derived",
         subfamily=None,
@@ -113,7 +127,7 @@ def list_variables(
     summaries = [_catalog_summary(store, row) for row in frame.sort("name").iter_rows(named=True)]
     if family in (None, "derived"):
         derived = [
-            _derived_summary(name)
+            _derived_summary(store, name)
             for name in sorted(DERIVED_OUTCOMES)
             if not q
             or q.strip().lower() in name.lower()
@@ -162,7 +176,7 @@ def variable_detail(
 ) -> VariableDetail:
     assert store.catalog is not None
     if name in DERIVED_OUTCOMES:
-        summary = _derived_summary(name)
+        summary = _derived_summary(store, name)
         derived = DERIVED_OUTCOMES[name]
         return VariableDetail(
             **summary.model_dump(),

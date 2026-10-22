@@ -43,7 +43,7 @@ const religion = question('REL2', 'Current religion', {
   scale_type: 'nominal',
   wording: 'What is your current religion?',
 })
-const phq2 = question('phq2_score', 'PHQ-2 depression score', {
+const phq2 = question('phq2_score', 'Depression screening score (PHQ-2)', {
   family: 'derived',
   is_derived: true,
   wording: null,
@@ -167,7 +167,7 @@ describe('QuestionPicker', () => {
         .map((g) => g.getAttribute('aria-label')),
     ).toEqual(['Mental health'])
     expect(within(derived).getByRole('option')).toHaveTextContent(
-      'PHQ-2 depression scoreSum of the two PHQ-2 items; 0–6.',
+      'Depression screening score (PHQ-2)Sum of the two PHQ-2 items; 0–6.',
     )
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'zzz' } })
     expect(within(dialog).getByText('No question matches')).toBeInTheDocument()
@@ -318,9 +318,9 @@ describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
     // A derived score has no wording: its description takes the line.
     cleanup()
     renderField({ value: 'phq2_score' })
-    expect(screen.getByRole('button', { name: /^Question: PHQ-2/ })).toHaveTextContent(
-      'Sum of the two PHQ-2 items; 0–6.',
-    )
+    expect(
+      screen.getByRole('button', { name: /^Question: Depression screening score \(PHQ-2\)/ }),
+    ).toHaveTextContent('Sum of the two PHQ-2 items; 0–6.')
   })
 
   test('open: the question’s own topic — or the topic a link names — and a pick closes it', () => {

@@ -86,7 +86,7 @@ export const happyVariable: VariableSummary = {
 export const sfiVariable: VariableSummary = {
   name: 'sfi',
   display_name: 'Secure Flourishing Index',
-  label: 'Mean of the 12 SFI items, 0–10.',
+  label: 'Mean of 12 questions, for people who answered at least 10; 0–10.',
   wording: null,
   family: 'derived',
   subfamily: null,

@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,7 @@ from flourish_stats.outcomes import (
     NON_SUBSTANTIVE_SCALE_TYPES,
     SERVABLE_SCALE_TYPES,
     default_stat,
+    derived_description,
     score_bins,
 )
 from flourish_stats.states import state_labels
@@ -292,12 +294,12 @@ def _summary_payload(row: dict[str, Any], servable: bool) -> dict[str, Any]:
     }
 
 
-def _derived_summary_payload(name: str) -> dict[str, Any]:
+def _derived_summary_payload(name: str, display_name_of: Callable[[str], str]) -> dict[str, Any]:
     derived = DERIVED_OUTCOMES[name]
     return {
         "name": name,
         "display_name": derived.display_name,
-        "label": derived.description,
+        "label": derived_description(derived, display_name_of),
         "wording": None,
         "family": "derived",
         "subfamily": None,
@@ -375,7 +377,14 @@ def export_catalog(
         _summary_payload(row, str(row["name"]) in servable)
         for row in substantive.iter_rows(named=True)
     ]
-    summaries.extend(_derived_summary_payload(name) for name in sorted(DERIVED_OUTCOMES))
+    # A derived score's line names its questions by their catalog names.
+    display_names = {
+        str(row["name"]): str(row["display_name"]) for row in variables.iter_rows(named=True)
+    }
+    summaries.extend(
+        _derived_summary_payload(name, lambda item: display_names.get(item, item))
+        for name in sorted(DERIVED_OUTCOMES)
+    )
     _write_json(static_dir / "variables.json", {"variables": summaries})
 
     for summary in summaries:

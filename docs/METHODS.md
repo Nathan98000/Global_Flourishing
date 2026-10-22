@@ -370,8 +370,9 @@ construction, not by anything in the world, so a ranked list never holds
 two measures that share answers:
 
 - Of two such measures in the list, only the one built from **more
-  answers** stays (the PHQ-2 depression score over its two questions);
-  of two built from as many, the score stays over its yes/no screen flag.
+  answers** stays (the depression screening score, PHQ-2, over its two
+  questions); of two built from as many, the score stays over its yes/no
+  screen flag.
 - The list then fills up again from further down the ranking, so it
   always holds as many measures as it shows; the response names what
   stood in for what (`meta.dropped_overlap`).

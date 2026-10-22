@@ -8,6 +8,7 @@ adds no dependencies to the package.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 #: Catalog `scale_type` values an outcome may have to be aggregated.
@@ -83,6 +84,8 @@ class DerivedOutcome:
     max: int
     direction: str
     display_name: str
+    #: one line in plain words (F11); ``{0}``, ``{1}`` stand for the
+    #: components' catalog names — ``derived_description`` fills them in
     description: str
     #: the catalog items the score is computed from, in scoring order
     components: tuple[str, ...]
@@ -106,7 +109,6 @@ _SCREENER_SCORING = (
 
 
 def _sfi_domain(domain: str, items: tuple[str, str]) -> DerivedOutcome:
-    first, second = items
     return DerivedOutcome(
         f"sfi_{domain}",
         "scale_0_10",
@@ -114,10 +116,19 @@ def _sfi_domain(domain: str, items: tuple[str, str]) -> DerivedOutcome:
         10,
         "higher_better",
         _DOMAIN_NAMES[domain],
-        f"Mean of {first} and {second}, 0–10.",
+        "Mean of “{0}” and “{1}”, 0–10.",
         components=items,
         scoring="The mean of the two questions below; 0–10.",
     )
+
+
+def derived_description(outcome: DerivedOutcome, display_name_of: Callable[[str], str]) -> str:
+    """A derived score's one line for a lay reader (F11): its questions by
+    their catalog names (``display_name_of``, the catalog's lookup), never
+    a variable code — "Mean of “Doing worthwhile things” and
+    “Understanding life's purpose”, 0–10." — and "Mean", never "Average".
+    """
+    return outcome.description.format(*(display_name_of(name) for name in outcome.components))
 
 
 def score_bins(outcome: DerivedOutcome) -> list[tuple[int, str]]:
@@ -143,7 +154,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         10,
         "higher_better",
         "Secure Flourishing Index",
-        "Mean of the 12 SFI items (≥ 10 answered), 0–10.",
+        f"Mean of 12 questions, for people who answered at least {SFI_MIN_ITEMS}; 0–10.",
         components=SFI_ITEMS,
         scoring=(
             f"The mean of the 12 questions below, computed when at least "
@@ -157,7 +168,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         0,
         6,
         "lower_better",
-        "PHQ-2 depression score",
+        "Depression screening score (PHQ-2)",
         "Sum of the two PHQ-2 items rescored 0–3 each; 0–6.",
         components=PHQ2_ITEMS,
         scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
@@ -168,7 +179,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         0,
         1,
         "lower_better",
-        "PHQ-2 screen positive",
+        "Depression screening positive (PHQ-2)",
         "PHQ-2 score ≥ 3; served as the weighted share screening positive.",
         components=PHQ2_ITEMS,
         scoring=_SCREENER_SCORING,
@@ -179,7 +190,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         0,
         6,
         "lower_better",
-        "GAD-2 anxiety score",
+        "Anxiety screening score (GAD-2)",
         "Sum of the two GAD-2 items rescored 0–3 each; 0–6.",
         components=GAD2_ITEMS,
         scoring="Each answer rescored 0–3 (4 − code), the two summed; 0–6.",
@@ -190,7 +201,7 @@ DERIVED_OUTCOMES: dict[str, DerivedOutcome] = {
         0,
         1,
         "lower_better",
-        "GAD-2 screen positive",
+        "Anxiety screening positive (GAD-2)",
         "GAD-2 score ≥ 3; served as the weighted share screening positive.",
         components=GAD2_ITEMS,
         scoring=_SCREENER_SCORING,
