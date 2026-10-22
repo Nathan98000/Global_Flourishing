@@ -1,7 +1,8 @@
 // Dots with CI whiskers for compact comparisons (breakdown levels within
 // one panel). One hue; the level axis carries identity. Every cell is
 // shown (ADR-0011): a level with no computable interval draws its dot
-// without a whisker, and its hover card says why.
+// without a whisker, and its hover card says why; one few people are
+// behind is drawn hollow (ADR-0031).
 
 import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
@@ -15,6 +16,9 @@ import {
   ROW_HEIGHT,
   TIP_OPTIONS,
   WHISKER,
+  isThin,
+  markFill,
+  markStroke,
   plotCI,
   plotValue,
   tipText,
@@ -98,14 +102,16 @@ export function dotMarks(
         clip: true,
       },
     ),
+    // A dot few people are behind is hollow (ADR-0031): the paper inside
+    // a ring in the hue; every other dot solid in a surface ring.
     Plot.dot(valid, {
       ...facetChannel,
       y: 'level',
       x: 'value',
-      fill: color,
-      r: 4.5,
-      stroke: 'var(--surface)',
-      strokeWidth: 2,
+      fill: (entry: DotEntry) => markFill(entry.row, color),
+      r: (entry: DotEntry) => (isThin(entry.row) ? 3.75 : 4.5),
+      stroke: (entry: DotEntry) => markStroke(entry.row, color),
+      strokeWidth: (entry: DotEntry) => (isThin(entry.row) ? 1.5 : 2),
     }),
     Plot.tip(
       entries,

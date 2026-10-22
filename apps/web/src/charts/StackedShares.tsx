@@ -22,6 +22,7 @@ import {
   SHARE_RAMP,
   SURFACE,
   TIP_OPTIONS,
+  isThin,
   plotValue,
   tipText,
 } from './theme'
@@ -118,6 +119,9 @@ export function StackedShares({
           label: labelOf.get(row.level as number) ?? String(row.level),
           value: plotValue(row) ?? 0,
         }))
+      const thinCountries = new Set(
+        segments.filter((segment) => isThin(segment.row)).map((segment) => segment.country),
+      )
       const width = chartWidth(720, available)
       // The label column fits the longest country name (13.5px ink), up
       // to a third of a phone's width.
@@ -152,7 +156,16 @@ export function StackedShares({
         },
         y: { domain: countryOrder, label: null, padding: 0.2 },
         marks: [
-          Plot.axisY({ tickSize: 0, label: null, fontSize: 13.5, fill: INK }),
+          // A country few people answered in keeps its answers' shades —
+          // they are the chart's key — and wears the asterisk on its name
+          // (ADR-0031); every segment's card says so.
+          Plot.axisY({
+            tickSize: 0,
+            label: null,
+            fontSize: 13.5,
+            fill: INK,
+            tickFormat: (country: string) => (thinCountries.has(country) ? `${country}*` : country),
+          }),
           Plot.barX(
             segments,
             Plot.stackX({

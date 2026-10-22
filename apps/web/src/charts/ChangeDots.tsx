@@ -24,6 +24,7 @@ import {
   ROW_HEIGHT,
   plotCI,
   plotValue,
+  starValue,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
@@ -149,7 +150,8 @@ export function ChangeDots({
                 Plot.text(entries, {
                   y: 'level',
                   x: hi,
-                  text: (entry: DotEntry) => formatValueLabel(entry.row.estimate, entry.row.stat),
+                  text: (entry: DotEntry) =>
+                    starValue(formatValueLabel(entry.row.estimate, entry.row.stat), entry.row),
                   dx: 16,
                   textAnchor: 'start',
                   fill: INK,

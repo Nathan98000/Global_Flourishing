@@ -44,7 +44,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
 
@@ -457,6 +457,7 @@ export function StatesView() {
                   label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
                   color={outcomeColor(variable.name)}
                   ciLevel={keyCiLevel(displayRows)}
+                  thinBelow={keyThinBelow(displayRows, served?.suppression)}
                 />
               ) : undefined
             }

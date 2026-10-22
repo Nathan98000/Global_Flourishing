@@ -40,7 +40,7 @@ import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/sear
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/')
 
@@ -274,6 +274,7 @@ export function AtlasView() {
         label="share of people"
         color={variable ? outcomeColor(variable.name) : undefined}
         ciLevel={keyCiLevel(displayRows)}
+        thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
       />
     ) : allAnswers ? undefined : (
       <ChartKey
@@ -281,6 +282,7 @@ export function AtlasView() {
         label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
         color={variable ? outcomeColor(variable.name) : undefined}
         ciLevel={keyCiLevel(displayRows)}
+        thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
       />
     )
 

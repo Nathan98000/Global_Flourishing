@@ -51,7 +51,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -437,6 +437,7 @@ export function ChangeView() {
                 label={isCategorical ? 'change in share' : 'mean change'}
                 color={color}
                 ciLevel={keyCiLevel(display.rows)}
+                thinBelow={keyThinBelow(display.rows, meta.data.meta.suppression)}
               />
             }
             csv={csvFor(display.rows, nameFor('Change'))}
@@ -465,6 +466,7 @@ export function ChangeView() {
                     label="share of people"
                     color={color}
                     ciLevel={keyCiLevel(distribution)}
+                    thinBelow={keyThinBelow(distribution, meta.data.meta.suppression)}
                   />
                 }
                 csv={csvFor(distribution, nameFor('Change distribution'))}

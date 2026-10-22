@@ -38,7 +38,7 @@ describe('the catalog tier', () => {
     expect(meta.breakdowns).toContain('country_code')
     expect(meta.breakdown_labels['gender']?.levels[0]).toEqual({ value: 1, label: 'Male' })
     expect('git_sha' in meta).toBe(false)
-    expect(meta.suppression).toEqual({ threshold: 0, flag_below: 0 })
+    expect(meta.suppression).toEqual({ threshold: 0, flag_below: 30 })
   })
 
   test('variables.json carries default_stat and servability', () => {

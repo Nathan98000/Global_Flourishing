@@ -18,6 +18,7 @@ import {
   MAP_EMPTY_OUTLINE,
   SURFACE,
   TIP_OPTIONS,
+  isThin,
   tipText,
   type TipContext,
 } from './theme'
@@ -64,6 +65,7 @@ export function StateChoropleth({
       const tipOf = (entry: StateEntry): string =>
         stateTipText(entry, meta, { answer, range: variable })
       const empty = entries.filter((entry) => entry.value === null)
+      const thin = entries.filter((entry) => entry.row !== null && isThin(entry.row))
       const picked = entries.filter((entry) => found !== undefined && entry.code === found)
       return Plot.plot({
         width,
@@ -91,6 +93,16 @@ export function StateChoropleth({
             fill: MAP_EMPTY,
             stroke: MAP_EMPTY_OUTLINE,
             strokeWidth: 0.8,
+            pointerEvents: 'none',
+          }),
+          // A state few people answered in (ADR-0031): a dashed inner
+          // outline over its shade, as the matrices mark a thin cell.
+          Plot.geo(thin, {
+            geometry: (entry: StateEntry) => entry.feature,
+            fill: 'none',
+            stroke: INK,
+            strokeWidth: 1,
+            strokeDasharray: '3 2',
             pointerEvents: 'none',
           }),
           // A found state: outlined in ink, its card pinned open.

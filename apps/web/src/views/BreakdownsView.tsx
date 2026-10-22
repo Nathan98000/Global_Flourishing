@@ -49,7 +49,7 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/segments')
 
@@ -439,6 +439,7 @@ export function BreakdownsView() {
                     label={isCategorical ? 'share' : 'mean'}
                     color={outcomeColor(variable.name)}
                     ciLevel={keyCiLevel(displayRows)}
+                    thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
                   />
                 }
                 csv={csv}

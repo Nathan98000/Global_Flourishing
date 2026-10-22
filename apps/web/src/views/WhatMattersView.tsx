@@ -21,7 +21,15 @@ import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
-import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
+import {
+  SEQUENTIAL_RAMP,
+  THIN_LINE,
+  isThin,
+  outcomeColor,
+  quantizeSequential,
+  starValue,
+  tipText,
+} from '../charts/theme'
 import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -59,7 +67,7 @@ import {
   splitGroupOrder,
 } from './whatMattersRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/what-matters')
 
@@ -510,6 +518,7 @@ export function WhatMattersView() {
                       label="mean"
                       color={outcomeColor(first.name)}
                       ciLevel={keyCiLevel(countryItems)}
+                      thinBelow={keyThinBelow(countryItems, served.suppression)}
                     />
                   }
                   csv={csvFor(countryItemsResponse, countryItemsName)}
@@ -620,6 +629,7 @@ export function WhatMattersView() {
                   label={itemStat === 'proportion' ? 'share' : 'mean'}
                   color={outcomeColor(item.name)}
                   ciLevel={keyCiLevel(itemRows)}
+                  thinBelow={keyThinBelow(itemRows, served.suppression)}
                 />
               }
               csv={csvFor(
@@ -751,11 +761,14 @@ function ImportanceMatrix({
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined
         return {
-          text: formatEstimate(cell.estimate, cell.stat),
+          text: starValue(formatEstimate(cell.estimate, cell.stat), cell),
           title: tipText(cell, `${row.label} · ${column.label}`, {
             range: items.find((item) => item.name === column.key),
           }),
           tint: cell.estimate === null || !tint ? 'transparent' : tint(cell.estimate),
+          // Few people behind it (ADR-0031): the dashed inner outline.
+          flagged: isThin(cell),
+          hidden: isThin(cell) ? `, ${THIN_LINE.toLowerCase()}` : undefined,
         }
       }}
     />

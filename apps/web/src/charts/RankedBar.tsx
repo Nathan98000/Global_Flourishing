@@ -32,8 +32,10 @@ import {
   INK_SECONDARY,
   MIN_ROWS,
   ROW_HEIGHT,
+  SURFACE,
   TIP_OPTIONS,
   WHISKER,
+  isThin,
   plotCI,
   plotValue,
   tipText,
@@ -235,7 +237,8 @@ export function RankedBar({
   /** The hover card, in words (default: theme.ts tipText — the row,
    * its value as what it is, its CI and n). */
   tipOf?: (row: EstimateRow, label: string) => string
-  /** A row few people are behind: its value wears an asterisk. */
+  /** A row few people are behind: its mark is hollow and its value wears
+   * an asterisk (default: the server's flag, theme.ts isThin). */
   flagOf?: (row: EstimateRow) => boolean
   /** The row to pick out (the chosen country): a band behind it, label
    * and all, and its dot in ink. */
@@ -260,7 +263,13 @@ export function RankedBar({
       }
       const tags = new Set(entries.flatMap((entry) => tagOf?.(entry.row) ?? []))
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
-      const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
+      const hueOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
+      // A thin row's mark is hollow: the paper inside a ring in its hue.
+      const thinOf = (entry: Entry) => (flagOf ? flagOf(entry.row) : isThin(entry.row))
+      const fillOf = (entry: Entry) => (thinOf(entry) ? SURFACE : hueOf(entry))
+      const ringOf = (entry: Entry) => (thinOf(entry) ? hueOf(entry) : SURFACE)
+      const dotRadius = (entry: Entry) => (thinOf(entry) ? 3.75 : 4.5)
+      const ringWidth = (entry: Entry) => (thinOf(entry) ? 1.5 : 2)
       const tip = (entry: Entry) =>
         tipOf
           ? tipOf(entry.row, entry.label)
@@ -305,7 +314,7 @@ export function RankedBar({
       const valueFontSize = narrow ? 12 : 14
       const valueOf = (entry: Entry) => {
         const text = formatEstimate(entry.row.estimate, entry.row.stat)
-        return flagOf?.(entry.row) ? `${text}*` : text
+        return thinOf(entry) ? `${text}*` : text
       }
       // Nothing is measured before layout (or under jsdom): estimate.
       const measure = textMeasurer(labelFontSize, available !== null)
@@ -362,9 +371,9 @@ export function RankedBar({
               x: 'value',
               dy: 11,
               fill: fillOf,
-              r: 4.5,
-              stroke: 'var(--surface)',
-              strokeWidth: 2,
+              r: dotRadius,
+              stroke: ringOf,
+              strokeWidth: ringWidth,
             }),
             // The label on its own line; its value right-aligned.
             Plot.text(entries, {
@@ -513,9 +522,9 @@ export function RankedBar({
               y: 'label',
               x: 'value',
               fill: fillOf,
-              r: 4.5,
-              stroke: 'var(--surface)',
-              strokeWidth: 2,
+              r: dotRadius,
+              stroke: ringOf,
+              strokeWidth: ringWidth,
             }),
             Plot.text(entries, {
               y: 'label',
@@ -563,7 +572,9 @@ export function RankedBar({
           Plot.barX(valid, {
             y: 'label',
             x: 'value',
-            fill: color,
+            fill: (entry: Entry) => (thinOf(entry) ? SURFACE : color),
+            stroke: (entry: Entry) => (thinOf(entry) ? color : 'none'),
+            strokeWidth: 1.5,
             rx2: BAR_RADIUS,
             insetTop: 3,
             insetBottom: 3,

@@ -28,3 +28,16 @@ export function keyCiLevel(rows: readonly EstimateRow[]): number | undefined {
   const withCI = rows.find((row) => row.ci_lo !== null && row.ci_hi !== null)
   return withCI?.ci_level
 }
+
+/** The thin-estimate threshold a chart's key names, when any of its rows
+ * is thin (ADR-0031): the server's `meta.suppression.flag_below`. */
+export function keyThinBelow(
+  rows: readonly Pick<EstimateRow, 'flagged' | 'estimate'>[],
+  suppression: { flag_below: number } | undefined,
+): number | undefined {
+  return suppression &&
+    suppression.flag_below > 0 &&
+    rows.some((row) => row.flagged && row.estimate !== null)
+    ? suppression.flag_below
+    : undefined
+}
