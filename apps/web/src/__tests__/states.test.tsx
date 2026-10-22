@@ -361,11 +361,15 @@ describe('US States view', () => {
     expect(screen.queryByText('VT')).toBeNull()
   })
 
-  test('the states chart is weighted by state, says so in its subtitle, and gives the reason a control is off', async () => {
+  test('the states chart’s subtitle carries its state in the controls’ words, and a control off says why', async () => {
     mockFetch(tier)
     await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.getByText(/· state weights ·/, { selector: 'figcaption *' })).toBeInTheDocument()
+    // No weight jargon: the year and the order (ADR-0029).
+    expect(
+      screen.getByText('Mean score, 0–10 · 2023 · highest first', { selector: 'figcaption *' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/state weights/, { selector: 'figcaption *' })).toBeNull()
     // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
     expect(text).not.toContain('weighted so each')

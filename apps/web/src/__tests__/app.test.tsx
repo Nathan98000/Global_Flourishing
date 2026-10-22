@@ -262,7 +262,11 @@ test('a categorical question shows every answer, country by country, from its sh
       .getAllByRole('listitem')
       .map((item) => item.textContent),
   ).toEqual(['Weekly', 'Sometimes', 'Never'])
-  expect(screen.getByText(/Share giving each answer · sorted by “Weekly”/)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'Share giving each answer · 2023 · all countries · by “Weekly”, highest first',
+    ),
+  ).toBeInTheDocument()
   const svg = figure.querySelector('svg') as SVGSVGElement
   expect(svg.querySelectorAll('g[aria-label="bar"] rect')).toHaveLength(6)
   expect(
@@ -270,7 +274,7 @@ test('a categorical question shows every answer, country by country, from its sh
   ).toEqual(['Testland', 'United States'])
   // Sorted by another answer, the order follows it.
   fireEvent.click(
-    within(screen.getByRole('group', { name: 'Sort by answer' })).getByLabelText('Never'),
+    within(screen.getByRole('group', { name: 'Ordered by % who said' })).getByLabelText('Never'),
   )
   await waitFor(() =>
     expect(
@@ -544,14 +548,52 @@ test('unknown routes render the not-found page', async () => {
 
 // --- Visual-redesign behaviours (Sept 2026, §6/§8) ---
 
-test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
+test('the chart header: the state in the subtitle, the key, and a toolbar — Show, How to read this chart, one Download (ADR-0029)', async () => {
   mockFetch(staticTier)
-  await renderAt('/')
-  await screen.findByText('Mean score, 0–10 · 2023')
-  // Healthy API → the CSV is a real download link; PNG stays a button
-  // whose accessible name carries the verb.
-  expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Download PNG' })).toBeInTheDocument()
+  const router = await renderAt('/')
+  // The subtitle carries the state, in the controls' words.
+  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
+  const figure = screen.getByRole('figure')
+  // The key: the mark and its interval, by name.
+  expect(within(figure).getByText('mean')).toBeInTheDocument()
+  expect(within(figure).getByText('95% CI')).toBeInTheDocument()
+  // The toolbar: the page's display control, then the two links.
+  const toolbar = figure.querySelector('[data-toolbar]') as HTMLElement
+  expect(within(toolbar).getByRole('group', { name: 'Show' })).toBeInTheDocument()
+  expect(within(toolbar).getByRole('link', { name: 'How to read this chart' })).toHaveAttribute(
+    'href',
+    '/methods#how-to-read-the-charts',
+  )
+  // One "Download" (F17): closed, then CSV and PNG. Healthy API → the
+  // CSV is a real download link; PNG stays a button.
+  const download = within(toolbar).getByRole('button', { name: 'Download' })
+  expect(download).toHaveAttribute('aria-expanded', 'false')
+  expect(
+    within(toolbar).getByRole('link', { name: 'Download CSV', hidden: true }),
+  ).not.toBeVisible()
+  fireEvent.click(download)
+  expect(download).toHaveAttribute('aria-expanded', 'true')
+  expect(within(toolbar).getByRole('link', { name: 'Download CSV' })).toBeVisible()
+  expect(within(toolbar).getByRole('button', { name: 'Download PNG' })).toBeVisible()
+  fireEvent.keyDown(download, { key: 'Escape' })
+  expect(download).toHaveAttribute('aria-expanded', 'false')
+  expect(download).toHaveFocus()
+  // The tab order: the question bar, then the toolbar, then the chart.
+  const order = [
+    screen.getByRole('button', { name: /^Question: / }),
+    within(toolbar).getAllByRole('radio')[0] as HTMLElement,
+    download,
+    within(figure).getByRole('img'),
+  ]
+  for (let at = 1; at < order.length; at += 1) {
+    expect(
+      (order[at - 1] as HTMLElement).compareDocumentPosition(order[at] as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  }
+  // A Show choice writes `stat` as before, and the subtitle follows.
+  fireEvent.click(within(toolbar).getByLabelText('Distribution'))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
 })
 
 test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
@@ -583,8 +625,8 @@ test('under 40rem the display options fold into a disclosure; Measure and Wave s
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Mean score, 0–10 · 2023')
-  const summary = screen.getByText('More options — chart, order, countries')
+  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
+  const summary = screen.getByText('More options — order, countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
   // Year stays visible outside the fold; Order lives inside it.
@@ -598,7 +640,7 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   stubViewport(() => true) // a phone matches both 30rem and 40rem
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Mean score, 0–10 · 2023')
+  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
   const statistic = screen.getByLabelText('Show')
   expect(statistic.tagName).toBe('SELECT')
   expect(statistic).toHaveDisplayValue('Mean')

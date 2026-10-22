@@ -11,7 +11,7 @@
 // −1 to 1, so a shade means the same number in every table. A cell opens
 // Compare two with the pair.
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { CorrelationMethod } from '../../api/correlates'
 import { useCorrelationTable } from '../../api/correlations'
@@ -116,6 +116,7 @@ export function CompareSeveral({
   countryName,
   apiReachable,
   controls,
+  chartControls,
   onTable,
 }: ViewProps) {
   const a = firstQuestion(search)
@@ -235,6 +236,7 @@ export function CompareSeveral({
           onOpenPair={(row, column) =>
             setSearch({ view: 'pair', a: column, b: row, outcome: undefined, vars: usableVars })
           }
+          toolbar={chartControls}
         />
       ) : null}
     </>
@@ -259,7 +261,10 @@ function TableFigure({
   isRefreshing,
   served,
   onOpenPair,
+  toolbar,
 }: {
+  /** The correlation type, for the chart's toolbar. */
+  toolbar: ReactNode
   table: CorrelationsResponse
   /** The questions in the order shown. */
   order: readonly string[]
@@ -340,6 +345,7 @@ function TableFigure({
           : ''
       } Select a cell to see the two questions together.`}
       interactive
+      toolbar={toolbar}
       csv={{
         kind: 'client',
         onDownload: () =>

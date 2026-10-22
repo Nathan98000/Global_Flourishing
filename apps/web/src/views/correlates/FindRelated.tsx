@@ -13,6 +13,7 @@ import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { Country, EstimateResponse, EstimateRow } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { ChartKey } from '../../charts/ChartKey'
 import { RankedBar } from '../../charts/RankedBar'
 import { divergingTint, signMark } from '../../charts/theme'
 import { HeatTable } from '../../charts/HeatTable'
@@ -70,6 +71,7 @@ export function FindRelated({
   countryName,
   apiReachable,
   controls,
+  chartControls,
 }: ViewProps) {
   const name = relatedQuestion(search)
   const variable = variables.byName[name]
@@ -216,6 +218,8 @@ export function FindRelated({
               )}
               ariaLabel={rankedAria}
               interactive
+              toolbar={chartControls}
+              chartKey={<ChartKey mark="dot" label="correlation" color={signMark(1)} />}
               intro={
                 <>
                   {detail && (
@@ -279,6 +283,7 @@ export function FindRelated({
               otherWave,
             )}
             ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones.`}
+            toolbar={chartControls}
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}

@@ -5,13 +5,14 @@
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
@@ -37,11 +38,13 @@ import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/sear
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/')
 
 export function AtlasView() {
   const search = route.useSearch()
+  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -185,6 +188,8 @@ export function AtlasView() {
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
   }))
+  // Why a year is unavailable, or what Midyear is: under the whole bar.
+  const yearNoteText = yearNote(waveOptions)
 
   const statOptions: RadioOption<string>[] | null =
     variable && variable.scale_type === 'scale_0_10'
@@ -215,15 +220,41 @@ export function AtlasView() {
         ? `share answering “${levelLabel}”`
         : undefined
       : allAnswers
-        ? levelLabel
-          ? `share giving each answer · sorted by “${levelLabel}”`
-          : 'share giving each answer'
+        ? 'share giving each answer'
         : stat === 'distribution'
           ? undefined
           : variable
             ? scaleSubtitle(variable, stat, detail)
             : undefined
-  const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
+  // The state, in the controls' words (ADR-0029): the year, the
+  // countries, the order.
+  const ordered = stat !== 'distribution' || allAnswers
+  const orderState =
+    allAnswers && levelLabel ? `by “${levelLabel}”, ${orderPhrase(dir)}` : orderPhrase(dir)
+  const subtitle = stateLine(
+    subtitleBase,
+    waveTitle,
+    countriesPhrase(search.countries.length, countryCount),
+    ordered && orderState,
+  )
+  // The chart's key, in its header: the mark, and its interval when the
+  // marks carry one.
+  const chartKey =
+    stat === 'distribution' && !allAnswers ? (
+      <ChartKey
+        mark="bar"
+        label="share of people"
+        color={variable ? outcomeColor(variable.name) : undefined}
+        ciLevel={keyCiLevel(displayRows)}
+      />
+    ) : allAnswers ? undefined : (
+      <ChartKey
+        mark={stat === 'proportion' ? 'bar' : 'dot'}
+        label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
+        color={variable ? outcomeColor(variable.name) : undefined}
+        ciLevel={keyCiLevel(displayRows)}
+      />
+    )
 
   // What a download is called, in words (ADR-0016); the server names its
   // CSV the same way.
@@ -256,18 +287,20 @@ export function AtlasView() {
       onChange={(countries) => setSearch({ countries })}
     />
   )
-  const displayOptions = (
+  // How the chart is drawn, in its header's toolbar (ADR-0029).
+  const chartControls = (
     <>
       {statOptions && (
         <RadioRow
           legend="Show"
           name="stat"
+          inline
+          selectOnNarrow
           options={statOptions}
           value={medianOffline ? 'default' : (search.stat ?? 'default')}
           onChange={(value) =>
             setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
           }
-          selectOnNarrow
           note={
             statOptions.some((option) => option.disabled)
               ? 'Median — needs the live data service.'
@@ -275,27 +308,26 @@ export function AtlasView() {
           }
         />
       )}
-      {(stat !== 'distribution' || allAnswers) && (
-        <RadioRow
-          legend="Order"
-          name="dir"
-          options={VALUE_ORDER}
-          value={dir}
-          onChange={(value) => setSearch({ dir: value })}
-        />
-      )}
       {isCategorical && levels.length > 0 && (
         <RadioRow
-          legend={allAnswers ? 'Sort by answer' : 'Showing % who said'}
+          legend={allAnswers ? 'Ordered by % who said' : 'Showing % who said'}
           name="level"
-          wide
-          selectOnNarrow
+          inline
           options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
           value={String(activeLevel)}
           onChange={(value) => setSearch({ level: Number(value) })}
         />
       )}
     </>
+  )
+  const displayOptions = ordered && (
+    <RadioRow
+      legend="Order"
+      name="dir"
+      options={VALUE_ORDER}
+      value={dir}
+      onChange={(value) => setSearch({ dir: value })}
+    />
   )
 
   return (
@@ -351,11 +383,16 @@ export function AtlasView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          note={yearNote(waveOptions)}
+          noteId={yearNoteText ? yearNoteId : undefined}
         />
+        {yearNoteText && (
+          <p id={yearNoteId} className={styles.barNote}>
+            {yearNoteText}
+          </p>
+        )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — chart, order, countries</summary>
+            <summary>More options — order, countries</summary>
             <div className={styles.moreBody}>
               {countryFilter}
               {displayOptions}
@@ -390,11 +427,16 @@ export function AtlasView() {
           ) : estimates.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
-            estimates.error instanceof NetworkError && !boot.apiReachable ? (
-              <OfflineLine except="/" className={styles.hint} />
-            ) : (
-              <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
-            )
+            // No chart, no header: its controls stay reachable here, so a
+            // failed statistic can be changed back.
+            <>
+              <div className={styles.controls}>{chartControls}</div>
+              {estimates.error instanceof NetworkError && !boot.apiReachable ? (
+                <OfflineLine except="/" className={styles.hint} />
+              ) : (
+                <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
+              )}
+            </>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
@@ -423,6 +465,8 @@ export function AtlasView() {
                     </div>
                   )
                 }
+                toolbar={chartControls}
+                chartKey={chartKey}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}

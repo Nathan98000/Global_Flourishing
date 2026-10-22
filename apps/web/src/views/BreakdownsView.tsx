@@ -5,13 +5,14 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
@@ -47,11 +48,13 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/segments')
 
 export function BreakdownsView() {
   const search = route.useSearch()
+  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -180,6 +183,8 @@ export function BreakdownsView() {
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
   }))
+  // Why a year is unavailable, or what Midyear is: under the whole bar.
+  const yearNoteText = yearNote(waveOptions)
 
   // The title names the splits in words ("Life satisfaction by gender
   // and age band"); the wave rides last in the subtitle (§7).
@@ -188,7 +193,9 @@ export function BreakdownsView() {
     .map((column) => lowerFirst(columnLabel(column, meta.data.meta)))
     .join(' and ')}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
-  const subtitle = [
+  // The state, in the controls' words (ADR-0029): the year, the
+  // countries, their order.
+  const subtitle = stateLine(
     isCategorical
       ? levelLabel
         ? `share answering “${levelLabel}”`
@@ -197,9 +204,9 @@ export function BreakdownsView() {
         ? scaleSubtitle(variable, stat, detail)
         : null,
     WAVE_TITLES[search.wave] ?? search.wave,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
+  )
 
   // What a download is called, in words (ADR-0016): the measure, then
   // `by-<breakdown>` for the split; the server names its CSV the same way.
@@ -265,31 +272,37 @@ export function BreakdownsView() {
       onChange={(countries) => setSearch({ countries })}
     />
   )
-  const displayOptions = (
+  // How the chart is drawn, in its header's toolbar (ADR-0029): the
+  // panels have no value column to sort from, so one "Order countries"
+  // select writes `sort` and `dir` — by value either way, or by the gap.
+  const chartControls = (
     <>
-      <RadioRow
-        legend="Sort countries"
-        name="sort"
-        options={[
-          { value: 'estimate', label: 'By value' },
-          { value: 'gap', label: 'Biggest gap first' },
-        ]}
-        value={search.sort}
-        onChange={(sort) => setSearch({ sort, dir: undefined })}
-      />
-      <RadioRow
-        legend="Order"
-        name="dir"
-        options={VALUE_ORDER}
-        value={dir}
-        onChange={(value) => setSearch({ dir: value })}
-      />
+      <label className={styles.inlineField}>
+        <span className={styles.fieldLabel}>Order countries</span>
+        <select
+          value={search.sort === 'gap' ? 'gap' : dir}
+          onChange={(event) => {
+            const value = event.target.value
+            setSearch(
+              value === 'gap'
+                ? { sort: 'gap', dir: undefined }
+                : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
+            )
+          }}
+        >
+          {VALUE_ORDER.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          <option value="gap">Biggest gap first</option>
+        </select>
+      </label>
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
           legend="Showing % who said"
           name="outcome-level"
-          wide
-          selectOnNarrow
+          inline
           options={outcomeLevelOptions.map((entry) => ({
             value: String(entry.value),
             label: entry.label,
@@ -348,21 +361,22 @@ export function BreakdownsView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          note={yearNote(waveOptions)}
+          noteId={yearNoteText ? yearNoteId : undefined}
         />
+        {yearNoteText && (
+          <p id={yearNoteId} className={styles.barNote}>
+            {yearNoteText}
+          </p>
+        )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — countries, order</summary>
-            <div className={styles.moreBody}>
-              {countryFilter}
-              {displayOptions}
-            </div>
+            <summary>More options — countries</summary>
+            <div className={styles.moreBody}>{countryFilter}</div>
           </details>
         ) : (
           countryFilter
         )}
       </div>
-      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -398,6 +412,15 @@ export function BreakdownsView() {
                       <WordingPanel detail={detail} />
                     </div>
                   )
+                }
+                toolbar={chartControls}
+                chartKey={
+                  <ChartKey
+                    mark="dot"
+                    label={isCategorical ? 'share' : 'mean'}
+                    color={outcomeColor(variable.name)}
+                    ciLevel={keyCiLevel(displayRows)}
+                  />
                 }
                 csv={csv}
                 exportName={exportName}

@@ -50,6 +50,18 @@
   margin-bottom: var(--space-5);
 }
 
+/* The line under Year (why a year is unavailable, what Midyear is): it
+   runs under the whole bar, so it never widens the Year column or pulls
+   the other controls down (Correlates' row note, ADR-0029). */
+.barNote {
+  order: 99;
+  flex-basis: 100%;
+  max-width: 40rem;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
 /* A select under its label, the bar's way (Segments' "then by"). */
 .questionBar > label {
   min-width: 0;
@@ -155,6 +167,14 @@
   color: var(--ink-secondary);
 }
 
+/* A select in a chart's toolbar: its label beside it (ADR-0029). */
+.inlineField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+
 /* What Matters' tint key, in the matrix caption's place: "Lower", the
    seven ramp swatches, "Higher · …" — the map legend's 20 × 10 steps,
    in the legend voice (12px, secondary ink, not the caption's bold). */
@@ -203,6 +223,21 @@
   color: var(--ink-secondary);
   font-size: var(--text-sm);
   margin: 0 0 var(--space-3);
+}
+
+/* A switch in a chart's toolbar, its reason under it when it is off. */
+.switch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 18rem;
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.switch .reason {
+  font-size: var(--text-xs);
+  margin-top: 2px;
 }
 
 /* The plain reason a control is unavailable: its own line, readable ink. */
@@ -262,6 +297,11 @@
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
     align-items: end;
+  }
+
+  /* On a phone the line follows Year itself. */
+  .barNote {
+    order: 0;
   }
 
   /* A select beside its words stacks — the words above, the select the

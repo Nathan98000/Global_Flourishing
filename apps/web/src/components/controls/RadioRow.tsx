@@ -36,6 +36,7 @@ export function RadioRow<T extends string>({
   noteId: outsideNote,
   legendHidden = false,
   size,
+  inline = false,
 }: {
   legend: string
   name: string
@@ -58,6 +59,9 @@ export function RadioRow<T extends string>({
   /** A compact row, subordinate to the one above it (Correlates' other
    * answers' wave, under the wave chips). */
   size?: 'small'
+  /** In a chart's toolbar (ADR-0029): the label beside the control, not
+   * above it, the options compact; more than three is a select. */
+  inline?: boolean
 }) {
   const narrow = useMediaQuery(SELECT_VIEWPORT)
   const noteId = useId()
@@ -69,11 +73,13 @@ export function RadioRow<T extends string>({
     </span>
   ) : null
   const legendClass = legendHidden ? 'visually-hidden' : styles.legend
-  const asSelect = options.length > SELECT_ABOVE || (narrow && selectOnNarrow)
+  const asSelect =
+    options.length > SELECT_ABOVE || (narrow && selectOnNarrow) || (inline && options.length > 3)
+  const inlineClass = inline ? ` ${styles.inline}` : ''
   if (asSelect) {
     const select = (
-      <label className={`${styles.fieldset} ${styles.selectForm}`}>
-        <span className={legendClass}>{legend}</span>
+      <label className={`${styles.fieldset} ${styles.selectForm}${inlineClass}`}>
+        <span className={inline ? styles.inlineLabel : legendClass}>{legend}</span>
         <select
           value={value}
           onChange={(event) => onChange(event.target.value as T)}
@@ -89,7 +95,7 @@ export function RadioRow<T extends string>({
     )
     // The note stays out of the label, so it never joins the select's name.
     return note ? (
-      <div className={`${styles.fieldset} ${styles.selectForm}`}>
+      <div className={`${styles.fieldset} ${styles.selectForm}${inlineClass}`}>
         {select}
         {noteLine}
       </div>
@@ -98,13 +104,18 @@ export function RadioRow<T extends string>({
     )
   }
   return (
-    <fieldset className={styles.fieldset} data-wide={wide || undefined}>
-      <legend className={legendClass}>{legend}</legend>
+    <fieldset className={`${styles.fieldset}${inlineClass}`} data-wide={wide || undefined}>
+      <legend className={inline ? 'visually-hidden' : legendClass}>{legend}</legend>
+      {inline && (
+        <span className={styles.inlineLabel} aria-hidden="true">
+          {legend}
+        </span>
+      )}
       <span
         className={styles.row}
         style={{ '--options': options.length } as CSSProperties}
         data-wide={wide || undefined}
-        data-size={size}
+        data-size={inline ? 'small' : size}
       >
         {options.map((option) => (
           <label

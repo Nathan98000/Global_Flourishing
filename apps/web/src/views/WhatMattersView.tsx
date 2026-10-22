@@ -17,6 +17,7 @@ import type { EstimateResponse, EstimateRow, Meta, Stat, VariableSummary } from 
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
 import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
@@ -57,6 +58,7 @@ import {
   splitGroupOrder,
 } from './whatMattersRows'
 import styles from './AtlasView.module.css'
+import { keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/what-matters')
 
@@ -350,13 +352,15 @@ export function WhatMattersView() {
   const itemLevel = search.level ?? itemLevels[0]?.value
   const itemLevelLabel = itemLevels.find((level) => level.value === itemLevel)?.label
   const itemSubtitle = item
-    ? `${
+    ? stateLine(
         itemStat === 'proportion'
           ? itemLevelLabel
             ? `share answering “${itemLevelLabel}”`
             : 'weighted share'
-          : scaleSubtitle(item, itemStat, itemDetail)
-      } · ${MIDYEAR_TITLE}`
+          : scaleSubtitle(item, itemStat, itemDetail),
+        MIDYEAR_TITLE,
+        orderPhrase(qdir),
+      )
     : ''
   const itemResponse = itemQuery.results[0]?.response
 
@@ -480,6 +484,14 @@ export function WhatMattersView() {
                   title={`${countryName(splitCountry)}: what matters most`}
                   subtitle={rankingSubtitle}
                   ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, most important first, ${MIDYEAR_TITLE}.${countryItemsSummary}`}
+                  chartKey={
+                    <ChartKey
+                      mark="dot"
+                      label="mean"
+                      color={outcomeColor(first.name)}
+                      ciLevel={keyCiLevel(countryItems)}
+                    />
+                  }
                   csv={csvFor(countryItemsResponse, countryItemsName)}
                   exportName={countryItemsName}
                   isRefreshing={rankingQuery.isPlaceholderData}
@@ -545,20 +557,6 @@ export function WhatMattersView() {
             />
           </div>
           <div className={styles.controls}>
-            {itemStat === 'proportion' && itemLevels.length > 0 && (
-              <RadioRow
-                legend="Showing % who said"
-                name="item-level"
-                wide
-                selectOnNarrow
-                options={itemLevels.map((entry) => ({
-                  value: String(entry.value),
-                  label: entry.label,
-                }))}
-                value={String(itemLevel)}
-                onChange={(value) => setSearch({ level: Number(value) })}
-              />
-            )}
             <RadioRow
               legend="Order"
               name="qdir"
@@ -586,6 +584,30 @@ export function WhatMattersView() {
                     <WordingPanel detail={itemDetail} />
                   </div>
                 )
+              }
+              toolbar={
+                itemStat === 'proportion' &&
+                itemLevels.length > 0 && (
+                  <RadioRow
+                    legend="Showing % who said"
+                    name="item-level"
+                    inline
+                    options={itemLevels.map((entry) => ({
+                      value: String(entry.value),
+                      label: entry.label,
+                    }))}
+                    value={String(itemLevel)}
+                    onChange={(value) => setSearch({ level: Number(value) })}
+                  />
+                )
+              }
+              chartKey={
+                <ChartKey
+                  mark={itemStat === 'proportion' ? 'bar' : 'dot'}
+                  label={itemStat === 'proportion' ? 'share' : 'mean'}
+                  color={outcomeColor(item.name)}
+                  ciLevel={keyCiLevel(itemRows)}
+                />
               }
               csv={csvFor(
                 { ...itemResponse, rows: itemRows },

@@ -1679,12 +1679,15 @@ describe('Correlates view', () => {
     expect(correlates.every((url) => !url.includes('adjusted'))).toBe(true)
   })
 
-  test('one shared row: Wave · Country · Correlation type, and the wave’s reason under it all', async () => {
+  test('one shared row: Year · Where, the wave’s reason under it all; Measured as in the chart’s toolbar', async () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
-    await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
+    const figure = await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
     const wave = screen.getByRole('group', { name: 'Year' })
+    const where = screen.getByLabelText('Where')
+    // How the chart is drawn lives in its header's toolbar (ADR-0029).
     const type = screen.getByRole('group', { name: 'Measured as' })
+    expect(figure.closest('figure')?.querySelector('[data-toolbar]')).toContainElement(type)
     expect(within(type).getByLabelText('Straight-line')).toBeChecked()
     expect(screen.queryByRole('button', { name: /^Method/ })).toBeNull()
     // The reason a wave is unavailable is one line under the whole row,
@@ -1694,7 +1697,7 @@ describe('Correlates view', () => {
       "2024 isn't available: the two questions weren't both asked in 2024.",
     )
     expect(wave).not.toContainElement(note)
-    expect(note.previousElementSibling).toContainElement(type)
+    expect(note.previousElementSibling).toContainElement(where)
     expect(within(wave).getByLabelText('2024')).toHaveAccessibleDescription(note.textContent ?? '')
     expect(within(wave).getByLabelText('2023')).not.toHaveAccessibleDescription()
     // "What's the difference?" opens a note in plain words; Escape closes it.

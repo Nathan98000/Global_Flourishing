@@ -26,6 +26,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
 import { Histogram } from '../charts/Histogram'
 import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
@@ -48,6 +49,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -237,18 +239,17 @@ export function ChangeView() {
     variable && variable.min !== null && variable.max !== null
       ? ` on the ${variable.min}–${variable.max} scale`
       : ''
-  const subtitle = isCategorical
-    ? [
-        `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`,
-        directionNote,
-        pair,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : [
-        `Mean change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
-        pair,
-      ].join(' · ')
+  // The state, in the controls' words (ADR-0029): the countries, the
+  // order.
+  const subtitle = stateLine(
+    isCategorical
+      ? `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`
+      : `Mean change${range}, among the same people`,
+    directionNote,
+    pair,
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    orderPhrase(dir),
+  )
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
   // What a download is called, in words (ADR-0016): the measure, the
   // figure ("Change", "Change distribution", "Transitions") and the
@@ -281,27 +282,25 @@ export function ChangeView() {
       onChange={(countries) => setSearch({ countries })}
     />
   )
+  // How the chart is drawn, in its header's toolbar (ADR-0029).
+  const chartControls = isCategorical && levels.length > 0 && (
+    <RadioRow
+      legend="Showing % who said"
+      name="level"
+      inline
+      options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+      value={String(activeLevel)}
+      onChange={(value) => setSearch({ level: Number(value) })}
+    />
+  )
   const displayOptions = (
-    <>
-      {isCategorical && levels.length > 0 && (
-        <RadioRow
-          legend="Showing % who said"
-          name="level"
-          wide
-          selectOnNarrow
-          options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-          value={String(activeLevel)}
-          onChange={(value) => setSearch({ level: Number(value) })}
-        />
-      )}
-      <RadioRow
-        legend="Order"
-        name="dir"
-        options={VALUE_ORDER}
-        value={dir}
-        onChange={(value) => setSearch({ dir: value })}
-      />
-    </>
+    <RadioRow
+      legend="Order"
+      name="dir"
+      options={VALUE_ORDER}
+      value={dir}
+      onChange={(value) => setSearch({ dir: value })}
+    />
   )
 
   return (
@@ -359,7 +358,7 @@ export function ChangeView() {
         )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — answer, order, countries</summary>
+            <summary>More options — order, countries</summary>
             <div className={styles.moreBody}>
               {countryFilter}
               {displayOptions}
@@ -418,6 +417,15 @@ export function ChangeView() {
                 </div>
               )
             }
+            toolbar={chartControls}
+            chartKey={
+              <ChartKey
+                mark="dot"
+                label={isCategorical ? 'change in share' : 'mean change'}
+                color={color}
+                ciLevel={keyCiLevel(display.rows)}
+              />
+            }
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
@@ -438,6 +446,14 @@ export function ChangeView() {
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
                 ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
+                chartKey={
+                  <ChartKey
+                    mark="bar"
+                    label="share of people"
+                    color={color}
+                    ciLevel={keyCiLevel(distribution)}
+                  />
+                }
                 csv={csvFor(distribution, nameFor('Change distribution'))}
                 exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}

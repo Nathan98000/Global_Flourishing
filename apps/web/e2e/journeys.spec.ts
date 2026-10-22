@@ -67,7 +67,7 @@ test('1 — Atlas: change the question through the picker and the year, share th
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   // The subtitle carries the rest, wave last (§7).
   await expect(
-    caption(page).getByText('Mean score, 0–10 · 2023', {
+    caption(page).getByText('Mean score, 0–10 · 2023 · all countries · highest first', {
       exact: true,
     }),
   ).toBeVisible()
@@ -223,7 +223,9 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
 })
 
-test('4 — CSV export downloads with the # meta header lines', async ({ page }) => {
+test('4 — CSV export downloads from the chart header’s Download menu with the # meta header lines', async ({
+  page,
+}) => {
   // With no API running, this exercises the client-side fallback, which
   // is byte-compatible with /v1/export.csv (unit-tested against a real
   // server response).
@@ -231,8 +233,10 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2023/)).toBeVisible()
 
+  // One "Download" in the chart's header (ADR-0029): CSV, then PNG.
+  await page.getByRole('button', { name: 'Download', exact: true }).click()
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'CSV' }).click()
+  await page.getByRole('button', { name: 'Download CSV' }).click()
   const download = await downloadPromise
   // The name in words (ADR-0016): display name, view, wave — no code, no version.
   expect(download.suggestedFilename()).toBe('flourish-atlas_happiness_by-country_2023.csv')
@@ -464,7 +468,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/state weights · 2023/)).toBeVisible()
+  // The subtitle carries the state in the controls' words (ADR-0029).
+  await expect(caption(page).getByText(/· 2023$/)).toBeVisible()
   await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
   await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
   // The map's own topology arrives as a lazy asset, never in the initial route.
@@ -480,9 +485,9 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('table')).toHaveCount(0)
-  // No line under the chart (ADR-0024); the subtitle names the weights.
+  // No line under the chart (ADR-0024); the subtitle says the order.
   await expect(page.getByText(/weighted so each/)).toHaveCount(0)
-  await expect(page.locator('figcaption').getByText(/state weights/)).toBeVisible()
+  await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()
   // The US overall figure's label sits above the chart, clear of every
   // row, value and tick.
   const chart = page.getByRole('img', { name: /Happiness by US state/ })

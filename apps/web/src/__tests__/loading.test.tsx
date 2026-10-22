@@ -110,12 +110,12 @@ describe('ChartFigure while refetching', () => {
     expect(chart).toHaveAttribute('data-refreshing', 'true')
     // No loading block ever replaces the figure…
     expect(screen.queryByRole('status')).toBeNull()
-    expect(container.querySelector('[class*="bar"]')).toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).toBeNull()
     act(() => vi.advanceTimersByTime(PROGRESS_AFTER_MS))
-    expect(container.querySelector('[class*="bar"]')).not.toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).not.toBeNull()
     // …and the bar leaves with the refetch.
     fireEvent.click(screen.getByRole('button', { name: 'settle' }))
-    expect(container.querySelector('[class*="bar"]')).toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).toBeNull()
     expect(chart).not.toHaveAttribute('data-refreshing')
   })
 })

@@ -21,6 +21,7 @@ import type {
 } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { ChartKey } from '../../charts/ChartKey'
 import { CorrelationStrip } from '../../charts/CorrelationStrip'
 import {
   CrossTab,
@@ -80,6 +81,7 @@ import {
   type ViewProps,
 } from './shared'
 import styles from '../AtlasView.module.css'
+import { keyCiLevel } from '../viewState'
 import own from './Correlates.module.css'
 
 export function ComparePair({
@@ -91,6 +93,7 @@ export function ComparePair({
   countryName,
   apiReachable,
   controls,
+  chartControls,
 }: ViewProps) {
   const aName = firstQuestion(search)
   const bName = secondQuestion(search)
@@ -229,6 +232,7 @@ export function ComparePair({
             method={search.method}
             isRefreshing={across.isPlaceholderData}
             served={served}
+            toolbar={chartControls}
             header={
               <HeaderRow>
                 {chosenRow ? (
@@ -258,6 +262,7 @@ export function ComparePair({
           other={otherWave}
           isRefreshing={pair.isPlaceholderData}
           served={served}
+          toolbar={chartControls}
           header={
             <HeaderRow>
               <CorrelationStrip
@@ -318,6 +323,7 @@ function PairFigure({
   other,
   isRefreshing,
   served,
+  toolbar,
   header,
 }: {
   pair: PairResponse
@@ -331,6 +337,8 @@ function PairFigure({
   other: OtherWave | undefined
   isRefreshing: boolean
   served: Meta
+  /** The correlation type, for the chart's toolbar. */
+  toolbar: ReactNode
   header: ReactNode
 }) {
   const aShort = yearTagged(shortName(a), a, wave, other)
@@ -407,6 +415,7 @@ function PairFigure({
       ariaLabel={ariaLabel}
       intro={header}
       legend={<ShareLegend />}
+      toolbar={toolbar}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), pairToCsv(pair)),
@@ -441,6 +450,7 @@ function EveryCountry({
   method,
   isRefreshing,
   served,
+  toolbar,
   header,
 }: {
   a: VariableSummary
@@ -455,6 +465,8 @@ function EveryCountry({
   method: 'spearman' | undefined
   isRefreshing: boolean
   served: Meta
+  /** The correlation type, for the chart's toolbar. */
+  toolbar: ReactNode
   header: ReactNode
 }) {
   const narrow = useMediaQuery(NARROW_VIEWPORT)
@@ -500,6 +512,15 @@ function EveryCountry({
       subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
       ariaLabel={ariaLabel}
       intro={header}
+      toolbar={toolbar}
+      chartKey={
+        <ChartKey
+          mark="dot"
+          label="correlation"
+          color={signMark(1)}
+          ciLevel={keyCiLevel(sorted.rows)}
+        />
+      }
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(sorted)),

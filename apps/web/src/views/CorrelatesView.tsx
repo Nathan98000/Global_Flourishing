@@ -211,9 +211,10 @@ export function CorrelatesView() {
     waveNote(WAVES.filter(open), inView.who)
   )
 
-  // One row — Year · Where · Measured as, each under its label — and,
-  // under the whole row, why a wave is unavailable. On a phone, one line
-  // says what the three are set to, with "Change" to open them.
+  // One row — Year · Where, each under its label — and, under the whole
+  // row, why a wave is unavailable; the correlation type is the chart's
+  // (its toolbar). On a phone, one line says what they are set to, with
+  // "Change" to open them.
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
   const summary = [WAVE_CHIPS[search.wave] ?? search.wave, whereLabel, method?.label]
     .filter(Boolean)
@@ -267,26 +268,6 @@ export function CorrelatesView() {
             ))}
           </select>
         </label>
-        <div className={own.typeCell}>
-          <RadioRow<CorrelationMethod>
-            legend="Measured as"
-            name="method"
-            options={METHOD_OPTIONS}
-            value={search.method ?? 'pearson'}
-            onChange={(value) =>
-              setSearch({ method: value === 'spearman' ? 'spearman' : undefined })
-            }
-          />
-          <Disclosure variant="info" label="What’s the difference?">
-            {METHOD_DIFFERENCE.map((paragraph, index) => (
-              <p key={index} className={styles.methodHint}>
-                {paragraph.map((words, at) =>
-                  typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
-                )}
-              </p>
-            ))}
-          </Disclosure>
-        </div>
       </div>
       {/* Why a year is unavailable, or what happens at Midyear — else
           what the midyear survey is. */}
@@ -301,6 +282,30 @@ export function CorrelatesView() {
     </div>
   )
 
+  // How the chart is drawn, in its header's toolbar (ADR-0029): the
+  // correlation type, with what tells the two apart.
+  const chartControls = (
+    <span className={own.typeCell}>
+      <RadioRow<CorrelationMethod>
+        legend="Measured as"
+        name="method"
+        inline
+        options={METHOD_OPTIONS}
+        value={search.method ?? 'pearson'}
+        onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
+      />
+      <Disclosure variant="info" label="What’s the difference?">
+        {METHOD_DIFFERENCE.map((paragraph, index) => (
+          <p key={index} className={styles.methodHint}>
+            {paragraph.map((words, at) =>
+              typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
+            )}
+          </p>
+        ))}
+      </Disclosure>
+    </span>
+  )
+
   const props: ViewProps = {
     search,
     setSearch,
@@ -310,6 +315,7 @@ export function CorrelatesView() {
     countryName,
     apiReachable: boot.apiReachable,
     controls,
+    chartControls,
     onTable: setTable,
   }
 

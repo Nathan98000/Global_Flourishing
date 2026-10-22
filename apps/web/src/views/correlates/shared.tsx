@@ -31,9 +31,12 @@ export interface ViewProps {
   /** Its name — "All countries" for the average. */
   countryName: string
   apiReachable: boolean
-  /** The shared row — wave, country, correlation type — which each view
-   * places under its own question sentence. */
+  /** The shared row — Year, Where — which each view places under its own
+   * question sentence. */
   controls: ReactNode
+  /** How the chart is drawn — the correlation type — for each chart's
+   * toolbar (ADR-0029). */
+  chartControls: ReactNode
   /** Compare several reports the questions its table shows (its default
    * table's, before any is named): the wave row reads them. */
   onTable?: (names: readonly string[]) => void

@@ -325,7 +325,7 @@ describe('Change view', () => {
     // Yes is the better end of a lower_better item: a rise in "Yes" is better…
     expect(
       within(caption).getByText(
-        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024',
+        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024 · all countries · highest first',
       ),
     ).toBeInTheDocument()
     // …and a rise in "No", the other end, is worse.
@@ -334,7 +334,7 @@ describe('Change view', () => {
     )
     expect(
       await within(caption).findByText(
-        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024',
+        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024 · all countries · highest first',
       ),
     ).toBeInTheDocument()
   })
