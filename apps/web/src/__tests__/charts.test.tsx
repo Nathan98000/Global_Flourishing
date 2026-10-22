@@ -18,14 +18,8 @@ import {
 } from '../charts/theme'
 import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
-import {
-  LABEL_CAP,
-  RankedBar,
-  rankEntries,
-  readableRowName,
-  textMeasurer,
-  wrapLabel,
-} from '../charts/RankedBar'
+import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
+import { readableRowName } from '../charts/readableRows'
 import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
 import {
@@ -60,25 +54,30 @@ const rows = [
   }),
 ]
 
-/** A text's y in the SVG: the translate() of it and of its ancestors —
- * Plot positions axis labels through nested transforms. */
+/** A text's y in the outermost SVG: the translate() of it and of its
+ * ancestors — Plot positions axis labels through nested transforms — and
+ * the place of a plot nested in another (a Segments panel). */
 function absoluteY(node: Element): number {
-  let y = 0
-  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
-    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
-    if (match) y += Number(match[2])
-  }
-  return y
+  return absolute(node, 2, 'y')
 }
 
-/** A text's x in the SVG, like absoluteY. */
+/** A text's x in the outermost SVG, like absoluteY. */
 function absoluteX(node: Element): number {
-  let x = 0
-  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+  return absolute(node, 1, 'x')
+}
+
+function absolute(node: Element, group: 1 | 2, attribute: 'x' | 'y'): number {
+  let at = 0
+  for (let el: Element | null = node; el; el = el.parentElement) {
+    if (el.tagName === 'svg') {
+      if (el.parentElement?.closest('svg') == null) break
+      at += Number(el.getAttribute(attribute) ?? 0)
+      continue
+    }
     const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
-    if (match) x += Number(match[1])
+    if (match) at += Number(match[group])
   }
-  return x
+  return at
 }
 
 /** A tick label's horizontal extent: about 6.6 px a glyph of the 11 px

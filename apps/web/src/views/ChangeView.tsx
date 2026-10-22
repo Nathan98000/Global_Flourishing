@@ -463,6 +463,8 @@ export function ChangeView() {
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
+            // Its rows are read by keyboard (ADR-0032, ADR-0033).
+            interactive
           >
             <ChangeDots
               rows={display.rows}

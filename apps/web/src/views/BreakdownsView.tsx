@@ -511,6 +511,8 @@ export function BreakdownsView() {
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
+                // Each panel's groups are read by keyboard (ADR-0032, ADR-0033).
+                interactive
               >
                 <SmallMultiples
                   rows={displayRows}

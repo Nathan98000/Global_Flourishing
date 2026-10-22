@@ -6,15 +6,27 @@
 // Midyear, Midyear → 2024, 2023 → 2024), each with its own zero rule.
 // Rows arrive ordered (sortRows.ts — the CSV's order); every cell is
 // shown (ADR-0011): a row with no interval draws its dot alone.
+// A keyboard reads the rows one by one, as on the ranked charts
+// (readableRows.ts, ADR-0032): each country named with its change, its
+// card on focus; the pointer keeps Plot's own tip.
 
 import * as Plot from '@observablehq/plot'
+import { useRef } from 'react'
 import type { ChangeLeg } from '../api/change'
 import type { EstimateRow, Meta } from '../api/types'
 import { formatValueLabel } from '../format'
 import { groupValueLabel } from '../labels'
 import { legTitle } from '../waves'
-import { dotMarks, type DotEntry } from './DotPlot'
+import { dotMarks, dotTip, type DotEntry } from './DotPlot'
 import { ciExtents, fittedScale } from './domain'
+import {
+  plotRow,
+  readableRowName,
+  rowFocus as newRowFocus,
+  withReadableRows,
+  type ReadableRow,
+  type RowFocus,
+} from './readableRows'
 import {
   FACET_PADDING,
   FONT_FAMILY,
@@ -22,6 +34,7 @@ import {
   INK_SECONDARY,
   MIN_ROWS,
   ROW_HEIGHT,
+  isThin,
   plotCI,
   plotValue,
   starValue,
@@ -93,6 +106,7 @@ export function ChangeDots({
   /** The widest the change can be (see `changeBounds`). */
   bounds?: readonly [number, number]
 }) {
+  const focus = useRef<RowFocus>(newRowFocus())
   const container = usePlot(
     (available) => {
       const entries = changeEntries(rows, meta)
@@ -105,7 +119,7 @@ export function ChangeDots({
       const marginLeft = narrow ? 112 : 128
       const marginRight = faceted ? 24 : narrow ? 60 : 72
       const [lo, hi] = scale.domain
-      return Plot.plot({
+      const plot = Plot.plot({
         // Never shorter than four rows: the ticks clear the first row and
         // the zero rule is never a stub.
         // The axis sits close under the chart's header (F19): 34 px for its
@@ -164,6 +178,34 @@ export function ChangeDots({
               ]),
         ],
       })
+      // The rows in reading order: country by country, and in a
+      // three-point panel each period left to right.
+      const facets = faceted ? legs.map(legTitle) : ['']
+      const readable = countryDomain.flatMap((country) =>
+        facets.flatMap((facet): ReadableRow[] => {
+          const entry = entries.find(
+            (candidate) => candidate.level === country && candidate.facet === facet,
+          )
+          if (!entry) return []
+          const printed =
+            entry.row.estimate === null
+              ? null
+              : formatValueLabel(entry.row.estimate, entry.row.stat)
+          return [
+            {
+              key: `${country}\u0000${facet}`,
+              name: readableRowName(
+                facet ? `${country}, ${facet}` : country,
+                printed,
+                isThin(entry.row),
+              ),
+              tip: dotTip(entry),
+              geometry: plotRow(plot, country, entry.value ?? lo, faceted ? { fx: facet } : {}),
+            },
+          ]
+        }),
+      )
+      return withReadableRows(plot, readable, focus.current)
     },
     [rows, meta, color, countryDomain, legs, bounds],
   )

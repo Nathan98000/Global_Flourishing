@@ -53,12 +53,10 @@ async function serveApi(page: Page, routes: Record<string, unknown>) {
 
 const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage/i
 
-// The Atlas's ranked chart is a group, its rows read by keyboard
-// (ADR-0032); Segments' panels are an image.
+// The Atlas's ranked chart and Segments' panels are groups, their rows
+// read by keyboard (ADR-0032, ADR-0033).
 const chartRegion = (page: Page) =>
-  page
-    .getByRole('group', { name: /by country/ })
-    .or(page.getByRole('img', { name: /panel per country/ }))
+  page.getByRole('group', { name: /by country|panel per country/ })
 // The chart title is the measure alone since §7 (the wave rides last in
 // the subtitle), so title assertions scope to the figure's caption — the
 // bare measure name also labels the question picker's button.
@@ -343,7 +341,7 @@ test('7 — Change with a country where fewer people answered again: the interva
       .first()
       .getByText(/2023 → 2024/),
   ).toBeVisible()
-  const figure = page.getByRole('img', { name: /mean change among the same people/ })
+  const figure = page.getByRole('group', { name: /mean change among the same people/ })
   await expect(figure).toBeVisible()
 
   // The withdrawn sentence is absent, and nothing shaped like it.
@@ -1414,6 +1412,44 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   await page.keyboard.press('ArrowDown')
   await expect(pinned).toBeVisible()
   await expect(states.getByRole('tooltip')).not.toContainText(someState)
+
+  // Change reads the same way (H2, ADR-0033): each country named with its
+  // change, its card on focus.
+  await serveApi(page, { '/v1/change': apiFixture('change-HAPPY-Y1-Y2.json') })
+  await page.goto('/change?outcome=HAPPY')
+  const change = page.getByRole('group', { name: /mean change among the same people/ })
+  const changeRows = change.getByRole('listitem')
+  await expect(changeRows.first()).toBeAttached()
+  expect(await changeRows.first().getAttribute('aria-label')).toMatch(/^[^,]+, [+−]\d+\.\d\d/)
+  await page.getByRole('button', { name: /Mean change, highest first/ }).focus()
+  await page.keyboard.press('Tab')
+  await expect(changeRows.first()).toBeFocused()
+  await expect(change.getByRole('tooltip')).toContainText(/95% CI: \[.+\]/)
+  await page.keyboard.press('ArrowDown')
+  await expect(changeRows.nth(1)).toBeFocused()
+
+  // Segments by gender: one tab stop for every panel; ↑ ↓ within a
+  // country, Page Down to the next; the card names the country and group.
+  await page.goto('/segments?outcome=HAPPY&by=gender')
+  const segments = page.getByRole('group', { name: /panel per country/ })
+  const panels = segments.getByRole('list')
+  await expect(panels.first()).toBeAttached()
+  expect(await panels.count()).toBeGreaterThanOrEqual(2)
+  const firstCountry = (await panels.first().getAttribute('aria-label')) ?? ''
+  const secondCountry = (await panels.nth(1).getAttribute('aria-label')) ?? ''
+  // Into the chart from the link just above it (the question's wording).
+  await page.getByRole('link', { name: /The exact question and answers/ }).focus()
+  await page.keyboard.press('Tab')
+  await expect(panels.first().getByRole('listitem').first()).toBeFocused()
+  const segmentCard = segments.getByRole('tooltip')
+  await expect(segmentCard).toContainText(firstCountry)
+  await expect(segmentCard).toContainText('Gender:')
+  await expect(segmentCard).toContainText(/95% CI: (\[.+\]|none)/)
+  await page.keyboard.press('ArrowDown')
+  await expect(panels.first().getByRole('listitem').nth(1)).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect(panels.nth(1).getByRole('listitem').nth(1)).toBeFocused()
+  await expect(segmentCard).toContainText(secondCountry)
 })
 
 async function streamToString(download: {

@@ -406,7 +406,9 @@ test("Segments' spoken summary names its extreme groups with their values (H2)",
     ),
   })
   await renderAt('/segments?by=gender')
-  const chart = await screen.findByRole('img', { name: /one panel per country, a row per gender/ })
+  const chart = await screen.findByRole('group', {
+    name: /one panel per country, a row per gender/,
+  })
   // The highest and lowest cell, each by its country and group.
   expect(chart.getAttribute('aria-label')).toMatch(
     /a row per gender\. Highest: United States, Male 8\.30; lowest: Testland, Female 6\.10\.$/,
