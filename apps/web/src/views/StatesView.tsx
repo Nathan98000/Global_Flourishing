@@ -9,7 +9,7 @@
 // absent.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useId, useMemo } from 'react'
+import { Suspense, lazy, useId, useMemo, useState } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimates } from '../api/estimates'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -48,6 +48,9 @@ import { keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
 
+/** The one US figure's name, on the chart's line and above it (F14). */
+const US_OVERALL = 'United States overall'
+
 const route = getRouteApi('/states')
 
 export function StatesView() {
@@ -59,6 +62,8 @@ export function StatesView() {
   const boot = useBootStatus()
   const health = useHealth()
   const adjReasonId = useId()
+  // Find a state: the state picked out, until cleared.
+  const [found, setFound] = useState<string | undefined>()
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
@@ -211,18 +216,28 @@ export function StatesView() {
     waveTitle,
     search.view === 'bars' && orderPhrase(dir),
   )
+  // One US figure (F14): the whole US on the states' own weight, the
+  // line the states are read against.
   const reference: Reference | undefined =
     overallRow && overallRow.estimate !== null
-      ? { value: plotValue(overallRow) as number, label: 'US overall (state weights)' }
+      ? { value: plotValue(overallRow) as number, label: US_OVERALL }
       : undefined
+  // The national-weight figure — the Atlas's — waits in a fold, its CI
+  // and n intact.
   const nationalNote =
     nationalRow && nationalRow.estimate !== null
-      ? `On the national weight, the US overall figure is ${formatEstimate(nationalRow.estimate, nationalRow.stat)}${
+      ? `On the national weight — the Atlas's, made for the country as a whole — the United States overall is ${formatEstimate(nationalRow.estimate, nationalRow.stat)}${
           nationalRow.ci_lo !== null && nationalRow.ci_hi !== null
-            ? ` ${formatCI(nationalRow)} (${ciLabel(nationalRow.ci_level)})`
+            ? ` (${ciLabel(nationalRow.ci_level)}: ${formatCI(nationalRow)})`
             : ''
         }, based on ${people(nationalRow.n)}.`
       : undefined
+  // The states this chart has, by the server's names (a list to pick
+  // from, A–Z — not a sort).
+  const stateOptions = [...new Set(displayRows.map((row) => String(row.group['state'] ?? '')))]
+    .filter(Boolean)
+    .map((code) => ({ code, name: stateName(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
   const extremes = (() => {
     const valid = displayRows.filter((row) => row.estimate !== null)
     if (valid.length === 0) return 'No estimates to show.'
@@ -272,6 +287,19 @@ export function StatesView() {
           onChange={(value) => setSearch({ level: Number(value) })}
         />
       )}
+      {/* Find a state (F1): picked out on the map and the chart, its card
+          held open — view state, not data, so not in the URL. */}
+      <label className={inline ? styles.inlineField : styles.field}>
+        <span className={styles.fieldLabel}>Find a state</span>
+        <select value={found ?? ''} onChange={(event) => setFound(event.target.value || undefined)}>
+          <option value="">None</option>
+          {stateOptions.map((state) => (
+            <option key={state.code} value={state.code}>
+              {state.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {/* The switch with its reason in view when it is off (F6). */}
       <span className={styles.switch} data-inline={inline || undefined}>
         <label className={styles.oriented}>
@@ -395,10 +423,19 @@ export function StatesView() {
                 )}
                 {overallRow && (
                   <p className={styles.national}>
-                    US overall (state weights): <StatLine row={overallRow} />
+                    {US_OVERALL}: <StatLine row={overallRow} />
                   </p>
                 )}
-                {nationalNote && <p className={styles.national}>{nationalNote}</p>}
+                {nationalNote && (
+                  <details className={styles.fold}>
+                    <summary>Why two US figures?</summary>
+                    <p>
+                      The states are estimated on weights made for each state, so the United States
+                      overall above is on the same weights — the figure to read them against.{' '}
+                      {nationalNote}
+                    </p>
+                  </details>
+                )}
               </>
             }
             toolbar={narrow ? undefined : chartControls(true)}
@@ -442,6 +479,7 @@ export function StatesView() {
                   meta={served}
                   variable={variable}
                   answer={isCategorical ? levelLabel : undefined}
+                  found={found}
                 />
               </Suspense>
             ) : (
@@ -454,6 +492,8 @@ export function StatesView() {
                 levelLabel={levelLabel}
                 labelColumn="state"
                 reference={reference}
+                highlightOf={(row) => found !== undefined && row.group['state'] === found}
+                pinnedOf={(row) => found !== undefined && row.group['state'] === found}
               />
             )}
           </ChartFigure>

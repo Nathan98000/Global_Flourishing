@@ -363,11 +363,11 @@ describe('what-matters order (ADR-0029)', () => {
 })
 
 describe('states search (Phase 5)', () => {
-  test('defaults are the index on the map at Wave 1, nothing in the URL', () => {
+  test('defaults are the index on the chart at 2023, nothing in the URL (ADR-0030)', () => {
     const search = parseStatesSearch({})
     expect(search.outcome).toBe('sfi')
     expect(search.wave).toBe('Y1')
-    expect(search.view).toBe('map')
+    expect(search.view).toBe('bars')
     expect(stringifySearch(statesSearchParams(search))).toBe('')
     expect(statesRequest(search, sfiVariable)).toEqual({
       outcome: 'sfi',
@@ -378,9 +378,9 @@ describe('states search (Phase 5)', () => {
   })
 
   test('adj round-trips on Wave 2 and is rejected on Wave 1 (no such weight)', () => {
-    const y2 = parseStatesSearch({ wave: 'Y2', adj: 'true', view: 'bars' })
+    const y2 = parseStatesSearch({ wave: 'Y2', adj: 'true', view: 'map' })
     expect(y2.adj).toBe(true)
-    expect(stringifySearch(statesSearchParams(y2))).toBe('?wave=Y2&adj=true&view=bars')
+    expect(stringifySearch(statesSearchParams(y2))).toBe('?wave=Y2&adj=true&view=map')
     expect(statesRequest(y2, sfiVariable).adj).toBe(true)
     const y1 = parseStatesSearch({ adj: 'true' })
     expect(y1.adj).toBeUndefined()
@@ -393,8 +393,21 @@ describe('states search (Phase 5)', () => {
     expect(search.sort).toBe('estimate')
     expect(search.dir).toBeUndefined()
     expect(search.invalid).toBeUndefined()
-    expect(stringifySearch(statesSearchParams(search))).toBe('?view=bars')
+    // The chart is the default now: an old view=bars link drops it.
+    expect(stringifySearch(statesSearchParams(search))).toBe('')
     expect(parseStatesSearch({ dir: 'asc' }).dir).toBe('asc')
+  })
+})
+
+describe('states view default (ADR-0030)', () => {
+  test('no view opens the chart; an old view=map link keeps the map; view=bars still opens the chart', () => {
+    expect(parseStatesSearch({}).view).toBe('bars')
+    const map = parseStatesSearch(parseSearchString('?outcome=HAPPY&view=map'))
+    expect(map).toMatchObject({ view: 'map', invalid: undefined })
+    expect(stringifySearch(statesSearchParams(map))).toBe('?outcome=HAPPY&view=map')
+    const bars = parseStatesSearch(parseSearchString('?outcome=HAPPY&view=bars'))
+    expect(bars).toMatchObject({ view: 'bars', invalid: undefined })
+    expect(stringifySearch(statesSearchParams(bars))).toBe('?outcome=HAPPY')
   })
 })
 

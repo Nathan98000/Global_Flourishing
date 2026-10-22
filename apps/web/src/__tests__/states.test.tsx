@@ -316,7 +316,7 @@ describe('US States view', () => {
     expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
     const value = screen.getByRole('columnheader', { name: /^Mean/ })
     fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?view=bars&dir=asc'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
     cleanup()
     await renderAt('/states?view=map')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
@@ -339,23 +339,33 @@ describe('US States view', () => {
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
     fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&view=bars'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
   })
 
-  test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
+  test('the map view (an old view=map link): states beside one US figure; the national one in a fold', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/states')
+    await renderAt('/states?view=map')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     expect(figure).toBeInTheDocument()
-    // The header line is the whole US on the state weight; the national
-    // figure follows it, in words.
-    expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
+    // One US figure (F14): the whole US on the state weight, by name.
+    expect(await screen.findByText(/^United States overall:/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
     // The n, and no weight code: the weighting is said in words.
     expect(screen.getByText('based on 38,142 people')).toBeInTheDocument()
-    expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
+    expect(screen.queryByText(/US overall \(state weights\)/)).toBeNull()
+    // The national-weight figure waits in a fold, its CI and n intact.
+    const fold = screen.getByText('Why two US figures?').closest('details') as HTMLElement
+    expect(fold).not.toHaveAttribute('open')
     expect(
-      screen.getByText(/On the national weight, the US overall figure is 7\.21 \[7\.10, 7\.32\]/),
+      within(fold).getByText(
+        /the United States overall is 7\.21 \(95% CI: \[7\.10, 7\.32\]\), based on 38,299 people\./,
+      ),
+    ).toBeInTheDocument()
+    // The legend row says what the colours can't, beside the ramp.
+    expect(
+      await screen.findByText(
+        /Smaller states rest on fewer people — the Chart shows each state’s 95% CI/,
+      ),
     ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y1&stat=mean'))).toBe(true)
     expect(
@@ -422,12 +432,51 @@ describe('US States view', () => {
     expect(calls.some((url) => url.includes('wave=Y1') && url.includes('adj=true'))).toBe(false)
   })
 
-  test('the chart view sorts states and draws the national rule', async () => {
+  test('with no view the page opens on the chart: each state by value, the US line labelled (ADR-0030)', async () => {
     mockFetch(tier)
-    await renderAt('/states?view=bars&sort=name')
+    const router = await renderAt('/states')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(router.state.location.searchStr).toBe('')
+    expect(
+      within(screen.getByRole('group', { name: 'View' })).getByLabelText('Chart'),
+    ).toBeChecked()
     const text = figure.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('US overall (state weights)')
-    expect(text.indexOf('California')).toBeLessThan(text.indexOf('Texas'))
+    expect(text).toContain('United States overall')
+    // By value, highest first: Vermont (7.40) before California.
+    expect(text.indexOf('Vermont')).toBeLessThan(text.indexOf('California'))
+  })
+
+  test('Find a state picks it out on the chart and the map and holds its card open, until cleared', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states')
+    const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    const find = screen.getByLabelText('Find a state') as HTMLSelectElement
+    // The server's state names, a list to pick from.
+    expect([...find.options].map((option) => option.textContent)).toEqual([
+      'None',
+      'California',
+      'New York',
+      'Texas',
+      'Vermont',
+    ])
+    fireEvent.change(find, { target: { value: 'TX' } })
+    // The chart: its row picked out, its card open with no pointer.
+    // (The pointer's own tip is an empty group until hovered.)
+    const tips = (root: Element) =>
+      [...root.querySelectorAll('g[aria-label="tip"]')].map((tip) => tip.textContent).join('|')
+    await waitFor(() => expect(tips(figure)).toContain('Texas'))
+    expect(figure.innerHTML).toContain('var(--control-selected)')
+    // View state, not data: the URL is unchanged.
+    expect(router.state.location.searchStr).toBe('')
+    // The map: the same state outlined in ink, its card open too.
+    fireEvent.click(within(screen.getByRole('group', { name: 'View' })).getByLabelText('Map'))
+    await screen.findByText('no estimate')
+    const map = screen.getByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await waitFor(() => expect(tips(map)).toContain('Texas'))
+    expect(map.innerHTML).toContain('stroke="var(--ink)"')
+    // Cleared: no card held, no outline.
+    fireEvent.change(screen.getByLabelText('Find a state'), { target: { value: '' } })
+    await waitFor(() => expect(tips(map)).not.toContain('Texas'))
+    expect(map.innerHTML).not.toContain('stroke="var(--ink)"')
   })
 })

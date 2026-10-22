@@ -12,6 +12,7 @@ import { groupValueLabel } from '../labels'
 import { mapDomain, quantizeColor } from './mapScale'
 import {
   FONT_FAMILY,
+  INK,
   INK_SECONDARY,
   MAP_EMPTY,
   MAP_EMPTY_OUTLINE,
@@ -38,10 +39,13 @@ export function StateChoropleth({
   meta,
   variable,
   answer,
+  found,
 }: {
   rows: EstimateRow[]
   responseMeta: ResponseMeta
   features: UsFeature[]
+  /** A state picked out (Find a state): an ink outline, its card open. */
+  found?: string
   /** For the server's state names. */
   meta: Meta
   /** The measure, for its scale in the hover cards ("on a 0–10 scale"). */
@@ -60,6 +64,7 @@ export function StateChoropleth({
       const tipOf = (entry: StateEntry): string =>
         stateTipText(entry, meta, { answer, range: variable })
       const empty = entries.filter((entry) => entry.value === null)
+      const picked = entries.filter((entry) => found !== undefined && entry.code === found)
       return Plot.plot({
         width,
         height: Math.round((width * 450) / 720),
@@ -88,10 +93,26 @@ export function StateChoropleth({
             strokeWidth: 0.8,
             pointerEvents: 'none',
           }),
+          // A found state: outlined in ink, its card pinned open.
+          Plot.geo(picked, {
+            geometry: (entry: StateEntry) => entry.feature,
+            fill: 'none',
+            stroke: INK,
+            strokeWidth: 2,
+            pointerEvents: 'none',
+          }),
+          Plot.tip(
+            picked,
+            Plot.geoCentroid({
+              geometry: (entry: StateEntry) => entry.feature,
+              title: tipOf,
+              ...TIP_OPTIONS,
+            }),
+          ),
         ],
       })
     },
-    [rows, responseMeta, features, meta, variable, answer],
+    [rows, responseMeta, features, meta, variable, answer, found],
   )
 
   return <div ref={container} />

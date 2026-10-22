@@ -466,7 +466,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 })
 
-test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({
+test('9 — US States: opens on the chart beside one US figure, finds a state, and the map loads its own topology chunk', async ({
   page,
 }) => {
   await serveApi(page, {
@@ -476,30 +476,32 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  // The subtitle carries the state in the controls' words (ADR-0029).
-  await expect(caption(page).getByText(/· 2023$/)).toBeVisible()
-  await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
-  await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
-  // The map's own topology arrives as a lazy asset, never in the initial route.
-  const figure = page.getByRole('img', { name: /Happiness by US state/ })
-  await expect(figure).toBeVisible()
-  await expect(figure.locator('svg path').first()).toBeVisible()
-  await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
-  // Adjusted weights are unavailable on Wave 1, with the reason.
-  await expect(page.getByLabel(/Adjust for who answered in each state/)).toBeDisabled()
-  await expect(page.getByText(/no adjusted state weight for 2023/)).toBeVisible()
-  // The chart view and the table carry the server's state codes.
-  await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
-  await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
+  // The chart by default (ADR-0030): each state's interval; the subtitle
+  // carries the state in the controls' words (ADR-0029).
+  const chart = page.getByRole('img', { name: /Happiness by US state/ })
+  await expect(chart).toBeVisible()
+  await expect(page.getByRole('group', { name: 'View' }).getByLabel('Chart')).toBeChecked()
+  await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()
+  // One US figure (F14): "United States overall", its CI and n above the
+  // chart and on its line; the national weight's figure in a fold.
+  await expect(page.getByText(/^United States overall:/)).toBeVisible()
+  await expect(page.getByText(/US overall \(state weights\)/)).toHaveCount(0)
+  const fold = page.locator('details', { hasText: 'Why two US figures?' })
+  await expect(fold.getByText(/the United States overall is/)).toBeHidden()
+  await fold.getByText('Why two US figures?').click()
+  await expect(
+    fold.getByText(/the United States overall is .* based on [\d,]+ people\./),
+  ).toBeVisible()
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('cell')).toHaveCount(0)
-  // No line under the chart (ADR-0024); the subtitle says the order.
+  // No line under the chart (ADR-0024).
   await expect(page.getByText(/weighted so each/)).toHaveCount(0)
-  await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()
-  // The US overall figure's label sits above the chart, clear of every
-  // row, value and tick.
-  const chart = page.getByRole('img', { name: /Happiness by US state/ })
-  const LABEL = 'US overall (state weights)'
+  // Adjusted weights are unavailable in 2023, with the reason in view.
+  await expect(page.getByLabel(/Adjust for who answered in each state/)).toBeDisabled()
+  await expect(page.getByText(/no adjusted state weight for 2023/)).toBeVisible()
+  // The US figure's label sits above the chart, clear of every row,
+  // value and tick.
+  const LABEL = 'United States overall'
   const box = await chart.locator('svg text', { hasText: LABEL }).boundingBox()
   expect(box).not.toBeNull()
   const overlaps: string[] = []
@@ -515,6 +517,25 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
     if (!clear) overlaps.push(text || 'a mark')
   }
   expect(overlaps).toEqual([])
+  // Find a state (F1): its row picked out, its card held open — the URL
+  // unchanged.
+  const find = page.getByLabel('Find a state')
+  const someState = (await find.locator('option').nth(1).textContent()) ?? ''
+  await find.selectOption({ index: 1 })
+  await expect(chart.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
+  await expect(page).toHaveURL(/\/states\?outcome=HAPPY$/)
+  // The map, one click away: its own topology arrives as a lazy asset,
+  // never in the initial route; the found state outlined, its card open.
+  await page.getByRole('group', { name: 'View' }).getByText('Map', { exact: true }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&view=map$/)
+  const map = page.getByRole('img', { name: /Happiness by US state/ })
+  await expect(map.locator('svg path').first()).toBeVisible()
+  await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(/Smaller states rest on fewer people — the Chart shows each state’s 95% CI/),
+  ).toBeVisible()
+  await expect(map.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
+  await expect(map.locator('[stroke="var(--ink)"]').first()).toBeAttached()
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */

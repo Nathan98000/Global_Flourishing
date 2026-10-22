@@ -613,10 +613,13 @@ export interface StatesSearch {
   invalidRaw?: RawParams
 }
 
+/** US States opens on the Chart — each state's interval beside the US
+ * figure — with the Map one click away (F1, ADR-0030): a `view=map` link
+ * keeps the map; a link without `view` now shows the chart. */
 export const STATES_DEFAULTS = {
   outcome: 'sfi',
   wave: 'Y1' as Wave,
-  view: 'map' as const,
+  view: 'bars' as const,
   sort: 'estimate' as const,
 }
 

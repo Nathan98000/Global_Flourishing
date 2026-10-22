@@ -192,6 +192,7 @@ export function RankedBar({
   tipOf,
   flagOf,
   highlightOf,
+  pinnedOf,
   onSelectRow,
   rowName,
   tagOf,
@@ -239,6 +240,8 @@ export function RankedBar({
   /** The row to pick out (the chosen country): a band behind it, label
    * and all, and its dot in ink. */
   highlightOf?: (row: EstimateRow) => boolean
+  /** A row whose hover card stays open (US States' Find a state). */
+  pinnedOf?: (row: EstimateRow) => boolean
   /** Rows are choices: each row, label or dot, is a button. */
   onSelectRow?: (row: EstimateRow) => void
   /** A row button's accessible name. */
@@ -520,6 +523,7 @@ export function RankedBar({
             }),
             ...ends.marks,
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
+            ...pinnedTip(entries, tip, pinnedOf, lo),
             ...referenceMarks(scale.domain),
           ],
         })
@@ -579,6 +583,7 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
+          ...pinnedTip(entries, tip, pinnedOf, 0),
           ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
         ],
       })
@@ -605,6 +610,7 @@ export function RankedBar({
       tipOf,
       flagOf,
       highlightOf,
+      pinnedOf,
       onSelectRow,
       rowName,
       tagOf,
@@ -612,6 +618,28 @@ export function RankedBar({
   )
 
   return <div ref={container} />
+}
+
+/** A hover card that stays open on its row (no pointer needed), until
+ * the row is no longer pinned. */
+function pinnedTip(
+  entries: Entry[],
+  tip: (entry: Entry) => string,
+  pinnedOf: ((row: EstimateRow) => boolean) | undefined,
+  fallback: number,
+) {
+  if (!pinnedOf) return []
+  const pinned = entries.filter((entry) => pinnedOf(entry.row))
+  if (pinned.length === 0) return []
+  return [
+    Plot.tip(pinned, {
+      y: 'label',
+      x: (entry: Entry) => entry.value ?? fallback,
+      title: tip,
+      anchor: 'left',
+      ...TIP_OPTIONS,
+    }),
+  ]
 }
 
 /** Plot's own pointer tip, for charts whose rows are not buttons. */
