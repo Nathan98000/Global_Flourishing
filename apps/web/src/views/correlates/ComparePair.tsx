@@ -241,7 +241,10 @@ export function ComparePair({
                     row={chosenRow}
                     scope={countryName}
                     flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
-                    ends={axisEnds(yearTagged(shortName(a), a, search.wave, otherWave))}
+                    ends={axisEnds(
+                      yearTagged(shortName(a), a, search.wave, otherWave),
+                      yearTagged(shortName(b), b, search.wave, otherWave),
+                    )}
                   />
                 ) : null}
               </HeaderRow>
@@ -271,7 +274,10 @@ export function ComparePair({
                 row={pair.data.correlation}
                 scope={countryName}
                 flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
-                ends={axisEnds(yearTagged(shortName(a), a, search.wave, otherWave))}
+                ends={axisEnds(
+                  yearTagged(shortName(a), a, search.wave, otherWave),
+                  yearTagged(shortName(b), b, search.wave, otherWave),
+                )}
               />
             </HeaderRow>
           }

@@ -260,11 +260,18 @@ export const CORRELATION_SCALE = {
   narrowTicks: [-1, 0, 1],
 }
 
-/** The words under the axis's two ends (Find related): the question's
- * answers, never the question as a quantity (review L2). */
-export function axisEnds(short: string): [string, string] {
-  return [`← goes with lower answers to ${short}`, `goes with higher answers to ${short} →`]
+/** The words at a correlation scale's two ends, naming both questions
+ * (G9): "← higher answers to {other} go with lower answers to {short}" —
+ * the questions' answers, never a question as a quantity (review L2). */
+export function axisEnds(short: string, other: string): [string, string] {
+  return [
+    `← higher answers to ${other} go with lower answers to ${short}`,
+    `higher answers to ${other} go with higher answers to ${short} →`,
+  ]
 }
+
+/** Find related's other question: the one in each row. */
+export const ROW_QUESTION = 'the question in the row'
 
 /** A correlation's hover card (ADR-0022): what it is — a question, a
  * country, a cell — then the signed value, with its asterisk when few

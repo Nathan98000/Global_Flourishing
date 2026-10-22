@@ -149,6 +149,11 @@
   margin: var(--space-2) 0 0;
 }
 
+/* Find related's direction words, above its list (G9). */
+.listEnds {
+  margin: 0 0 var(--space-3);
+}
+
 .wording {
   margin-bottom: var(--space-3);
 }

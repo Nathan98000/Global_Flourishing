@@ -14,6 +14,7 @@ import type { Country, EstimateResponse, EstimateRow } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
 import { ChartKey } from '../../charts/ChartKey'
+import { DirectionEnds } from '../../charts/CorrelationStrip'
 import { RankedBar } from '../../charts/RankedBar'
 import { divergingTint, signMark } from '../../charts/theme'
 import { HeatTable } from '../../charts/HeatTable'
@@ -34,6 +35,7 @@ import {
   NO_ESTIMATE,
   acrossSubtitle,
   askedInTooFew,
+  ROW_QUESTION,
   axisEnds,
   belowFloor,
   fewPeople,
@@ -228,6 +230,10 @@ export function FindRelated({
                       <WordingPanel detail={detail} />
                     </div>
                   )}
+                  {/* Which way is which, above the list as under it (G9). */}
+                  <div className={styles.listEnds}>
+                    <DirectionEnds ends={axisEnds(short, ROW_QUESTION)} />
+                  </div>
                 </>
               }
               csv={csvFor(rankedResponse, rankedName)}
@@ -245,7 +251,7 @@ export function FindRelated({
                 zeroRule
                 labelFontSize={narrow ? 12 : 13.5}
                 fixedScale={CORRELATION_SCALE}
-                axisEnds={axisEnds(short)}
+                axisEnds={axisEnds(short, ROW_QUESTION)}
                 fitLabels
                 stackOnNarrow
                 tipOf={(row, label) =>
