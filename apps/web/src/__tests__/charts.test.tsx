@@ -381,6 +381,43 @@ describe('RankedBar', () => {
     expect(screen.getByRole('tooltip')).toBeInTheDocument()
   })
 
+  test("on a phone a row's card rises over it when under it would run off the screen (H18)", () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    // The chart sits low on an 800 px screen; the card is wider than the
+    // room beside any mark, so it goes over or under its row.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ top: 700, width: 300, height: 0 }) as DOMRect)
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(400)
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(80)
+    vi.stubGlobal('innerHeight', 800)
+    try {
+      render(
+        <RankedBar
+          rows={rows}
+          meta={metaWithHK}
+          responseMeta={testResponseMeta()}
+          variable={happyVariable}
+          color="var(--sfi-happiness)"
+        />,
+      )
+      const first = screen.getAllByRole('listitem')[0] as HTMLElement
+      act(() => first.focus())
+      expect(parseFloat(screen.getByRole('tooltip').style.top)).toBeLessThan(0)
+    } finally {
+      rect.mockRestore()
+      width.mockRestore()
+      height.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   test('quantile rows render without whiskers (no CIs yet, per METHODS)', () => {
     const medianRows = [
       testRow({ stat: 'quantile', p: 0.5, ci_lo: null, ci_hi: null, se: null, estimate: 7 }),
@@ -517,6 +554,27 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     expect(within(chart).queryByRole('tooltip')).toBeNull()
     // The buttons carry the tip; Plot's pointer tip is not drawn twice.
     expect(container.querySelector('[aria-label="tip"]')).toBeNull()
+  })
+
+  test('the row buttons are one tab stop, ↑ ↓ Home End between them (H18)', () => {
+    render(
+      <div role="group" aria-label="chart">
+        <RankedBar {...props} onSelectRow={() => undefined} />
+      </div>,
+    )
+    const buttons = within(screen.getByRole('group', { name: 'chart' })).getAllByRole('button')
+    expect(buttons.map((button) => button.tabIndex)).toEqual([0, -1, -1])
+    const [first, second, last] = buttons as [HTMLElement, HTMLElement, HTMLElement]
+    act(() => first.focus())
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(second).toHaveFocus()
+    expect(buttons.map((button) => button.tabIndex)).toEqual([-1, 0, -1])
+    fireEvent.keyDown(second, { key: 'End' })
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last, { key: 'Home' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first, { key: 'ArrowUp' })
+    expect(first).toHaveFocus()
   })
 
   test('on a phone each label sits on its own line over a full-width dot track, three ticks', () => {

@@ -406,9 +406,10 @@ describe('Change view', () => {
     mockFetch(tier)
     const router = await renderAt('/change?outcome=HAPPY')
     await screen.findByRole('group', { name: /mean change among the same people/ })
-    const value = screen.getByRole('columnheader', { name: /^Mean change/ })
-    expect(value).toHaveAttribute('aria-sort', 'descending')
-    fireEvent.click(within(value).getByRole('button'))
+    // A button that says what it does and the order (H16): no one-row
+    // table over the chart.
+    expect(screen.queryByRole('columnheader')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean change, highest first' }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&dir=asc'))
     expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
   })
@@ -416,7 +417,7 @@ describe('Change view', () => {
   test('the question bar: Question, then Countries — the years are fixed (ADR-0029)', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('button', { name: 'Question: Happiness' })
+    await screen.findByRole('button', { name: 'Question: Happiness — change' })
     expect(barLabels()).toEqual(['Question', 'Countries'])
   })
 
@@ -442,7 +443,7 @@ describe('Change view', () => {
     // The one picker (ADR-0029): Loneliness (asked once) stays in view,
     // disabled, with the reason in words; the counts count what Change
     // can compare.
-    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness — change' }))
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     const lonely = within(dialog).getByRole('option', { name: /^Loneliness/ })
     expect(lonely).toHaveAttribute('aria-disabled', 'true')

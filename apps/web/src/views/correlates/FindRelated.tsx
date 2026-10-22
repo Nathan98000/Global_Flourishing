@@ -158,7 +158,8 @@ export function FindRelated({
   return (
     <>
       <div className={own.sentenceRow}>
-        <p className={own.sentence}>
+        {/* A div, not a <p>: its picker opens a panel inside it (H18). */}
+        <div className={own.sentence}>
           What goes with{' '}
           <span className={own.sentenceEnd}>
             <QuestionPicker
@@ -181,7 +182,7 @@ export function FindRelated({
             />
             ?
           </span>
-        </p>
+        </div>
       </div>
       {controls}
       {problem ? (

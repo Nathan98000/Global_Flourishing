@@ -27,6 +27,7 @@
 }
 
 .title {
+  margin: 0;
   font-family: var(--font-serif);
   font-weight: 600;
   font-size: var(--text-h1);
@@ -207,6 +208,13 @@
 /* A matrix that may leave the text column scrolls in its own box. */
 .chart[data-wide] {
   overflow-x: visible;
+}
+
+/* Rows a keyboard reads: their card may rise over the chart's top edge
+   (a phone's first row, H18) — the plot never runs wider than the column,
+   and a grid among them scrolls in its own box. */
+.chart[data-interactive] {
+  overflow: visible;
 }
 
 /* Every numeric surface is tabular (§2): value labels and axis ticks. */

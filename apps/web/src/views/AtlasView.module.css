@@ -239,7 +239,8 @@
 .stepTicks {
   display: grid;
   grid-template-columns: repeat(7, 30px) 0;
-  font-size: 11px;
+  /* The type scale's least step, as all HTML text (H17). */
+  font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
 

@@ -282,7 +282,9 @@ export function ChartFigure({
     <figure ref={figureRef} className={styles.figure} aria-busy={isRefreshing || undefined}>
       {showProgress && <ProgressBar className={styles.progress} />}
       <figcaption className={styles.caption}>
-        <span className={styles.title}>{title}</span>
+        {/* A heading (H16): a screen reader's list of headings lands on
+            every chart. */}
+        <h3 className={styles.title}>{title}</h3>
         {shownSubtitle && <span className={styles.subtitle}>{capitalize(shownSubtitle)}</span>}
       </figcaption>
       {/* One row under the title (G4): how it's drawn on the left; the
@@ -335,6 +337,7 @@ export function ChartFigure({
         aria-label={ariaLabel}
         className={styles.chart}
         data-chart=""
+        data-interactive={interactive || undefined}
         data-refreshing={isRefreshing || undefined}
         data-wide={wide || undefined}
       >

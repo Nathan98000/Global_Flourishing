@@ -414,7 +414,9 @@ describe('What Matters view', () => {
     expect(matrix).toHaveAttribute('data-fixed')
     expect(matrix.getAttribute('style')).toContain('--heat-column: 98px')
     expect(
-      screen.getByText('How important, 0–10 · Midyear survey, Nov 2023–Dec 2024'),
+      screen.getByText(
+        'How important, 0–10 · Midyear survey, Nov 2023–Dec 2024 · all countries · by “Money”, highest first',
+      ),
     ).toBeInTheDocument()
     // Highest first by the first column, the first item in the server's
     // order (ADR-0029).
@@ -510,7 +512,10 @@ describe('What Matters view', () => {
     ).toEqual(['By country', 'Within a country', 'Other questions'])
     expect(within(views).getByRole('radio', { name: 'By country' })).toBeChecked()
     expect(screen.queryByRole('navigation', { name: 'On this page' })).toBeNull()
-    expect(screen.queryByRole('heading', { level: 3 })).toBeNull()
+    // The one h3 is the chart's own title (H16).
+    expect(
+      screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent),
+    ).toEqual(['What matters most, by country'])
     // One figure on screen; the other views mount nothing and fetch
     // nothing — static requests only for the midyear cross-sections.
     expect(document.querySelectorAll('figure')).toHaveLength(1)
@@ -554,7 +559,9 @@ describe('What Matters view', () => {
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
     // The one question picker (ADR-0029), over this view's own questions:
     // the midyear survey's chartable ones; a pick writes `item`.
-    const question = screen.getByRole('button', { name: 'Question: Daily social media time' })
+    const question = screen.getByRole('button', {
+      name: 'Question: Daily social media time — change',
+    })
     fireEvent.click(question)
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     expect(
@@ -747,17 +754,13 @@ describe('What Matters view', () => {
     expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
     expect(screen.queryByText('A–Z')).toBeNull()
-    // The value column's label: the statistic's own word, a sort button.
-    const head = screen.getByRole('columnheader', { name: /^Share/ })
-    expect(head).toHaveAttribute('aria-sort', 'descending')
-    fireEvent.click(within(head).getByRole('button', { name: 'Share, highest first' }))
+    // The value column's label: the statistic's own word, a sort button
+    // that says its order (H16).
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Share, highest first' }))
     await waitFor(() =>
       expect(router.state.location.href).toBe('/what-matters?view=questions&sort=MONEY&qdir=asc'),
     )
-    expect(screen.getByRole('columnheader', { name: /^Share/ })).toHaveAttribute(
-      'aria-sort',
-      'ascending',
-    )
+    expect(screen.getByRole('button', { name: 'Sort: Share, lowest first' })).toBeInTheDocument()
   })
 
   test('Within a country: the United States by default, its age bands as the matrix’s rows', async () => {

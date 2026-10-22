@@ -148,18 +148,23 @@ export function rowLayer(drawing: Element) {
     const room = wrap.clientWidth || Number(drawing.getAttribute('width')) || 0
     // Beside the mark, level with its row — to the right when it fits,
     // else to the left — so the card never covers the rows above (F22);
-    // over or under the row when neither side holds it (a phone).
+    // over or under the row when neither side holds it (a phone): over it
+    // where the chart has the room, else under it — unless under runs off
+    // the screen and over doesn't, as the first row's card did (H18).
     const level = Math.max(0, top + step / 2 - height / 2)
     const above = top - height - 4
+    const below = top + step + 4
+    const onScreen = wrap.getBoundingClientRect().top
+    const vertical =
+      above >= 0 || (onScreen + below + height > window.innerHeight && onScreen + above >= 0)
+        ? above
+        : below
     const [left, cardTop] =
       mark + TIP_GAP + width <= room
         ? [mark + TIP_GAP, level]
         : mark - TIP_GAP - width >= 0
           ? [mark - TIP_GAP - width, level]
-          : [
-              Math.max(0, Math.min(mark - width / 2, room - width)),
-              above >= 0 ? above : top + step + 4,
-            ]
+          : [Math.max(0, Math.min(mark - width / 2, room - width)), vertical]
     tipBox.style.left = `${left}px`
     tipBox.style.top = `${cardTop}px`
     row.setAttribute('aria-describedby', tipBox.id)

@@ -1,8 +1,9 @@
 // The lazy US map chunk: the states topology (~36 KB gz) and the state
 // choropleth load only when the map view is opened — never in the
 // initial route. Its legend row says, beside the ramp, what the colours
-// can't show (F1): smaller states rest on fewer people, and the Chart
-// draws each state's interval.
+// can't show (F1): smaller states rest on fewer people, and the chart
+// draws each state's interval; a thin state's dashed outline, when there
+// is one (H17).
 
 import { useEffect, useState } from 'react'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
@@ -12,6 +13,7 @@ import { loadUsStateFeatures, type UsFeature } from '../charts/usTopology'
 import { Skeleton } from '../components/Skeleton'
 import styles from './AtlasView.module.css'
 import { ciLabel, isShareStat } from '../format'
+import { keyThinBelow } from './viewState'
 
 export default function StatesMapPanel({
   rows,
@@ -63,9 +65,10 @@ export default function StatesMapPanel({
         <MapLegend
           domain={mapDomain(rows, responseMeta)}
           isShare={isShareStat(responseMeta.stat)}
+          thinBelow={keyThinBelow(rows, meta.suppression)}
         />
         <span className={styles.legendNote}>
-          Smaller states rest on fewer people — the Chart shows each state&rsquo;s{' '}
+          Smaller states rest on fewer people — the chart shows each state&rsquo;s{' '}
           {ciLabel(meta.ci_level)}
         </span>
       </div>

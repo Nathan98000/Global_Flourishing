@@ -316,14 +316,13 @@ describe('US States view', () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars')
     await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
-    const value = screen.getByRole('columnheader', { name: /^Mean/ })
-    fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
+    expect(screen.getByText('State', { selector: '[data-sort-names]' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean, highest first' }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
     cleanup()
     await renderAt('/states?view=map')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.queryByRole('columnheader')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Sort: / })).toBeNull()
   })
 
   test('the question bar: Question, then Year (ADR-0029)', async () => {
@@ -345,7 +344,7 @@ describe('US States view', () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars&level=2')
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }),
+      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
@@ -375,7 +374,7 @@ describe('US States view', () => {
     // The legend row says what the colours can't, beside the ramp.
     expect(
       await screen.findByText(
-        /Smaller states rest on fewer people — the Chart shows each state’s 95% CI/,
+        /Smaller states rest on fewer people — the chart shows each state’s 95% CI/,
       ),
     ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y1&stat=mean'))).toBe(true)

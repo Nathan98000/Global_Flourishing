@@ -350,7 +350,9 @@ export function QuestionPicker(props: QuestionPickerProps) {
           className={styles.fieldTrigger}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label={`${label}: ${name}`}
+          // Its visible "Change" in its name (H16, WCAG 2.5.3): a voice
+          // user saying "click Change" reaches it.
+          aria-label={`${label}: ${name} — change`}
           onClick={() => setOpen((was) => !was)}
         >
           {/* The name alone, wrapping, never cut short (G13): the chart's

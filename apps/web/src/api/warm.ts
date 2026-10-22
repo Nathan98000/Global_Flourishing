@@ -1,31 +1,13 @@
 // Warm the live instance (Phase 5, owner decision 1): the four API-only
-// views fire one GET /health the moment their route mounts — fire and
-// forget, errors ignored, one ping per route entry — so a cold Cloud Run
-// start overlaps with the visitor choosing their options instead of
-// following it. Never on the Atlas, which is served statically (its
-// boot ping lives in useBootStatus). Concurrent entries share one
-// in-flight request.
+// views make sure the health check has gone out the moment their route
+// mounts, so a cold Cloud Run start overlaps with the visitor choosing
+// their options instead of following it. The check is the boot's own
+// (useHealth, which the shell's nav reads on every page): one /health per
+// page load, never a second request beside it (H18).
 
-import { useEffect } from 'react'
-import { API_BASE_URL } from '../config'
+import { useHealth } from './meta'
 
-let inFlight: Promise<void> | null = null
-
-export function warmApi(): Promise<void> {
-  if (inFlight) return inFlight
-  const ping = fetch(`${API_BASE_URL}/health`).then(
-    () => undefined,
-    () => undefined,
-  )
-  inFlight = ping.finally(() => {
-    inFlight = null
-  })
-  return inFlight
-}
-
-/** Mount-time warm-up for an API-only route. */
+/** Mount-time warm-up for an API-only route: the shared health check. */
 export function useWarmApi(): void {
-  useEffect(() => {
-    void warmApi()
-  }, [])
+  useHealth()
 }

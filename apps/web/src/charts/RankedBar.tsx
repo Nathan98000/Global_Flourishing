@@ -419,7 +419,7 @@ export function RankedBar({
         emphasizeTurns(plot)
         muteTags(plot, tags)
         return interactive
-          ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
+          ? withRowButtons(plot, entries, tip, onSelectRow, rowFocus.current, rowName)
           : readRows(plot, entries, tip, lo, rowFocus.current, nameOf, pinnedOf)
       }
 
@@ -568,7 +568,7 @@ export function RankedBar({
         emphasizeTurns(plot)
         muteTags(plot, tags)
         return interactive
-          ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
+          ? withRowButtons(plot, entries, tip, onSelectRow, rowFocus.current, rowName)
           : readRows(plot, entries, tip, lo, rowFocus.current, nameOf, pinnedOf)
       }
 
@@ -841,20 +841,28 @@ function emphasizeTurns(plot: Element): void {
   }
 }
 
-/** The rows as real buttons over the plot, in row order for the
- * keyboard; the card follows hover and focus. */
+/** The rows as real buttons over the plot, in row order; the card
+ * follows hover and focus. One tab stop for them all — the row the
+ * reader last left, else the first — ↑ ↓ Home End to move it, Enter or
+ * Space to choose (H18, ADR-0032's pattern). */
 function withRowButtons(
   plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
   entries: Entry[],
   tip: (entry: Entry) => string,
   onSelect: (row: EstimateRow) => void,
+  focus: RowFocus,
   nameOf?: (row: EstimateRow, label: string) => string,
 ): HTMLElement {
   const rows = rowLayer(plot)
-  for (const entry of entries) {
+  const start = Math.max(
+    0,
+    entries.findIndex((entry) => entry.label === focus.active),
+  )
+  const buttons = entries.map((entry, index) => {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = styles.row ?? ''
+    button.tabIndex = index === start ? 0 : -1
     const geometry = plotRow(plot, entry.label, entry.value ?? 0)
     rows.place(button, geometry)
     button.setAttribute('aria-label', nameOf ? nameOf(entry.row, entry.label) : entry.label)
@@ -862,11 +870,34 @@ function withRowButtons(
     const hide = () => rows.hide(button)
     button.addEventListener('pointerenter', show)
     button.addEventListener('pointerleave', hide)
-    button.addEventListener('focus', show)
+    button.addEventListener('focus', () => {
+      focus.active = entry.label
+      for (const other of buttons) other.tabIndex = other === button ? 0 : -1
+      show()
+    })
     button.addEventListener('blur', hide)
     button.addEventListener('click', () => onSelect(entry.row))
     rows.layer.append(button)
-  }
+    return button
+  })
+  rows.layer.addEventListener('keydown', (event) => {
+    const at = buttons.indexOf(event.target as HTMLButtonElement)
+    if (at < 0) return
+    const last = buttons.length - 1
+    const to =
+      event.key === 'ArrowDown'
+        ? Math.min(at + 1, last)
+        : event.key === 'ArrowUp'
+          ? Math.max(at - 1, 0)
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : undefined
+    if (to === undefined) return
+    event.preventDefault()
+    buttons[to]?.focus()
+  })
   return rows.wrap
 }
 

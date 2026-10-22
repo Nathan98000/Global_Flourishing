@@ -286,7 +286,8 @@ export function AtlasView() {
       : allAnswers
         ? 'share giving each answer'
         : stat === 'distribution'
-          ? undefined
+          ? // The statistic first, as every subtitle has it (H17).
+            'share of people at each answer'
           : variable
             ? scaleSubtitle(variable, stat, detail)
             : undefined

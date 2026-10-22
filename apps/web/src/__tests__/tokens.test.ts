@@ -145,6 +145,9 @@ describe.each([['light', light]] as const)('%s theme', (theme, vars) => {
 
   test('focus ring is visible (3:1 non-text)', () => {
     assertContrast(vars, '--focus-ring', '--page', 3, theme)
+    // A choosable cell's ring: teal round a paper ring, so it reads on the
+    // deepest tints as on the page (H18).
+    assertContrast(vars, '--focus-ring', '--surface', 3, theme)
   })
 
   test('an unavailable option’s dashed outline is visible on the control tint (3:1 non-text)', () => {

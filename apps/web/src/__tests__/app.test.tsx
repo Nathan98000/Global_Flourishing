@@ -302,7 +302,9 @@ test('the one question picker: closed, the question and its wording; open, topic
   const router = await renderAt('/?level=2')
   // Closed: one button — the short name in bold and "Change" (the chart
   // under it gives the wording, G13); its name says what it is.
-  const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
+  const trigger = await screen.findByRole('button', {
+    name: 'Question: Secure Flourishing Index — change',
+  })
   expect(trigger).toHaveTextContent(/^Secure Flourishing IndexChange$/)
   expect(screen.queryByLabelText('Topic')).toBeNull()
   expect(screen.queryByLabelText('Measure')).toBeNull()
@@ -327,7 +329,7 @@ test('the one question picker: closed, the question and its wording; open, topic
   await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Question: Happiness' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Question: Happiness — change' })).toHaveFocus()
 })
 
 test('the question bar: the same order on every page — what, then when and where (ADR-0029)', async () => {
@@ -351,7 +353,9 @@ test('the question bar: the same order on every page — what, then when and whe
 test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {
   mockFetch(staticTier)
   const router = await renderAt('/?topic=wellbeing')
-  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
+  )
   const dialog = screen.getByRole('dialog', { name: 'Question' })
   expect(within(dialog).getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
     'aria-selected',
@@ -366,7 +370,9 @@ test('a topic in the URL opens the picker on that topic; a pick clears it', asyn
 test('Segments has the same picker; a pick keeps the split', async () => {
   mockFetch(staticTier)
   const router = await renderAt('/segments?by=gender')
-  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
+  )
   const dialog = screen.getByRole('dialog', { name: 'Question' })
   fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
   fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
@@ -382,7 +388,7 @@ test("the Atlas says what changed: the subtitle's words and a count of countries
     'Updated: Secure Flourishing Index — mean score, 0–10 · 2023 · all countries · highest first. 2 countries.',
   )
   // Reversing the order changes the words, so a listener hears it.
-  fireEvent.click(screen.getByRole('button', { name: /Mean, highest first/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean, highest first' }))
   await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
   await waitFor(() => expect(status.textContent).toContain('· lowest first. 2 countries.'))
   cleanup()
@@ -880,7 +886,7 @@ test('the chart header: the state in the subtitle, the key, and a toolbar — Sh
   await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
 })
 
-test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
+test('the codebook table wears topic names, hides the Chartable header, links "Chart it" by question (§6, H16)', async () => {
   mockFetch(staticTier)
   await renderAt('/codebook')
   await screen.findByText(/\d+ questions/)
@@ -889,7 +895,12 @@ test('the codebook table wears topic names, hides the Chartable header, links "C
   expect(screen.queryByText('wellbeing')).toBeNull()
   // The header text survives for screen readers (visually hidden).
   expect(screen.getByText('Chartable')).toBeInTheDocument()
-  expect(screen.getAllByRole('link', { name: 'Chart it →' }).length).toBeGreaterThan(0)
+  // Each "Chart it →" is named by its question, not 161 times the same.
+  expect(screen.getByRole('link', { name: 'Chart it: Happiness' })).toHaveTextContent('Chart it →')
+  expect(screen.queryByRole('link', { name: 'Chart it →' })).toBeNull()
+  // The page's title is its h2 (one h1 per page: the wordmark).
+  expect(screen.getByRole('heading', { level: 2, name: 'Codebook' })).toBeInTheDocument()
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
 })
 
 function stubViewport(matcher: (query: string) => boolean) {
@@ -994,19 +1005,20 @@ test('on a phone the secondary three nav items collapse behind "More" (type unch
   expect(within(nav).getByRole('link', { name: 'Atlas' }).closest('details')).toBeNull()
 })
 
-test('entering an API-only view fires one warm-up ping; the Atlas does not', async () => {
+test('one /health per page load: an API-only view warms the instance with the boot check itself (H18)', async () => {
   const atlasCalls = mockFetch(staticTier)
   await renderAt('/')
   await screen.findAllByText(/rate their own lives/)
   await waitFor(() => expect(atlasCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
+  cleanup()
 
   const changeCalls = mockFetch(staticTier)
   await renderAt('/change')
   expect(await screen.findByRole('heading', { name: 'Change' })).toBeInTheDocument()
-  // The boot ping (useBootStatus) plus the route's own warm-up.
-  await waitFor(() =>
-    expect(changeCalls.filter((url) => url.endsWith('/health')).length).toBeGreaterThanOrEqual(2),
-  )
+  // The boot check is the warm-up: no second request beside it.
+  await waitFor(() => expect(changeCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(changeCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1)
   // The outage banner is scoped to data views: the new routes count.
   expect(screen.queryByText(/Every view on this deployment/)).toBeNull()
 })

@@ -283,6 +283,8 @@ describe('Disclosure (H12)', () => {
       </>,
     )
     const button = screen.getByRole('button', { name: 'What’s the difference?' })
+    // Its "i" is a glyph, not a word of its name (H16).
+    expect(button.querySelector('[aria-hidden="true"]')).toHaveTextContent('i')
     fireEvent.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'true')
     fireEvent.keyDown(document.body, { key: 'Escape' })

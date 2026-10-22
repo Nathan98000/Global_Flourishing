@@ -69,7 +69,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--ink-secondary);
-  font-size: 0.6em;
+  /* Never under the type scale's least step (H17). */
+  font-size: max(var(--text-xs), 0.6em);
   font-weight: 550;
   line-height: 1.5;
 }
@@ -549,7 +550,8 @@
   grid-column: 1;
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 1.0625rem;
+  /* On the type scale (H17): the deck's step. */
+  font-size: var(--text-deck);
   font-weight: 600;
   line-height: 1.3;
 }

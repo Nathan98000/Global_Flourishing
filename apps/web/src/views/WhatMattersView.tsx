@@ -299,7 +299,24 @@ export function WhatMattersView() {
   const first = ranking[0]
   // The scale, said once (the columns drop "Importance:").
   const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
-  const rankingSubtitle = `How important${range ? `, ${range}` : ''} · ${MIDYEAR_TITLE}`
+  // Every subtitle in one order (H17): statistic and scale · year · place
+  // · order.
+  const importance = `How important${range ? `, ${range}` : ''}`
+  const sortedItem = ranking.find((entry) => entry.name === matrixSort)
+  const rankingSubtitle = stateLine(
+    importance,
+    MIDYEAR_TITLE,
+    'all countries',
+    sortedItem && `by “${itemLabel(sortedItem)}”, ${orderPhrase(dir)}`,
+  )
+  const withinPlace = splitCountry !== undefined ? countryName(splitCountry) : undefined
+  const countryItemsSubtitle = stateLine(
+    importance,
+    MIDYEAR_TITLE,
+    withinPlace,
+    'most important first',
+  )
+  const splitSubtitle = stateLine(importance, MIDYEAR_TITLE, withinPlace)
   // The lede names the items from the catalog, in column order.
   const things = ranking.length === 1 ? 'one thing is' : `${countWord(ranking.length)} things are`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
@@ -458,6 +475,7 @@ export function WhatMattersView() {
               hint="Select a column’s label to sort by it, and again to reverse the order."
             >
               <ImportanceMatrix
+                label="What matters most, by country"
                 rows={rankingAll}
                 items={ranking}
                 rowColumn="country_code"
@@ -517,7 +535,7 @@ export function WhatMattersView() {
               first && (
                 <ChartFigure
                   title={`${countryName(splitCountry)}: what matters most`}
-                  subtitle={rankingSubtitle}
+                  subtitle={countryItemsSubtitle}
                   ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, most important first, ${MIDYEAR_TITLE}.${countryItemsSummary}`}
                   chartKey={
                     <ChartKey
@@ -557,7 +575,10 @@ export function WhatMattersView() {
               <ChartFigure
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                 picture={false}
-                subtitle={rankingSubtitle}
+                // On a phone the grid holds its "N more →" button: a group,
+                // so assistive tech reaches it (H16).
+                interactive={narrow}
+                subtitle={splitSubtitle}
                 ariaLabel={`${summarizeCells(
                   splitOrdered,
                   (row) =>
@@ -569,6 +590,7 @@ export function WhatMattersView() {
                 isRefreshing={splitQuery.isPlaceholderData}
               >
                 <ImportanceMatrix
+                  label={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                   rows={splitAll}
                   items={ranking}
                   rowColumn={search.by}
@@ -750,6 +772,7 @@ function TintLegend({
  * every column one width, its short label wrapping over it; the first
  * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
+  label,
   rows,
   items,
   rowColumn,
@@ -761,6 +784,8 @@ function ImportanceMatrix({
   sort,
   onSort,
 }: {
+  /** The grid's name: its chart's title (H16), not its key's words. */
+  label: string
   rows: readonly EstimateRow[]
   items: readonly VariableSummary[]
   /** The group column a row stands for, and its values in row order. */
@@ -789,6 +814,7 @@ function ImportanceMatrix({
   return (
     <HeatTable
       caption={<TintLegend steps={steps} thinBelow={keyThinBelow(onScreen, served.suppression)} />}
+      label={label}
       corner={corner}
       rows={rowOrder.map((value) => ({
         key: String(value),

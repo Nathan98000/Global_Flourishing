@@ -358,9 +358,12 @@
   }
 }
 
+/* The teal ring with a paper ring inside it (H18): it reads on the
+   deepest tints too, where teal alone fell to 1.1–2:1. */
 .cellButton:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px var(--surface);
 }
 
 /* A label's tag ("Midyear", ADR-0020): small, in secondary ink, after it. */

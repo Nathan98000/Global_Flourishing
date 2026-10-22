@@ -4,6 +4,11 @@ import { columnLabel, endpointsClause, groupValueLabel, scaleSubtitle } from '..
 import { happyVariable, sfiVariable, testMeta, testRow } from '../test-utils/fixtures'
 
 describe('formatting', () => {
+  test('an interval’s negative end wears a true minus, as every signed number does (H17)', () => {
+    expect(formatCI(testRow({ ci_lo: -0.534, ci_hi: 9.02, stat: 'mean' }))).toBe('[−0.53, 9.02]')
+    expect(formatCI(testRow({ ci_lo: -0.5, ci_hi: 0.25, stat: 'change' }))).toBe('[−0.50, +0.25]')
+  })
+
   test('means keep two decimals; shares render as percentages', () => {
     expect(formatEstimate(7.2143, 'mean')).toBe('7.21')
     expect(formatEstimate(0.4567, 'proportion')).toBe('45.7%')

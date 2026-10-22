@@ -77,7 +77,7 @@ test('1 — Atlas: change the question through the picker and the year, share th
 
   // One question picker (ADR-0029): the question bar's button opens the
   // panel — browse a topic, pick a question — and a pick closes it.
-  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index — change' }).click()
   const picker = page.getByRole('dialog', { name: 'Question' })
   await picker.getByRole('option', { name: /^Wellbeing/ }).click()
   await picker
@@ -85,7 +85,7 @@ test('1 — Atlas: change the question through the picker and the year, share th
     .getByRole('option', { name: /^Happiness/ })
     .click()
   await expect(picker).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Question: Happiness — change' })).toBeVisible()
   await page.getByRole('group', { name: 'Year' }).getByText('2024', { exact: true }).click()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2024/)).toBeVisible()
@@ -209,7 +209,7 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   await page.getByLabel('Search name, label or wording').fill('service attendance')
   await expect(page.getByText(/1 of \d+ questions/)).toBeVisible()
 
-  await page.getByRole('link', { name: 'Service attendance' }).click()
+  await page.getByRole('link', { name: 'Service attendance', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Service attendance/ })).toBeVisible()
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 
@@ -418,9 +418,9 @@ test('7 — Change with a country where fewer people answered again: the interva
 
   // The URL is the state; the order is by value only, and the value
   // label over the column reverses it (ADR-0029).
-  await page.getByRole('button', { name: 'Mean change, highest first' }).click()
+  await page.getByRole('button', { name: 'Sort: Mean change, highest first' }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&dir=asc$/)
-  await expect(page.getByRole('button', { name: 'Mean change, lowest first' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sort: Mean change, lowest first' })).toBeVisible()
 })
 
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
@@ -587,7 +587,7 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   await expect(map.locator('svg path').first()).toBeVisible()
   await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
   await expect(
-    page.getByText(/Smaller states rest on fewer people — the Chart shows each state’s 95% CI/),
+    page.getByText(/Smaller states rest on fewer people — the chart shows each state’s 95% CI/),
   ).toBeVisible()
   await expect(map.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
   await expect(map.locator('[stroke="var(--ink)"]').first()).toBeAttached()
@@ -923,7 +923,11 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
-  await expect(page.getByText('All countries (average of 2) · 2023', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Share of each column, % · 2023 · all countries (average of 2)', {
+      exact: true,
+    }),
+  ).toBeVisible()
   const where = page.getByLabel('Where')
   await expect(where).toHaveValue('all')
   await expect(
@@ -1017,9 +1021,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     ),
   ).toBeVisible()
   await expect(
-    page.getByText('United States · Midyear survey, with 2023 answers from the same people', {
-      exact: true,
-    }),
+    page.getByText(
+      'Share of each column, % · Midyear survey, with 2023 answers from the same people · United States',
+      { exact: true },
+    ),
   ).toBeVisible()
   // The year of the other answers is chosen in the note's own sentence,
   // worded for the country on screen (the synthetic US took the midyear
@@ -1034,9 +1039,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     'answers, from the same interview for some people, about six months later for others.',
   )
   await expect(
-    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
-      exact: true,
-    }),
+    page.getByText(
+      'Share of each column, % · Midyear survey, with 2024 answers from the same people · United States',
+      { exact: true },
+    ),
   ).toBeVisible()
   await expect(
     page.getByRole('img', {
@@ -1054,6 +1060,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // Midyear from the picker: a midyear question picked at 2023 takes the
   // page to Midyear.
   await page.goto('/correlates?view=related&outcome=HAPPY&country=22')
+  // (Find related's picker sits in a sentence: no "change" beside it.)
   await page.getByRole('button', { name: 'Question: Happiness' }).click()
   const questionPicker = page.getByRole('dialog', { name: 'Question' })
   await questionPicker.getByRole('searchbox').fill('social')
@@ -1079,7 +1086,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(page).toHaveURL(/other=Y2/)
   await expect(
     caption(page).getByText(
-      'United States · Midyear survey, with 2024 answers from the same people',
+      'Midyear survey, with 2024 answers from the same people · United States',
       { exact: false },
     ),
   ).toBeVisible()
@@ -1379,7 +1386,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
   await expect(firstDot).toBeVisible()
   expect((await firstDot.boundingBox())!.y).toBeLessThanOrEqual(640)
   // The question bar: the question and the year; the picker is a sheet.
-  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index — change' }).click()
   const picker = page.getByRole('dialog', { name: 'Question' })
   await picker.getByRole('searchbox').fill('happi')
   await picker
@@ -1388,7 +1395,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
     .click()
   await expect(page).toHaveURL(/\?outcome=HAPPY$/)
   // The value label reverses the order: a 44 px target on a phone.
-  const value = page.getByRole('button', { name: 'Mean, highest first' })
+  const value = page.getByRole('button', { name: 'Sort: Mean, highest first' })
   expect((await value.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   await value.click()
   await expect(page).toHaveURL(/\?outcome=HAPPY&dir=asc$/)
@@ -1410,7 +1417,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
   const said = await line.textContent()
   // Reload: the same view, from the URL alone.
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Question: Happiness — change' })).toBeVisible()
   await expect(page.getByText(said ?? '', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Options' }).click()
   await expect(
@@ -1438,7 +1445,7 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
 
   // Into the chart from its value label: one stop, on the first row,
   // its card open beside it and read out as its description.
-  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.getByRole('button', { name: 'Sort: Mean, highest first' }).focus()
   await page.keyboard.press('Tab')
   await expect(rows.first()).toBeFocused()
   const card = chart.getByRole('tooltip')
@@ -1497,7 +1504,7 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   await find.selectOption({ label: someState })
   const pinned = states.locator('g[aria-label="tip"]', { hasText: someState })
   await expect(pinned).toBeVisible()
-  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.getByRole('button', { name: 'Sort: Mean, highest first' }).focus()
   await page.keyboard.press('Tab')
   await expect(
     states.getByRole('listitem', { name: new RegExp(`^${someState}, \\d`) }),
@@ -1516,7 +1523,7 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   const changeRows = change.getByRole('listitem')
   await expect(changeRows.first()).toBeAttached()
   expect(await changeRows.first().getAttribute('aria-label')).toMatch(/^[^,]+, [+−]\d+\.\d\d/)
-  await page.getByRole('button', { name: /Mean change, highest first/ }).focus()
+  await page.getByRole('button', { name: 'Sort: Mean change, highest first' }).focus()
   await page.keyboard.press('Tab')
   await expect(changeRows.first()).toBeFocused()
   await expect(change.getByRole('tooltip')).toContainText(/95% CI: \[.+\]/)

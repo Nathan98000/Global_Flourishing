@@ -7,11 +7,13 @@
 
 import type { EstimateRow, ResponseMeta } from '../api/types'
 import {
+  INK_SECONDARY,
   MAP_EMPTY,
   MAP_EMPTY_OUTLINE,
   SEQUENTIAL_RAMP,
   plotValue,
   quantizeSequential,
+  thinKey,
 } from './theme'
 
 /** The map's quantized sequential scale (shared with the What Matters matrix). */
@@ -32,7 +34,17 @@ const legendShare = new Intl.NumberFormat('en-US', {
  * subtitle with min and max values only — the title and subtitle above
  * already name the measure — plus an explicit swatch for areas with no
  * estimate, bordered so it reads apart from non-study land. */
-export function MapLegend({ domain, isShare }: { domain: [number, number]; isShare: boolean }) {
+export function MapLegend({
+  domain,
+  isShare,
+  thinBelow,
+}: {
+  domain: [number, number]
+  isShare: boolean
+  /** When a state on the map is thin: the threshold its key names, beside
+   * the dashed outline the map draws it with (H17). */
+  thinBelow?: number
+}) {
   const render = (value: number) =>
     isShare ? `${legendShare.format(value)}%` : legendScore.format(value)
   return (
@@ -64,6 +76,21 @@ export function MapLegend({ domain, isShare }: { domain: [number, number]; isSha
         />
         <span>no estimate</span>
       </span>
+      {thinBelow !== undefined && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              width: 20,
+              height: 10,
+              background: SEQUENTIAL_RAMP[3],
+              outline: `1px dashed ${INK_SECONDARY}`,
+              outlineOffset: -3,
+              display: 'inline-block',
+            }}
+          />
+          <span>{thinKey(thinBelow)}</span>
+        </span>
+      )}
     </div>
   )
 }
