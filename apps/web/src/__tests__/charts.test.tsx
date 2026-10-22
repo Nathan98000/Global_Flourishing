@@ -958,10 +958,11 @@ describe('SmallMultiples', () => {
     expect(style?.getAttribute('text-anchor')).toBe('start')
     // At the chart's left edge, where the row labels start…
     for (const title of titles) expect(absoluteX(title)).toBeLessThan(8)
-    // …and above its own panel's frame and first row label.
-    const frames = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
-      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
-    )
+    // …and above its own panel's frame and first row label. (An unfaceted
+    // plot's frame is the rect itself; a faceted one's, a group's rects.)
+    const frames = [
+      ...svg.querySelectorAll('[aria-label="frame"] rect, rect[aria-label="frame"]'),
+    ].map((rect) => absoluteY(rect) + Number(rect.getAttribute('y')))
     const rowLabels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
       .filter((node) => node.textContent === 'Male')
       .map(absoluteY)

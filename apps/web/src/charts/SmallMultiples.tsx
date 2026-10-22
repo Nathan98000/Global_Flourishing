@@ -309,13 +309,11 @@ export function SmallMultiples({
       })
       const tickLabel = (tick: number) => (isShare ? `${scale.format(tick)}%` : scale.format(tick))
       const ticks = panelTicks(scale.ticks, scale.domain, tickLabel, facetWidth)
-      // Each panel keeps a strip on top for its title (and, in a grid, its
-      // column's label) and one under its last row for its tick labels, so
-      // neither sits on a row label or a dot.
-      const headRoom = PANEL_TITLE_ROOM + (seriesColumn ? COLUMN_LABEL_ROOM : 0)
-      const facetChannel: Record<string, string> = seriesColumn
-        ? { fy: 'band', fx: 'slot' }
-        : { fy: 'band' }
+      // Each plot keeps a strip on top for its country's title (its first
+      // row of facets) and, in a grid, its columns' labels, and one under
+      // its last row for its tick labels, so neither sits on a row label or
+      // a dot.
+      const facetChannel: Record<string, string> = seriesColumn ? { fx: 'slot' } : {}
       const tickMarks = (kept: number[], textAnchor: 'start' | 'middle' | 'end') =>
         Plot.text(kept, {
           x: (tick: number) => tick,
@@ -328,116 +326,133 @@ export function SmallMultiples({
           ariaDescription: 'panel tick label',
         })
       const tipContext = { answer, range: variable }
-      // One plot per panel, each as tall as its own rows: a country, its
-      // title on its first row of facets; a label per facet of a grid,
-      // naming its column.
-      const panels = shown.map((facet) => {
-        const own = levelsOf(facet)
-        const height = PANEL_MARGIN + chunks * (own.length * LEVEL_STEP + headRoom + PANEL_ROOM)
-        const inPanel = <T extends { facet: string }>(entry: T) => entry.facet === facet
-        const plot = Plot.plot({
-          height,
-          width,
-          marginLeft,
-          marginRight,
-          marginTop: 4,
-          marginBottom: PANEL_MARGIN - 4,
-          style: {
-            fontFamily: FONT_FAMILY,
-            fontSize: '11px',
-            background: 'transparent',
-            color: INK_SECONDARY,
-          },
-          // No axis over the chart: each panel reads its own, under it.
-          x: { domain: scale.domain, axis: null, label: null },
-          y: {
-            domain: own,
-            label: null,
-            tickSize: 0,
-            insetTop: headRoom,
-            insetBottom: PANEL_AXIS_INSET,
-          },
-          fy: {
-            domain: Array.from({ length: chunks }, (_, chunk) => chunk),
-            paddingInner: 0.14,
-            axis: null,
-          },
-          ...(seriesColumn
-            ? {
-                fx: {
-                  domain: Array.from({ length: perRow }, (_, slot) => slot),
-                  axis: null,
-                  paddingInner: padding,
-                  paddingOuter: 0,
-                },
-              }
-            : {}),
-          marks: [
-            // The panel's title — its country — top-left at 13.5 in ink,
-            // semibold, over its row labels (F15); level labels, column
-            // labels and the value axis stay the 11px plot size.
-            Plot.text([{ facet, band: 0, slot: 0 }], {
-              fy: 'band',
-              ...(seriesColumn ? { fx: 'slot' } : {}),
-              text: 'facet',
-              frameAnchor: 'top-left',
-              dx: 2 - marginLeft,
-              dy: 3,
-              lineAnchor: 'top',
-              textAnchor: 'start',
-              fill: INK,
-              fontSize: 13.5,
-              fontWeight: 600,
-              ariaDescription: 'panel title',
-            }),
-            ...(seriesColumn
-              ? [
-                  Plot.text(
-                    series.map((label) => ({ label, band: place(label).chunk, ...place(label) })),
-                    {
-                      fy: 'band',
-                      fx: 'slot',
-                      text: 'label',
-                      frameAnchor: 'top',
-                      dy: PANEL_TITLE_ROOM + 1,
-                      lineAnchor: 'top',
-                      fill: INK_SECONDARY,
-                      fontSize: 11,
-                      ariaDescription: 'column label',
-                    },
-                  ),
-                ]
-              : []),
-            // No facet channel → drawn in every facet: its frame and grid
-            // under the head strip, and the shared axis labelled under it.
-            Plot.frame({ stroke: 'var(--grid)', insetTop: headRoom }),
-            Plot.gridX(ticks, { insetTop: headRoom }),
-            tickMarks(ticks.slice(0, 1), 'start'),
-            tickMarks(ticks.slice(1, -1), 'middle'),
-            ...(ticks.length > 1 ? [tickMarks(ticks.slice(-1), 'end')] : []),
-            ...dotMarks(drawn.filter(inPanel), color, facetChannel, lo, tipContext),
-            // Beyond the window: an arrow just outside its edge, pointing on.
-            ...(['low', 'high'] as const).map((side) =>
-              Plot.text(
-                arrows.filter((entry) => entry.side === side && inPanel(entry)),
-                {
-                  ...facetChannel,
-                  y: 'level',
-                  x: 'value',
-                  text: () => (side === 'low' ? '◂' : '▸'),
-                  dx: side === 'low' ? -9 : 9,
-                  fill: color,
-                  fontSize: 10,
-                  ariaDescription: 'beyond the window',
-                },
-              ),
+      // A plot per country — per row of facets, where a second breakdown
+      // wraps — each as tall as its own rows: a group takes a row only
+      // where it has an estimate (H11).
+      const panels = shown.flatMap((facet) => {
+        const rowsOf = Array.from({ length: chunks }, (_, chunk) => ({
+          chunk,
+          own: levelDomain.filter((level) =>
+            entries.some(
+              (entry) =>
+                entry.facet === facet &&
+                entry.level === level &&
+                entry.band === chunk &&
+                entry.value !== null,
             ),
-          ],
+          ),
+        })).filter((part) => part.own.length > 0)
+        return rowsOf.map(({ chunk, own }, index) => {
+          const titled = index === 0
+          const headRoom = (titled ? PANEL_TITLE_ROOM : 0) + (seriesColumn ? COLUMN_LABEL_ROOM : 0)
+          const height = PANEL_MARGIN + own.length * LEVEL_STEP + headRoom + PANEL_ROOM
+          const inPlot = <T extends { facet: string; band: number }>(entry: T) =>
+            entry.facet === facet && entry.band === chunk
+          const plot = Plot.plot({
+            height,
+            width,
+            marginLeft,
+            marginRight,
+            marginTop: 4,
+            marginBottom: PANEL_MARGIN - 4,
+            style: {
+              fontFamily: FONT_FAMILY,
+              fontSize: '11px',
+              background: 'transparent',
+              color: INK_SECONDARY,
+            },
+            // No axis over the chart: each panel reads its own, under it.
+            x: { domain: scale.domain, axis: null, label: null },
+            y: {
+              domain: own,
+              label: null,
+              tickSize: 0,
+              insetTop: headRoom,
+              insetBottom: PANEL_AXIS_INSET,
+            },
+            ...(seriesColumn
+              ? {
+                  fx: {
+                    domain: Array.from({ length: perRow }, (_, slot) => slot),
+                    axis: null,
+                    paddingInner: padding,
+                    paddingOuter: 0,
+                  },
+                }
+              : {}),
+            marks: [
+              // The panel's title — its country — top-left at 13.5 in ink,
+              // semibold, over its row labels (F15); level labels, column
+              // labels and the value axis stay the 11px plot size.
+              ...(titled
+                ? [
+                    Plot.text([{ facet, slot: 0 }], {
+                      ...(seriesColumn ? { fx: 'slot' } : {}),
+                      text: 'facet',
+                      frameAnchor: 'top-left',
+                      dx: 2 - marginLeft,
+                      dy: 3,
+                      lineAnchor: 'top',
+                      textAnchor: 'start',
+                      fill: INK,
+                      fontSize: 13.5,
+                      fontWeight: 600,
+                      ariaDescription: 'panel title',
+                    }),
+                  ]
+                : []),
+              ...(seriesColumn
+                ? [
+                    Plot.text(
+                      series
+                        .filter((label) => place(label).chunk === chunk)
+                        .map((label) => ({ label, ...place(label) })),
+                      {
+                        fx: 'slot',
+                        text: 'label',
+                        frameAnchor: 'top',
+                        dy: headRoom - COLUMN_LABEL_ROOM + 1,
+                        lineAnchor: 'top',
+                        fill: INK_SECONDARY,
+                        fontSize: 11,
+                        ariaDescription: 'column label',
+                      },
+                    ),
+                  ]
+                : []),
+              // No facet channel → drawn in every facet with data: its
+              // frame and grid under the head strip, and the shared axis
+              // labelled under it.
+              Plot.frame({ stroke: 'var(--grid)', insetTop: headRoom }),
+              Plot.gridX(ticks, { insetTop: headRoom }),
+              tickMarks(ticks.slice(0, 1), 'start'),
+              tickMarks(ticks.slice(1, -1), 'middle'),
+              ...(ticks.length > 1 ? [tickMarks(ticks.slice(-1), 'end')] : []),
+              ...dotMarks(drawn.filter(inPlot), color, facetChannel, lo, tipContext),
+              // Beyond the window: an arrow just outside its edge, pointing on.
+              ...(['low', 'high'] as const).map((side) =>
+                Plot.text(
+                  arrows.filter((entry) => entry.side === side && inPlot(entry)),
+                  {
+                    ...facetChannel,
+                    y: 'level',
+                    x: 'value',
+                    text: () => (side === 'low' ? '◂' : '▸'),
+                    dx: side === 'low' ? -9 : 9,
+                    fill: color,
+                    fontSize: 10,
+                    ariaDescription: 'beyond the window',
+                  },
+                ),
+              ),
+            ],
+          })
+          return { facet, chunk, own, plot, height, titled }
         })
-        return { facet, own, plot, height }
       })
-      // The panels stacked in one drawing — one SVG, so the PNG export
-      // takes them all — each keeping its own plot, and so its own tips.
+      // The plots stacked in one drawing — one SVG, so the PNG export
+      // takes them all — each keeping its own tips; a country's rows of
+      // facets close together, a gap between countries.
       const svgNs = 'http://www.w3.org/2000/svg'
       const drawing = document.createElementNS(svgNs, 'svg')
       const first = panels[0]?.plot
@@ -446,12 +461,13 @@ export function SmallMultiples({
         if (value) drawing.setAttribute(name, value)
       }
       let top = 0
-      const offsets = panels.map((panel) => {
+      const offsets = panels.map((panel, index) => {
+        if (index > 0) top += panel.titled ? PANEL_GAP : 0
         const at = top
-        top += panel.height + PANEL_GAP
+        top += panel.height
         return at
       })
-      const total = Math.max(0, top - PANEL_GAP)
+      const total = Math.max(0, top)
       drawing.setAttribute('width', String(width))
       drawing.setAttribute('height', String(total))
       drawing.setAttribute('viewBox', `0 0 ${width} ${total}`)
@@ -468,38 +484,40 @@ export function SmallMultiples({
         drawing.append(panel.plot)
       })
       // A keyboard reads the panels row by row (H2, ADR-0032): within a
-      // panel its groups in reading order, Page Down to the next country.
-      const readable: ReadablePanel[] = panels.map((panel, index) => ({
-        name: panel.facet,
-        rows: Array.from({ length: chunks }, (_, chunk) => chunk).flatMap((chunk) =>
-          panel.own.flatMap((level) =>
-            drawn
-              .filter(
-                (entry) =>
-                  entry.facet === panel.facet && entry.level === level && entry.band === chunk,
-              )
-              .sort((a, b) => a.slot - b.slot)
-              .map((entry) => {
-                const printed =
-                  entry.row.estimate === null
-                    ? null
-                    : formatEstimate(entry.row.estimate, entry.row.stat)
-                const group = [level, entry.column].filter(Boolean).join(', ')
-                const geometry = plotRow(
-                  panel.plot,
-                  level,
-                  entry.value ?? lo,
-                  seriesColumn ? { fy: chunk, fx: entry.slot } : { fy: chunk },
-                )
-                return {
-                  key: `${panel.facet}\u0000${group}`,
-                  name: readableRowName(group, printed, isThin(entry.row)),
-                  tip: dotTip(entry, tipContext),
-                  geometry: { ...geometry, top: geometry.top + (offsets[index] ?? 0) },
-                  across: group,
-                }
-              }),
-          ),
+      // country its groups in reading order, Page Down to the next one.
+      const readable: ReadablePanel[] = shown.map((facet) => ({
+        name: facet,
+        rows: panels.flatMap((panel, index) =>
+          panel.facet !== facet
+            ? []
+            : panel.own.flatMap((level) =>
+                drawn
+                  .filter(
+                    (entry) =>
+                      entry.facet === facet && entry.level === level && entry.band === panel.chunk,
+                  )
+                  .sort((a, b) => a.slot - b.slot)
+                  .map((entry) => {
+                    const printed =
+                      entry.row.estimate === null
+                        ? null
+                        : formatEstimate(entry.row.estimate, entry.row.stat)
+                    const group = [level, entry.column].filter(Boolean).join(', ')
+                    const geometry = plotRow(
+                      panel.plot,
+                      level,
+                      entry.value ?? lo,
+                      seriesColumn ? { fx: entry.slot } : {},
+                    )
+                    return {
+                      key: `${facet}\u0000${group}`,
+                      name: readableRowName(group, printed, isThin(entry.row)),
+                      tip: dotTip(entry, tipContext),
+                      geometry: { ...geometry, top: geometry.top + (offsets[index] ?? 0) },
+                      across: group,
+                    }
+                  }),
+              ),
         ),
       }))
       return withReadableRows(drawing, readable, focus.current)

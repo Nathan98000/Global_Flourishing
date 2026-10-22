@@ -366,3 +366,35 @@
     min-height: 44px;
   }
 }
+
+/* Segments with two splits on a phone (H11): the country in view and its
+   place in the order, between two 44 px steps, in the summary line. */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink);
+}
+
+.step {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: var(--text-deck);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.step:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

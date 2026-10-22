@@ -3,7 +3,7 @@
 // it sits at the edge with an arrow pointing on.
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { SmallMultiples } from '../charts/SmallMultiples'
 import { happyVariable, testMeta, testResponseMeta, testRow } from '../test-utils/fixtures'
 
@@ -172,4 +172,79 @@ describe('Segments panels (H11, H2)', () => {
     expect(male).toHaveFocus()
     expect(items.map((item) => item.tabIndex)).toEqual([0, -1, -1])
   })
+})
+
+test('with a second split wrapped onto rows of facets, each row keeps only its own groups (H11)', () => {
+  // Three age bands a row at a phone's width; the second row's one band
+  // has no Female.
+  const bands = ['18–24', '25–29', '30–39', '40–49']
+  const gridMeta = {
+    ...meta,
+    breakdown_labels: {
+      ...meta.breakdown_labels,
+      age_band: {
+        display_name: 'Age band',
+        levels: bands.map((label, index) => ({ value: String(index + 1), label })),
+      },
+    },
+  }
+  const gridRows = bands.flatMap((_, band) =>
+    [1, 2].flatMap((gender) =>
+      band === 3 && gender === 2
+        ? []
+        : [
+            testRow({
+              group: { country_code: 1, gender, age_band: String(band + 1) },
+              estimate: 7 + band * 0.1,
+              ci_lo: 6.9,
+              ci_hi: 7.4,
+            }),
+          ],
+    ),
+  )
+  const rect = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockImplementation(() => ({ width: 358 }) as DOMRect)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  )
+  try {
+    const { container } = render(
+      <SmallMultiples
+        rows={gridRows}
+        meta={gridMeta}
+        responseMeta={testResponseMeta({ by: ['country_code', 'gender', 'age_band'] })}
+        variable={happyVariable}
+        color="var(--series-1)"
+        levelColumn="gender"
+        levelDomain={['Male', 'Female', 'Other', 'Prefer not to answer']}
+        seriesColumn="age_band"
+        seriesDomain={bands}
+        sort="estimate"
+      />,
+    )
+    const plots = [
+      ...(container.querySelector('svg') as SVGSVGElement).querySelectorAll(':scope > svg'),
+    ]
+    const labels = (plot: Element) =>
+      [...plot.querySelectorAll('[aria-label="y-axis tick label"] text')].map(
+        (node) => node.textContent,
+      )
+    // One country, its facets on rows of three (358 px): the first row
+    // has both groups, the second only Male; the title is on the first.
+    expect(plots).toHaveLength(2)
+    expect(labels(plots[0] as Element)).toEqual(['Male', 'Female'])
+    expect(labels(plots[1] as Element)).toEqual(['Male'])
+    expect(plots[0]?.querySelector('[aria-description="panel title"]')?.textContent).toBe(
+      'Testland',
+    )
+    expect(plots[1]?.querySelector('[aria-description="panel title"]')).toBeNull()
+  } finally {
+    rect.mockRestore()
+    vi.unstubAllGlobals()
+  }
 })

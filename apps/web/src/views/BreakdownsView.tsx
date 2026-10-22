@@ -5,7 +5,7 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
@@ -100,6 +100,9 @@ export function BreakdownsView() {
   const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
+  // On a phone with two splits, one country at a time (H11): the one in
+  // view, stepped from the summary line — view state, not in the URL.
+  const [stepCountry, setStepCountry] = useState<string | undefined>()
 
   // Level labels for a variable-valued second dimension come from that
   // variable's own value labels (server truth, fetched once).
@@ -161,6 +164,20 @@ export function BreakdownsView() {
       ),
     ]
   }, [displayRows, metaForSort])
+
+  // The countries one at a time on a phone with two splits, in the
+  // chosen order (H11): about 22 screens became one country's panel.
+  const stepped = narrow && secondary !== undefined && (panelOrder?.length ?? 0) > 1
+  const stepAt = stepped ? Math.max(0, panelOrder?.indexOf(stepCountry ?? '') ?? 0) : 0
+  const shownCountry = stepped ? panelOrder?.[stepAt] : undefined
+  const chartRows =
+    shownCountry !== undefined && metaForSort
+      ? displayRows.filter(
+          (row) =>
+            groupValueLabel('country_code', row.group['country_code'] ?? null, metaForSort) ===
+            shownCountry,
+        )
+      : displayRows
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -312,29 +329,33 @@ export function BreakdownsView() {
   // How the chart is drawn, in its header's toolbar (ADR-0029): the
   // panels have no value column to sort from, so one "Order countries"
   // select writes `sort` and `dir` — by value either way, or by the gap.
+  // One country needs no order (H17).
+  const oneCountry = (panelOrder?.length ?? 0) === 1
   const chartControls = (inline: boolean) => (
     <>
-      <label className={inline ? styles.inlineField : styles.field}>
-        <span className={styles.fieldLabel}>Order countries</span>
-        <select
-          value={search.sort === 'gap' ? 'gap' : dir}
-          onChange={(event) => {
-            const value = event.target.value
-            setSearch(
-              value === 'gap'
-                ? { sort: 'gap', dir: undefined }
-                : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
-            )
-          }}
-        >
-          {VALUE_ORDER.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          <option value="gap">Biggest gap first</option>
-        </select>
-      </label>
+      {!oneCountry && (
+        <label className={inline ? styles.inlineField : styles.field}>
+          <span className={styles.fieldLabel}>Order countries</span>
+          <select
+            value={search.sort === 'gap' ? 'gap' : dir}
+            onChange={(event) => {
+              const value = event.target.value
+              setSearch(
+                value === 'gap'
+                  ? { sort: 'gap', dir: undefined }
+                  : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
+              )
+            }}
+          >
+            {VALUE_ORDER.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="gap">Biggest gap first</option>
+          </select>
+        </label>
+      )}
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
           legend="Showing % who said"
@@ -352,12 +373,41 @@ export function BreakdownsView() {
       )}
     </>
   )
-  // The phone's line: how the chart is drawn, in the controls' words.
-  const phoneSummary = stateLine(
-    isCategorical ? 'Share' : 'Mean',
-    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
-    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
-  )
+  // The phone's line: how the chart is drawn, in the controls' words —
+  // or, with two splits, which country is in view, stepped from it.
+  const panels = panelOrder ?? []
+  const phoneSummary =
+    stepped && shownCountry !== undefined ? (
+      <span className={styles.stepper}>
+        <button
+          type="button"
+          className={styles.step}
+          aria-label="Previous country"
+          disabled={stepAt === 0}
+          onClick={() => setStepCountry(panels[stepAt - 1])}
+        >
+          ‹
+        </button>
+        <span aria-live="polite">
+          {shownCountry} · {stepAt + 1} of {panels.length}
+        </span>
+        <button
+          type="button"
+          className={styles.step}
+          aria-label="Next country"
+          disabled={stepAt === panels.length - 1}
+          onClick={() => setStepCountry(panels[stepAt + 1])}
+        >
+          ›
+        </button>
+      </span>
+    ) : (
+      stateLine(
+        isCategorical ? 'Share' : 'Mean',
+        countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+        search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
+      )
+    )
 
   return (
     <section>
@@ -463,12 +513,6 @@ export function BreakdownsView() {
                 title={title}
                 subtitle={subtitle}
                 narrowSubtitle={narrowSubtitle}
-                hint={
-                  // Two splits on a phone run long: a way to shorten it (G6).
-                  narrow && secondary !== undefined && search.countries.length === 0
-                    ? 'Two splits for every country make a long page — choose fewer countries in Options.'
-                    : undefined
-                }
                 ariaLabel={summarizeCells(
                   displayRows,
                   (row) =>
@@ -515,7 +559,7 @@ export function BreakdownsView() {
                 interactive
               >
                 <SmallMultiples
-                  rows={displayRows}
+                  rows={chartRows}
                   meta={meta.data.meta}
                   responseMeta={response.meta}
                   variable={variable}
@@ -526,7 +570,7 @@ export function BreakdownsView() {
                   seriesDomain={
                     secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
                   }
-                  facetDomain={panelOrder}
+                  facetDomain={shownCountry !== undefined ? [shownCountry] : panelOrder}
                   sort={search.sort}
                   dir={dir}
                   labeler={labeler}

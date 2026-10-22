@@ -438,6 +438,61 @@ test('the nav carries the question, and its year, to the pages that can show it 
   expect(within(again).getByRole('link', { name: 'US States' })).toHaveAttribute('href', '/states')
 })
 
+test('Segments with two splits on a phone: one country at a time, stepped from the summary line (H11)', async () => {
+  stubViewport((query) => query.includes('40rem'))
+  const cells = [1, 22].flatMap((code) =>
+    [1, 2].flatMap((gender) =>
+      ['18-24', '25-29'].map((band) =>
+        testRow({
+          group: { country_code: code, gender, age_band: band },
+          estimate: code === 22 ? 8 : 6,
+        }),
+      ),
+    ),
+  )
+  mockFetch({
+    ...staticTier,
+    '/v1/aggregate': testResponse(cells, { by: ['country_code', 'gender', 'age_band'] }),
+  })
+  const router = await renderAt('/segments?by=gender&by=age_band')
+  // The order the panels take (by each country's own estimate).
+  const step = await screen.findByText(/ · 1 of 2$/)
+  const first = step.textContent?.split(' · ')[0] ?? ''
+  const panels = () =>
+    [...document.querySelectorAll('[aria-description="panel title"] text')].map(
+      (node) => node.textContent,
+    )
+  expect(panels()).toEqual([first])
+  expect(screen.getByRole('button', { name: 'Previous country' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Next country' }))
+  const second = await screen.findByText(/ · 2 of 2$/)
+  expect(second.textContent?.split(' · ')[0]).not.toBe(first)
+  expect(panels()).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Next country' })).toBeDisabled()
+  // View state: the URL keeps what it had.
+  expect(router.state.location.searchStr).toBe('?by=gender&by=age_band')
+})
+
+test('Segments with one country offers no order for the countries (H17)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code-gender.json': testResponse(
+      [
+        testRow({ group: { country_code: 1, gender: 1 }, estimate: 7.2 }),
+        testRow({ group: { country_code: 22, gender: 1 }, estimate: 8.3 }),
+      ],
+      { by: ['country_code', 'gender'] },
+    ),
+  })
+  await renderAt('/segments?by=gender&countries=1')
+  await screen.findByRole('group', { name: /one panel per country/ })
+  expect(screen.queryByLabelText('Order countries')).toBeNull()
+  cleanup()
+  await renderAt('/segments?by=gender')
+  await screen.findByRole('group', { name: /one panel per country/ })
+  expect(screen.getByLabelText('Order countries')).toBeInTheDocument()
+})
+
 test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
   mockFetch({
     ...staticTier,

@@ -19,8 +19,9 @@ export function OptionsSheet({
   onClosed,
   children,
 }: {
-  /** The chart's state in the controls' words. */
-  summary: string
+  /** The chart's state in the controls' words (or, on Segments with two
+   * splits, its country stepper — H11). */
+  summary: ReactNode
   title?: string
   /** Once the sheet has closed and focus is back on Options (US States'
    * Find a state scrolls to its state then — H4). */
