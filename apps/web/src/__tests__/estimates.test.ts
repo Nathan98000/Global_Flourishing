@@ -12,6 +12,7 @@ import {
   type AggregateRequest,
 } from '../api/estimates'
 import { ApiError, NetworkError } from '../api/errors'
+import { atlasRequest, parseAtlasSearch } from '../state/search'
 import { fetchApiJson } from '../api/http'
 import {
   attendVariable,
@@ -44,6 +45,22 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 
 beforeEach(() => resetNegativePathCache())
 afterEach(() => vi.unstubAllGlobals())
+
+describe('the Atlas Distribution with no countries chosen (F9)', () => {
+  test('its first four come from the static tier: the distribution and the order both precomputed', () => {
+    // The Atlas asks for the distribution, and — no countries in the URL —
+    // the default statistic by country to order them: both static files,
+    // so the view works with the live service down.
+    const parsed = parseAtlasSearch({ outcome: 'HAPPY', stat: 'distribution' })
+    expect(parsed.countries).toEqual([])
+    expect(staticPathFor(atlasRequest(parsed, happyVariable), context)).toBe(
+      'v1/HAPPY/Y1/distribution_by-country_code.json',
+    )
+    expect(
+      staticPathFor(atlasRequest({ ...parsed, stat: undefined }, happyVariable), context),
+    ).toBe('v1/HAPPY/Y1/mean_by-country_code.json')
+  })
+})
 
 describe('staticPathFor', () => {
   test('the Atlas and Breakdowns views are precomputed', () => {

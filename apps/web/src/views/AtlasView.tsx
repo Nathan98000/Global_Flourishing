@@ -95,6 +95,25 @@ export function AtlasView() {
     : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
+  // A numeric question's Distribution shows four countries at most. With
+  // none chosen it is never a dead end (F9): the first four in the value
+  // order the chart's other views use — the server's estimates of the
+  // default statistic, ordered as the Atlas orders them.
+  const firstFourNeeded = stat === 'distribution' && !allAnswers && search.countries.length === 0
+  const orderEstimates = useEstimates(
+    chartable && firstFourNeeded ? atlasRequest({ ...search, stat: undefined }, variable) : null,
+  )
+  const orderRows = orderEstimates.data?.response.rows
+  const firstFour = useMemo(
+    () =>
+      orderRows && metaForSort
+        ? sortAtlasRows(orderRows, metaForSort, dir)
+            .slice(0, 4)
+            .map((row) => Number(row.group['country_code']))
+        : [],
+    [orderRows, metaForSort, dir],
+  )
+  const distributionCountries = search.countries.length ? search.countries.slice(0, 4) : firstFour
 
   const displayRows = useMemo(() => {
     if (!response) return []
@@ -125,9 +144,7 @@ export function AtlasView() {
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
-      return rows.filter((row) =>
-        search.countries.slice(0, 4).includes(Number(row.group['country_code'])),
-      )
+      return rows.filter((row) => distributionCountries.includes(Number(row.group['country_code'])))
     }
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
@@ -135,7 +152,8 @@ export function AtlasView() {
     // One ordering for the chart and the CSV (items 5/13).
     if (!metaForSort) return rows
     return sortAtlasRows(rows, metaForSort, dir)
-  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir, firstFour])
   const countryOrder = useMemo(
     () =>
       metaForSort && allAnswers
@@ -233,12 +251,20 @@ export function AtlasView() {
   const ordered = stat !== 'distribution' || allAnswers
   const orderState =
     allAnswers && levelLabel ? `by “${levelLabel}”, ${orderPhrase(dir)}` : orderPhrase(dir)
-  const subtitle = stateLine(
-    subtitleBase,
-    waveTitle,
-    countriesPhrase(search.countries.length, countryCount),
-    ordered && orderState,
-  )
+  const countriesState = firstFourNeeded
+    ? 'first four countries'
+    : countriesPhrase(search.countries.length, countryCount)
+  const subtitle = stateLine(subtitleBase, waveTitle, countriesState, ordered && orderState)
+  // The distribution's four countries, said in the header (ADR-0024: no
+  // line under the chart).
+  const distributionHint =
+    stat !== 'distribution' || allAnswers
+      ? undefined
+      : firstFourNeeded
+        ? 'Showing the first four countries — choose others with Countries.'
+        : search.countries.length > 4
+          ? 'Showing the first four of the countries chosen.'
+          : undefined
   // The chart's key, in its header: the mark, and its interval when the
   // marks carry one.
   const chartKey =
@@ -335,11 +361,7 @@ export function AtlasView() {
         : stat === 'distribution'
           ? 'Distribution'
           : 'Mean'
-  const phoneSummary = stateLine(
-    showWord,
-    countriesPhrase(search.countries.length, countryCount),
-    ordered && orderPhrase(dir),
-  )
+  const phoneSummary = stateLine(showWord, countriesState, ordered && orderPhrase(dir))
   // The order is the value label's (ADR-0029): a click reverses it, and
   // writes `dir` as the Order buttons did.
   const sortHead = ordered && (
@@ -442,14 +464,7 @@ export function AtlasView() {
         </EmptyState>
       ) : (
         <>
-          {stat === 'distribution' && !allAnswers && search.countries.length === 0 ? (
-            <EmptyState title="Choose countries to compare">
-              <p>
-                The distribution view shows the full shape of answers for up to four countries —
-                pick them with the Countries control above.
-              </p>
-            </EmptyState>
-          ) : estimates.isPending ? (
+          {estimates.isPending || (firstFourNeeded && orderEstimates.isPending) ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             // No chart, no header: its controls stay reachable here, so a
@@ -492,6 +507,7 @@ export function AtlasView() {
                 }
                 toolbar={narrow ? undefined : chartControls(true)}
                 chartKey={chartKey}
+                hint={distributionHint}
                 sortHead={sortHead}
                 csv={csv}
                 exportName={exportName}
@@ -526,9 +542,6 @@ export function AtlasView() {
                           }
                         : {})}
                     />
-                    {search.countries.length > 4 && (
-                      <p className={styles.hint}>Showing the first four selected countries.</p>
-                    )}
                   </>
                 ) : (
                   <RankedBar

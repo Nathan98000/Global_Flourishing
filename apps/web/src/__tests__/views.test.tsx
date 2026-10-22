@@ -18,7 +18,14 @@ import {
   methodsSections,
 } from '../views/methods/document'
 import { MethodsFigure } from '../views/methods/MethodsFigures'
-import { attendVariable, happyVariable, sfiVariable, testMeta } from '../test-utils/fixtures'
+import {
+  attendVariable,
+  happyVariable,
+  sfiVariable,
+  testMeta,
+  testResponse,
+  testRow,
+} from '../test-utils/fixtures'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -88,6 +95,92 @@ describe('renderMethods', () => {
     expect(headingIds(renderMethods(source))).toEqual(unique)
     // A second visit to the page parses again: the same ids, no -1s.
     expect(headingIds(renderMethods(source))).toEqual(unique)
+  })
+})
+
+describe('the Atlas Distribution, no countries chosen (F9)', () => {
+  test('shows the first four in value order, says so in the header — never an empty state', async () => {
+    // Five countries, their means 5 to 9: the first four, highest first,
+    // are codes 5, 4, 3 and 2.
+    const countries = [1, 2, 3, 4, 5].map((code) => ({
+      code,
+      name: `Country ${code}`,
+      iso3: `C${code}X`,
+    }))
+    const meta = { ...testMeta, countries }
+    const mean = testResponse(
+      countries.map(({ code }) =>
+        testRow({
+          group: { country_code: code },
+          estimate: 4 + code,
+          ci_lo: 3.9 + code,
+          ci_hi: 4.1 + code,
+        }),
+      ),
+      { outcome: 'HAPPY' },
+    )
+    const distribution = testResponse(
+      countries.flatMap(({ code }) =>
+        [0, 5, 10].map((level) =>
+          testRow({ group: { country_code: code }, stat: 'distribution', level, estimate: 1 / 3 }),
+        ),
+      ),
+      { outcome: 'HAPPY', stat: 'distribution' },
+    )
+    const happyDetail: VariableDetail = {
+      ...happyVariable,
+      value_labels: [],
+      missingness: [],
+      scoring: null,
+      components: [],
+    }
+    const routes: Record<string, unknown> = {
+      '/data/meta.json': meta,
+      '/data/variables.json': { variables: [happyVariable, sfiVariable] },
+      '/data/v1/HAPPY/variable.json': happyDetail,
+      '/data/v1/HAPPY/Y1/mean_by-country_code.json': mean,
+      '/data/v1/HAPPY/Y1/distribution_by-country_code.json': distribution,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        const hit = Object.entries(routes).find(([needle]) => url.includes(needle))
+        return hit
+          ? new Response(JSON.stringify(hit[1]), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            })
+          : new Response('x', { status: 404 })
+      }),
+    )
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: ['/?outcome=HAPPY&stat=distribution'] }),
+    )
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+    await router.load()
+    const figure = await screen.findByRole('figure')
+    // No dead end: a chart, and the header says whose it is.
+    expect(screen.queryByText('Choose countries to compare')).toBeNull()
+    expect(
+      within(figure).getByText('Showing the first four countries — choose others with Countries.'),
+    ).toBeInTheDocument()
+    expect(within(figure).getByText(/· first four countries$/)).toBeInTheDocument()
+    // The four, in the value order: one panel each, Country 1 left out.
+    const chart = within(figure).getByRole('img')
+    const text = chart.textContent ?? ''
+    for (const name of ['Country 5', 'Country 4', 'Country 3', 'Country 2'])
+      expect(text).toContain(name)
+    expect(text).not.toContain('Country 1')
+    // The URL still names no country.
+    expect(router.state.location.searchStr).toBe('?outcome=HAPPY&stat=distribution')
   })
 })
 
