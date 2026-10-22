@@ -1,10 +1,24 @@
 /* The chart block (§5): no card — a hairline rule and space separate it
-   from the controls. */
+   from the controls. The header is a two-column grid (ADR-0029): the
+   caption (title, subtitle) on the left, the toolbar on the right; the
+   rest spans both. */
 .figure {
   position: relative;
   margin: 0;
   border-top: 1px solid var(--grid);
-  padding: var(--space-6) 0 var(--space-5);
+  /* The chart sits close under the header that names it (F19). */
+  padding: var(--space-5) 0 var(--space-5);
+  display: grid;
+  /* The title keeps 22rem (or the column) before the toolbar takes any:
+     at tablet width the toolbar's controls wrap, never the title into a
+     one-word column. */
+  grid-template-columns: minmax(min(100%, 22rem), 1fr) auto;
+  column-gap: var(--space-4);
+  align-items: start;
+}
+
+.figure > :not(.caption, .toolbar, .progress) {
+  grid-column: 1 / -1;
 }
 
 /* The refetch bar rides on the figure's own top rule. */
@@ -13,18 +27,12 @@
 }
 
 .caption {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.titles {
+  grid-column: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
+  margin-bottom: var(--space-3);
 }
 
 .title {
@@ -39,21 +47,46 @@
   font-size: var(--text-sm);
 }
 
-.actions {
-  display: inline-flex;
-  align-items: baseline;
+/* How it's drawn: the page's controls, then the two links; the key on
+   its own line under them, beside the subtitle. */
+.toolbar {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
+  max-width: 34rem;
+  padding-top: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-4);
   color: var(--ink-secondary);
   font-size: var(--text-sm);
 }
 
-/* 13px text links at the end of the title row (§6), whether the export
-   is a real download link or a client-side button. */
+.links {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+/* 13px text links (§6), whether a real link or a button. */
 .action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border: 0;
   background: none;
   padding: 0;
   color: var(--accent);
+  font: inherit;
   font-size: var(--text-sm);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -63,6 +96,89 @@
 
 .action:hover {
   color: var(--accent-hover);
+}
+
+.action:focus-visible,
+.item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.chevron {
+  display: inline-flex;
+  width: 0.75em;
+  height: 0.75em;
+}
+
+.chevron svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.download {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  top: calc(100% + var(--space-1));
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: var(--space-1);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 12%);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--control-bg);
+}
+
+.itemNote {
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+.key {
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+/* What the header says about what is shown, or how to work the chart. */
+.hint {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
 }
 
 .exportNote {
@@ -87,4 +203,36 @@
 .chart[data-refreshing] {
   opacity: 0.5;
   transition: opacity 0.15s;
+}
+
+/* On a phone the toolbar goes under the subtitle, left-aligned. */
+@media (max-width: 40rem) {
+  .figure {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .caption,
+  .toolbar {
+    grid-column: 1;
+  }
+
+  .caption {
+    margin-bottom: var(--space-2);
+  }
+
+  .toolbar,
+  .tools {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .toolbar {
+    max-width: none;
+    padding-top: 0;
+  }
+
+  .action,
+  .item {
+    min-height: 44px;
+  }
 }

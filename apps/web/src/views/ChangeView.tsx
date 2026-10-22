@@ -21,11 +21,13 @@ import {
 } from '../api/change'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateRow, Wave } from '../api/types'
+import type { EstimateRow, VariableSummary, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
@@ -33,20 +35,23 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, outcomeLevels } from '../labels'
-import { defaultDir } from '../sortRows'
+import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_MOMENTS, WAVE_TITLES, pairTitle } from '../waves'
+import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -79,7 +84,8 @@ export function ChangeView() {
   // Only the comparisons at least one servable measure can make are
   // offered (today: 2023 → 2024 alone — the midyear survey asked
   // different questions); more reappear by themselves if the data
-  // changes. The picker lists only measures asked at both waves of one.
+  // changes. The picker lists every question; one that can make none of
+  // them stays in view, disabled, with the reason.
   const allVariables = variables.data?.list
   const supportedPairs = useMemo(
     () =>
@@ -90,22 +96,24 @@ export function ChangeView() {
       ),
     [allVariables],
   )
-  const changeable = useMemo(
-    () =>
-      (allVariables ?? []).filter(
-        (candidate) =>
-          candidate.servable &&
-          supportedPairs.some((pair) => pairSupported(pair, candidate.waves_available)),
-      ),
-    [allVariables, supportedPairs],
-  )
+  // Why a question can't be compared here (the picker lists it all the
+  // same, the reason in words): asked once, or never at both waves of a
+  // comparison the page makes.
+  const changeReason = (candidate: VariableSummary): string | undefined => {
+    if (supportedPairs.some((pair) => pairSupported(pair, candidate.waves_available)))
+      return undefined
+    const [only] = candidate.waves_available
+    return candidate.waves_available.length === 1 && only !== undefined
+      ? `Asked only in ${WAVE_NAMES[only] ?? only}`
+      : 'Not asked in both years'
+  }
   // A categorical item (the server's default stat is a share) changes
   // in the share answering a level; a numeric one in its mean.
   const isCategorical = chartable && variable.default_stat === 'proportion'
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const dir = search.dir ?? defaultDir(search.sort === 'change' ? 'estimate' : 'name')
+  const dir = search.dir ?? DEFAULT_DIR
   const pair = pairTitle(search.from, search.to, search.via)
 
   const setSearch = (patch: Partial<ChangeSearch>) => {
@@ -129,12 +137,11 @@ export function ChangeView() {
     return orderChangeRows(
       isCategorical ? changeShareRows(response.rows, activeLevel) : changeRows(response.rows),
       metaData,
-      search.sort,
       dir,
       search.countries,
       legs,
     )
-  }, [response, metaData, isCategorical, activeLevel, search.sort, dir, search.countries, legs])
+  }, [response, metaData, isCategorical, activeLevel, dir, search.countries, legs])
   const chosen = search.countries.slice(0, 4)
   const distribution = useMemo(
     () =>
@@ -184,21 +191,36 @@ export function ChangeView() {
     })
   }
 
-  const pairOptions: RadioOption<string>[] = supportedPairs.map((candidate) => {
-    const missing = [candidate.from, candidate.via, candidate.to].filter(
+  const missingOf = (candidate: Pair): Wave[] =>
+    [candidate.from, candidate.via, candidate.to].filter(
       (wave): wave is Wave =>
         wave !== undefined && !(variable?.waves_available ?? []).includes(wave),
     )
-    return {
-      value: pairKey(candidate),
-      label: pairTitle(candidate.from, candidate.to, candidate.via),
-      disabled: missing.length > 0,
-      title:
-        missing.length > 0
-          ? `Not asked in ${missing.map((wave) => WAVE_TITLES[wave] ?? wave).join(' or ')}`
-          : undefined,
-    }
-  })
+  const pairOptions: RadioOption<string>[] = supportedPairs.map((candidate) => ({
+    value: pairKey(candidate),
+    label: pairTitle(candidate.from, candidate.to, candidate.via),
+    disabled: missingOf(candidate).length > 0,
+  }))
+  // Why the unavailable comparisons can't be chosen, in view (F6): those
+  // missing the same survey named together — "2023 → Midyear and
+  // Midyear → 2024 — not asked in the midyear survey".
+  const byMissing = new Map<string, string[]>()
+  for (const candidate of supportedPairs) {
+    const missing = missingOf(candidate)
+    if (missing.length === 0) continue
+    const key = missing.map((wave) => WAVE_NAMES[wave] ?? wave).join(' or ')
+    byMissing.set(key, [
+      ...(byMissing.get(key) ?? []),
+      pairTitle(candidate.from, candidate.to, candidate.via),
+    ])
+  }
+  const pairNote = [...byMissing]
+    .map(([missing, labels]) => {
+      const last = labels.pop()
+      const named = labels.length > 0 ? `${labels.join(', ')} and ${last}` : last
+      return `${named} — not asked in ${missing}`
+    })
+    .join('; ')
 
   const title = variable?.display_name ?? search.outcome
   // A numeric change is taken on values aligned to the label (a rise =
@@ -219,18 +241,17 @@ export function ChangeView() {
     variable && variable.min !== null && variable.max !== null
       ? ` on the ${variable.min}–${variable.max} scale`
       : ''
-  const subtitle = isCategorical
-    ? [
-        `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`,
-        directionNote,
-        pair,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : [
-        `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
-        pair,
-      ].join(' · ')
+  // The state, in the controls' words (ADR-0029): the countries, the
+  // order.
+  const subtitle = stateLine(
+    isCategorical
+      ? `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`
+      : `Mean change${range}, among the same people`,
+    directionNote,
+    pair,
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    orderPhrase(dir),
+  )
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
   // What a download is called, in words (ADR-0016): the measure, the
   // figure ("Change", "Change distribution", "Transitions") and the
@@ -256,41 +277,34 @@ export function ChangeView() {
   const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
   const ledeYears = `${WAVE_MOMENTS[ledePair.from]} to ${WAVE_MOMENTS[ledePair.to]}`
 
-  const displayOptions = (
-    <>
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
+  // How the chart is drawn, in its header's toolbar (ADR-0029).
+  // In the toolbar (`inline`), or in the phone's options sheet.
+  const chartControls = (inline: boolean) =>
+    isCategorical &&
+    levels.length > 0 && (
       <RadioRow
-        legend="Sort"
-        name="sort"
-        options={[
-          { value: 'change', label: 'By change' },
-          { value: 'name', label: 'A–Z' },
-        ]}
-        value={search.sort}
-        onChange={(sort) => setSearch({ sort, dir: undefined })}
+        legend="Showing % who said"
+        name="level"
+        inline={inline}
+        wide={!inline}
+        selectOnNarrow
+        options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+        value={String(activeLevel)}
+        onChange={(value) => setSearch({ level: Number(value) })}
       />
-      <RadioRow
-        legend="Order"
-        name="dir"
-        options={
-          search.sort === 'name'
-            ? [
-                { value: 'asc', label: 'A to Z' },
-                { value: 'desc', label: 'Z to A' },
-              ]
-            : [
-                { value: 'desc', label: 'High to low' },
-                { value: 'asc', label: 'Low to high' },
-              ]
-        }
-        value={dir}
-        onChange={(value) => setSearch({ dir: value })}
-      />
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
-      />
-    </>
+    )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    isCategorical ? `Change in “${activeLevelLabel ?? '…'}”` : 'Mean change',
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    orderPhrase(dir),
   )
 
   return (
@@ -316,13 +330,19 @@ export function ChangeView() {
           )
         }
       />
-      <div className={styles.controls}>
-        <OutcomePicker
-          variables={changeable}
+      {/* The question bar (ADR-0029): what, then where — its years are
+          fixed. */}
+      <div className={styles.questionBar} data-bar="question">
+        <QuestionPicker
+          variant="field"
+          label="Question"
+          variables={variables.data.list}
+          wave={search.from}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          unavailable={changeReason}
+          countable={(candidate) => changeReason(candidate) === undefined}
+          onPick={(outcome) => handlePick({ outcome })}
         />
         {supportedPairs.length > 1 && (
           <RadioRow
@@ -331,6 +351,7 @@ export function ChangeView() {
             wide
             selectOnNarrow
             options={pairOptions}
+            note={pairNote ? `${pairNote}.` : undefined}
             value={pairKey(search)}
             onChange={(value) => {
               const candidate = supportedPairs.find((entry) => pairKey(entry) === value)
@@ -339,35 +360,19 @@ export function ChangeView() {
             }}
           />
         )}
-        {isCategorical && levels.length > 0 && (
-          <RadioRow
-            legend="Answer level"
-            name="level"
-            wide
-            selectOnNarrow
-            options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
-        )}
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — sort, countries</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={changeable}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
-          </details>
-        ) : (
-          displayOptions
-        )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && askedTwice && (
+        <OptionsSheet summary={phoneSummary}>
+          <CountryFilter
+            variant="panel"
+            countries={meta.data.meta.countries}
+            selected={search.countries}
+            onChange={(countries) => setSearch({ countries })}
+          />
+          {chartControls(false)}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -390,10 +395,7 @@ export function ChangeView() {
         <LoadingBlock height={420} label="Loading estimates" />
       ) : change.isError ? (
         change.error instanceof NetworkError && !boot.apiReachable ? (
-          <p className={styles.hint} role="status">
-            This view needs the live data service, which is offline right now — the Atlas and
-            Segments still work.
-          </p>
+          <OfflineLine className={styles.hint} />
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={change.error} />
         )
@@ -410,7 +412,7 @@ export function ChangeView() {
               meta.data.meta,
               isCategorical
                 ? `${title}: change in the share of the same people answering “${activeLevelLabel ?? activeLevel}”, ${pair}, by country, in percentage points.`
-                : `${title}: average change among the same people, ${pair}, by country.`,
+                : `${title}: mean change among the same people, ${pair}, by country.`,
             )}
             intro={
               detail && (
@@ -418,6 +420,24 @@ export function ChangeView() {
                   <WordingPanel detail={detail} />
                 </div>
               )
+            }
+            toolbar={narrow ? undefined : chartControls(true)}
+            sortHead={
+              // The order is the value label's (ADR-0029).
+              <SortHead
+                names="Country"
+                value={isCategorical ? 'Change in share' : 'Mean change'}
+                dir={dir}
+                onToggle={() => setSearch({ dir: reversed(dir) })}
+              />
+            }
+            chartKey={
+              <ChartKey
+                mark="dot"
+                label={isCategorical ? 'change in share' : 'mean change'}
+                color={color}
+                ciLevel={keyCiLevel(display.rows)}
+              />
             }
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
@@ -439,6 +459,14 @@ export function ChangeView() {
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
                 ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
+                chartKey={
+                  <ChartKey
+                    mark="bar"
+                    label="share of people"
+                    color={color}
+                    ciLevel={keyCiLevel(distribution)}
+                  />
+                }
                 csv={csvFor(distribution, nameFor('Change distribution'))}
                 exportName={nameFor('Change distribution')}
                 isRefreshing={change.isPlaceholderData}

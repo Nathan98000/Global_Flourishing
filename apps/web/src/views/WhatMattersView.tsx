@@ -17,21 +17,26 @@ import type { EstimateResponse, EstimateRow, Meta, Stat, VariableSummary } from 
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
 import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
-import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, headerFont } from '../charts/HeatTable'
+import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { formatEstimate } from '../format'
+import { countWord, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir, sortAtlasRows, type SortDir } from '../sortRows'
+import { DEFAULT_DIR, reversed, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   NO_SPLIT,
@@ -43,11 +48,10 @@ import { splitMidyear } from '../topics'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import {
-  columnRanges,
   defaultSplitCountry,
   itemLabel,
-  itemList,
   matrixCountryOrder,
+  matrixRange,
   narrowestWrap,
   orderMatrixRows,
   rankItems,
@@ -55,6 +59,7 @@ import {
   splitGroupOrder,
 } from './whatMattersRows'
 import styles from './AtlasView.module.css'
+import { keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/what-matters')
 
@@ -84,16 +89,6 @@ function useMatrixColumn(labels: readonly string[], narrow: boolean): number {
     return Math.ceil(text) + 2 * HEAT_CELL_PAD
   }, [labels, narrow])
 }
-
-/** The Order control's two readings: names A→Z, values high-first. */
-const NAME_ORDER: RadioOption<SortDir>[] = [
-  { value: 'asc', label: 'A to Z' },
-  { value: 'desc', label: 'Z to A' },
-]
-const VALUE_ORDER: RadioOption<SortDir>[] = [
-  { value: 'desc', label: 'High to low' },
-  { value: 'asc', label: 'Low to high' },
-]
 
 /** The in-page anchors the page had before the view switcher: an old
  * link's hash picks the matching view. */
@@ -148,23 +143,27 @@ export function WhatMattersView() {
   )
   const labels = useMemo(() => ranking.map((entry) => itemLabel(entry)), [ranking])
   const columnWidth = useMatrixColumn(labels, narrow)
-  // The country order: A–Z, or by one importance item's value (a code
-  // that names no item reads as A–Z).
-  const matrixSort = ranking.some((entry) => entry.name === search.sort) ? search.sort : 'name'
-  const sortKey = matrixSort === 'name' ? 'name' : 'estimate'
-  const dir = search.dir ?? defaultDir(sortKey)
-  // The other questions' chart keeps its own order (qsort/qdir).
-  const qdir = search.qdir ?? defaultDir(search.qsort)
+  // The country order: by one importance item's value — the first
+  // column's (the first item in the server's order) until another is
+  // chosen; a code that names no item reads as the first column too.
+  const firstColumn = ranking[0]?.name ?? ''
+  const matrixSort =
+    search.sort !== undefined && ranking.some((entry) => entry.name === search.sort)
+      ? search.sort
+      : firstColumn
+  const dir = search.dir ?? DEFAULT_DIR
+  // The other questions' chart keeps its own order (qdir).
+  const qdir = search.qdir ?? DEFAULT_DIR
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
   }
-  // A column's label sorts the countries by it (the corner: by name); the
-  // same label again reverses the order (ADR-0026).
+  // A column's label sorts the countries by it, highest first; the same
+  // label again reverses the order (ADR-0026, ADR-0029). The first
+  // column is the default, so it leaves the URL.
   const sortMatrix = (column: string) => {
-    const next = column === ROW_LABELS ? 'name' : column
-    if (next === matrixSort) setSearch({ dir: dir === 'asc' ? 'desc' : 'asc' })
-    else setSearch({ sort: next, dir: undefined })
+    if (column === matrixSort) setSearch({ dir: reversed(dir) })
+    else setSearch({ sort: column === firstColumn ? undefined : column, dir: undefined })
   }
 
   // An old link's anchor (#within-country) selects its view; the hash
@@ -215,8 +214,8 @@ export function WhatMattersView() {
     [rankingQuery.results, ranking],
   )
   const countryOrder = useMemo(
-    () => (metaData ? matrixCountryOrder(rankingAll, metaData, search.sort, dir) : []),
-    [rankingAll, metaData, search.sort, dir],
+    () => (metaData ? matrixCountryOrder(rankingAll, metaData, matrixSort, dir) : []),
+    [rankingAll, metaData, matrixSort, dir],
   )
   const rankingOrdered = useMemo(
     () => orderMatrixRows(rankingAll, countryOrder, ranking),
@@ -260,8 +259,8 @@ export function WhatMattersView() {
       const level = search.level ?? itemLevels[0]?.value ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortAtlasRows(rows, metaData, search.qsort, qdir)
-  }, [itemQuery.results, metaData, item, search.level, search.qsort, qdir, itemLevels])
+    return sortAtlasRows(rows, metaData, qdir)
+  }, [itemQuery.results, metaData, item, search.level, qdir, itemLevels])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -293,9 +292,7 @@ export function WhatMattersView() {
   const range = first && first.min !== null && first.max !== null ? `${first.min}–${first.max}` : ''
   const rankingSubtitle = `How important${range ? `, ${range}` : ''} · ${MIDYEAR_TITLE}`
   // The lede names the items from the catalog, in column order.
-  const things = ranking.length === 1 ? '1 thing is' : `${ranking.length} things are`
-  const rated = range ? `, rated ${range}` : ''
-  const list = itemList(ranking)
+  const things = ranking.length === 1 ? 'one thing is' : `${countWord(ranking.length)} things are`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
     onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
@@ -346,10 +343,7 @@ export function WhatMattersView() {
   )
   const offline = (error: unknown) =>
     error instanceof NetworkError && !boot.apiReachable ? (
-      <p className={styles.hint} role="status">
-        This view needs the live data service, which is offline right now — the Atlas and Segments
-        still work.
-      </p>
+      <OfflineLine except="/what-matters" className={styles.hint} />
     ) : (
       <ErrorState apiReachable={boot.apiReachable} error={error} />
     )
@@ -357,27 +351,49 @@ export function WhatMattersView() {
   const itemLevel = search.level ?? itemLevels[0]?.value
   const itemLevelLabel = itemLevels.find((level) => level.value === itemLevel)?.label
   const itemSubtitle = item
-    ? `${
+    ? stateLine(
         itemStat === 'proportion'
           ? itemLevelLabel
             ? `share answering “${itemLevelLabel}”`
             : 'weighted share'
-          : scaleSubtitle(item, itemStat, itemDetail)
-      } · ${MIDYEAR_TITLE}`
+          : scaleSubtitle(item, itemStat, itemDetail),
+        MIDYEAR_TITLE,
+        orderPhrase(qdir),
+      )
     : ''
   const itemResponse = itemQuery.results[0]?.response
+  // The answer a share counts: in the chart's toolbar (`inline`), or in
+  // the phone's options sheet (ADR-0029).
+  const itemAnswer = (inline: boolean) =>
+    itemStat === 'proportion' &&
+    itemLevels.length > 0 && (
+      <RadioRow
+        legend="Showing % who said"
+        name="item-level"
+        inline={inline}
+        wide={!inline}
+        selectOnNarrow
+        options={itemLevels.map((entry) => ({
+          value: String(entry.value),
+          label: entry.label,
+        }))}
+        value={String(itemLevel)}
+        onChange={(value) => setSearch({ level: Number(value) })}
+      />
+    )
 
   return (
     <section>
       <h2 className="visually-hidden">What Matters</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what to do (F18); the count is the
+            catalog's. */}
         <span className={styles.deckLong}>
-          How important people say {things} in their lives{rated}
-          {list ? `: ${list}` : ''}. From the midyear survey (Nov 2023–Dec 2024), a short
-          questionnaire between the two annual waves.
+          How important {things} to people — from being a good person to money — in a shorter survey
+          between the two years. Start with a country&rsquo;s own ranking, or compare countries.
         </span>
         <span className={styles.deckShort}>
-          How important people say {things} in their lives{rated}, in the midyear survey.
+          How important {things} to people. Start with a country&rsquo;s own ranking.
         </span>
       </p>
       <div className={styles.controls}>
@@ -386,7 +402,9 @@ export function WhatMattersView() {
           name="view"
           options={VIEW_OPTIONS}
           value={search.view}
-          onChange={(view) => setSearch({ view })}
+          // "Within a country" opens on the country's own ranking (F16):
+          // the tab writes by=none; a bare ?view=within keeps its default.
+          onChange={(view) => setSearch(view === 'within' ? { view, by: NO_SPLIT } : { view })}
         />
       </div>
       <InvalidParamsNotice
@@ -422,6 +440,7 @@ export function WhatMattersView() {
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
+              hint="Select a column’s label to sort by it, and again to reverse the order."
             >
               <ImportanceMatrix
                 rows={rankingAll}
@@ -431,12 +450,10 @@ export function WhatMattersView() {
                 corner="Country"
                 served={served}
                 columnWidth={columnWidth}
-                sort={{ column: matrixSort === 'name' ? ROW_LABELS : matrixSort, dir }}
+                narrowMatrix={narrow}
+                sort={{ column: matrixSort, dir }}
                 onSort={sortMatrix}
               />
-              <p className={styles.hint}>
-                Select a column&rsquo;s label to sort by it, and again to reverse the order.
-              </p>
             </ChartFigure>
           )}
         </>
@@ -444,7 +461,8 @@ export function WhatMattersView() {
 
       {search.view === 'within' && ranking.length > 0 && (
         <>
-          <div className={styles.controls}>
+          {/* The question bar (ADR-0029): where, then how it is split. */}
+          <div className={styles.questionBar} data-bar="question">
             <SelectField
               label="Country"
               value={splitCountry ?? ''}
@@ -466,7 +484,7 @@ export function WhatMattersView() {
               value={search.by}
               onChange={(event) => setSearch({ by: event.target.value })}
             >
-              <option value={NO_SPLIT}>No split</option>
+              <option value={NO_SPLIT}>Nothing — one ranked list</option>
               {demographics.map((column) => (
                 <option key={column} value={column}>
                   {columnLabel(column, served)}
@@ -486,6 +504,14 @@ export function WhatMattersView() {
                   title={`${countryName(splitCountry)}: what matters most`}
                   subtitle={rankingSubtitle}
                   ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, most important first, ${MIDYEAR_TITLE}.${countryItemsSummary}`}
+                  chartKey={
+                    <ChartKey
+                      mark="dot"
+                      label="mean"
+                      color={outcomeColor(first.name)}
+                      ciLevel={keyCiLevel(countryItems)}
+                    />
+                  }
                   csv={csvFor(countryItemsResponse, countryItemsName)}
                   exportName={countryItemsName}
                   isRefreshing={rankingQuery.isPlaceholderData}
@@ -524,6 +550,7 @@ export function WhatMattersView() {
                   corner={`${splitLabel} ↓ · what matters →`}
                   served={served}
                   columnWidth={columnWidth}
+                  narrowMatrix={narrow}
                 />
               </ChartFigure>
             )
@@ -539,50 +566,24 @@ export function WhatMattersView() {
 
       {search.view === 'questions' && chartable.length > 0 && item && (
         <>
-          <div className={styles.controls}>
-            <SelectField
+          {/* The question bar (ADR-0029): this view's question. */}
+          <div className={styles.questionBar} data-bar="question">
+            <QuestionPicker
+              variant="field"
               label="Question"
+              variables={chartable}
+              wave="MY"
               value={item.name}
-              onChange={(event) => setSearch({ item: event.target.value, level: undefined })}
-            >
-              {chartable.map((candidate) => (
-                <option key={candidate.name} value={candidate.name}>
-                  {candidate.display_name}
-                </option>
-              ))}
-            </SelectField>
-            {itemStat === 'proportion' && itemLevels.length > 0 && (
-              <RadioRow
-                legend="Answer level"
-                name="item-level"
-                wide
-                selectOnNarrow
-                options={itemLevels.map((entry) => ({
-                  value: String(entry.value),
-                  label: entry.label,
-                }))}
-                value={String(itemLevel)}
-                onChange={(value) => setSearch({ level: Number(value) })}
-              />
-            )}
-            <RadioRow
-              legend="Sort"
-              name="qsort"
-              options={[
-                { value: 'estimate', label: 'By value' },
-                { value: 'name', label: 'A–Z' },
-              ]}
-              value={search.qsort}
-              onChange={(qsort) => setSearch({ qsort, qdir: undefined })}
-            />
-            <RadioRow
-              legend="Order"
-              name="qdir"
-              options={search.qsort === 'name' ? NAME_ORDER : VALUE_ORDER}
-              value={qdir}
-              onChange={(value) => setSearch({ qdir: value })}
+              onPick={(name) => setSearch({ item: name, level: undefined })}
             />
           </div>
+          {narrow && itemStat === 'proportion' && itemLevels.length > 0 && (
+            <OptionsSheet
+              summary={stateLine(`Share answering “${itemLevelLabel ?? '…'}”`, orderPhrase(qdir))}
+            >
+              {itemAnswer(false)}
+            </OptionsSheet>
+          )}
           {itemQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : itemQuery.isError ? (
@@ -602,6 +603,24 @@ export function WhatMattersView() {
                     <WordingPanel detail={itemDetail} />
                   </div>
                 )
+              }
+              toolbar={narrow ? undefined : itemAnswer(true)}
+              sortHead={
+                // The order is the value label's (ADR-0029), on `qdir`.
+                <SortHead
+                  names="Country"
+                  value={itemStat === 'proportion' ? 'Share' : 'Mean'}
+                  dir={qdir}
+                  onToggle={() => setSearch({ qdir: reversed(qdir) })}
+                />
+              }
+              chartKey={
+                <ChartKey
+                  mark={itemStat === 'proportion' ? 'bar' : 'dot'}
+                  label={itemStat === 'proportion' ? 'share' : 'mean'}
+                  color={outcomeColor(item.name)}
+                  ciLevel={keyCiLevel(itemRows)}
+                />
               }
               csv={csvFor(
                 { ...itemResponse, rows: itemRows },
@@ -655,28 +674,28 @@ function count(n: number, one: string, many = `${one}s`): string {
 }
 
 /** The matrix's key, in its caption's place: the seven ramp steps from
- * lower to higher — the tokens themselves, so it reads true in either
- * theme — and the rule that each column is shaded on its own range. */
-function TintLegend() {
+ * the lowest to the highest number in the matrix — the tokens
+ * themselves, one range for every column (ADR-0030). */
+function TintLegend({ range }: { range: [number, number] | undefined }) {
+  const [lo, hi] = range ?? [undefined, undefined]
   return (
     <span className={styles.legend}>
       <span className={styles.legendKey}>
-        Lower{' '}
+        Lower{lo !== undefined ? ` (${formatEstimate(lo, 'mean')})` : ''}{' '}
         <span className={styles.ramp} aria-hidden="true">
           {SEQUENTIAL_RAMP.map((token) => (
             <span key={token} style={{ background: token }} />
           ))}
         </span>{' '}
-        Higher
-      </span>{' '}
-      · each column shaded on its own range
+        Higher{hi !== undefined ? ` (${formatEstimate(hi, 'mean')})` : ''}
+      </span>
     </span>
   )
 }
 
 /** Rows × the importance items — countries, or one country's groups —
- * each cell the weighted mean, tinted on its column's own range across
- * the rows shown (the legend says so), the interval in its hover card;
+ * each cell the weighted mean, tinted on one range across every cell
+ * shown (ADR-0030; the key gives its ends), the interval in its hover card;
  * every column one width, its short label wrapping over it; the first
  * column stays put while a phone scrolls the rest. */
 function ImportanceMatrix({
@@ -687,6 +706,7 @@ function ImportanceMatrix({
   corner,
   served,
   columnWidth,
+  narrowMatrix = false,
   sort,
   onSort,
 }: {
@@ -698,8 +718,10 @@ function ImportanceMatrix({
   corner: string
   served: Meta
   columnWidth: number
-  /** The item the rows are ordered by (`ROW_LABELS`: their names; none:
-   * the rows' own order). */
+  /** A phone: columns at their narrowest, the box scrolling; elsewhere
+   * they share the page column (F2). */
+  narrowMatrix?: boolean
+  /** The item the rows are ordered by (none: the rows' own order). */
   sort?: { column: string; dir: SortDir }
   /** The labels are sort buttons (the By country matrix). */
   onSort?: (column: string) => void
@@ -707,16 +729,14 @@ function ImportanceMatrix({
   const cells = new Map<string, EstimateRow>()
   for (const row of rows)
     cells.set(`${String(row.group['outcome'])}:${String(row.group[rowColumn])}`, row)
-  // One scale per column, over the rows on screen.
+  // One scale for the whole matrix, over the rows on screen (F2): a
+  // shade is the same number in every column.
   const shown = new Set<unknown>(rowOrder)
-  const tints = new Map(
-    [...columnRanges(rows.filter((row) => shown.has(row.group[rowColumn])))].map(
-      ([item, range]) => [item, quantizeSequential(range)],
-    ),
-  )
+  const range = matrixRange(rows.filter((row) => shown.has(row.group[rowColumn])))
+  const tint = range ? quantizeSequential(range) : undefined
   return (
     <HeatTable
-      caption={<TintLegend />}
+      caption={<TintLegend range={range} />}
       corner={corner}
       rows={rowOrder.map((value) => ({
         key: String(value),
@@ -724,6 +744,7 @@ function ImportanceMatrix({
       }))}
       columns={items.map((item) => ({ key: item.name, label: itemLabel(item) }))}
       columnWidth={columnWidth}
+      fill={!narrowMatrix}
       sort={sort}
       onSort={onSort}
       cellAt={(row, column) => {
@@ -734,10 +755,7 @@ function ImportanceMatrix({
           title: tipText(cell, `${row.label} · ${column.label}`, {
             range: items.find((item) => item.name === column.key),
           }),
-          tint:
-            cell.estimate === null
-              ? 'transparent'
-              : (tints.get(column.key)?.(cell.estimate) ?? 'transparent'),
+          tint: cell.estimate === null || !tint ? 'transparent' : tint(cell.estimate),
         }
       }}
     />

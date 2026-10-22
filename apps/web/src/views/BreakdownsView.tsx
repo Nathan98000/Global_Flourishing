@@ -5,13 +5,14 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
@@ -19,22 +20,25 @@ import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
   groupValueLabel,
+  lowerFirst,
   highestLevel,
   levelDomain,
   outcomeLevels,
   scaleSubtitle,
 } from '../labels'
-import { defaultDir, sortBreakdownRows } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER, sortBreakdownRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   BREAKDOWNS_DEFAULTS,
@@ -43,13 +47,15 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/segments')
 
 export function BreakdownsView() {
   const search = route.useSearch()
+  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -78,7 +84,7 @@ export function BreakdownsView() {
   const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
 
@@ -177,17 +183,20 @@ export function BreakdownsView() {
     value: wave as BreakdownsSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
+  // Why a year is unavailable, or what Midyear is: under the whole bar.
+  const yearNoteText = yearNote(waveOptions)
 
-  // The title keeps its × clause but loses the wave, which rides last in
-  // the subtitle instead (§7).
-  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)}`
+  // The title names the splits in words ("Life satisfaction by gender
+  // and age band"); the wave rides last in the subtitle (§7).
+  const title = `${variable?.display_name ?? search.outcome} by ${[primary, secondary]
+    .filter((column): column is string => column !== undefined)
+    .map((column) => lowerFirst(columnLabel(column, meta.data.meta)))
+    .join(' and ')}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
-  const subtitle = [
+  // The state, in the controls' words (ADR-0029): the year, the
+  // countries, their order.
+  const subtitle = stateLine(
     isCategorical
       ? levelLabel
         ? `share answering “${levelLabel}”`
@@ -195,11 +204,10 @@ export function BreakdownsView() {
       : variable
         ? scaleSubtitle(variable, stat, detail)
         : null,
-    secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
     WAVE_TITLES[search.wave] ?? search.wave,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
+  )
 
   // What a download is called, in words (ADR-0016): the measure, then
   // `by-<breakdown>` for the split; the server names its CSV the same way.
@@ -225,75 +233,78 @@ export function BreakdownsView() {
   // The split, sorts, country filter and answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it;
   // Measure, Wave and the breakdown itself stay visible.
-  const displayOptions = (
-    <>
-      <label className={`${styles.oriented} ${styles.stacksNarrow}`}>
-        Second breakdown{' '}
-        <select
-          value={secondary ?? ''}
-          onChange={(event) =>
-            setSearch({
-              by: event.target.value ? [primary, event.target.value] : [primary],
-            })
-          }
-        >
-          <option value="">—</option>
-          <optgroup label="demographics">
-            {demographics
-              .filter((column) => column !== primary)
-              .map((column) => (
-                <option key={column} value={column}>
-                  {columnLabel(column, meta.data.meta)}
-                </option>
-              ))}
-          </optgroup>
-          <optgroup label="survey variables">
-            {categoricalVariables.map((candidate) => (
-              <option key={candidate.name} value={candidate.name}>
-                {candidate.display_name}
+  // "Split by [ ] then by [ ]": the second split's label above its select,
+  // as every other label is (F15).
+  const thenBy = (
+    <label className={styles.field}>
+      <span className={styles.fieldLabel}>then by</span>
+      <select
+        value={secondary ?? ''}
+        onChange={(event) =>
+          setSearch({
+            by: event.target.value ? [primary, event.target.value] : [primary],
+          })
+        }
+      >
+        <option value="">Nothing</option>
+        <optgroup label="demographics">
+          {demographics
+            .filter((column) => column !== primary)
+            .map((column) => (
+              <option key={column} value={column}>
+                {columnLabel(column, meta.data.meta)}
               </option>
             ))}
-          </optgroup>
+        </optgroup>
+        <optgroup label="survey variables">
+          {categoricalVariables.map((candidate) => (
+            <option key={candidate.name} value={candidate.name}>
+              {candidate.display_name}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    </label>
+  )
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
+  // How the chart is drawn, in its header's toolbar (ADR-0029): the
+  // panels have no value column to sort from, so one "Order countries"
+  // select writes `sort` and `dir` — by value either way, or by the gap.
+  const chartControls = (inline: boolean) => (
+    <>
+      <label className={inline ? styles.inlineField : styles.field}>
+        <span className={styles.fieldLabel}>Order countries</span>
+        <select
+          value={search.sort === 'gap' ? 'gap' : dir}
+          onChange={(event) => {
+            const value = event.target.value
+            setSearch(
+              value === 'gap'
+                ? { sort: 'gap', dir: undefined }
+                : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
+            )
+          }}
+        >
+          {VALUE_ORDER.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          <option value="gap">Biggest gap first</option>
         </select>
       </label>
-      <RadioRow
-        legend="Sort countries"
-        name="sort"
-        options={[
-          { value: 'estimate', label: 'By value' },
-          { value: 'name', label: 'A–Z' },
-          { value: 'gap', label: 'By gap' },
-        ]}
-        value={search.sort}
-        onChange={(sort) => setSearch({ sort, dir: undefined })}
-      />
-      <RadioRow
-        legend="Order"
-        name="dir"
-        options={
-          search.sort === 'name'
-            ? [
-                { value: 'asc', label: 'A to Z' },
-                { value: 'desc', label: 'Z to A' },
-              ]
-            : [
-                { value: 'desc', label: 'High to low' },
-                { value: 'asc', label: 'Low to high' },
-              ]
-        }
-        value={dir}
-        onChange={(value) => setSearch({ dir: value })}
-      />
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
-      />
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
-          legend="Answer level"
+          legend="Showing % who said"
           name="outcome-level"
-          wide
+          inline={inline}
+          wide={!inline}
           selectOnNarrow
           options={outcomeLevelOptions.map((entry) => ({
             value: String(entry.value),
@@ -305,13 +316,25 @@ export function BreakdownsView() {
       )}
     </>
   )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    isCategorical ? 'Share' : 'Mean',
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
+  )
 
   return (
     <section>
       <h2 className="visually-hidden">Segments</h2>
       <p className={styles.deck}>
-        One measure split by a demographic, one panel per country — the Atlas&rsquo;s estimates, cut
-        finer.
+        {/* What you can see, then how it is laid out (F18). */}
+        <span className={styles.deckLong}>
+          One question, split into groups of people — by age, gender, income and more — country by
+          country.
+        </span>
+        <span className={styles.deckShort}>
+          One question, split into groups of people, country by country.
+        </span>
       </p>
       <InvalidParamsNotice
         invalid={search.invalid}
@@ -324,23 +347,21 @@ export function BreakdownsView() {
           )
         }
       />
-      <div className={styles.controls}>
-        <OutcomePicker
+      {/* The question bar (ADR-0029): what — the question and its split —
+          then when and where. */}
+      <div className={styles.questionBar} data-bar="question">
+        <QuestionPicker
+          variant="field"
+          label="Question"
           variables={variables.data.list}
+          wave={search.wave}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          fieldWidth="18rem"
+          onPick={(outcome) => handlePick({ outcome })}
         />
         <RadioRow
-          legend="Wave"
-          name="wave"
-          options={waveOptions}
-          value={search.wave}
-          onChange={(wave) => setSearch({ wave })}
-        />
-        <RadioRow
-          legend="Break down by"
+          legend="Split by"
           name="by"
           wide
           selectOnNarrow
@@ -348,24 +369,33 @@ export function BreakdownsView() {
           value={primary}
           onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
         />
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — split, sort, countries</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={variables.data.list}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
-          </details>
-        ) : (
-          displayOptions
+        {thenBy}
+        <RadioRow
+          legend="Year"
+          name="wave"
+          options={waveOptions}
+          value={search.wave}
+          onChange={(wave) => setSearch({ wave })}
+          noteId={yearNoteText ? yearNoteId : undefined}
+        />
+        {yearNoteText && (
+          <p id={yearNoteId} className={styles.barNote}>
+            {yearNoteText}
+          </p>
         )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>
+          <CountryFilter
+            variant="panel"
+            countries={meta.data.meta.countries}
+            selected={search.countries}
+            onChange={(countries) => setSearch({ countries })}
+          />
+          {chartControls(false)}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -382,10 +412,7 @@ export function BreakdownsView() {
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && !boot.apiReachable ? (
-              <p className={styles.hint} role="status">
-                This view needs the live data service, which is offline right now — the standard
-                views still work.
-              </p>
+              <OfflineLine except="/segments" className={styles.hint} />
             ) : (
               <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
@@ -404,6 +431,15 @@ export function BreakdownsView() {
                       <WordingPanel detail={detail} />
                     </div>
                   )
+                }
+                toolbar={narrow ? undefined : chartControls(true)}
+                chartKey={
+                  <ChartKey
+                    mark="dot"
+                    label={isCategorical ? 'share' : 'mean'}
+                    color={outcomeColor(variable.name)}
+                    ciLevel={keyCiLevel(displayRows)}
+                  />
                 }
                 csv={csv}
                 exportName={exportName}

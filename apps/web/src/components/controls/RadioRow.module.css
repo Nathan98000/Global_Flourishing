@@ -60,10 +60,40 @@
   font-size: var(--text-xs);
 }
 
+/* Unavailable, not merely quiet (F6): paler words inside a dashed
+   outline (--ink-muted on the control tint, 3:1 — tokens.test.ts), and
+   the reason in the note line under the row. */
 .option[data-disabled] {
   color: var(--ink-muted);
   opacity: 1;
   cursor: not-allowed;
+  outline: 1px dashed var(--ink-muted);
+  outline-offset: -4px;
+}
+
+/* In a chart's toolbar (ADR-0029): the label beside the control, a
+   note on its own line under both. */
+.inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-2);
+}
+
+.inlineLabel {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.inline > .note {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.inline select {
+  font-size: var(--text-xs);
+  max-width: 14rem;
 }
 
 /* Why the disabled options are unavailable: one plain line under the

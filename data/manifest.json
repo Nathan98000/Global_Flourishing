@@ -6,8 +6,8 @@
     "polars": "1.44.2",
     "pyarrow": "25.0.1"
   },
-  "generated_at_utc": "2026-10-22T00:45:51+00:00",
-  "git_sha": "9cfef461a54b977b665b1f0eb558bc693e508197",
+  "generated_at_utc": "2026-10-22T12:06:00+00:00",
+  "git_sha": "fc6ed557af04c9ca951ce30ec6c40b85b6c77acb",
   "inputs": [
     {
       "bytes": 137525983,
@@ -30,10 +30,10 @@
   ],
   "outputs": [
     {
-      "bytes": 873651,
+      "bytes": 873791,
       "path": "data/catalog.json",
       "rows": null,
-      "sha256": "d49217d30e6b41584f3c24b71c4f7f61cf807c51387ae2ceef061286a81e6085"
+      "sha256": "9242fe606c8158759c6e890a1d029d9cb3e0a49b0ab6423046dac01e95247440"
     },
     {
       "bytes": 8067,
@@ -48,10 +48,10 @@
       "sha256": "1a39e2d1da872ef116310b71f25994c61e5d7f35971b6ea7d125a53830332698"
     },
     {
-      "bytes": 25837,
+      "bytes": 25844,
       "path": "data/catalog/variables.parquet",
       "rows": 182,
-      "sha256": "cdccf45878180480faa1fbaf69a5b2fceccf1f7cdf16f96515b4f6049686d441"
+      "sha256": "56f9f9511411aaa6cd69cb8f2bc0edcdc64fc68e0b881521c660f0633e9557ad"
     },
     {
       "bytes": 28806,
@@ -96,16 +96,16 @@
       "sha256": "a03390f6c9143ea5846d14ab409287b82d715f80145c62a3e66c8e2e64192632"
     },
     {
-      "bytes": 25837,
+      "bytes": 25844,
       "path": "data/parquet/variables.parquet",
       "rows": 182,
-      "sha256": "cdccf45878180480faa1fbaf69a5b2fceccf1f7cdf16f96515b4f6049686d441"
+      "sha256": "56f9f9511411aaa6cd69cb8f2bc0edcdc64fc68e0b881521c660f0633e9557ad"
     },
     {
-      "bytes": 7103,
+      "bytes": 7102,
       "path": "data/validation_report.md",
       "rows": null,
-      "sha256": "44ccc10a5668f6e254a9ebaa13ada2bed02154d6c02a6736a008e251f2f0f3b2"
+      "sha256": "9251514b183be1b2029a436d8a13f0ae7097667bf40624612da2b15a25432a4b"
     },
     {
       "bytes": 340479,
@@ -114,20 +114,20 @@
       "sha256": "fbbe4d316316716df228496991c3d9981fde86e960d713c2c5c4db7e989c3ead"
     },
     {
-      "bytes": 149958656,
+      "bytes": 150482944,
       "path": "data/flourish.duckdb",
       "rows": 33295632,
-      "sha256": "808202922680c4bd3fc7aa7109f0de06591e9637b54091714ee9234f28975f82"
+      "sha256": "9ee5d0c1424062139fe0ffea38cad7c2e199310e656d7ec3cf8af53a750f2d85"
     }
   ],
   "pipeline_version": "0.2.0",
   "stage_seconds": {
-    "aggregate": 83.3,
-    "codebook": 2.76,
-    "derive": 2.57,
-    "ingest": 1.05,
-    "manifest": 0.37,
-    "reshape": 3.68,
-    "validate": 0.85
+    "aggregate": 77.9,
+    "codebook": 2.71,
+    "derive": 2.38,
+    "ingest": 0.88,
+    "manifest": 0.27,
+    "reshape": 3.43,
+    "validate": 0.72
   }
 }

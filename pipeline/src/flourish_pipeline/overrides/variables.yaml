@@ -322,43 +322,43 @@ variables:
     direction: lower_better
     notes: "1 = Always … 4 = Never forgive."
   TRAITS1:
-    display_name: "TIPI: extroverted, enthusiastic"
+    display_name: "Personality (TIPI): extroverted, enthusiastic"
     family: character
     polarity: descending
   TRAITS2:
-    display_name: "TIPI: critical, quarrelsome"
+    display_name: "Personality (TIPI): critical, quarrelsome"
     family: character
     polarity: descending
   TRAITS3:
-    display_name: "TIPI: dependable, self-disciplined"
+    display_name: "Personality (TIPI): dependable, self-disciplined"
     family: character
     polarity: descending
   TRAITS4:
-    display_name: "TIPI: anxious, easily upset"
+    display_name: "Personality (TIPI): anxious, easily upset"
     family: character
     polarity: descending
   TRAITS5:
-    display_name: "TIPI: open to new experiences"
+    display_name: "Personality (TIPI): open to new experiences"
     family: character
     polarity: descending
   TRAITS6:
-    display_name: "TIPI: reserved, quiet"
+    display_name: "Personality (TIPI): reserved, quiet"
     family: character
     polarity: descending
   TRAITS7:
-    display_name: "TIPI: sympathetic, warm"
+    display_name: "Personality (TIPI): sympathetic, warm"
     family: character
     polarity: descending
   TRAITS8:
-    display_name: "TIPI: disorganized, careless"
+    display_name: "Personality (TIPI): disorganized, careless"
     family: character
     polarity: descending
   TRAITS9:
-    display_name: "TIPI: calm, emotionally stable"
+    display_name: "Personality (TIPI): calm, emotionally stable"
     family: character
     polarity: descending
   TRAITS10:
-    display_name: "TIPI: conventional, uncreative"
+    display_name: "Personality (TIPI): conventional, uncreative"
     family: character
     polarity: descending
 

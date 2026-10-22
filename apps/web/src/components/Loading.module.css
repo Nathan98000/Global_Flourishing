@@ -1,9 +1,53 @@
-/* The loading block keeps the skeleton's shimmer (composed from
-   Skeleton.module.css) and positions the bar and the note inside its
-   fixed height, so the layout never shifts when the data lands. */
+/* The loading block is a skeleton in the chart's shape (F21): an axis
+   line and eight ghost rows in --grid under the room a chart's header
+   leaves, the bar and the note positioned inside its fixed height, so
+   the layout never shifts when the data lands. */
 .block {
   position: relative;
   overflow: hidden;
+}
+
+.ghost {
+  position: absolute;
+  top: var(--space-6);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The axis spans the track, past the row labels' column. */
+.axis {
+  height: 1px;
+  margin: 0 0 var(--space-2) calc(min(9rem, 30%) + var(--space-3));
+  background: var(--grid);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: min(9rem, 30%) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: center;
+  height: 26px;
+}
+
+.label {
+  justify-self: end;
+  width: 60%;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--grid);
+}
+
+.track {
+  min-width: 0;
+}
+
+.mark {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--grid);
 }
 
 /* 2px track in --grid, accent sweep. A figure mounts the same bar on its

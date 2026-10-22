@@ -39,6 +39,34 @@
   margin-bottom: var(--space-5);
 }
 
+/* The question bar (ADR-0029): the same order on every page — what,
+   then when and where. It aligns on its label lines, so a note under
+   Year hangs below it without pulling the other controls down. */
+.questionBar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+/* The line under Year (why a year is unavailable, what Midyear is): it
+   runs under the whole bar, so it never widens the Year column or pulls
+   the other controls down (Correlates' row note, ADR-0029). */
+.barNote {
+  order: 99;
+  flex-basis: 100%;
+  max-width: 40rem;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+/* A select under its label, the bar's way (Segments' "then by"). */
+.questionBar > label {
+  min-width: 0;
+}
+
 /* Correlates: the row aligns on its label lines (every control has one),
    so a note under the Wave row hangs below it without pulling the other
    controls down to its baseline. */
@@ -139,6 +167,14 @@
   color: var(--ink-secondary);
 }
 
+/* A select in a chart's toolbar: its label beside it (ADR-0029). */
+.inlineField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+
 /* What Matters' tint key, in the matrix caption's place: "Lower", the
    seven ramp swatches, "Higher · …" — the map legend's 20 × 10 steps,
    in the legend voice (12px, secondary ink, not the caption's bold). */
@@ -181,12 +217,64 @@
   height: 10px;
 }
 
+/* US States: the map's legend row — the ramp, then what it can't show. */
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.legendNote {
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+/* "Why two US figures?": a fold under the header, its figure intact. */
+.fold {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+.fold summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.fold p {
+  max-width: 40rem;
+  margin: var(--space-2) 0 0;
+}
+
 /* US States: the national figure above the map, and the reason a control
    is unavailable, inline in secondary ink. */
 .national {
   color: var(--ink-secondary);
   font-size: var(--text-sm);
   margin: 0 0 var(--space-3);
+}
+
+/* A switch in a chart's toolbar, its reason under it when it is off
+   (right-aligned there; left in the phone's sheet). */
+.switch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: var(--text-xs);
+}
+
+.switch[data-inline] {
+  align-items: flex-end;
+  max-width: 18rem;
+  text-align: right;
+}
+
+.switch .reason {
+  font-size: var(--text-xs);
+  margin-top: 2px;
 }
 
 /* The plain reason a control is unavailable: its own line, readable ink. */
@@ -197,60 +285,33 @@
   margin-top: var(--space-1);
 }
 
-/* The disclosure the display options fold into under 40rem (§8) — only
-   rendered there, so no media guard needed. */
-.moreOptions {
-  font-size: var(--text-sm);
-}
-
-.moreOptions summary {
-  cursor: pointer;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--ink-secondary);
-  padding: var(--space-2) var(--space-3);
-  width: fit-content;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.moreOptions[open] summary {
-  color: var(--ink);
-  margin-bottom: var(--space-3);
-}
-
-/* The column is the page's width, never its widest control's (a select
-   is as wide as its longest option): minmax(0, 1fr), not 1fr, whose
-   least is whatever its content asks for. */
-.moreBody {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
-}
-
-/* F2 (revised §8): on a phone the visible controls stack one per row —
-   Measure, Wave, the disclosure — so the chart starts within the first
-   screen; segmented rows stretch and divide evenly. The one column is
-   the page's width (.moreBody's rule). */
+/* F2 (revised §8, ADR-0029): on a phone the question bar stacks one
+   control per row — the question, the year — so the chart starts within
+   the first screen; segmented rows stretch and divide evenly. The one
+   column is the page's width: minmax(0, 1fr), not 1fr, whose least is
+   whatever its content asks for (a select is as wide as its longest
+   option). */
 @media (max-width: 40rem) {
   .deck {
     font-size: var(--text-base);
     margin-bottom: var(--space-3);
   }
 
-  .controls {
+  .controls,
+  .questionBar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
     align-items: end;
   }
 
-  /* A select beside its words stacks — the words above, the select the
-     column's width — as the fold's other fields do. */
-  .stacksNarrow {
-    flex-direction: column;
-    align-items: stretch;
+  /* On a phone the line follows Year itself. */
+  .barNote {
+    order: 0;
+  }
+
+  /* A switch in the options sheet: a full tap target. */
+  .oriented {
+    min-height: 44px;
   }
 }

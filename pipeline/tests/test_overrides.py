@@ -167,3 +167,14 @@ def test_a_wording_override_replaces_a_codebook_placeholder() -> None:
     )
     for variable in overrides.variables.values():
         assert variable.wording is None or "[" not in variable.wording, variable.name
+
+
+def test_personality_items_lead_with_plain_words() -> None:
+    """F11: "Personality (TIPI): calm, emotionally stable" — the plain word
+    first, the acronym after it, for all ten TIPI items."""
+    overrides = load_overrides()
+    tipi = [
+        v.display_name for v in overrides.variables.values() if "TIPI" in (v.display_name or "")
+    ]
+    assert len(tipi) == 10
+    assert all(name.startswith("Personality (TIPI): ") for name in tipi)

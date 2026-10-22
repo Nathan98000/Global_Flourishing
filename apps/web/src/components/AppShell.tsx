@@ -1,6 +1,7 @@
 // The shell: skip link, header/nav, honest boot banner on the data
-// views, and a footer that carries the citation — nothing else (owner
-// decision 5: the data version lives in the CSV header and Methods; the
+// views, and a footer that carries the citation and a link to how to
+// read the charts — nothing else (owner decision 5; the link, the
+// 21 Oct review: the data version lives in the CSV header and Methods; the
 // causation caveat lives on Methods, where it is explained rather than
 // asserted). Phase 5 added Change, What Matters and US States to the nav
 // (and Compare, retired 25 Sept — ADR-0017); Phase 6 adds Correlates.
@@ -16,10 +17,13 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { useBootStatus } from '../api/meta'
+import { HOW_TO_READ } from '../charts/ChartFigure'
+import { StillWorks } from './StillWorks'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
-import { NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
+import { NARROW_VIEWPORT, NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import styles from './AppShell.module.css'
 
 const DATA_CITATION_URL = 'https://doi.org/10.17605/OSF.IO/3JTZ8'
@@ -36,15 +40,16 @@ function BootBanner() {
       </>
     )
   } else if (boot.state === 'static-only') {
+    // What still works, by name (F13): the country filter works offline
+    // too, so the banner no longer says "filters are unavailable".
     message = boot.apiReachable ? (
       <>
-        The live data service has <strong>no data yet</strong> — the standard views still work;
-        filters and medians are unavailable.
+        The live data service has <strong>no data yet</strong>, so some views can&rsquo;t load.{' '}
+        <StillWorks />
       </>
     ) : (
       <>
-        Live data service is <strong>offline</strong> — the standard views still work; filters and
-        medians are unavailable.
+        Some views need the live data service, which is <strong>offline</strong>. <StillWorks />
       </>
     )
   } else if (boot.state === 'api-only') {
@@ -139,23 +144,72 @@ function NarrowNav({ pathname }: { pathname: string }) {
   )
 }
 
+/** The least the nav's own row leaves between two links (.nav > a). */
+const NAV_LEAST_GAP = 2
+
+/** Whether the seven links fit the nav's own row, at their least spacing
+ * (F8): measured from a hidden copy of the links in the row's own type,
+ * against the header's width, again whenever it changes. Before the
+ * first measure (and under jsdom, which lays nothing out) they fit. */
+function useNavFits(
+  header: RefObject<HTMLElement | null>,
+  copy: RefObject<HTMLElement | null>,
+): boolean {
+  const [fits, setFits] = useState(true)
+  useEffect(() => {
+    const host = header.current
+    const links = copy.current
+    if (!host || !links || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const needed = links.scrollWidth + NAV_LEAST_GAP * (NAV_ITEMS.length - 1)
+      setFits(needed === 0 || needed <= host.clientWidth)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [header, copy])
+  return fits
+}
+
 export function AppShell() {
   const { pathname } = useLocation()
-  // The nav folds into "More" as soon as its items would wrap a link
-  // (50rem), a wider fold than the display options'.
-  const narrow = useMediaQuery(NAV_FOLD_VIEWPORT)
+  // The nav takes its own row under 50rem; it folds into "More" on a
+  // phone, and wherever else its seven links would not fit that row
+  // (F8: a tablet held upright shows them all).
+  const phone = useMediaQuery(NARROW_VIEWPORT)
+  const ownRow = useMediaQuery(NAV_FOLD_VIEWPORT)
+  const header = useRef<HTMLElement | null>(null)
+  const copy = useRef<HTMLSpanElement | null>(null)
+  const fits = useNavFits(header, copy)
+  const narrow = phone || (ownRow && !fits)
   return (
     <div className={styles.layout}>
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <header className={styles.header}>
+      <header ref={header} className={styles.header}>
+        {/* The links in the row's own type, out of sight: what the row
+            needs, at its least spacing. */}
+        <span ref={copy} className={styles.navMeasure} aria-hidden="true">
+          {NAV_ITEMS.map((item) => (
+            <span key={item.to}>{item.label}</span>
+          ))}
+        </span>
         <h1 className={styles.brand}>
           <Link to="/">Flourish Atlas</Link>
         </h1>
         <nav aria-label="Main" className={styles.nav}>
           {narrow ? (
             <NarrowNav pathname={pathname} />
+          ) : ownRow ? (
+            // Its own row, all seven: the spacing gives way first (.navGap).
+            NAV_ITEMS.map((item) => (
+              <Fragment key={item.to}>
+                <NavLink item={item} pathname={pathname} />
+                <span className={styles.navGap} />
+              </Fragment>
+            ))
           ) : (
             NAV_ITEMS.map((item) => <NavLink key={item.to} item={item} pathname={pathname} />)
           )}
@@ -173,6 +227,11 @@ export function AppShell() {
           </a>
           , Center for Open Science / Gallup / Harvard Human Flourishing Program / Baylor Institute
           for Global Human Flourishing.
+        </p>
+        <p className={styles.footerLine}>
+          <Link to={HOW_TO_READ.to} hash={HOW_TO_READ.hash}>
+            How to read the charts
+          </Link>
         </p>
       </footer>
     </div>

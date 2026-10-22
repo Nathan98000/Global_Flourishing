@@ -91,7 +91,7 @@ describe('which answers, which waves', () => {
     expect(otherOpen(pair, byName, 'Y1')).toBe(true)
     expect(otherOpen(pair, byName, 'Y2')).toBe(false)
     expect(no2024Note(pair, byName)).toBe(
-      "2024 isn't available: Childhood memory wasn't asked in Wave 2.",
+      "2024 isn't available: Childhood memory wasn't asked in 2024.",
     )
     expect(showsOther(at({ wave: 'MY', a: MIDYEAR_QUESTION, b: 'DILIGENT' }), byName)).toBe(false)
     expect(showsOther(at({ view: 'related', wave: 'MY', outcome: 'DILIGENT' }), byName)).toBe(true)
@@ -106,7 +106,7 @@ describe('which answers, which waves', () => {
   test('the words: subtitles, download names, year tags and the row note', () => {
     expect(waveTitle('MY', 'Y2')).toBe('Midyear survey, with 2024 answers from the same people')
     expect(waveTitle('MY', undefined)).toBe('Midyear survey, Nov 2023–Dec 2024')
-    expect(waveTitle('Y1', undefined)).toBe('Wave 1, 2023')
+    expect(waveTitle('Y1', undefined)).toBe('2023')
     expect(waveName('MY', 'Y1')).toBe('Midyear with 2023')
     expect(waveName('Y2', undefined)).toBe('2024')
     expect(yearTagged('Life evaluation today', byName['WB_TODAY'], 'MY', 'Y1')).toBe(

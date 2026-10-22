@@ -9,55 +9,71 @@
 // absent.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useMemo } from 'react'
+import { Suspense, lazy, useId, useMemo, useState } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimates } from '../api/estimates'
-import { useBootStatus, useMeta } from '../api/meta'
+import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import { NO_ADJUSTED_WEIGHT_WAVE, adjustedWeightsExist, useStates } from '../api/states'
 import type { EstimateRow, Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { RankedBar, type Reference } from '../charts/RankedBar'
-import { outcomeColor, plotValue } from '../charts/theme'
+import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { Stat as StatLine } from '../components/Stat'
 import { WordingPanel } from '../components/WordingPanel'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
+import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir } from '../sortRows'
+import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
+import { keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
+
+/** The one US figure's name, on the chart's line and above it (F14). */
+const US_OVERALL = 'United States overall'
 
 const route = getRouteApi('/states')
 
 export function StatesView() {
   useWarmApi()
   const search = route.useSearch()
+  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const boot = useBootStatus()
+  const health = useHealth()
+  const adjReasonId = useId()
+  // Find a state: the state picked out, until cleared.
+  const [found, setFound] = useState<string | undefined>()
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  // Every state figure is the live service's: while it is down (or has
+  // no data) the page says so, and Median says why it can't be chosen.
+  const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
   const variables = useVariables()
   const variable = variables.data?.byName[search.outcome]
   const chartable = variable !== undefined && variable.servable
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
-  const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -119,9 +135,9 @@ export function StatesView() {
       const level = activeLevel ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortStateRows(rows, search.sort, dir, stateName)
+    return sortStateRows(rows, dir, stateName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response, stat, activeLevel, search.sort, dir, served])
+  }, [response, stat, activeLevel, dir, served])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -163,16 +179,14 @@ export function StatesView() {
     value: wave as StatesSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
+  // Why a year is unavailable, or what Midyear is: under the whole bar.
+  const yearNoteText = yearNote(waveOptions)
   const statOptions: RadioOption<string>[] | null =
     variable && (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
       ? [
           { value: 'default', label: 'Mean' },
-          { value: 'quantile', label: 'Median' },
+          { value: 'quantile', label: 'Median', disabled: liveDown },
         ]
       : null
   const adjAvailable = adjustedWeightsExist(search.wave)
@@ -180,7 +194,6 @@ export function StatesView() {
 
   const title = variable?.display_name ?? search.outcome
   const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
-  const weights = `state weights${search.adj ? ', adjusted' : ''}`
   // What a download is called, in words (ADR-0016).
   const exportName: ExportName = {
     measure: title,
@@ -195,19 +208,36 @@ export function StatesView() {
       : variable
         ? scaleSubtitle(variable, stat, detail)
         : undefined
-  const subtitle = [subtitleBase, weights, waveTitle].filter(Boolean).join(' · ')
+  // The state, in the controls' words (ADR-0029); every state figure is
+  // on its state weight, so only the adjustment is said.
+  const subtitle = stateLine(
+    subtitleBase,
+    search.adj && 'adjusted for who answered in each state',
+    waveTitle,
+    search.view === 'bars' && orderPhrase(dir),
+  )
+  // One US figure (F14): the whole US on the states' own weight, the
+  // line the states are read against.
   const reference: Reference | undefined =
     overallRow && overallRow.estimate !== null
-      ? { value: plotValue(overallRow) as number, label: 'US overall (state weights)' }
+      ? { value: plotValue(overallRow) as number, label: US_OVERALL }
       : undefined
+  // The national-weight figure — the Atlas's — waits in a fold, its CI
+  // and n intact.
   const nationalNote =
     nationalRow && nationalRow.estimate !== null
-      ? `On the national weight, the US overall figure is ${formatEstimate(nationalRow.estimate, nationalRow.stat)}${
+      ? `On the national weight — the Atlas's, made for the country as a whole — the United States overall is ${formatEstimate(nationalRow.estimate, nationalRow.stat)}${
           nationalRow.ci_lo !== null && nationalRow.ci_hi !== null
-            ? ` ${formatCI(nationalRow)} (${ciLabel(nationalRow.ci_level)})`
+            ? ` (${ciLabel(nationalRow.ci_level)}: ${formatCI(nationalRow)})`
             : ''
-        }, n = ${formatCount(nationalRow.n)}.`
+        }, based on ${people(nationalRow.n)}.`
       : undefined
+  // The states this chart has, by the server's names (a list to pick
+  // from, A–Z — not a sort).
+  const stateOptions = [...new Set(displayRows.map((row) => String(row.group['state'] ?? '')))]
+    .filter(Boolean)
+    .map((code) => ({ code, name: stateName(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
   const extremes = (() => {
     const valid = displayRows.filter((row) => row.estimate !== null)
     if (valid.length === 0) return 'No estimates to show.'
@@ -217,22 +247,27 @@ export function StatesView() {
     return `Highest: ${stateName(String(top.group['state']))} ${formatEstimate(top.estimate, top.stat)}; lowest: ${stateName(String(bottom.group['state']))} ${formatEstimate(bottom.estimate, bottom.stat)}.`
   })()
 
-  const displayOptions = (
+  // How the chart is drawn: in its header's toolbar (`inline`), or in
+  // the phone's options sheet (ADR-0029).
+  const chartControls = (inline: boolean) => (
     <>
       {statOptions && (
         <RadioRow
-          legend="Statistic"
+          legend="Show"
           name="stat"
+          inline={inline}
           options={statOptions}
           value={search.stat ?? 'default'}
           onChange={(value) =>
             setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
           }
+          note={liveDown ? 'Median — needs the live data service.' : undefined}
         />
       )}
       <RadioRow
         legend="View"
         name="view"
+        inline={inline}
         options={[
           { value: 'map', label: 'Map' },
           { value: 'bars', label: 'Chart' },
@@ -240,72 +275,71 @@ export function StatesView() {
         value={search.view}
         onChange={(view) => setSearch({ view })}
       />
-      {search.view === 'bars' && (
-        <>
-          <RadioRow
-            legend="Sort"
-            name="sort"
-            options={[
-              { value: 'estimate', label: 'By value' },
-              { value: 'name', label: 'A–Z' },
-            ]}
-            value={search.sort}
-            onChange={(sort) => setSearch({ sort, dir: undefined })}
-          />
-          <RadioRow
-            legend="Order"
-            name="dir"
-            options={
-              search.sort === 'name'
-                ? [
-                    { value: 'asc', label: 'A to Z' },
-                    { value: 'desc', label: 'Z to A' },
-                  ]
-                : [
-                    { value: 'desc', label: 'High to low' },
-                    { value: 'asc', label: 'Low to high' },
-                  ]
-            }
-            value={dir}
-            onChange={(value) => setSearch({ dir: value })}
-          />
-        </>
-      )}
       {isCategorical && levels.length > 0 && (
         <RadioRow
-          legend="Answer level"
+          legend="Showing % who said"
           name="level"
-          wide
+          inline={inline}
+          wide={!inline}
           selectOnNarrow
           options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
           value={String(activeLevel)}
           onChange={(value) => setSearch({ level: Number(value) })}
         />
       )}
-      <label className={styles.oriented} title={adjAvailable ? undefined : adjReason}>
-        <input
-          type="checkbox"
-          checked={search.adj ?? false}
-          disabled={!adjAvailable}
-          onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
-        />{' '}
-        Adjusted state weights
-        {!adjAvailable && <span className={styles.reason}>{adjReason}</span>}
+      {/* Find a state (F1): picked out on the map and the chart, its card
+          held open — view state, not data, so not in the URL. */}
+      <label className={inline ? styles.inlineField : styles.field}>
+        <span className={styles.fieldLabel}>Find a state</span>
+        <select value={found ?? ''} onChange={(event) => setFound(event.target.value || undefined)}>
+          <option value="">None</option>
+          {stateOptions.map((state) => (
+            <option key={state.code} value={state.code}>
+              {state.name}
+            </option>
+          ))}
+        </select>
       </label>
+      {/* The switch with its reason in view when it is off (F6). */}
+      <span className={styles.switch} data-inline={inline || undefined}>
+        <label className={styles.oriented}>
+          <input
+            type="checkbox"
+            checked={search.adj ?? false}
+            disabled={!adjAvailable}
+            aria-describedby={adjAvailable ? undefined : adjReasonId}
+            onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
+          />{' '}
+          Adjust for who answered in each state
+        </label>
+        {!adjAvailable && (
+          <span id={adjReasonId} className={styles.reason}>
+            {adjReason}
+          </span>
+        )}
+      </span>
     </>
+  )
+
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    stat === 'proportion' ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean',
+    search.view === 'map' ? 'map' : 'chart',
+    search.adj && 'adjusted',
+    search.view === 'bars' && orderPhrase(dir),
   )
 
   return (
     <section>
       <h2 className="visually-hidden">US States</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what it means for reading it (F18). */}
         <span className={styles.deckLong}>
-          The United States state by state, on the survey&rsquo;s state weights, beside the
-          country&rsquo;s overall figure. Every state stands on its own; the smallest rest on fewer
+          How each US state compares with the country as a whole. Smaller states rest on fewer
           people, so their intervals are wider.
         </span>
         <span className={styles.deckShort}>
-          The United States state by state, beside the national figure.
+          How each US state compares with the country as a whole.
         </span>
       </p>
       <InvalidParamsNotice
@@ -319,41 +353,36 @@ export function StatesView() {
           )
         }
       />
-      <div className={styles.controls}>
-        <OutcomePicker
+      {/* The question bar (ADR-0029): what, then when (one country). */}
+      <div className={styles.questionBar} data-bar="question">
+        <QuestionPicker
+          variant="field"
+          label="Question"
           variables={variables.data.list}
+          wave={search.wave}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          onPick={(outcome) => handlePick({ outcome })}
         />
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
+          noteId={yearNoteText ? yearNoteId : undefined}
           value={search.wave}
           onChange={(wave) =>
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })
           }
         />
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — view, sort, weights</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={variables.data.list}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
-          </details>
-        ) : (
-          displayOptions
+        {yearNoteText && (
+          <p id={yearNoteId} className={styles.barNote}>
+            {yearNoteText}
+          </p>
         )}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -367,14 +396,15 @@ export function StatesView() {
       ) : states.isPending ? (
         <LoadingBlock height={480} label="Loading estimates" />
       ) : states.isError ? (
-        states.error instanceof NetworkError && !boot.apiReachable ? (
-          <p className={styles.hint} role="status">
-            This view needs the live data service, which is offline right now — the Atlas and
-            Segments still work.
-          </p>
-        ) : (
-          <ErrorState apiReachable={boot.apiReachable} error={states.error} />
-        )
+        // No chart, no header: its controls stay reachable here.
+        <>
+          {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
+          {states.error instanceof NetworkError && !boot.apiReachable ? (
+            <OfflineLine className={styles.hint} />
+          ) : (
+            <ErrorState apiReachable={boot.apiReachable} error={states.error} />
+          )}
+        </>
       ) : response && variable ? (
         <>
           <p role="status" className="visually-hidden">
@@ -393,11 +423,42 @@ export function StatesView() {
                 )}
                 {overallRow && (
                   <p className={styles.national}>
-                    US overall (state weights): <StatLine row={overallRow} />
+                    {US_OVERALL}: <StatLine row={overallRow} />
                   </p>
                 )}
-                {nationalNote && <p className={styles.national}>{nationalNote}</p>}
+                {nationalNote && (
+                  <details className={styles.fold}>
+                    <summary>Why two US figures?</summary>
+                    <p>
+                      The states are estimated on weights made for each state, so the United States
+                      overall above is on the same weights — the figure to read them against.{' '}
+                      {nationalNote}
+                    </p>
+                  </details>
+                )}
               </>
+            }
+            toolbar={narrow ? undefined : chartControls(true)}
+            sortHead={
+              // The chart's order is its value label's (ADR-0029).
+              search.view === 'bars' ? (
+                <SortHead
+                  names="State"
+                  value={stat === 'proportion' ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean'}
+                  dir={dir}
+                  onToggle={() => setSearch({ dir: reversed(dir) })}
+                />
+              ) : undefined
+            }
+            chartKey={
+              search.view === 'bars' ? (
+                <ChartKey
+                  mark={stat === 'proportion' ? 'bar' : 'dot'}
+                  label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
+                  color={outcomeColor(variable.name)}
+                  ciLevel={keyCiLevel(displayRows)}
+                />
+              ) : undefined
             }
             csv={{
               kind: 'client',
@@ -418,6 +479,7 @@ export function StatesView() {
                   meta={served}
                   variable={variable}
                   answer={isCategorical ? levelLabel : undefined}
+                  found={found}
                 />
               </Suspense>
             ) : (
@@ -430,6 +492,8 @@ export function StatesView() {
                 levelLabel={levelLabel}
                 labelColumn="state"
                 reference={reference}
+                highlightOf={(row) => found !== undefined && row.group['state'] === found}
+                pinnedOf={(row) => found !== undefined && row.group['state'] === found}
               />
             )}
           </ChartFigure>

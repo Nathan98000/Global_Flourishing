@@ -1,6 +1,6 @@
 # ADR-0026: What Matters sorted from its column labels
 
-**Status:** Accepted · **Date:** 2026-10-21 · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-10-21 · **Phase:** 7 · Extended to every chart, the corner's name sort removed, by ADR-0029
 
 Revises how the By country matrix is sorted (the "Sort countries by"
 drop-down and the Order buttons of the What Matters PR, ADR-0018's

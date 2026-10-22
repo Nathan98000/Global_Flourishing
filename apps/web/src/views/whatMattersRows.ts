@@ -1,7 +1,8 @@
 // The What Matters view's row bookkeeping, kept out of the component so
 // fast refresh stays clean: the seven items' rows as one set, the row
 // order a matrix and its CSV share (countries, or one country's
-// groups), each column's tint window, and the columns' labels and width.
+// groups), the matrix's one tint window, and the columns' labels and
+// width.
 
 import type { EstimateResponse, EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
@@ -18,19 +19,6 @@ export function itemLabel(item: VariableSummary & { short_label?: string | null 
   if (short) return short
   const name = item.display_name.replace(/^Importance:\s*/i, '')
   return name.charAt(0).toUpperCase() + name.slice(1)
-}
-
-/** The lede's list of the items, in column order and in words: "being
- * a good person, good relationships, … money and religious or spiritual
- * life" — each column label with its first letter lowered. */
-export function itemList(items: readonly VariableSummary[]): string {
-  const names = items.map((item) => {
-    const label = itemLabel(item)
-    return label.charAt(0).toLowerCase() + label.slice(1)
-  })
-  const last = names.pop()
-  if (last === undefined) return ''
-  return names.length > 0 ? `${names.join(', ')} and ${last}` : last
 }
 
 /** The narrowest text width at which every label wraps to at most
@@ -99,9 +87,10 @@ export function rankItems(rows: readonly EstimateRow[]): EstimateRow[] {
   )
 }
 
-/** Country codes in the matrix's order: A–Z by name (`sort = 'name'`),
- * or by one item's estimate (`sort` = that item's code), countries
- * without an estimate for it last either way. */
+/** Country codes in the matrix's order: by one item's estimate (`sort`
+ * = that item's code; the view resolves an absent or unknown one to the
+ * first column), countries without an estimate for it last, ties in
+ * name order. */
 export function matrixCountryOrder(
   rows: readonly EstimateRow[],
   meta: Meta,
@@ -110,10 +99,6 @@ export function matrixCountryOrder(
 ): number[] {
   const codes = [...new Set(rows.map((row) => Number(row.group['country_code'])))]
   const name = (code: number) => groupValueLabel('country_code', code, meta)
-  if (sort === 'name') {
-    const sign = dir === 'asc' ? 1 : -1
-    return codes.sort((a, b) => sign * name(a).localeCompare(name(b)))
-  }
   const value = new Map<number, number>()
   for (const row of rows) {
     if (row.group['outcome'] === sort && row.estimate !== null)
@@ -176,26 +161,26 @@ export function splitGroupOrder(
     .filter((value) => present.has(value))
 }
 
-/** Each column's tint window, keyed by item: its own [lowest, highest]
- * estimate across the rows shown, so a column's shades compare the
- * rows on that item alone — widened to at least `minSpan` points about
- * its midpoint, or a column of near-equal values (US money by age runs
- * 7.46–7.66) would spread a fifth of a point over the whole ramp. */
-export function columnRanges(
+/** The matrix's one tint window (F2, ADR-0030): the [lowest, highest]
+ * estimate of every cell shown, so a shade means the same number in
+ * every column and reading across a row reads the order — fitted to the
+ * data (ADR-0010's rule), widened to at least `minSpan` points about its
+ * midpoint, or near-equal values (US money by age runs 7.46–7.66) would
+ * spread a fifth of a point over the whole ramp. Undefined: no
+ * estimate to shade. */
+export function matrixRange(
   rows: readonly EstimateRow[],
   minSpan = 1,
-): Map<string, [number, number]> {
-  const ranges = new Map<string, [number, number]>()
+): [number, number] | undefined {
+  let lo = Infinity
+  let hi = -Infinity
   for (const row of rows) {
     if (row.estimate === null) continue
-    const item = String(row.group['outcome'])
-    const [lo, hi] = ranges.get(item) ?? [Infinity, -Infinity]
-    ranges.set(item, [Math.min(lo, row.estimate), Math.max(hi, row.estimate)])
+    lo = Math.min(lo, row.estimate)
+    hi = Math.max(hi, row.estimate)
   }
-  for (const [item, [lo, hi]] of ranges) {
-    if (hi - lo >= minSpan) continue
-    const mid = (lo + hi) / 2
-    ranges.set(item, [mid - minSpan / 2, mid + minSpan / 2])
-  }
-  return ranges
+  if (lo > hi) return undefined
+  if (hi - lo >= minSpan) return [lo, hi]
+  const mid = (lo + hi) / 2
+  return [mid - minSpan / 2, mid + minSpan / 2]
 }

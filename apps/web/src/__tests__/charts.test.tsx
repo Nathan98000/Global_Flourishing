@@ -19,7 +19,7 @@ import {
 import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
-import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
@@ -57,18 +57,44 @@ function absoluteY(node: Element): number {
   return y
 }
 
-/** Every column (fx) label sits at least one text line above the
- * highest top-axis tick label — the two shared a baseline before. */
-function expectColumnLabelsAboveTicks(svg: SVGSVGElement | null) {
-  const columnLabels = [...(svg?.querySelectorAll('[aria-label="fx-axis tick label"] text') ?? [])]
-  const tickLabels = [...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])]
-  expect(columnLabels.length).toBeGreaterThan(0)
-  expect(tickLabels.length).toBeGreaterThan(0)
-  const highestTick = Math.min(...tickLabels.map(absoluteY))
-  for (const label of columnLabels) {
-    expect(absoluteY(label), `${label.textContent} above the ticks`).toBeLessThanOrEqual(
-      highestTick - 12,
-    )
+/** A text's x in the SVG, like absoluteY. */
+function absoluteX(node: Element): number {
+  let x = 0
+  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
+    if (match) x += Number(match[1])
+  }
+  return x
+}
+
+/** A tick label's horizontal extent: about 6.6 px a glyph of the 11 px
+ * plot text, placed by its text-anchor (inherited from its group). */
+function labelExtent(node: Element): [number, number] {
+  const width = (node.textContent ?? '').length * 6.6
+  const x = absoluteX(node)
+  const anchor = node.closest('[text-anchor]')?.getAttribute('text-anchor') ?? 'middle'
+  if (anchor === 'start') return [x, x + width]
+  if (anchor === 'end') return [x - width, x]
+  return [x - width / 2, x + width / 2]
+}
+
+/** Every pair of neighbouring tick labels on one row of panels leaves a
+ * gap — across facets too, where "10" and "0" once read "100" (F15). */
+function expectTickLabelsApart(svg: SVGSVGElement) {
+  const labels = [...svg.querySelectorAll('[aria-description="panel tick label"] text')]
+  expect(labels.length).toBeGreaterThan(0)
+  const rows = new Map<number, [number, number][]>()
+  for (const label of labels) {
+    const y = Math.round(absoluteY(label))
+    rows.set(y, [...(rows.get(y) ?? []), labelExtent(label)])
+  }
+  for (const extents of rows.values()) {
+    extents.sort((a, b) => a[0] - b[0])
+    extents.slice(1).forEach((extent, index) => {
+      expect(extent[0], 'a gap before the next tick label').toBeGreaterThanOrEqual(
+        (extents[index] as [number, number])[1] + 4,
+      )
+    })
   }
 }
 
@@ -85,6 +111,53 @@ describe('rankEntries', () => {
 })
 
 describe('RankedBar', () => {
+  // Means near the top of a 0–10 scale, where halves crowd a phone.
+  const highRows = [
+    testRow({ group: { country_code: 1 }, estimate: 9.6, ci_lo: 9.3, ci_hi: 9.9 }),
+    testRow({ group: { country_code: 22 }, estimate: 8.9, ci_lo: 8.6, ci_hi: 9.2 }),
+  ]
+  test.each([
+    [896, 'finer than whole units', (ticks: string[]) => ticks.some((tick) => tick.includes('.'))],
+    [358, 'every whole unit', (ticks: string[]) => ticks.join(' ') === '8 9 10'],
+  ])('at %i px a 0–10 mean ticks %s — whole units on a phone (F22)', (available, _, expected) => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width: available }) as DOMRect)
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    try {
+      const { container } = render(
+        <RankedBar
+          rows={highRows}
+          meta={testMeta}
+          responseMeta={testResponseMeta()}
+          variable={happyVariable}
+          color="var(--sfi-happiness)"
+        />,
+      )
+      const ticks = [...container.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
+        (node) => node.textContent,
+      )
+      expect(expected(ticks as string[]), ticks.join(' ')).toBe(true)
+      // On a phone the label gutter holds "New Hampshire" at 13.5px: the
+      // track, and its first tick, start 112 px in.
+      if (available < 480) {
+        const first = container.querySelector('[aria-label="x-axis tick label"] text') as Element
+        expect(absoluteX(first)).toBeGreaterThanOrEqual(112)
+      }
+    } finally {
+      canvas.mockRestore()
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   test('0–10 means render as dot + CI on a fitted window, every row labelled', () => {
     const { container } = render(
       <RankedBar
@@ -305,7 +378,15 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     fireEvent.click(buttons[1] as HTMLElement)
     expect(selected).toEqual(['B'])
     fireEvent.focus(buttons[0] as HTMLElement)
-    expect(within(chart).getByRole('tooltip')).toHaveTextContent('0.76 · Life evaluation today')
+    const card = within(chart).getByRole('tooltip')
+    expect(card).toHaveTextContent('0.76 · Life evaluation today')
+    // Beside its mark, to the right and level with its row — not over
+    // the rows above (F22).
+    const dot = container.querySelector('[aria-label="dot"] circle') as SVGCircleElement
+    expect(parseFloat(card.style.left)).toBeGreaterThan(Number(dot.getAttribute('cx')))
+    expect(parseFloat(card.style.top)).toBeGreaterThanOrEqual(
+      parseFloat((buttons[0] as HTMLElement).style.top),
+    )
     fireEvent.blur(buttons[0] as HTMLElement)
     expect(within(chart).queryByRole('tooltip')).toBeNull()
     // The buttons carry the tip; Plot's pointer tip is not drawn twice.
@@ -486,10 +567,8 @@ describe('Histogram', () => {
 
 describe('figure copy', () => {
   test('a subtitle starts with a capital letter, whatever clause leads', () => {
-    expect(capitalize('share answering “Weekly” · Wave 1, 2023')).toBe(
-      'Share answering “Weekly” · Wave 1, 2023',
-    )
-    expect(capitalize('Average score')).toBe('Average score')
+    expect(capitalize('share answering “Weekly” · 2023')).toBe('Share answering “Weekly” · 2023')
+    expect(capitalize('Mean score')).toBe('Mean score')
     expect(capitalize('')).toBe('')
   })
 })
@@ -562,6 +641,8 @@ describe('hover cards (ADR-0022)', () => {
     expect(TIP_OPTIONS.lineHeight).toBeGreaterThan(1)
     expect(TIP_OPTIONS.stroke).toBe('var(--grid)')
     expect(TIP_OPTIONS.fontFamily).toContain('system-ui')
+    // The card sits to the right of its mark whenever it fits (F22).
+    expect(TIP_OPTIONS.preferredAnchor).toBe('left')
   })
 
   test('heading first, then the value said as what it is, its CI, and its sample size', () => {
@@ -611,7 +692,7 @@ describe('hover cards (ADR-0022)', () => {
       ci_hi: 0.054,
     })
     expect(valueLine(shareChange)).toBe('Change in share: +3.2 percentage points')
-    expect(ciLine(shareChange)).toBe('95% CI: [+1.0 pp, +5.4 pp]')
+    expect(ciLine(shareChange)).toBe('95% CI: [+1.0, +5.4]')
     const moved = testRow({ stat: 'change_distribution', estimate: 0.2, n: 40 })
     expect(valueLine(moved, { answer: '+2' })).toBe('20.0% changed their answer by +2')
     expect(valueLine(moved, { answer: '0' })).toBe('20.0% gave the same answer both times')
@@ -659,15 +740,16 @@ describe('SmallMultiples', () => {
     ),
   )
 
-  test('facet order follows the sort rule', () => {
+  test('facet order follows the sort rule: by value or by gap, never by name', () => {
     expect(facetOrder(cellRows, testMeta, 'country_code', 'estimate')).toEqual([
       'United States',
       'Testland',
     ])
-    expect(facetOrder(cellRows, testMeta, 'country_code', 'name')).toEqual([
+    expect(facetOrder(cellRows, testMeta, 'country_code', 'estimate', 'asc')).toEqual([
       'Testland',
       'United States',
     ])
+    expect(facetOrder(cellRows, testMeta, 'country_code', 'gap')).toHaveLength(2)
   })
 
   test('renders one panel per country with served level labels', () => {
@@ -707,19 +789,63 @@ describe('SmallMultiples', () => {
       />,
     )
     const svg = container.querySelector('svg')
-    // The shared axis states the window's edges (data spans 5.9–7.5)…
-    const axisTicks = [
-      ...(svg?.querySelectorAll('[aria-label="x-axis tick label"] text') ?? []),
-    ].map((node) => node.textContent)
-    expect(axisTicks[0]).toBe('5.5')
-    expect(axisTicks[axisTicks.length - 1]).toBe('8.0')
-    expect(axisTicks).not.toContain('0.0')
+    // The shared window states its edges (data spans 5.9–7.5)…
+    const ticks = [
+      ...new Set(
+        [...(svg?.querySelectorAll('[aria-description="panel tick label"] text') ?? [])].map(
+          (node) => Number(node.textContent),
+        ),
+      ),
+    ].sort((a, b) => a - b)
+    expect(ticks[0]).toBe(5.5)
+    expect(ticks[ticks.length - 1]).toBe(8)
+    expect(ticks).not.toContain(0)
     // …and each of the two panels carries its own copy of the ticks, so
-    // no panel is read against an axis a page away.
+    // no panel is read against an axis a page away; there is none on top.
     const inPanelTicks = [...(svg?.querySelectorAll('text') ?? [])].filter(
       (node) => node.textContent === '6.0',
     )
-    expect(inPanelTicks.length).toBeGreaterThanOrEqual(2)
+    expect(inPanelTicks).toHaveLength(2)
+    expect(svg?.querySelector('[aria-label="x-axis tick label"]')).toBeNull()
+  })
+
+  test("each panel's title is its country, top-left in ink over its rows — not at the right edge", () => {
+    const { container } = render(
+      <SmallMultiples
+        rows={cellRows}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ by: ['country_code', 'gender'] })}
+        variable={happyVariable}
+        color="var(--series-1)"
+        levelColumn="gender"
+        levelDomain={['Male', 'Female']}
+        sort="estimate"
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    expect(svg.querySelector('[aria-label="fy-axis tick label"]')).toBeNull()
+    const titles = [...svg.querySelectorAll('[aria-description="panel title"] text')]
+    expect(titles.map((node) => node.textContent)).toEqual(['United States', 'Testland'])
+    const style = titles[0]?.parentElement
+    expect(style?.getAttribute('fill')).toBe('var(--ink)')
+    expect(style?.getAttribute('font-size')).toBe('13.5')
+    expect(style?.getAttribute('font-weight')).toBe('600')
+    expect(style?.getAttribute('text-anchor')).toBe('start')
+    // At the chart's left edge, where the row labels start…
+    for (const title of titles) expect(absoluteX(title)).toBeLessThan(8)
+    // …and above its own panel's frame and first row label.
+    const frames = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
+      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
+    )
+    const rowLabels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
+      .filter((node) => node.textContent === 'Male')
+      .map(absoluteY)
+    titles.forEach((title, index) => {
+      const top = absoluteY(title)
+      expect(top).toBeLessThan(frames[index] as number)
+      expect(top).toBeLessThan(rowLabels[index] as number)
+      if (index > 0) expect(top).toBeGreaterThan(frames[index - 1] as number)
+    })
   })
 })
 
@@ -738,7 +864,7 @@ describe('column labels and the top axis', () => {
     ),
   )
 
-  test('a second breakdown puts its column labels a line above the top ticks', () => {
+  test("each facet of a grid names its column, under its country's title", () => {
     const { container } = render(
       <SmallMultiples
         rows={gridRows}
@@ -753,9 +879,124 @@ describe('column labels and the top axis', () => {
         sort="estimate"
       />,
     )
-    const svg = container.querySelector('svg')
-    expect(svg?.textContent).toContain('Female')
-    expectColumnLabelsAboveTicks(svg)
+    const svg = container.querySelector('svg') as SVGSVGElement
+    expect(svg.querySelector('[aria-label="fx-axis tick label"]')).toBeNull()
+    const heads = [...svg.querySelectorAll('[aria-description="column label"] text')]
+    expect(heads.map((node) => node.textContent).sort()).toEqual([
+      'Female',
+      'Female',
+      'Male',
+      'Male',
+    ])
+    // One title per country, on its first facet; each column label sits
+    // under its country's title and over its own frame.
+    const titles = [...svg.querySelectorAll('[aria-description="panel title"] text')]
+    expect(titles).toHaveLength(2)
+    const frameTops = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
+      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
+    )
+    for (const head of heads) {
+      const y = absoluteY(head)
+      const title = Math.max(...titles.map(absoluteY).filter((top) => top <= y))
+      expect(y).toBeGreaterThan(title + 12)
+      expect(frameTops.some((top) => top > y && top - y < 20)).toBe(true)
+    }
+  })
+
+  // Eight 0–10 facets, as "gender, then by age band" draws them (F15):
+  // side by side in the page column at a 1280 px window (896 px), three
+  // to a row at a 390 px phone (358 px).
+  const eightBands = Array.from({ length: 8 }, (_, index) => ({
+    value: String(index + 1),
+    label: `Band ${index + 1}`,
+  }))
+  const eightMeta = {
+    ...testMeta,
+    breakdown_labels: {
+      ...testMeta.breakdown_labels,
+      age_band: { display_name: 'Age band', levels: eightBands },
+    },
+  }
+  const wideRows = [1, 22].flatMap((code) =>
+    eightBands.flatMap((band) =>
+      [1, 2].map((gender) =>
+        testRow({
+          group: { country_code: code, age_band: band.value, gender },
+          estimate: 5,
+          ci_lo: 0.2,
+          ci_hi: 9.8,
+        }),
+      ),
+    ),
+  )
+  test.each([
+    [896, '1280'],
+    [358, '390'],
+  ])('at %i px (a %s px window) no tick label touches its neighbour', (available) => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ width: available }) as DOMRect)
+    try {
+      const { container } = render(
+        <SmallMultiples
+          rows={wideRows}
+          meta={eightMeta}
+          responseMeta={testResponseMeta({ by: ['country_code', 'gender', 'age_band'] })}
+          variable={happyVariable}
+          color="var(--series-1)"
+          levelColumn="gender"
+          levelDomain={['Male', 'Female']}
+          seriesColumn="age_band"
+          seriesDomain={eightBands.map((band) => band.label)}
+          sort="estimate"
+        />,
+      )
+      const svg = container.querySelector('svg') as SVGSVGElement
+      expect(svg.getAttribute('width')).toBe(String(available))
+      expectTickLabelsApart(svg)
+      // Sixteen facets — two countries by eight bands — and no empty ones
+      // where a wrapped row runs short.
+      expect(svg.querySelectorAll('[aria-label="frame"] rect')).toHaveLength(16)
+      // The window's two ends are labelled in every facet, turned inward.
+      const ends = [...svg.querySelectorAll('[aria-description="panel tick label"] text')]
+      expect(ends.filter((node) => node.textContent === '0')).toHaveLength(16)
+      expect(ends.filter((node) => node.textContent === '10')).toHaveLength(16)
+      // Facets of a row stand at least 16 px apart.
+      const lefts = [
+        ...new Set(
+          [...svg.querySelectorAll('[aria-label="frame"] rect')].map((frame) =>
+            Math.round(absoluteX(frame) + Number(frame.getAttribute('x'))),
+          ),
+        ),
+      ].sort((a, b) => a - b)
+      const width = Number(svg.querySelector('[aria-label="frame"] rect')?.getAttribute('width'))
+      lefts.slice(1).forEach((left, index) => {
+        expect(left - ((lefts[index] as number) + width)).toBeGreaterThanOrEqual(15)
+      })
+    } finally {
+      rect.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+describe('panelTicks', () => {
+  const label = (tick: number) => String(tick)
+  test('keeps every tick when the facet is wide, its ends always', () => {
+    expect(panelTicks([0, 2, 4, 6, 8, 10], [0, 10], label, 400)).toEqual([0, 2, 4, 6, 8, 10])
+  })
+  test('thins the inner ticks when the facet is narrow, never the ends', () => {
+    const kept = panelTicks([0, 2, 4, 6, 8, 10], [0, 10], label, 80)
+    expect(kept[0]).toBe(0)
+    expect(kept[kept.length - 1]).toBe(10)
+    expect(kept.length).toBeLessThan(6)
   })
 })
 
@@ -837,7 +1078,7 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
       rows,
       xTitle: `${longest} · ${ends}`,
       yTitle: `${longest} · ${ends}`,
-      barCaption: `Share of respondents who gave each answer to ${longest}`,
+      barCaption: `Share of people who gave each answer to ${longest}`,
       cellTexts,
       barTexts: cellTexts,
       measurer,
@@ -904,9 +1145,7 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
         }
         expect(layout.cellFontSize).toBeGreaterThanOrEqual(9)
         // Nothing is cut: every word of every title is still there.
-        expect(caption.lines.join(' ')).toBe(
-          `Share of respondents who gave each answer to ${longest}`,
-        )
+        expect(caption.lines.join(' ')).toBe(`Share of people who gave each answer to ${longest}`)
         expect(xTitle.lines.join(' ')).toBe(`${longest} · ${ends}`)
       })
     }
@@ -941,12 +1180,12 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
         cells={[]}
         xTitle={`${longest} · ${ends}`}
         yTitle={`${longest} · ${ends}`}
-        barCaption={`Share of respondents who gave each answer to ${longest}`}
+        barCaption={`Share of people who gave each answer to ${longest}`}
       />,
     )
     const svg = container.querySelector('svg') as SVGSVGElement
     const texts = [...svg.querySelectorAll('text')]
-    const captionNode = texts.find((node) => node.textContent?.startsWith('Share of respondents'))
+    const captionNode = texts.find((node) => node.textContent?.startsWith('Share of people'))
     const layout = layoutAt(660, [{ label: 'Yes' }, { label: 'No' }])
     // (One line is drawn as the text itself; several as its tspans.)
     const tspans = [...(captionNode?.querySelectorAll('tspan') ?? [])]

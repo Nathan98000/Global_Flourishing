@@ -59,14 +59,28 @@ describe('atlas search', () => {
   })
 
   test('a full URL round-trips exactly', () => {
-    const raw = parseSearchString('?outcome=HAPPY&wave=Y2&countries=1,22&sort=name')
+    const raw = parseSearchString('?outcome=HAPPY&wave=Y2&countries=1,22&dir=asc')
     const search = parseAtlasSearch(raw)
     expect(search.outcome).toBe('HAPPY')
     expect(search.wave).toBe('Y2')
     expect(search.countries).toEqual([1, 22])
-    expect(search.sort).toBe('name')
+    expect(search.dir).toBe('asc')
     const serialized = stringifySearch(atlasSearchParams(search))
+    expect(serialized).toBe('?outcome=HAPPY&wave=Y2&dir=asc&countries=1%2C22')
     expect(parseAtlasSearch(parseSearchString(serialized))).toEqual(search)
+  })
+
+  test('an old A–Z link (sort=name) opens the value order, its dir dropped, no notice (ADR-0029)', () => {
+    for (const dir of ['asc', 'desc', undefined]) {
+      const search = parseAtlasSearch(
+        parseSearchString(`?outcome=HAPPY&sort=name${dir ? `&dir=${dir}` : ''}`),
+      )
+      expect(search.sort).toBe('estimate')
+      expect(search.dir).toBeUndefined()
+      expect(search.invalid).toBeUndefined()
+      // Serializing never writes `name` again.
+      expect(stringifySearch(atlasSearchParams(search))).toBe('?outcome=HAPPY')
+    }
   })
 
   test('an old view=map URL loads the chart and raises no notice (ADR-0016)', () => {
@@ -115,16 +129,10 @@ describe('atlas search', () => {
     expect(parseAtlasSearch({ countries: ['1', '22'] }).countries).toEqual([1, 22])
   })
 
-  test("dir rides the URL only when it differs from the sort's default", () => {
-    // Defaults: values high-first, names A→Z — omitted from the URL.
+  test('dir rides the URL only when it reverses the default (highest first)', () => {
     expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ dir: 'desc' })))).toBe('')
     expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ dir: 'asc' })))).toBe('?dir=asc')
-    expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ sort: 'name', dir: 'asc' })))).toBe(
-      '?sort=name',
-    )
-    expect(
-      stringifySearch(atlasSearchParams(parseAtlasSearch({ sort: 'name', dir: 'desc' }))),
-    ).toBe('?sort=name&dir=desc')
+    expect(stringifySearch(atlasSearchParams(parseAtlasSearch({ sort: 'estimate' })))).toBe('')
     expect(parseAtlasSearch({ dir: 'sideways' }).invalid).toEqual(['dir'])
   })
 
@@ -182,6 +190,20 @@ describe('breakdowns search', () => {
     )
   })
 
+  test('an old A–Z link (sort=name) opens the value order, its dir dropped, no notice (ADR-0029)', () => {
+    const search = parseBreakdownsSearch(parseSearchString('?by=gender&sort=name&dir=desc'))
+    expect(search.sort).toBe('estimate')
+    expect(search.dir).toBeUndefined()
+    expect(search.invalid).toBeUndefined()
+    expect(stringifySearch(breakdownsSearchParams(search))).toBe('?by=gender')
+    // A gap order keeps its own direction.
+    expect(parseBreakdownsSearch({ sort: 'gap', dir: 'asc' })).toMatchObject({
+      sort: 'gap',
+      dir: 'asc',
+    })
+    expect(parseBreakdownsSearch({ sort: 'size' }).invalid).toEqual(['sort'])
+  })
+
   test('a retired Compare link keeps only a valid outcome and wave', () => {
     expect(
       compareRedirectSearch(
@@ -218,13 +240,13 @@ describe('change search (Phase 5)', () => {
   })
 
   test('a full URL round-trips with the API names', () => {
-    const raw = parseSearchString('?outcome=BALANCE&via=MY&sort=name&dir=desc&countries=1,22')
+    const raw = parseSearchString('?outcome=BALANCE&via=MY&dir=asc&countries=1,22')
     const search = parseChangeSearch(raw)
     expect(search.via).toBe('MY')
-    expect(search.sort).toBe('name')
+    expect(search.sort).toBe('change')
     expect(search.countries).toEqual([1, 22])
     const serialized = stringifySearch(changeSearchParams(search))
-    expect(serialized).toBe('?outcome=BALANCE&via=MY&sort=name&dir=desc&countries=1%2C22')
+    expect(serialized).toBe('?outcome=BALANCE&via=MY&dir=asc&countries=1%2C22')
     expect(parseChangeSearch(parseSearchString(serialized))).toEqual(search)
     expect(changeRequest(search).via).toBe('MY')
     // Other pairs the API serves.
@@ -250,15 +272,23 @@ describe('change search (Phase 5)', () => {
     expect(parseChangeSearch({ via: 'Y2' }).invalid).toEqual(['via'])
     expect(parseChangeSearch({ sort: 'level' }).invalid).toEqual(['sort'])
   })
+
+  test('an old A–Z link (sort=name) opens the change order, its dir dropped, no notice (ADR-0029)', () => {
+    const search = parseChangeSearch(parseSearchString('?outcome=BALANCE&sort=name&dir=desc'))
+    expect(search.sort).toBe('change')
+    expect(search.dir).toBeUndefined()
+    expect(search.invalid).toBeUndefined()
+    expect(stringifySearch(changeSearchParams(search))).toBe('?outcome=BALANCE')
+  })
 })
 
 describe('what-matters search (Phase 5)', () => {
-  test('defaults: the matrix by country, no country chosen, split by age band, countries A–Z', () => {
+  test('defaults: the matrix by country, no country chosen, split by age band, the first column’s order', () => {
     const search = parseWhatMattersSearch({})
     expect(search).toEqual({
       view: 'country',
       by: 'age_band',
-      sort: 'name',
+      sort: undefined,
       country: undefined,
       dir: undefined,
       item: undefined,
@@ -274,11 +304,11 @@ describe('what-matters search (Phase 5)', () => {
       country: '22',
       by: 'gender',
       item: 'NATURE',
-      sort: 'estimate',
+      sort: 'MONEY',
       dir: 'asc',
     })
     const serialized = stringifySearch(whatMattersSearchParams(search))
-    expect(serialized).toBe('?view=within&country=22&by=gender&item=NATURE&sort=estimate&dir=asc')
+    expect(serialized).toBe('?view=within&country=22&by=gender&item=NATURE&sort=MONEY&dir=asc')
     expect(parseWhatMattersSearch(parseSearchString(serialized))).toEqual(search)
     // The default view never reaches the URL; an unknown one degrades to it.
     expect(stringifySearch(whatMattersSearchParams({ ...search, view: 'country' }))).not.toContain(
@@ -287,19 +317,14 @@ describe('what-matters search (Phase 5)', () => {
     const unknown = parseWhatMattersSearch({ view: 'map' })
     expect(unknown.view).toBe('country')
     expect(unknown.invalid).toEqual(['view'])
-    // The other questions' chart sorts on its own params, Atlas's
-    // defaults (by value, high first) omitted from the URL.
-    const questions = parseWhatMattersSearch({ view: 'questions', qsort: 'name', qdir: 'desc' })
-    expect(questions).toMatchObject({ qsort: 'name', qdir: 'desc', sort: 'name', dir: undefined })
-    expect(stringifySearch(whatMattersSearchParams(questions))).toBe(
-      '?view=questions&qsort=name&qdir=desc',
+    // The other questions' chart orders on its own params, Atlas's
+    // default (highest first) omitted from the URL.
+    const questions = parseWhatMattersSearch({ view: 'questions', qdir: 'asc' })
+    expect(questions).toMatchObject({ qsort: 'estimate', qdir: 'asc', sort: undefined })
+    expect(stringifySearch(whatMattersSearchParams(questions))).toBe('?view=questions&qdir=asc')
+    expect(stringifySearch(whatMattersSearchParams({ ...questions, qdir: 'desc' }))).toBe(
+      '?view=questions',
     )
-    expect(
-      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'estimate', qdir: 'desc' })),
-    ).toBe('?view=questions')
-    expect(
-      stringifySearch(whatMattersSearchParams({ ...questions, qsort: 'name', qdir: 'asc' })),
-    ).toBe('?view=questions&qsort=name')
     expect(parseWhatMattersSearch({ qsort: 'gap' }).invalid).toEqual(['qsort'])
     expect(parseWhatMattersSearch({ qdir: 'up' }).invalid).toEqual(['qdir'])
     expect(parseWhatMattersSearch({ country: 'US' }).invalid).toEqual(['country'])
@@ -313,12 +338,36 @@ describe('what-matters search (Phase 5)', () => {
   })
 })
 
+describe('what-matters order (ADR-0029)', () => {
+  test('an old A–Z link opens the first column’s order, its dir dropped, no notice', () => {
+    const matrix = parseWhatMattersSearch(parseSearchString('?sort=name&dir=asc'))
+    expect(matrix.sort).toBeUndefined()
+    expect(matrix.dir).toBeUndefined()
+    expect(matrix.invalid).toBeUndefined()
+    expect(stringifySearch(whatMattersSearchParams(matrix))).toBe('')
+    // An item's code stays, whatever it is: the view reads an unknown one
+    // as the first column too, never as A–Z.
+    expect(parseWhatMattersSearch({ sort: 'NOT_AN_ITEM' })).toMatchObject({
+      sort: 'NOT_AN_ITEM',
+      invalid: undefined,
+    })
+  })
+
+  test('the other questions’ old A–Z link (qsort=name) opens the value order, qdir dropped', () => {
+    const questions = parseWhatMattersSearch(
+      parseSearchString('?view=questions&qsort=name&qdir=desc'),
+    )
+    expect(questions).toMatchObject({ qsort: 'estimate', qdir: undefined, invalid: undefined })
+    expect(stringifySearch(whatMattersSearchParams(questions))).toBe('?view=questions')
+  })
+})
+
 describe('states search (Phase 5)', () => {
-  test('defaults are the index on the map at Wave 1, nothing in the URL', () => {
+  test('defaults are the index on the chart at 2023, nothing in the URL (ADR-0030)', () => {
     const search = parseStatesSearch({})
     expect(search.outcome).toBe('sfi')
     expect(search.wave).toBe('Y1')
-    expect(search.view).toBe('map')
+    expect(search.view).toBe('bars')
     expect(stringifySearch(statesSearchParams(search))).toBe('')
     expect(statesRequest(search, sfiVariable)).toEqual({
       outcome: 'sfi',
@@ -329,14 +378,36 @@ describe('states search (Phase 5)', () => {
   })
 
   test('adj round-trips on Wave 2 and is rejected on Wave 1 (no such weight)', () => {
-    const y2 = parseStatesSearch({ wave: 'Y2', adj: 'true', view: 'bars' })
+    const y2 = parseStatesSearch({ wave: 'Y2', adj: 'true', view: 'map' })
     expect(y2.adj).toBe(true)
-    expect(stringifySearch(statesSearchParams(y2))).toBe('?wave=Y2&adj=true&view=bars')
+    expect(stringifySearch(statesSearchParams(y2))).toBe('?wave=Y2&adj=true&view=map')
     expect(statesRequest(y2, sfiVariable).adj).toBe(true)
     const y1 = parseStatesSearch({ adj: 'true' })
     expect(y1.adj).toBeUndefined()
     expect(y1.invalid).toEqual(['adj'])
     expect(parseStatesSearch({ view: 'globe' }).invalid).toEqual(['view'])
+  })
+
+  test('an old A–Z link (sort=name) opens the value order, its dir dropped, no notice (ADR-0029)', () => {
+    const search = parseStatesSearch(parseSearchString('?view=bars&sort=name&dir=asc'))
+    expect(search.sort).toBe('estimate')
+    expect(search.dir).toBeUndefined()
+    expect(search.invalid).toBeUndefined()
+    // The chart is the default now: an old view=bars link drops it.
+    expect(stringifySearch(statesSearchParams(search))).toBe('')
+    expect(parseStatesSearch({ dir: 'asc' }).dir).toBe('asc')
+  })
+})
+
+describe('states view default (ADR-0030)', () => {
+  test('no view opens the chart; an old view=map link keeps the map; view=bars still opens the chart', () => {
+    expect(parseStatesSearch({}).view).toBe('bars')
+    const map = parseStatesSearch(parseSearchString('?outcome=HAPPY&view=map'))
+    expect(map).toMatchObject({ view: 'map', invalid: undefined })
+    expect(stringifySearch(statesSearchParams(map))).toBe('?outcome=HAPPY&view=map')
+    const bars = parseStatesSearch(parseSearchString('?outcome=HAPPY&view=bars'))
+    expect(bars).toMatchObject({ view: 'bars', invalid: undefined })
+    expect(stringifySearch(statesSearchParams(bars))).toBe('?outcome=HAPPY')
   })
 })
 

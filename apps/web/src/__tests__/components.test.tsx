@@ -15,14 +15,14 @@ describe('Stat', () => {
     render(<Stat row={testRow()} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
     expect(screen.getByText(/\[7\.10, 7\.32\]/)).toBeInTheDocument()
-    expect(screen.getByText('n = 1,204')).toBeInTheDocument()
+    expect(screen.getByText('based on 1,204 people')).toBeInTheDocument()
     expect(screen.queryByText(/w_c1/)).toBeNull()
   })
 
   test('a small cell appears with its n and no flag (ADR-0011)', () => {
     render(<Stat row={testRow({ n: 12 })} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
-    expect(screen.getByText(/n = 12/)).toBeInTheDocument()
+    expect(screen.getByText(/based on 12 people/)).toBeInTheDocument()
     expect(screen.queryByText(/withheld|small cell/)).toBeNull()
   })
 })
@@ -43,7 +43,10 @@ describe('ErrorState', () => {
     rerender(<ErrorState error={new NetworkError(new TypeError('x'))} />)
     // Plain words, not engineer words (F6).
     expect(screen.getByRole('alert')).toHaveTextContent('Live data service is offline')
-    expect(screen.getByRole('alert')).toHaveTextContent('standard views still work')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The Atlas, Segments and What Matters still work.',
+    )
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/filters/)
   })
 
   test('with /health fine, a failed request is the service’s error, not an outage', () => {
@@ -69,14 +72,14 @@ describe('RadioRow', () => {
   test('up to six options stay a segmented radio group', () => {
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={answers(SELECT_ABOVE)}
         value="2"
         onChange={() => undefined}
       />,
     )
-    expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Showing % who said' })).toBeInTheDocument()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
     expect(screen.getByRole('radio', { name: 'Answer 2' })).toBeChecked()
   })
@@ -85,7 +88,7 @@ describe('RadioRow', () => {
     const onChange = vi.fn()
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={answers(SELECT_ABOVE + 1)}
         value="2"
@@ -93,7 +96,7 @@ describe('RadioRow', () => {
       />,
     )
     expect(screen.queryByRole('radio')).toBeNull()
-    const select = screen.getByLabelText('Answer level')
+    const select = screen.getByLabelText('Showing % who said')
     expect(select.tagName).toBe('SELECT')
     expect(select).toHaveValue('2')
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual(
@@ -135,7 +138,7 @@ describe('RadioRow notes', () => {
   test('as a select, the note describes the select without joining its name', () => {
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={Array.from({ length: SELECT_ABOVE + 1 }, (_, i) => ({
           value: String(i),
@@ -147,7 +150,7 @@ describe('RadioRow notes', () => {
         note="Answer 0 isn't available."
       />,
     )
-    const select = screen.getByRole('combobox', { name: 'Answer level' })
+    const select = screen.getByRole('combobox', { name: 'Showing % who said' })
     expect(select).toHaveAccessibleDescription("Answer 0 isn't available.")
     // With a note, the box around both is the form: it is what may shrink.
     expect(select.closest('label')?.parentElement?.className).toContain('selectForm')
@@ -162,31 +165,42 @@ describe('CountryFilter', () => {
     return onChange
   }
 
-  test('the trigger reports its state in a few words under a visible "Countries" label', () => {
+  test('the trigger is a button that reports its state in a few words, under a "Countries" label', () => {
     const { unmount } = render(
       <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-    expect(screen.getByText('Countries')).toBeInTheDocument()
-    const trigger = screen.getByText('All 2').closest('summary')
+    expect(screen.getByText('Countries', { selector: 'span' })).toBeInTheDocument()
+    const trigger = screen
+      .getByText('All countries', { selector: 'summary span' })
+      .closest('summary')
     // "Countries" stays in the accessible name (a visually hidden prefix).
-    expect(trigger?.textContent).toBe('Countries: All 2')
+    expect(trigger?.textContent).toBe('Countries: All countries')
     unmount()
     render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
-    expect(screen.getByText('1 selected')).toBeInTheDocument()
-    expect(countryTriggerText(0, 23)).toBe('All 23')
-    expect(countryTriggerText(23, 23)).toBe('All 23')
-    expect(countryTriggerText(3, 23)).toBe('3 selected')
+    expect(screen.getByText('1 country', { selector: 'summary span' })).toBeInTheDocument()
+    expect(countryTriggerText(0, 23)).toBe('All countries')
+    expect(countryTriggerText(23, 23)).toBe('All countries')
+    expect(countryTriggerText(3, 23)).toBe('3 countries')
   })
 
-  test('Select all checks every country', () => {
+  test('the panel starts with All countries; "all" is never shown as nothing ticked (F20)', () => {
     const onChange = renderFilter([])
-    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
-    expect(onChange).toHaveBeenCalledWith([1, 22])
+    const all = screen.getByRole('radio', { name: 'All countries' })
+    expect(all).toBeChecked()
+    // No list of unticked boxes while all countries are shown.
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    // Choose countries: the ticks appear; a tick chooses that country.
+    fireEvent.click(screen.getByRole('radio', { name: 'Choose countries' }))
+    expect(screen.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'United States' }))
+    expect(onChange).toHaveBeenCalledWith([22])
   })
 
-  test('Clear returns to the all-countries default', () => {
-    const onChange = renderFilter([1, 22])
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+  test('with countries chosen, All countries returns to the default', () => {
+    const onChange = renderFilter([1, 22].slice(0, 1))
+    expect(screen.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Testland' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'All countries' }))
     expect(onChange).toHaveBeenCalledWith([])
   })
 
@@ -207,7 +221,7 @@ describe('CountryFilter', () => {
     expect(details.open).toBe(false)
     // …while a pointerdown inside keeps it open.
     details.open = true
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.pointerDown(screen.getByRole('radio', { name: 'Choose countries' }))
     expect(details.open).toBe(true)
   })
 })

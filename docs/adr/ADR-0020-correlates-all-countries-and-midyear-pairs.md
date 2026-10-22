@@ -1,6 +1,6 @@
 # ADR-0020: Correlates: all countries and midyear pairs
 
-**Status:** Accepted · **Date:** 2026-09-29, revised the same day after the review and on 2026-09-30 after the owner's browser check · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-09-29, revised the same day after the review and on 2026-09-30 after the owner's browser check · **Phase:** 7 · Default country revised by ADR-0029
 
 Supersedes, in ADR-0019: §5's legend, tooltip sentence and screen-reader
 words for a flagged estimate, §7's column explanation under Compare two,

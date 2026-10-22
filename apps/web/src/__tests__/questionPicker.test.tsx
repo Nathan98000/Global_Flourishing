@@ -1,9 +1,13 @@
-// The question picker (ADR-0019): one button that opens search, recently
-// used and topic browse; unavailable questions stay in view with their
-// reason; listbox semantics and a keyboard path; a multi-select mode that
-// adds several at once within the table's room.
+// The question picker (ADR-0019; the only picker on every page since
+// ADR-0029): one button that opens search, recently used and topic
+// browse; unavailable questions stay in view with their reason; listbox
+// semantics and a keyboard path; a multi-select mode that adds several at
+// once within the table's room. The question bar's variant, and the
+// subtopic grouping the old two-step picker had (ADR-0016), live here
+// too; each page's own list is tested with the page (app, change,
+// states and whatMatters tests).
 
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { VariableSummary } from '../api/types'
 import {
@@ -14,6 +18,7 @@ import {
   wordingSnippet,
 } from '../components/controls/QuestionPicker'
 import { attendVariable, happyVariable, sfiVariable } from '../test-utils/fixtures'
+import { subtopicsOf } from '../topics'
 
 const question = (
   name: string,
@@ -38,7 +43,7 @@ const religion = question('REL2', 'Current religion', {
   scale_type: 'nominal',
   wording: 'What is your current religion?',
 })
-const phq2 = question('phq2_score', 'PHQ-2 depression score', {
+const phq2 = question('phq2_score', 'Depression screening score (PHQ-2)', {
   family: 'derived',
   is_derived: true,
   wording: null,
@@ -108,8 +113,8 @@ describe('QuestionPicker', () => {
       'Wellbeing2',
       'Mental health1',
       'Religion & spirituality2',
-      // The Correlates picker's own name for the midyear topic (review L4).
-      'Midyear survey0',
+      // One name for the midyear topic on every page (ADR-0029).
+      'What matters to people0',
     ])
     const wellbeing = within(topics).getByRole('option', { name: /Wellbeing/ })
     expect(wellbeing).toHaveAttribute('aria-selected', 'true')
@@ -162,7 +167,7 @@ describe('QuestionPicker', () => {
         .map((g) => g.getAttribute('aria-label')),
     ).toEqual(['Mental health'])
     expect(within(derived).getByRole('option')).toHaveTextContent(
-      'PHQ-2 depression scoreSum of the two PHQ-2 items; 0–6.',
+      'Depression screening score (PHQ-2)Sum of the two PHQ-2 items; 0–6.',
     )
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'zzz' } })
     expect(within(dialog).getByText('No question matches')).toBeInTheDocument()
@@ -258,6 +263,93 @@ describe('QuestionPicker', () => {
     })
     expect(readRecent()).toEqual([])
     expect(() => rememberRecent(['HAPPY'])).not.toThrow()
+  })
+})
+
+describe('subtopicsOf (the browse column’s nesting, ADR-0016)', () => {
+  const inReligion = (name: string, display_name: string, subfamily: string | null) =>
+    question(name, display_name, { family: 'religion', subfamily })
+  test('groups a topic by subfamily in owner order; a topic without any yields nothing', () => {
+    const groups = subtopicsOf([
+      inReligion('REL2', 'Current religion', 'affiliation'),
+      inReligion('REL1', 'Religion at age 12', 'affiliation'),
+      inReligion('ATTEND_SVCS', 'Religious service attendance', 'practice'),
+      inReligion('BELIEVE_GOD', 'Belief in God', 'beliefs'),
+    ])
+    expect(groups.map((g) => [g.code, g.name, g.measures.map((m) => m.name)])).toEqual([
+      ['affiliation', 'Religious affiliation', ['REL2', 'REL1']],
+      ['beliefs', 'Beliefs & experiences', ['BELIEVE_GOD']],
+      ['practice', 'Religious practice', ['ATTEND_SVCS']],
+    ])
+    expect(subtopicsOf([happyVariable])).toEqual([])
+    // An unknown code still gets a readable name and sorts after the known ones.
+    const odd = subtopicsOf([inReligion('X', 'X', 'new_group'), inReligion('Y', 'Y', 'beliefs')])
+    expect(odd.map((g) => g.name)).toEqual(['Beliefs & experiences', 'New group'])
+  })
+})
+
+describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
+  function renderField(props: { topic?: string; value?: string } = {}) {
+    const onPick = vi.fn()
+    render(
+      <QuestionPicker
+        variant="field"
+        label="Question"
+        variables={variables}
+        wave="Y1"
+        value={props.value ?? 'WB_TODAY'}
+        topic={props.topic}
+        onPick={onPick}
+      />,
+    )
+    return onPick
+  }
+
+  test('closed: the name in bold over a line of its wording, and Change; named "Question: …"', () => {
+    renderField()
+    const trigger = screen.getByRole('button', { name: 'Question: Life evaluation today' })
+    const [name, wording, change] = [...trigger.children]
+    expect(name?.textContent).toBe('Life evaluation today')
+    expect(wording?.textContent).toBe(today.wording)
+    expect(change?.textContent).toBe('Change')
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+    // The label above it is the role, in the controls' label voice.
+    expect(screen.getByText('Question')).toHaveAttribute('aria-hidden', 'true')
+    // A derived score has no wording: its description takes the line.
+    cleanup()
+    renderField({ value: 'phq2_score' })
+    expect(
+      screen.getByRole('button', { name: /^Question: Depression screening score \(PHQ-2\)/ }),
+    ).toHaveTextContent('Sum of the two PHQ-2 items; 0–6.')
+  })
+
+  test('open: the question’s own topic — or the topic a link names — and a pick closes it', () => {
+    const onPick = renderField({ topic: 'religion' })
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Life evaluation today' }))
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    const topics = within(dialog).getByRole('listbox', { name: 'Topics' })
+    expect(within(topics).getByRole('option', { name: /^Religion/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    // The subtopics, nested under the open topic, as the old Subtopic step was.
+    expect(within(topics).getByRole('option', { name: /Religious affiliation/ })).toHaveAttribute(
+      'data-depth',
+      '1',
+    )
+    // Search reaches every question, whatever the topic.
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+    expect(onPick).toHaveBeenCalledWith('HAPPY')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // An unknown topic opens on the question's own.
+    cleanup()
+    renderField({ topic: 'not_a_topic' })
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Life evaluation today' }))
+    expect(screen.getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 })
 

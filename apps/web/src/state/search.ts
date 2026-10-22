@@ -12,7 +12,7 @@ import type { AggregateRequest } from '../api/estimates'
 import { adjustedWeightsExist, type StatesRequest } from '../api/states'
 import type { Stat, VariableSummary, Wave } from '../api/types'
 import { WAVES, isStat, isWave } from '../api/types'
-import { defaultDir, type SortDir } from '../sortRows'
+import { DEFAULT_DIR, type SortDir } from '../sortRows'
 import type { RawSearch } from './searchCodec'
 
 const NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/
@@ -117,12 +117,27 @@ const parseName = (value: unknown): string | undefined =>
 
 const parseWave = (value: unknown): Wave | undefined => (isWave(value) ? value : undefined)
 
-const parseStat = (value: unknown): Stat | undefined => (isStat(value) ? value : undefined)
+/** A statistic by its API name; `median` (what a visitor would type) is
+ * the median's, `quantile` (ADR-0029). */
+const parseStat = (value: unknown): Stat | undefined =>
+  value === 'median' ? 'quantile' : isStat(value) ? value : undefined
 
 const parseEnum =
   <T extends string>(...allowed: T[]) =>
   (value: unknown): T | undefined =>
     typeof value === 'string' && (allowed as string[]).includes(value) ? (value as T) : undefined
+
+/** A value order's `sort`: one of `allowed` — or `name`, the A–Z order
+ * no page offers any more (ADR-0029), which an old link may still carry:
+ * it reads as the default value order, with no notice. */
+const parseOrder =
+  <T extends string>(fallback: T, ...allowed: T[]) =>
+  (value: unknown): T | undefined =>
+    value === 'name' ? fallback : parseEnum(...allowed)(value)
+
+/** Whether a link asked for the retired A–Z order: the `dir` that came
+ * with it meant A→Z or Z→A, so it is dropped with it. */
+const askedByName = (raw: Raw, key: string): boolean => first(raw, key) === 'name'
 
 const parseTrue = (value: unknown): boolean | undefined =>
   value === true || value === 'true' ? true : undefined
@@ -157,8 +172,9 @@ export interface AtlasSearch {
   wave: Wave
   /** Absent = the variable's server-declared default_stat. */
   stat?: Stat
-  sort: 'estimate' | 'name'
-  /** Absent = the sort's own default (values high-first, names A→Z). */
+  /** Always by value (an old link's `name` reads so too, ADR-0029). */
+  sort: 'estimate'
+  /** Absent = highest first. */
   dir?: SortDir
   countries: number[]
   /** Categorical outcomes: which answer level is ranked/mapped. */
@@ -182,8 +198,10 @@ export function parseAtlasSearch(raw: Raw): AtlasSearch {
   const search: AtlasSearch = {
     outcome: collect.take('outcome', raw, parseName, ATLAS_DEFAULTS.outcome),
     wave: collect.take('wave', raw, parseWave, ATLAS_DEFAULTS.wave),
-    sort: collect.take('sort', raw, parseEnum('estimate', 'name'), ATLAS_DEFAULTS.sort),
-    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    sort: collect.take('sort', raw, parseOrder('estimate', 'estimate'), ATLAS_DEFAULTS.sort),
+    dir: askedByName(raw, 'sort')
+      ? undefined
+      : collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, parseCountries, ATLAS_DEFAULTS.countries, true),
     topic: collect.take('topic', raw, parseName, undefined),
     stat: collect.take('stat', raw, parseStat, undefined),
@@ -201,7 +219,7 @@ export function atlasSearchParams(search: Partial<AtlasSearch>): Record<string, 
       wave: search.wave === ATLAS_DEFAULTS.wave ? undefined : search.wave,
       stat: search.stat,
       sort: search.sort === ATLAS_DEFAULTS.sort ? undefined : search.sort,
-      dir: search.dir === defaultDir(search.sort ?? ATLAS_DEFAULTS.sort) ? undefined : search.dir,
+      dir: search.dir === DEFAULT_DIR ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
     },
@@ -235,8 +253,10 @@ export interface BreakdownsSearch {
   wave: Wave
   /** 1–2 extra dimensions beyond country (demographics, or one survey variable). */
   by: string[]
-  sort: 'estimate' | 'name' | 'gap'
-  /** Absent = the sort's own default (values/gaps high-first, names A→Z). */
+  /** Countries by value or by the gap between groups (an old link's
+   * `name` reads as by value, ADR-0029). */
+  sort: 'estimate' | 'gap'
+  /** Absent = highest (or biggest gap) first. */
   dir?: SortDir
   countries: number[]
   /** Categorical outcomes: which answer level the cells show. */
@@ -268,8 +288,15 @@ export function parseBreakdownsSearch(raw: Raw): BreakdownsSearch {
     outcome: collect.take('outcome', raw, parseName, BREAKDOWNS_DEFAULTS.outcome),
     wave: collect.take('wave', raw, parseWave, BREAKDOWNS_DEFAULTS.wave),
     by: collect.take('by', raw, () => parseBy(raw), BREAKDOWNS_DEFAULTS.by),
-    sort: collect.take('sort', raw, parseEnum('estimate', 'name', 'gap'), BREAKDOWNS_DEFAULTS.sort),
-    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    sort: collect.take(
+      'sort',
+      raw,
+      parseOrder<BreakdownsSearch['sort']>('estimate', 'estimate', 'gap'),
+      BREAKDOWNS_DEFAULTS.sort,
+    ),
+    dir: askedByName(raw, 'sort')
+      ? undefined
+      : collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, parseCountries, BREAKDOWNS_DEFAULTS.countries, true),
     topic: collect.take('topic', raw, parseName, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
@@ -289,8 +316,7 @@ export function breakdownsSearchParams(search: Partial<BreakdownsSearch>): Recor
       wave: search.wave === BREAKDOWNS_DEFAULTS.wave ? undefined : search.wave,
       by: byIsDefault ? undefined : search.by,
       sort: search.sort === BREAKDOWNS_DEFAULTS.sort ? undefined : search.sort,
-      dir:
-        search.dir === defaultDir(search.sort ?? BREAKDOWNS_DEFAULTS.sort) ? undefined : search.dir,
+      dir: search.dir === DEFAULT_DIR ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
     },
@@ -374,8 +400,9 @@ export interface ChangeSearch {
   from: Wave
   to: Wave
   via?: 'MY'
-  sort: 'change' | 'name'
-  /** Absent = the sort's own default (changes high-first, names A→Z). */
+  /** Always by change (an old link's `name` reads so too, ADR-0029). */
+  sort: 'change'
+  /** Absent = the biggest rise first. */
   dir?: SortDir
   countries: number[]
   /** Categorical items: which answer level's share change is charted. */
@@ -416,8 +443,10 @@ export function parseChangeSearch(raw: Raw): ChangeSearch {
     from,
     to,
     via: collect.take('via', raw, parseVia, undefined),
-    sort: collect.take('sort', raw, parseEnum('change', 'name'), CHANGE_DEFAULTS.sort),
-    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    sort: collect.take('sort', raw, parseOrder('change', 'change'), CHANGE_DEFAULTS.sort),
+    dir: askedByName(raw, 'sort')
+      ? undefined
+      : collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     countries: collect.take('countries', raw, parseCountries, CHANGE_DEFAULTS.countries, true),
     level: collect.take('level', raw, parseIntCode, undefined),
   }
@@ -433,10 +462,7 @@ export function changeSearchParams(search: Partial<ChangeSearch>): Record<string
       to: search.to === CHANGE_DEFAULTS.to ? undefined : search.to,
       via: search.via,
       sort: search.sort === CHANGE_DEFAULTS.sort ? undefined : search.sort,
-      dir:
-        search.dir === defaultDir(search.sort === 'name' ? 'name' : 'estimate')
-          ? undefined
-          : search.dir,
+      dir: search.dir === DEFAULT_DIR ? undefined : search.dir,
       countries: search.countries?.length ? search.countries.join(',') : undefined,
       level: search.level,
     },
@@ -474,13 +500,14 @@ export interface WhatMattersSearch {
   item?: string
   /** Categorical items: which answer level the item chart shows. */
   level?: number
-  /** Country order of the matrix: 'name' (A–Z) or one importance item's
-   * code (by that item's value); an unknown code reads as 'name'. */
-  sort: string
+  /** Country order of the matrix: by one importance item's value, its
+   * code; absent (or an unknown code, or an old link's `name`) = the
+   * first column's, the first item in the server's order (ADR-0029). */
+  sort?: string
   dir?: SortDir
-  /** The other questions' chart has its own order, Atlas's controls and
-   * defaults (by value, high first) — never the matrix's. */
-  qsort: 'estimate' | 'name'
+  /** The other questions' chart has its own order, Atlas's (by value,
+   * highest first) — never the matrix's. */
+  qsort: 'estimate'
   qdir?: SortDir
   invalid?: string[]
   invalidRaw?: RawParams
@@ -492,7 +519,6 @@ export const NO_SPLIT = 'none'
 export const WHAT_MATTERS_DEFAULTS = {
   view: 'country' as const,
   by: 'age_band',
-  sort: 'name',
   qsort: 'estimate' as const,
 }
 
@@ -519,10 +545,19 @@ export function parseWhatMattersSearch(raw: Raw): WhatMattersSearch {
     by: collect.take('by', raw, parseBreakdownColumn, WHAT_MATTERS_DEFAULTS.by),
     item: collect.take('item', raw, parseName, undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
-    sort: collect.take('sort', raw, parseName, WHAT_MATTERS_DEFAULTS.sort),
-    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
-    qsort: collect.take('qsort', raw, parseEnum('estimate', 'name'), WHAT_MATTERS_DEFAULTS.qsort),
-    qdir: collect.take('qdir', raw, parseEnum('asc', 'desc'), undefined),
+    sort: askedByName(raw, 'sort') ? undefined : collect.take('sort', raw, parseName, undefined),
+    dir: askedByName(raw, 'sort')
+      ? undefined
+      : collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    qsort: collect.take(
+      'qsort',
+      raw,
+      parseOrder('estimate', 'estimate'),
+      WHAT_MATTERS_DEFAULTS.qsort,
+    ),
+    qdir: askedByName(raw, 'qsort')
+      ? undefined
+      : collect.take('qdir', raw, parseEnum('asc', 'desc'), undefined),
   }
   return collect.finish(search)
 }
@@ -537,16 +572,10 @@ export function whatMattersSearchParams(
       by: search.by === WHAT_MATTERS_DEFAULTS.by ? undefined : search.by,
       item: search.item,
       level: search.level,
-      sort: search.sort === WHAT_MATTERS_DEFAULTS.sort ? undefined : search.sort,
-      dir:
-        search.dir === defaultDir(search.sort ?? WHAT_MATTERS_DEFAULTS.sort)
-          ? undefined
-          : search.dir,
+      sort: search.sort,
+      dir: search.dir === DEFAULT_DIR ? undefined : search.dir,
       qsort: search.qsort === WHAT_MATTERS_DEFAULTS.qsort ? undefined : search.qsort,
-      qdir:
-        search.qdir === defaultDir(search.qsort ?? WHAT_MATTERS_DEFAULTS.qsort)
-          ? undefined
-          : search.qdir,
+      qdir: search.qdir === DEFAULT_DIR ? undefined : search.qdir,
     },
     search.invalidRaw,
   )
@@ -576,17 +605,21 @@ export interface StatesSearch {
   /** The adjusted state-weight variants (never on Wave 1). */
   adj?: boolean
   view: 'map' | 'bars'
-  sort: 'estimate' | 'name'
+  /** Always by value (an old link's `name` reads so too, ADR-0029). */
+  sort: 'estimate'
   dir?: SortDir
   level?: number
   invalid?: string[]
   invalidRaw?: RawParams
 }
 
+/** US States opens on the Chart — each state's interval beside the US
+ * figure — with the Map one click away (F1, ADR-0030): a `view=map` link
+ * keeps the map; a link without `view` now shows the chart. */
 export const STATES_DEFAULTS = {
   outcome: 'sfi',
   wave: 'Y1' as Wave,
-  view: 'map' as const,
+  view: 'bars' as const,
   sort: 'estimate' as const,
 }
 
@@ -605,8 +638,10 @@ export function parseStatesSearch(raw: Raw): StatesSearch {
     stat: collect.take('stat', raw, parseStat, undefined),
     adj: collect.take('adj', raw, parseAdj, undefined),
     view: collect.take('view', raw, parseEnum('map', 'bars'), STATES_DEFAULTS.view),
-    sort: collect.take('sort', raw, parseEnum('estimate', 'name'), STATES_DEFAULTS.sort),
-    dir: collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
+    sort: collect.take('sort', raw, parseOrder('estimate', 'estimate'), STATES_DEFAULTS.sort),
+    dir: askedByName(raw, 'sort')
+      ? undefined
+      : collect.take('dir', raw, parseEnum('asc', 'desc'), undefined),
     level: collect.take('level', raw, parseIntCode, undefined),
   }
   return collect.finish(search)
@@ -622,7 +657,7 @@ export function statesSearchParams(search: Partial<StatesSearch>): Record<string
       adj: search.adj ? true : undefined,
       view: search.view === STATES_DEFAULTS.view ? undefined : search.view,
       sort: search.sort === STATES_DEFAULTS.sort ? undefined : search.sort,
-      dir: search.dir === defaultDir(search.sort ?? STATES_DEFAULTS.sort) ? undefined : search.dir,
+      dir: search.dir === DEFAULT_DIR ? undefined : search.dir,
       level: search.level,
     },
     search.invalidRaw,

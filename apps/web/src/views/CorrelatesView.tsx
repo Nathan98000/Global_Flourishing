@@ -24,6 +24,7 @@ import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Disclosure } from '../components/controls/Disclosure'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { groupValueLabel } from '../labels'
 import { searchNavigation } from '../state/navigate'
@@ -34,14 +35,8 @@ import {
   type CorrelatesSearch,
   type CorrelatesViewName,
 } from '../state/search'
-import { WAVE_CHIPS } from '../waves'
-import {
-  ALL_COUNTRIES,
-  METHOD_DIFFERENCE,
-  countriesByName,
-  defaultCountry,
-  waveNote,
-} from './correlatesRows'
+import { MIDYEAR_NOTE, WAVE_CHIPS } from '../waves'
+import { ALL_COUNTRIES, METHOD_DIFFERENCE, countriesByName, waveNote } from './correlatesRows'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
@@ -78,6 +73,11 @@ const PURPOSE: Record<CorrelatesViewName, string> = {
     'Pick one question to find the other questions whose answers rise or fall most closely with it, strongest first. Select any row to see the two side by side.',
 }
 
+/** The Where select's two first choices, and the value of the second. */
+const WHERE_ALL = 'All countries, averaged'
+const WHERE_EACH = 'Each country side by side'
+const EACH_COUNTRY = 'each'
+
 const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
   { value: 'pearson', label: 'Straight-line' },
   { value: 'spearman', label: 'By rank' },
@@ -91,15 +91,13 @@ export function CorrelatesView() {
   const boot = useBootStatus()
   const variables = useVariables()
   const served = meta.data?.meta
-  // A country's code, or `all`: every country pooled (ADR-0020).
-  const country = search.country ?? (served ? defaultCountry(served) : undefined)
+  // A country's code, or `all`: the average of every country (ADR-0020)
+  // — what a URL with no country shows, as on every other page (ADR-0029).
+  const country = search.country ?? 'all'
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
-  const cellsId = useId()
-  // On a phone the shared row folds into one summary line (review M9);
-  // "Change" opens it in place.
+  // On a phone, how the chart is drawn goes in an options sheet.
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const [changing, setChanging] = useState(false)
   // What changed without being chosen (ADR-0020), until the next change.
   const [notice, setNotice] = useState<string | undefined>()
   // The table Compare several shows before one is named (its default).
@@ -153,11 +151,19 @@ export function CorrelatesView() {
   }
 
   const countryName =
-    country === 'all'
-      ? ALL_COUNTRIES
-      : country !== undefined
-        ? groupValueLabel('country_code', country, served)
-        : ''
+    country === 'all' ? ALL_COUNTRIES : groupValueLabel('country_code', country, served)
+  // Where, in one select (ADR-0029): the average of every country, each
+  // country side by side (Compare two and Find related), or one country —
+  // the URLs today's Country select and scope toggle wrote together.
+  const sideBySide = search.view !== 'matrix'
+  const where =
+    sideBySide && search.scope === 'all'
+      ? EACH_COUNTRY
+      : country === 'all'
+        ? 'all'
+        : String(country)
+  const whereLabel =
+    where === EACH_COUNTRY ? WHERE_EACH : country === 'all' ? WHERE_ALL : countryName
   // A wave the view's questions were not asked in stays in the row,
   // disabled, and the line under the row says why. Midyear never is: its
   // questions are reachable from every wave (ADR-0020).
@@ -203,34 +209,41 @@ export function CorrelatesView() {
     waveNote(WAVES.filter(open), inView.who)
   )
 
-  // One row — Wave · Country · Correlation type, each under its label —
-  // and, under the whole row, why a wave is unavailable. On a phone, one
-  // line says what the three are set to, with "Change" to open them.
+  // One row — Year · Where, each under its label — and, under the whole
+  // row, why a wave is unavailable; the correlation type is the chart's
+  // (its toolbar). On a phone, one line says how the chart is drawn, with
+  // Options to change it.
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
-  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, countryName, method?.label]
-    .filter(Boolean)
-    .join(' · ')
-  const folded = narrow && !changing
+  const summary = [method?.label ?? '', whereLabel].filter(Boolean).join(' · ')
+  // How the chart is drawn: in its header's toolbar (`inline`, ADR-0029),
+  // or in the phone's options sheet — the correlation type, with what
+  // tells the two apart.
+  const methodControl = (inline: boolean) => (
+    <span className={own.typeCell}>
+      <RadioRow<CorrelationMethod>
+        legend="Measured as"
+        name="method"
+        inline={inline}
+        options={METHOD_OPTIONS}
+        value={search.method ?? 'pearson'}
+        onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
+      />
+      <Disclosure variant="info" label="What’s the difference?">
+        {METHOD_DIFFERENCE.map((paragraph, index) => (
+          <p key={index} className={styles.methodHint}>
+            {paragraph.map((words, at) =>
+              typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
+            )}
+          </p>
+        ))}
+      </Disclosure>
+    </span>
+  )
   const controls = (
     <div className={own.controlRow}>
-      {narrow && (
-        <p className={own.summaryLine}>
-          <span>{summary}</span>
-          <button
-            type="button"
-            className={own.change}
-            aria-expanded={changing}
-            aria-controls={cellsId}
-            aria-label={changing ? 'Done changing' : 'Change wave, country and correlation type'}
-            onClick={() => setChanging((open) => !open)}
-          >
-            {changing ? 'Done' : 'Change'}
-          </button>
-        </p>
-      )}
-      <div id={cellsId} className={own.controlCells} hidden={folded}>
+      <div className={own.controlCells} data-bar="question">
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
           value={search.wave}
@@ -238,23 +251,20 @@ export function CorrelatesView() {
           noteId={note ? noteId : undefined}
         />
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Country</span>
+          <span className={styles.fieldLabel}>Where</span>
           <select
-            value={country ?? ''}
+            value={where}
             onChange={(event) => {
               const value = event.target.value
-              setSearch({
-                country:
-                  value === 'all'
-                    ? 'all'
-                    : Number(value) === defaultCountry(served)
-                      ? undefined
-                      : Number(value),
-              })
+              if (value === EACH_COUNTRY) setSearch({ scope: 'all' })
+              else if (value === 'all') setSearch({ country: undefined, scope: 'country' })
+              else setSearch({ country: Number(value), scope: 'country' })
             }}
           >
-            {/* Every country pooled first, then each on its own, A–Z. */}
-            <option value="all">{ALL_COUNTRIES}</option>
+            {/* The average first, then side by side, then each country
+                A–Z (a list to pick from, not a sort). */}
+            <option value="all">{WHERE_ALL}</option>
+            {sideBySide && <option value={EACH_COUNTRY}>{WHERE_EACH}</option>}
             {countries.map((entry) => (
               <option key={entry.code} value={entry.code}>
                 {entry.name}
@@ -262,39 +272,23 @@ export function CorrelatesView() {
             ))}
           </select>
         </label>
-        <div className={own.typeCell}>
-          <RadioRow<CorrelationMethod>
-            legend="Correlation type"
-            name="method"
-            options={METHOD_OPTIONS}
-            value={search.method ?? 'pearson'}
-            onChange={(value) =>
-              setSearch({ method: value === 'spearman' ? 'spearman' : undefined })
-            }
-          />
-          <Disclosure variant="info" label="What’s the difference?">
-            {METHOD_DIFFERENCE.map((paragraph, index) => (
-              <p key={index} className={styles.methodHint}>
-                {paragraph.map((words, at) =>
-                  typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
-                )}
-              </p>
-            ))}
-          </Disclosure>
-        </div>
       </div>
-      {note && (
-        <p id={noteId} className={own.rowNote}>
-          {note}
-        </p>
-      )}
+      {/* Why a year is unavailable, or what happens at Midyear — else
+          what the midyear survey is. */}
+      <p id={noteId} className={own.rowNote}>
+        {note ?? MIDYEAR_NOTE}
+      </p>
       {/* What changed on its own (ADR-0020): always in the page, so the
           polite region is there before it speaks. */}
       <p role="status" className={own.notice}>
         {notice}
       </p>
+      {/* On a phone, Year and Where stay in view; how the chart is drawn
+          goes in the options sheet (ADR-0029). */}
+      {narrow && <OptionsSheet summary={summary}>{methodControl(false)}</OptionsSheet>}
     </div>
   )
+  const chartControls = narrow ? undefined : methodControl(true)
 
   const props: ViewProps = {
     search,
@@ -305,6 +299,7 @@ export function CorrelatesView() {
     countryName,
     apiReachable: boot.apiReachable,
     controls,
+    chartControls,
     onTable: setTable,
   }
 

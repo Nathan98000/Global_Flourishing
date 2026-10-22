@@ -47,6 +47,10 @@ export const TIP_OPTIONS = {
   lineHeight: 1.3,
   lineWidth: 30,
   stroke: 'var(--grid)',
+  // The card's left edge at the mark — to its right — whenever it fits,
+  // so it never covers the rows above (F22); Plot picks another side
+  // when it does not.
+  preferredAnchor: 'left',
   render: headingFirst,
 } as const
 
@@ -202,10 +206,6 @@ export const ROW_HEIGHT = 26
 export const MIN_ROWS = 4
 /** Facet padding: enough that adjacent panels' tick labels never touch. */
 export const FACET_PADDING = 0.16
-/** Column (facet) labels sit one text line above the top axis's tick
- * labels: Plot puts both on the top edge otherwise (tick size + padding
- * = 9 px up), and "Indonesia" over "8" read as "Indo8esia". */
-export const FACET_LABEL_DY = -25
 /** Room under the last row of a panel for its in-panel tick labels. */
 export const PANEL_AXIS_INSET = 18
 
@@ -250,11 +250,6 @@ export function answered(answer: string, verb = 'answered'): string {
   return /^[\d.,–−+-]+$/.test(answer) ? `${verb} ${answer}` : `${verb} “${answer}”`
 }
 
-/** A share change in words: "+3.2 percentage points". */
-function shareChangeWords(text: string): string {
-  return text.replace(/ pp$/, ' percentage points')
-}
-
 /** A hover card's value line: the number, said as what it is — "Mean:
  * 7.71 on a 0–10 scale", "45.0% answered “Yes”", "Mean change: +0.05".
  * Means and shares are never re-coded (ADR-0015). */
@@ -276,7 +271,7 @@ export function valueLine(row: EstimateRow, context: TipContext = {}): string {
     case 'change':
       return `Mean change: ${value}`
     case 'change_share':
-      return `Change in share: ${shareChangeWords(value)}`
+      return `Change in share: ${value}`
     case 'change_distribution':
       if (context.answer === undefined) return `${value} of people`
       return /^[0.]+$/.test(context.answer)

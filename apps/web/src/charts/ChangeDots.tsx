@@ -10,7 +10,7 @@
 import * as Plot from '@observablehq/plot'
 import type { ChangeLeg } from '../api/change'
 import type { EstimateRow, Meta } from '../api/types'
-import { formatEstimate } from '../format'
+import { formatValueLabel } from '../format'
 import { groupValueLabel } from '../labels'
 import { legTitle } from '../waves'
 import { dotMarks, type DotEntry } from './DotPlot'
@@ -104,11 +104,13 @@ export function ChangeDots({
       return Plot.plot({
         // Never shorter than four rows: the ticks clear the first row and
         // the zero rule is never a stub.
-        height: 60 + Math.max(countryDomain.length, MIN_ROWS) * ROW_HEIGHT,
+        // The axis sits close under the chart's header (F19): 34 px for its
+        // ticks, 44 under a row of leg titles.
+        height: (faceted ? 60 : 34) + Math.max(countryDomain.length, MIN_ROWS) * ROW_HEIGHT,
         width,
         marginLeft,
         marginRight,
-        marginTop: faceted ? 44 : 60,
+        marginTop: faceted ? 44 : 34,
         style: {
           fontFamily: FONT_FAMILY,
           fontSize: '11px',
@@ -147,7 +149,7 @@ export function ChangeDots({
                 Plot.text(entries, {
                   y: 'level',
                   x: hi,
-                  text: (entry: DotEntry) => formatEstimate(entry.row.estimate, entry.row.stat),
+                  text: (entry: DotEntry) => formatValueLabel(entry.row.estimate, entry.row.stat),
                   dx: 16,
                   textAnchor: 'start',
                   fill: INK,

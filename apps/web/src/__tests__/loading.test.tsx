@@ -71,6 +71,27 @@ describe('LoadingBlock', () => {
     expect(container.querySelector('[class*="spinner"], [role="progressbar"]')).toBeNull()
   })
 
+  test("is a skeleton in the chart's shape: an axis line and eight ghost rows, not a slab (F21)", () => {
+    const { container } = render(<LoadingBlock height={420} label="Loading estimates" />)
+    const block = screen.getByRole('status', { name: 'Loading estimates' })
+    expect(block.className).not.toMatch(/skeleton/)
+    const ghost = block.querySelector('[aria-hidden="true"]') as HTMLElement
+    expect(ghost.querySelectorAll('[data-ghost="axis"]')).toHaveLength(1)
+    const rows = ghost.querySelectorAll('[data-ghost="row"]')
+    expect(rows).toHaveLength(8)
+    // Each row: a label stub and a mark, the marks shortening down the
+    // list like a ranking.
+    const lengths = [...rows].map((row) =>
+      parseFloat((row.lastElementChild?.firstElementChild as HTMLElement).style.width),
+    )
+    expect(lengths).toEqual([...lengths].sort((a, b) => b - a))
+    // The ghost carries no text; the label is the block's alone.
+    expect(ghost.textContent).toBe('')
+    // The bar still joins it at 600 ms.
+    act(() => vi.advanceTimersByTime(PROGRESS_AFTER_MS))
+    expect(container.querySelector('[class*="bar"]')).not.toBeNull()
+  })
+
   test('the 4 s line is one stable node — not re-created on repaint, so not re-announced', () => {
     const { rerender } = render(<LoadingBlock height={300} label="Loading" />)
     act(() => vi.advanceTimersByTime(STILL_WORKING_AFTER_MS))
@@ -110,12 +131,12 @@ describe('ChartFigure while refetching', () => {
     expect(chart).toHaveAttribute('data-refreshing', 'true')
     // No loading block ever replaces the figure…
     expect(screen.queryByRole('status')).toBeNull()
-    expect(container.querySelector('[class*="bar"]')).toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).toBeNull()
     act(() => vi.advanceTimersByTime(PROGRESS_AFTER_MS))
-    expect(container.querySelector('[class*="bar"]')).not.toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).not.toBeNull()
     // …and the bar leaves with the refetch.
     fireEvent.click(screen.getByRole('button', { name: 'settle' }))
-    expect(container.querySelector('[class*="bar"]')).toBeNull()
+    expect(container.querySelector('[class*="_bar_"]')).toBeNull()
     expect(chart).not.toHaveAttribute('data-refreshing')
   })
 })

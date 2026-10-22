@@ -4,7 +4,7 @@
 // way the change could mislead.
 
 import { describe, expect, test } from 'vitest'
-import { ciExtents, fittedScale, measureBounds } from '../charts/domain'
+import { ciExtents, fittedScale, measureBounds, phoneMinStep } from '../charts/domain'
 
 describe('fittedScale', () => {
   test('the domain covers the data with padding, edges are ticks', () => {
@@ -52,6 +52,23 @@ describe('fittedScale', () => {
   test('no finite values fall back to a unit window', () => {
     expect(fittedScale([]).domain).toEqual([0, 1])
     expect(fittedScale([Number.NaN]).domain).toEqual([0, 1])
+  })
+
+  test('a least step keeps the ticks whole: "8 9 10", never "9.5 10.0" (F22)', () => {
+    const halves = fittedScale([8.6, 9.9], { targetTicks: 5, bounds: [0, 10] })
+    expect(halves.ticks).toContain(9.5)
+    const whole = fittedScale([8.6, 9.9], { targetTicks: 5, bounds: [0, 10], minStep: 1 })
+    expect(whole.ticks).toEqual([8, 9, 10])
+    expect(whole.ticks.map(whole.format)).toEqual(['8', '9', '10'])
+  })
+
+  test('the phone floor: whole units for a mean or median on 0–10, none otherwise', () => {
+    const scale = { min: 0, max: 10 }
+    expect(phoneMinStep('mean', scale)).toBe(1)
+    expect(phoneMinStep('quantile', scale)).toBe(1)
+    expect(phoneMinStep('proportion', scale)).toBe(0)
+    expect(phoneMinStep('mean', { min: 1, max: 4 })).toBe(0)
+    expect(phoneMinStep('mean', { min: null, max: null })).toBe(0)
   })
 
   test('bounds clamp the niced window to what the measure can be, edges still ticks', () => {

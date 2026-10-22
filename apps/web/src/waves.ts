@@ -7,9 +7,9 @@ import type { Wave } from './api/types'
 import type { ChangeLeg } from './api/change'
 
 export const WAVE_TITLES: Record<string, string> = {
-  Y1: 'Wave 1, 2023',
+  Y1: '2023',
   MY: 'Midyear survey, Nov 2023–Dec 2024',
-  Y2: 'Wave 2, 2024',
+  Y2: '2024',
 }
 
 /** Human chip labels for the wave codes (F6). */
@@ -22,9 +22,34 @@ export const WAVE_CHIPS: Record<string, string> = {
 /** The surveys by name, for a sentence ("this question wasn't asked in
  * the midyear survey"). */
 export const WAVE_NAMES: Record<string, string> = {
-  Y1: 'Wave 1',
+  Y1: '2023',
   MY: 'the midyear survey',
-  Y2: 'Wave 2',
+  Y2: '2024',
+}
+
+/** What the midyear survey is, in the line under a Year control that
+ * offers it. */
+export const MIDYEAR_HINT = 'a shorter survey between the two years'
+
+/** That line: "Midyear: a shorter survey between the two years." */
+export const MIDYEAR_NOTE = `Midyear: ${MIDYEAR_HINT}.`
+
+/** The line under a Year control: why each unavailable year can't be
+ * chosen, in view — "Midyear — not asked in the midyear survey, a
+ * shorter survey between the two years." — or, all open, what Midyear
+ * is. Every disabled option points to it (RadioRow's `note`). */
+export function yearNote(
+  options: readonly { value: string; disabled?: boolean }[],
+): string | undefined {
+  const reasons = options
+    .filter((option) => option.disabled)
+    .map((option) =>
+      option.value === 'MY'
+        ? `Midyear — not asked in the midyear survey, ${MIDYEAR_HINT}`
+        : `${WAVE_CHIPS[option.value] ?? option.value} — not asked that year`,
+    )
+  if (reasons.length > 0) return `${reasons.join('; ')}.`
+  return options.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined
 }
 
 /** The moment in time, for "2023 → Midyear" style pair labels — the

@@ -138,6 +138,9 @@ export interface CrossTabLayout {
   rowLabels: TextBlock[]
   /** One per column, under the grid. */
   ticks: TextBlock[]
+  /** The same labels over the grid, under the bars (F12): on screen with
+   * the first rows. */
+  topTicks: TextBlock[]
   /** Under the ticks: the first question. */
   xTitle: TextBlock
   /** The tallest bar reaches barTop; every bar stands on barBase. */
@@ -246,9 +249,27 @@ export function crossTabLayout({
   })
   const barTop = caption.top + caption.lines.length * LINE + BAR_LABEL_ROOM
   const barBase = barTop + (stacked ? BAR_HEIGHT_NARROW : BAR_HEIGHT)
+  // The first question's answers, over the grid as well as under it (F12):
+  // under the bars they label, so the first rows are read with them.
+  const measureTick = measurer(11)
+  const tickWidth = Math.max(20, columnWidth - 6)
+  const answerLabels = (top: number) =>
+    columns.map((column, index) =>
+      block(column.label, measureTick, {
+        left: marginLeft + (index + 0.5) * columnWidth - tickWidth / 2,
+        top,
+        width: tickWidth,
+        fontSize: 11,
+        lineHeight: TICK_LINE,
+        anchor: 'middle',
+      }),
+    )
+  const topTicks = answerLabels(barBase + 4)
+  const topTicksBottom =
+    barBase + 4 + Math.max(1, ...topTicks.map((tick) => tick.lines.length)) * TICK_LINE
   const title = block(yTitle, measureTitle, {
     left: EDGE,
-    top: barBase + 12,
+    top: topTicksBottom + 10,
     width: full,
     fontSize: TITLE_SIZE,
     lineHeight: LINE,
@@ -293,18 +314,7 @@ export function crossTabLayout({
     y += cellHeight
   })
   const ticksTop = y + 6
-  const measureTick = measurer(11)
-  const tickWidth = Math.max(20, columnWidth - 6)
-  const ticks = columns.map((column, index) =>
-    block(column.label, measureTick, {
-      left: marginLeft + (index + 0.5) * columnWidth - tickWidth / 2,
-      top: ticksTop,
-      width: tickWidth,
-      fontSize: 11,
-      lineHeight: TICK_LINE,
-      anchor: 'middle',
-    }),
-  )
+  const ticks = answerLabels(ticksTop)
   const ticksBottom = ticksTop + Math.max(1, ...ticks.map((tick) => tick.lines.length)) * TICK_LINE
   const xTitleBlock = block(xTitle, measureTitle, {
     left: marginLeft + 4,
@@ -331,6 +341,7 @@ export function crossTabLayout({
     title,
     rowLabels,
     ticks,
+    topTicks,
     xTitle: xTitleBlock,
     barTop,
     barBase,
@@ -454,7 +465,9 @@ export function CrossTab({
             fill: INK_SECONDARY,
             fontSize: layout.barFontSize,
           }),
-          // The rows' title, over the grid.
+          // The columns' labels under the bars, then the rows' title, over
+          // the grid.
+          ...layout.topTicks.map((tick) => textBlock(layout, tick, { fill: INK_SECONDARY })),
           textBlock(layout, layout.title, { fill: INK, fontWeight: TITLE_WEIGHT }),
           // The grid: each cell tinted in fixed bins, its share in the
           // step's own ink, a flagged one outlined and starred.

@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
@@ -25,6 +25,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import { sortStateRows } from '../views/stateRows'
 
 const topology = JSON.parse(
@@ -226,28 +227,19 @@ describe('the states topology', () => {
 })
 
 describe('state rows', () => {
-  test('sort by value or by name, valueless last', () => {
+  test('by value in either direction, valueless last, ties by the server’s names', () => {
     const rows = [
       stateRow('TX', 6.8),
       stateRow('CA', 7.1),
       stateRow('NY', null as unknown as number, { estimate: null }),
     ]
-    expect(sortStateRows(rows, 'estimate', 'desc').map((row) => row.group['state'])).toEqual([
-      'CA',
-      'TX',
-      'NY',
-    ])
-    expect(sortStateRows(rows, 'name', 'asc').map((row) => row.group['state'])).toEqual([
-      'CA',
-      'NY',
-      'TX',
-    ])
-    // By the server's names: Vermont after Texas, whatever its code.
-    const named = [stateRow('VT', 7.4), stateRow('TX', 6.8), stateRow('CA', 7.1)]
+    expect(sortStateRows(rows, 'desc').map((row) => row.group['state'])).toEqual(['CA', 'TX', 'NY'])
+    expect(sortStateRows(rows, 'asc').map((row) => row.group['state'])).toEqual(['TX', 'CA', 'NY'])
+    // A tie reads in the server's names: California before Vermont.
+    const tied = [stateRow('VT', 7.1), stateRow('CA', 7.1)]
     const label = (code: string) => testMeta.state_labels[code]?.name ?? code
-    expect(sortStateRows(named, 'name', 'asc', label).map((row) => row.group['state'])).toEqual([
+    expect(sortStateRows(tied, 'desc', label).map((row) => row.group['state'])).toEqual([
       'CA',
-      'TX',
       'VT',
     ])
   })
@@ -255,7 +247,7 @@ describe('state rows', () => {
   test('RankedBar labels rows by the server’s state names and draws the reference', () => {
     const { container } = render(
       <RankedBar
-        rows={sortStateRows(statesResponse.rows, 'estimate', 'desc')}
+        rows={sortStateRows(statesResponse.rows, 'desc')}
         meta={testMeta}
         responseMeta={testResponseMeta({ scope: 'us_state', by: ['state'] })}
         variable={sfiVariable}
@@ -317,20 +309,71 @@ describe('the US overall label', () => {
 })
 
 describe('US States view', () => {
-  test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
-    const calls = mockFetch(tier)
+  test('the chart’s value label reverses the order and writes dir; the map has none (ADR-0029)', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states?view=bars')
+    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
+    const value = screen.getByRole('columnheader', { name: /^Mean/ })
+    fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
+    cleanup()
+    await renderAt('/states?view=map')
+    await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(screen.queryByRole('columnheader')).toBeNull()
+  })
+
+  test('the question bar: Question, then Year (ADR-0029)', async () => {
+    mockFetch(tier)
     await renderAt('/states')
+    await screen.findByRole('button', { name: /^Question: / })
+    expect(barLabels()).toEqual(['Question', 'Year'])
+    // The deck: what you can see, then how to read it (F18) — no "state
+    // weights".
+    expect(
+      screen.getByText(
+        'How each US state compares with the country as a whole. Smaller states rest on fewer people, so their intervals are wider.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/state weights/)).toBeNull()
+  })
+
+  test('the one question picker: every question; a pick writes the outcome and clears the answer', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states?view=bars&level=2')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
+  })
+
+  test('the map view (an old view=map link): states beside one US figure; the national one in a fold', async () => {
+    const calls = mockFetch(tier)
+    await renderAt('/states?view=map')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
     expect(figure).toBeInTheDocument()
-    // The header line is the whole US on the state weight; the national
-    // figure follows it, in words.
-    expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
+    // One US figure (F14): the whole US on the state weight, by name.
+    expect(await screen.findByText(/^United States overall:/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
     // The n, and no weight code: the weighting is said in words.
-    expect(screen.getByText('n = 38,142')).toBeInTheDocument()
-    expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
+    expect(screen.getByText('based on 38,142 people')).toBeInTheDocument()
+    expect(screen.queryByText(/US overall \(state weights\)/)).toBeNull()
+    // The national-weight figure waits in a fold, its CI and n intact.
+    const fold = screen.getByText('Why two US figures?').closest('details') as HTMLElement
+    expect(fold).not.toHaveAttribute('open')
     expect(
-      screen.getByText(/On the national weight, the US overall figure is 7\.21 \[7\.10, 7\.32\]/),
+      within(fold).getByText(
+        /the United States overall is 7\.21 \(95% CI: \[7\.10, 7\.32\]\), based on 38,299 people\./,
+      ),
+    ).toBeInTheDocument()
+    // The legend row says what the colours can't, beside the ramp.
+    expect(
+      await screen.findByText(
+        /Smaller states rest on fewer people — the Chart shows each state’s 95% CI/,
+      ),
     ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y1&stat=mean'))).toBe(true)
     expect(
@@ -346,19 +389,25 @@ describe('US States view', () => {
     expect(figure.getAttribute('aria-label')).toContain('Highest: Vermont 7.40')
     // No data table (ADR-0022): each state's card carries its numbers.
     expect(screen.queryByText('Data table')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
     expect(screen.queryByText('VT')).toBeNull()
   })
 
-  test('the states chart is weighted by state, says so in its subtitle, and gives the reason a control is off', async () => {
+  test('the states chart’s subtitle carries its state in the controls’ words, and a control off says why', async () => {
     mockFetch(tier)
     await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.getByText(/· state weights ·/, { selector: 'figcaption *' })).toBeInTheDocument()
+    // No weight jargon: the year and the order (ADR-0029).
+    expect(
+      screen.getByText('Mean score, 0–10 · 2023 · highest first', { selector: 'figcaption *' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/state weights/, { selector: 'figcaption *' })).toBeNull()
     // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
     expect(text).not.toContain('weighted so each')
-    const reason = screen.getByText(/The release has no adjusted state weight for Wave 1, 2023/)
+    const reason = screen.getByText(/The release has no adjusted state weight for 2023/)
     expect(reason.className).toContain('reason')
   })
 
@@ -366,13 +415,21 @@ describe('US States view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    const adj = screen.getByLabelText(/Adjusted state weights/) as HTMLInputElement
+    const adj = screen.getByLabelText(/Adjust for who answered in each state/) as HTMLInputElement
     expect(adj).toBeDisabled()
-    expect(screen.getByText(/no adjusted state weight for Wave 1, 2023/)).toBeInTheDocument()
-    fireEvent.click(
-      screen.getByRole('group', { name: 'Wave' }).querySelector('input[value="Y2"]') as HTMLElement,
+    // A year the question wasn't asked in says why, in view (F6).
+    const midyear = within(screen.getByRole('group', { name: 'Year' })).getByRole('radio', {
+      name: 'Midyear',
+    })
+    expect(midyear).toBeDisabled()
+    expect(midyear).toHaveAccessibleDescription(
+      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
     )
-    const adjY2 = await screen.findByLabelText(/Adjusted state weights/)
+    expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,
+    )
+    const adjY2 = await screen.findByLabelText(/Adjust for who answered in each state/)
     expect(adjY2).not.toBeDisabled()
     fireEvent.click(adjY2)
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
@@ -383,12 +440,51 @@ describe('US States view', () => {
     expect(calls.some((url) => url.includes('wave=Y1') && url.includes('adj=true'))).toBe(false)
   })
 
-  test('the chart view sorts states and draws the national rule', async () => {
+  test('with no view the page opens on the chart: each state by value, the US line labelled (ADR-0030)', async () => {
     mockFetch(tier)
-    await renderAt('/states?view=bars&sort=name')
+    const router = await renderAt('/states')
     const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    expect(router.state.location.searchStr).toBe('')
+    expect(
+      within(screen.getByRole('group', { name: 'View' })).getByLabelText('Chart'),
+    ).toBeChecked()
     const text = figure.querySelector('svg')?.textContent ?? ''
-    expect(text).toContain('US overall (state weights)')
-    expect(text.indexOf('California')).toBeLessThan(text.indexOf('Texas'))
+    expect(text).toContain('United States overall')
+    // By value, highest first: Vermont (7.40) before California.
+    expect(text.indexOf('Vermont')).toBeLessThan(text.indexOf('California'))
+  })
+
+  test('Find a state picks it out on the chart and the map and holds its card open, until cleared', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states')
+    const figure = await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
+    const find = screen.getByLabelText('Find a state') as HTMLSelectElement
+    // The server's state names, a list to pick from.
+    expect([...find.options].map((option) => option.textContent)).toEqual([
+      'None',
+      'California',
+      'New York',
+      'Texas',
+      'Vermont',
+    ])
+    fireEvent.change(find, { target: { value: 'TX' } })
+    // The chart: its row picked out, its card open with no pointer.
+    // (The pointer's own tip is an empty group until hovered.)
+    const tips = (root: Element) =>
+      [...root.querySelectorAll('g[aria-label="tip"]')].map((tip) => tip.textContent).join('|')
+    await waitFor(() => expect(tips(figure)).toContain('Texas'))
+    expect(figure.innerHTML).toContain('var(--control-selected)')
+    // View state, not data: the URL is unchanged.
+    expect(router.state.location.searchStr).toBe('')
+    // The map: the same state outlined in ink, its card open too.
+    fireEvent.click(within(screen.getByRole('group', { name: 'View' })).getByLabelText('Map'))
+    await screen.findByText('no estimate')
+    const map = screen.getByRole('img', { name: /Secure Flourishing Index by US state/ })
+    await waitFor(() => expect(tips(map)).toContain('Texas'))
+    expect(map.innerHTML).toContain('stroke="var(--ink)"')
+    // Cleared: no card held, no outline.
+    fireEvent.change(screen.getByLabelText('Find a state'), { target: { value: '' } })
+    await waitFor(() => expect(tips(map)).not.toContain('Texas'))
+    expect(map.innerHTML).not.toContain('stroke="var(--ink)"')
   })
 })

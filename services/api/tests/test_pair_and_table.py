@@ -4,6 +4,8 @@
 whole repo in one run.)
 """
 
+import re
+
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
@@ -201,25 +203,84 @@ def test_a_yes_no_question_is_two_levels(client: TestClient) -> None:
 
 
 def test_long_scales_are_binned_on_both_axes(client: TestClient) -> None:
+    """A derived 0–10 score is cut into one-point bands between whole
+    numbers (ADR-0030): "8–9", never "8.1–9.0"; an end band that took in a
+    tail says "below 3" or "9 and above"."""
     body = get_pair(client, y="sfi_health", x="sfi_meaning", wave="Y1", filter="country_code:22")
     assert body["x_grouping"] == body["y_grouping"] == "bins"
-    assert len(body["columns"]) == len(body["rows"]) == 10
-    assert [c["code"] for c in body["columns"]] == list(range(10))
-    assert [r["code"] for r in body["rows"]] == list(range(10))
-    # Bins are labelled by their range, one decimal; the estimate rows
-    # carry each bin's label.
-    for level in [*body["columns"], *body["rows"]]:
-        assert "–" in level["label"] or "below" in level["label"] or "above" in level["label"]
+    for levels in (body["columns"], body["rows"]):
+        assert 1 <= len(levels) <= 10
+        assert [level["code"] for level in levels] == list(range(len(levels)))
+        labels = [level["label"] for level in levels]
+        for k, label in enumerate(labels):
+            assert re.fullmatch(r"\d+–\d+|below \d+|\d+ and above", label), label
+            if "–" in label:
+                first, last = (int(edge) for edge in label.split("–"))
+                assert last == first + 1
+            if label.startswith("below"):
+                assert k == 0
+            if label.endswith("above"):
+                assert k == len(labels) - 1
+        # Consecutive bands meet: each starts where the one before ends.
+        starts = [int(re.findall(r"\d+", label)[0]) for label in labels[1:]]
+        if starts:
+            assert starts == list(range(starts[0], starts[0] + len(starts)))
+    # The estimate rows carry each bin's label.
     labels_x = [c["label"] for c in body["columns"]]
     labels_y = [r["label"] for r in body["rows"]]
     assert [row["group"]["sfi_meaning"] for row in body["shares"]["rows"]] == [
         label for label in labels_x for _ in labels_y
     ]
-    assert [row["group"]["sfi_health"] for row in body["shares"]["rows"]] == labels_y * 10
+    assert [row["group"]["sfi_health"] for row in body["shares"]["rows"]] == labels_y * len(
+        labels_x
+    )
     assert sum(c["share"] for c in body["columns"]) == pytest.approx(1.0)
     for cells in columns_of(body).values():
         if any(cell["share"] for cell in cells):
             assert sum(cell["share"] for cell in cells) == pytest.approx(1.0)
+
+
+def score_frame(values: list[float]) -> tuple[pl.DataFrame, Design]:
+    frame = pl.DataFrame(
+        {
+            PAIR_X: values,
+            "w": [1.0] * len(values),
+            "strata": [1] * len(values),
+            "psu": list(range(len(values))),
+        }
+    )
+    return frame, Design(weight="w", strata="strata", psu="psu")
+
+
+def test_a_derived_score_is_cut_at_whole_numbers() -> None:
+    """F12: a 0–10 mean of answers between 2.4 and 9.8 gets one-point
+    bands from 2 to 10 — "2–3" … "9–10" — and a value on an edge falls in
+    the band it starts."""
+    values = [2.4 + k * 0.074 for k in range(101)]  # 2.4 … 9.8
+    frame, design = score_frame(values)
+    expression, groups = bin_groups(frame, PAIR_X, design, integer=False)
+    assert [g.label for g in groups] == [f"{k}–{k + 1}" for k in range(2, 10)]
+    assert [g.code for g in groups] == list(range(8))
+    on_edges = pl.DataFrame({PAIR_X: [2.4, 3.0, 8.999, 9.0, 9.8]})
+    assert on_edges.with_columns(expression.alias("g"))["g"].to_list() == [0, 1, 6, 7, 7]
+
+
+def test_a_derived_score_names_the_tails_its_end_bands_take_in() -> None:
+    """Below the 1st percentile and above the 99th, values join the end
+    bands, which say so: "below 3", "9 and above"; never more than ten."""
+    values = [0.5] + [2.6 + k * 0.064 for k in range(101)] + [9.9]  # 1st/99th: ~2.6, ~9.0
+    frame, design = score_frame(values)
+    expression, groups = bin_groups(frame, PAIR_X, design, integer=False)
+    labels = [g.label for g in groups]
+    assert len(labels) <= 10
+    assert labels[0].startswith("below ") and labels[-1].endswith(" and above")
+    index = frame.with_columns(expression.alias("g"))["g"].to_list()
+    assert index[0] == 0 and index[-1] == len(groups) - 1
+    # The whole 0–10 range: ten bands, the top one holding 10.
+    full, design = score_frame([k / 10 for k in range(101)])
+    expression, groups = bin_groups(full, PAIR_X, design, integer=False)
+    assert len(groups) == 10 and groups[-1].label in ("9–10", "9 and above")
+    assert full.with_columns(expression.alias("g"))["g"].max() == 9
 
 
 def test_whole_number_bins_for_a_long_count() -> None:

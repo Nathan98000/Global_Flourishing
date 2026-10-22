@@ -5,13 +5,15 @@
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
+import { ChartKey } from '../charts/ChartKey'
+import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
@@ -20,27 +22,31 @@ import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
-import { InvalidParamsNotice } from '../components/Notice'
+import { InvalidParamsNotice, StatusNotice } from '../components/Notice'
+import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir, sortAtlasRows } from '../sortRows'
+import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import styles from './AtlasView.module.css'
+import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/')
 
 export function AtlasView() {
   const search = route.useSearch()
+  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -56,7 +62,7 @@ export function AtlasView() {
   }
 
   const metaForSort = meta.data?.meta
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -66,7 +72,13 @@ export function AtlasView() {
   // `stat=distribution` shows the share view.
   const answersAvailable =
     isCategorical && (detail === undefined || (levels.length >= 2 && levels.length <= MAX_ANSWERS))
-  const requested: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
+  // A median is the live service's alone: while it is down (or has no
+  // data) a median link shows the mean, and says why (F13) — no fault of
+  // the link's. Still deciding (health pending) keeps the link's ask.
+  const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
+  const medianOffline = search.stat === 'quantile' && liveDown
+  const defaultStat = (variable?.default_stat as Stat | undefined) ?? 'mean'
+  const requested: Stat = medianOffline ? defaultStat : (search.stat ?? defaultStat)
   const stat: Stat =
     isCategorical && requested === 'distribution' && !answersAvailable ? 'proportion' : requested
   const allAnswers = isCategorical && stat === 'distribution'
@@ -78,16 +90,37 @@ export function AtlasView() {
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
-  const request = chartable ? atlasRequest(search, variable) : null
+  const request = chartable
+    ? atlasRequest(medianOffline ? { ...search, stat: undefined } : search, variable)
+    : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
+  // A numeric question's Distribution shows four countries at most. With
+  // none chosen it is never a dead end (F9): the first four in the value
+  // order the chart's other views use — the server's estimates of the
+  // default statistic, ordered as the Atlas orders them.
+  const firstFourNeeded = stat === 'distribution' && !allAnswers && search.countries.length === 0
+  const orderEstimates = useEstimates(
+    chartable && firstFourNeeded ? atlasRequest({ ...search, stat: undefined }, variable) : null,
+  )
+  const orderRows = orderEstimates.data?.response.rows
+  const firstFour = useMemo(
+    () =>
+      orderRows && metaForSort
+        ? sortAtlasRows(orderRows, metaForSort, dir)
+            .slice(0, 4)
+            .map((row) => Number(row.group['country_code']))
+        : [],
+    [orderRows, metaForSort, dir],
+  )
+  const distributionCountries = search.countries.length ? search.countries.slice(0, 4) : firstFour
 
   const displayRows = useMemo(() => {
     if (!response) return []
     let rows = response.rows
     if (allAnswers) {
       // Every answer for every country shown, countries in the order of
-      // the chosen answer's share (or their names), answers in code order.
+      // the chosen answer's share, answers in code order.
       if (search.countries.length) {
         rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
       }
@@ -96,7 +129,6 @@ export function AtlasView() {
         ? sortAtlasRows(
             rows.filter((row) => row.level === level),
             metaForSort,
-            search.sort,
             dir,
           )
         : []
@@ -112,17 +144,16 @@ export function AtlasView() {
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
-      return rows.filter((row) =>
-        search.countries.slice(0, 4).includes(Number(row.group['country_code'])),
-      )
+      return rows.filter((row) => distributionCountries.includes(Number(row.group['country_code'])))
     }
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
     // One ordering for the chart and the CSV (items 5/13).
     if (!metaForSort) return rows
-    return sortAtlasRows(rows, metaForSort, search.sort, dir)
-  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, search.sort, dir])
+    return sortAtlasRows(rows, metaForSort, dir)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir, firstFour])
   const countryOrder = useMemo(
     () =>
       metaForSort && allAnswers
@@ -176,23 +207,21 @@ export function AtlasView() {
     value: wave as AtlasSearch['wave'],
     label: WAVE_CHIPS[wave] ?? wave,
     disabled: variable ? !variable.waves_available.includes(wave) : false,
-    title:
-      variable && !variable.waves_available.includes(wave)
-        ? `Not asked in ${WAVE_TITLES[wave] ?? wave}`
-        : WAVE_TITLES[wave],
   }))
+  // Why a year is unavailable, or what Midyear is: under the whole bar.
+  const yearNoteText = yearNote(waveOptions)
 
   const statOptions: RadioOption<string>[] | null =
     variable && variable.scale_type === 'scale_0_10'
       ? [
           { value: 'default', label: 'Mean' },
           { value: 'distribution', label: 'Distribution' },
-          { value: 'quantile', label: 'Median', title: 'Computed live by the data service' },
+          { value: 'quantile', label: 'Median', disabled: liveDown },
         ]
       : variable && variable.scale_type === 'count'
         ? [
             { value: 'default', label: 'Mean' },
-            { value: 'quantile', label: 'Median', title: 'Computed live by the data service' },
+            { value: 'quantile', label: 'Median', disabled: liveDown },
           ]
         : answersAvailable
           ? [
@@ -211,15 +240,49 @@ export function AtlasView() {
         ? `share answering “${levelLabel}”`
         : undefined
       : allAnswers
-        ? search.sort === 'estimate' && levelLabel
-          ? `share giving each answer · sorted by “${levelLabel}”`
-          : 'share giving each answer'
+        ? 'share giving each answer'
         : stat === 'distribution'
           ? undefined
           : variable
             ? scaleSubtitle(variable, stat, detail)
             : undefined
-  const subtitle = subtitleBase ? `${subtitleBase} · ${waveTitle}` : waveTitle
+  // The state, in the controls' words (ADR-0029): the year, the
+  // countries, the order.
+  const ordered = stat !== 'distribution' || allAnswers
+  const orderState =
+    allAnswers && levelLabel ? `by “${levelLabel}”, ${orderPhrase(dir)}` : orderPhrase(dir)
+  const countriesState = firstFourNeeded
+    ? 'first four countries'
+    : countriesPhrase(search.countries.length, countryCount)
+  const subtitle = stateLine(subtitleBase, waveTitle, countriesState, ordered && orderState)
+  // The distribution's four countries, said in the header (ADR-0024: no
+  // line under the chart).
+  const distributionHint =
+    stat !== 'distribution' || allAnswers
+      ? undefined
+      : firstFourNeeded
+        ? 'Showing the first four countries — choose others with Countries.'
+        : search.countries.length > 4
+          ? 'Showing the first four of the countries chosen.'
+          : undefined
+  // The chart's key, in its header: the mark, and its interval when the
+  // marks carry one.
+  const chartKey =
+    stat === 'distribution' && !allAnswers ? (
+      <ChartKey
+        mark="bar"
+        label="share of people"
+        color={variable ? outcomeColor(variable.name) : undefined}
+        ciLevel={keyCiLevel(displayRows)}
+      />
+    ) : allAnswers ? undefined : (
+      <ChartKey
+        mark={stat === 'proportion' ? 'bar' : 'dot'}
+        label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
+        color={variable ? outcomeColor(variable.name) : undefined}
+        ciLevel={keyCiLevel(displayRows)}
+      />
+    )
 
   // What a download is called, in words (ADR-0016); the server names its
   // CSV the same way.
@@ -241,65 +304,46 @@ export function AtlasView() {
             }
           : undefined
 
-  // Statistic, Sort, Order, Countries and Answer level fold into a
+  // Statistic, Order, Countries and Answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
   // and Wave stay visible so the chart starts within the first phone
   // screen.
-  const displayOptions = (
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
+  // How the chart is drawn, in its header's toolbar (ADR-0029).
+  // In the toolbar (`inline`), or — on a phone — in the options sheet,
+  // full width with the Countries between them (ADR-0029).
+  const chartControls = (inline: boolean, countries?: ReactNode) => (
     <>
       {statOptions && (
         <RadioRow
-          legend="Statistic"
+          legend="Show"
           name="stat"
+          inline={inline}
           options={statOptions}
-          value={search.stat ?? 'default'}
+          value={medianOffline ? 'default' : (search.stat ?? 'default')}
           onChange={(value) =>
             setSearch({ stat: value === 'default' ? undefined : (value as Stat) })
           }
-          selectOnNarrow
+          note={
+            statOptions.some((option) => option.disabled)
+              ? 'Median — needs the live data service.'
+              : undefined
+          }
         />
       )}
-      {(stat !== 'distribution' || allAnswers) && (
-        <>
-          <RadioRow
-            legend="Sort"
-            name="sort"
-            options={[
-              { value: 'estimate', label: 'By value' },
-              { value: 'name', label: 'A–Z' },
-            ]}
-            value={search.sort}
-            onChange={(sort) => setSearch({ sort, dir: undefined })}
-          />
-          <RadioRow
-            legend="Order"
-            name="dir"
-            options={
-              search.sort === 'name'
-                ? [
-                    { value: 'asc', label: 'A to Z' },
-                    { value: 'desc', label: 'Z to A' },
-                  ]
-                : [
-                    { value: 'desc', label: 'High to low' },
-                    { value: 'asc', label: 'Low to high' },
-                  ]
-            }
-            value={dir}
-            onChange={(value) => setSearch({ dir: value })}
-          />
-        </>
-      )}
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
-      />
-      {isCategorical && levels.length > 0 && !(allAnswers && search.sort === 'name') && (
+      {countries}
+      {isCategorical && levels.length > 0 && (
         <RadioRow
-          legend={allAnswers ? 'Sort by answer' : 'Answer level'}
+          legend={allAnswers ? 'Ordered by % who said' : 'Showing % who said'}
           name="level"
-          wide
+          inline={inline}
+          wide={!inline}
           selectOnNarrow
           options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
           value={String(activeLevel)}
@@ -308,24 +352,44 @@ export function AtlasView() {
       )}
     </>
   )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const showWord =
+    stat === 'proportion'
+      ? 'Share'
+      : stat === 'quantile'
+        ? 'Median'
+        : stat === 'distribution'
+          ? 'Distribution'
+          : 'Mean'
+  const phoneSummary = stateLine(showWord, countriesState, ordered && orderPhrase(dir))
+  // The order is the value label's (ADR-0029): a click reverses it, and
+  // writes `dir` as the Order buttons did.
+  const sortHead = ordered && (
+    <SortHead
+      names="Country"
+      value={
+        stat === 'proportion' || allAnswers ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean'
+      }
+      dir={dir}
+      onToggle={() => setSearch({ dir: reversed(dir) })}
+    />
+  )
 
   return (
     <section>
       <h2 className="visually-hidden">Atlas</h2>
       <p className={styles.deck}>
+        {/* What you can see, then what to do (F18). */}
         <span className={styles.deckLong}>
-          How{' '}
-          <span className={styles.deckCount}>
-            207,919 people across {formatCount(countryCount)} countries
-          </span>{' '}
-          rate their own lives — the Global Flourishing Study, 2023&ndash;2024. Pick a measure
-          below; every number carries its sample size and margin of error.
+          How people in{' '}
+          <span className={styles.deckCount}>{formatCount(countryCount)} countries</span> rate their
+          own lives, from the Global Flourishing Study (2023&ndash;2024). Choose a question to
+          compare countries.
         </span>
         <span className={styles.deckShort}>
-          <span className={styles.deckCount}>
-            207,919 people in {formatCount(countryCount)} countries
-          </span>
-          , 2023&ndash;2024. Every number shows how precise it is.
+          How people in{' '}
+          <span className={styles.deckCount}>{formatCount(countryCount)} countries</span> rate their
+          own lives. Choose a question to compare them.
         </span>
       </p>
       <InvalidParamsNotice
@@ -339,39 +403,51 @@ export function AtlasView() {
           )
         }
       />
-      <div className={styles.controls}>
-        <OutcomePicker
+      {medianOffline && (
+        <StatusNotice>
+          The live data service is offline, so medians can&rsquo;t be shown right now — showing the
+          mean.
+        </StatusNotice>
+      )}
+      {/* The question bar (ADR-0029): what, then when and where. */}
+      <div className={styles.questionBar} data-bar="question">
+        <QuestionPicker
+          variant="field"
+          label="Question"
           variables={variables.data.list}
+          wave={search.wave}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          onPick={(outcome) => handlePick({ outcome })}
         />
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
+          noteId={yearNoteText ? yearNoteId : undefined}
         />
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — chart, sort, countries</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={variables.data.list}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
-          </details>
-        ) : (
-          displayOptions
+        {yearNoteText && (
+          <p id={yearNoteId} className={styles.barNote}>
+            {yearNoteText}
+          </p>
         )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>
+          {chartControls(
+            false,
+            <CountryFilter
+              variant="panel"
+              countries={meta.data.meta.countries}
+              selected={search.countries}
+              onChange={(countries) => setSearch({ countries })}
+            />,
+          )}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         // No measure is selected — the state of the data service is
@@ -386,24 +462,19 @@ export function AtlasView() {
         </EmptyState>
       ) : (
         <>
-          {stat === 'distribution' && !allAnswers && search.countries.length === 0 ? (
-            <EmptyState title="Choose countries to compare">
-              <p>
-                The distribution view shows the full shape of answers for up to four countries —
-                pick them with the Countries control above.
-              </p>
-            </EmptyState>
-          ) : estimates.isPending ? (
+          {estimates.isPending || (firstFourNeeded && orderEstimates.isPending) ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
-            estimates.error instanceof NetworkError && !boot.apiReachable ? (
-              <p className={styles.hint} role="status">
-                This view needs the live data service, which is offline right now — the standard
-                views still work.
-              </p>
-            ) : (
-              <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
-            )
+            // No chart, no header: its controls stay reachable here, so a
+            // failed statistic can be changed back.
+            <>
+              {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
+              {estimates.error instanceof NetworkError && !boot.apiReachable ? (
+                <OfflineLine except="/" className={styles.hint} />
+              ) : (
+                <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
+              )}
+            </>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
@@ -432,6 +503,10 @@ export function AtlasView() {
                     </div>
                   )
                 }
+                toolbar={narrow ? undefined : chartControls(true)}
+                chartKey={chartKey}
+                hint={distributionHint}
+                sortHead={sortHead}
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
@@ -444,7 +519,7 @@ export function AtlasView() {
                       answers={levels}
                       polarity={variable.polarity}
                       countryOrder={countryOrder}
-                      sortedBy={search.sort === 'estimate' ? activeLevel : undefined}
+                      sortedBy={activeLevel}
                     />
                   ) : (
                     <LoadingBlock height={420} label="Loading the answers" />
@@ -465,9 +540,6 @@ export function AtlasView() {
                           }
                         : {})}
                     />
-                    {search.countries.length > 4 && (
-                      <p className={styles.hint}>Showing the first four selected countries.</p>
-                    )}
                   </>
                 ) : (
                   <RankedBar

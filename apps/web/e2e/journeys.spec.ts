@@ -56,10 +56,10 @@ const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage
 const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
 // The chart title is the measure alone since §7 (the wave rides last in
 // the subtitle), so title assertions scope to the figure's caption — the
-// bare measure name also labels an <option> in the Measure select.
+// bare measure name also labels the question picker's button.
 const caption = (page: Page) => page.locator('figcaption')
 
-test('1 — Atlas: change topic, measure and wave, share the URL, reload reproduces it', async ({
+test('1 — Atlas: change the question through the picker and the year, share the URL, reload reproduces it', async ({
   page,
   browser,
 }) => {
@@ -67,17 +67,25 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   // The subtitle carries the rest, wave last (§7).
   await expect(
-    caption(page).getByText('Average score, 0–10 · Wave 1, 2023', {
+    caption(page).getByText('Mean score, 0–10 · 2023 · all countries · highest first', {
       exact: true,
     }),
   ).toBeVisible()
 
-  // Two steps, not one list of 161: topic first, then that topic's measures.
-  await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
-  await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
-  await page.getByRole('group', { name: 'Wave' }).getByText('2024', { exact: true }).click()
+  // One question picker (ADR-0029): the question bar's button opens the
+  // panel — browse a topic, pick a question — and a pick closes it.
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  const picker = page.getByRole('dialog', { name: 'Question' })
+  await picker.getByRole('option', { name: /^Wellbeing/ }).click()
+  await picker
+    .getByRole('listbox', { name: 'Wellbeing questions' })
+    .getByRole('option', { name: /^Happiness/ })
+    .click()
+  await expect(picker).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await page.getByRole('group', { name: 'Year' }).getByText('2024', { exact: true }).click()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2024/)).toBeVisible()
 
   const shared = page.url()
   expect(shared).toContain('outcome=HAPPY')
@@ -86,33 +94,34 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   // Reload reproduces the view…
   await page.reload()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2024/)).toBeVisible()
 
   // …and so does pasting the URL into a fresh browser context.
   const context = await browser.newContext()
   const second = await context.newPage()
   await second.goto(shared)
   await expect(caption(second).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(second).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(second).getByText(/· 2024/)).toBeVisible()
   // The address bar stays canonical: defaults never reach the URL (§2.2).
   await expect(second).toHaveURL(/\?outcome=HAPPY&wave=Y2$/)
   await context.close()
 
   // Back returns to the previous state (the URL is the state).
   await page.goBack()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
 
   // A control moved: the URL changes, the page stays put (ADR-0016) — and
   // the country popover stays open while several countries are ticked in
   // a row.
-  await page.evaluate('window.scrollTo(0, 240)')
+  // (The question bar is one row now: the fixture page scrolls less.)
+  await page.evaluate('window.scrollTo(0, 120)')
   const scrolled = await page.evaluate<number>('window.scrollY')
-  expect(scrolled).toBeGreaterThan(200)
+  expect(scrolled).toBeGreaterThan(100)
   // The control's own <details> — not the "More options" fold that wraps
   // it at phone width.
   const countries = page.locator('details', {
-    has: page.locator('summary', { hasText: /All \d+|selected|Choose up to/ }),
+    has: page.locator('summary', { hasText: /countr/ }),
     hasNot: page.locator('summary', { hasText: 'More options' }),
   })
   const trigger = countries.locator('summary')
@@ -129,9 +138,14 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   // label above it and a minimum width (25 Sept fix) — and the open
   // panel stays inside the page column.
   const before = await trigger.boundingBox()
+  await expect(trigger).toHaveText('Countries: All countries')
   await trigger.click()
   await expect(countries).toHaveAttribute('open', '')
   await insideColumn()
+  // "All countries" first; "Choose countries" brings the ticks (F20).
+  await expect(countries.getByRole('radio', { name: 'All countries' })).toBeChecked()
+  await expect(countries.getByRole('checkbox')).toHaveCount(0)
+  await countries.getByRole('radio', { name: 'Choose countries' }).check()
   const boxes = countries.getByRole('checkbox')
   await boxes.nth(0).check()
   await expect(page).toHaveURL(/countries=1$/)
@@ -144,13 +158,18 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   expect(Math.abs((await page.evaluate<number>('window.scrollY')) - scrolled)).toBeLessThan(4)
   await expect(countries).toHaveAttribute('open', '')
 
-  // At phone width the control lives in the "More options" fold; its open
-  // panel still stays inside the column.
+  // At phone width the countries live in the options sheet, in place —
+  // the two chosen still ticked (every country of the fixture's two, so
+  // "all countries") — and the sheet stays inside the page.
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByText('More options — chart, sort, countries').click()
-  await trigger.click()
-  await expect(countries).toHaveAttribute('open', '')
-  await insideColumn()
+  await expect(page.getByText('Mean · all countries · highest first')).toBeVisible()
+  await page.getByRole('button', { name: 'Options' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+  await expect(sheet.getByRole('checkbox', { checked: true })).toHaveCount(2)
+  const sheetBox = await sheet.boundingBox()
+  expect(sheetBox!.x).toBeGreaterThanOrEqual(0)
+  expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(390)
 })
 
 test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({
@@ -174,13 +193,17 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   await page.getByRole('link', { name: 'Chart this →' }).click()
   await expect(page).toHaveURL(/outcome=ATTEND_SVCS/)
   await expect(caption(page).getByText('Service attendance', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
 
   // The question is on the page, not behind a button (decision 3), and
   // since §9 the sentence stands alone — no mini-label above it.
   await expect(page.getByText('What people were asked')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: 'Answer codes & details →' })).toBeVisible()
-  await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'The exact question and answers →' })).toBeVisible()
+  // The wording under the chart's header (the question bar's trigger
+  // carries it too).
+  await expect(
+    page.locator('figure').getByText('How would you rate: service attendance?'),
+  ).toBeVisible()
 })
 
 test('3 — a small cell renders with its hover card and no flag, not a gap', async ({ page }) => {
@@ -191,7 +214,7 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   await expect(chartRegion(page)).toBeVisible()
   await expect(chartRegion(page).getByText(/withheld/)).toHaveCount(0)
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
 
   // A dot's hover card: the country first, set apart, then the level by
   // its breakdown, the mean, its CI and how many people it rests on.
@@ -205,16 +228,20 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
 })
 
-test('4 — CSV export downloads with the # meta header lines', async ({ page }) => {
+test('4 — CSV export downloads from the chart header’s Download menu with the # meta header lines', async ({
+  page,
+}) => {
   // With no API running, this exercises the client-side fallback, which
   // is byte-compatible with /v1/export.csv (unit-tested against a real
   // server response).
   await page.goto('/?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
 
+  // One "Download" in the chart's header (ADR-0029): CSV, then PNG.
+  await page.getByRole('button', { name: 'Download', exact: true }).click()
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'CSV' }).click()
+  await page.getByRole('button', { name: 'Download CSV' }).click()
   const download = await downloadPromise
   // The name in words (ADR-0016): display name, view, wave — no code, no version.
   expect(download.suggestedFilename()).toBe('flourish-atlas_happiness_by-country_2023.csv')
@@ -251,11 +278,35 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await page.goto('/')
   // The chart renders from the static tier…
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
-  // …and the app says so in plain words (F6).
-  await expect(page.getByText(/Live data service is offline/)).toBeVisible()
-  await expect(page.getByText(/standard views still work/)).toBeVisible()
+  // …and the app says so in plain words, naming what still works, each
+  // a link (F13).
+  const banner = page.getByText(/Some views need the live data service, which is offline/)
+  await expect(banner).toBeVisible()
+  for (const [name, href] of [
+    ['Atlas', '/'],
+    ['Segments', '/segments'],
+    ['What Matters', '/what-matters'],
+  ] as const) {
+    await expect(banner.getByRole('link', { name, exact: true })).toHaveAttribute('href', href)
+  }
+  await expect(page.getByText(/filters (and medians )?are unavailable/)).toHaveCount(0)
+
+  // A median link offline shows the mean, says why, and blames no one:
+  // Median is unavailable, with its reason in view.
+  await page.goto('/?stat=median')
+  await expect(
+    page.getByText(
+      'The live data service is offline, so medians can’t be shown right now — showing the mean.',
+    ),
+  ).toBeVisible()
+  await expect(page.getByText(/This link asked for something/)).toHaveCount(0)
+  await expect(caption(page).getByText(/^Mean score, 0–10/)).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Median' })).toBeDisabled()
+  await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
+  await banner.getByRole('link', { name: 'Segments', exact: true }).click()
+  await expect(page).toHaveURL(/\/segments$/)
 })
 
 test('7 — Change with a country where fewer people answered again: the interval and n carry it, no sentence, no rate', async ({
@@ -279,7 +330,7 @@ test('7 — Change with a country where fewer people answered again: the interva
       .first()
       .getByText(/2023 → 2024/),
   ).toBeVisible()
-  const figure = page.getByRole('img', { name: /average change among the same people/ })
+  const figure = page.getByRole('img', { name: /mean change among the same people/ })
   await expect(figure).toBeVisible()
 
   // The withdrawn sentence is absent, and nothing shaped like it.
@@ -300,7 +351,7 @@ test('7 — Change with a country where fewer people answered again: the interva
   // card gives its mean change, its CI and its ten pairs.
   await expect(figure.getByText(/^[+−]\d\.\d\d$/).first()).toBeVisible()
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
   const row = await figure
     .locator('[aria-label="y-axis tick label"] text', { hasText: 'Testland' })
     .boundingBox()
@@ -312,9 +363,11 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(tip).toContainText('Based on 10 people who answered both times')
   await page.mouse.move(0, 0)
 
-  // The URL is the state.
-  await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()
-  await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
+  // The URL is the state; the order is by value only, and the value
+  // label over the column reverses it (ADR-0029).
+  await page.getByRole('button', { name: 'Mean change, highest first' }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&dir=asc$/)
+  await expect(page.getByRole('button', { name: 'Mean change, lowest first' })).toBeVisible()
 })
 
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
@@ -341,16 +394,18 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
-  // Its labels sort it (ADR-0026): no drop-down, no order buttons; the
-  // same label twice reverses the order.
+  // Its labels sort it (ADR-0026): no drop-down, no order buttons. It
+  // opens sorted by its first column, highest first; that label again
+  // reverses the order. The corner names the rows and never sorts
+  // (ADR-0029).
   await expect(page.getByLabel(/Sort countries by/)).toHaveCount(0)
-  const item = matrix.locator('thead th').nth(1).getByRole('button')
-  await item.click()
-  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+$/)
-  await item.click()
-  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+&dir=asc$/)
-  await matrix.getByRole('button', { name: /^Country/ }).click()
+  const head = matrix.locator('thead th').nth(1)
+  await expect(head).toHaveAttribute('aria-sort', 'descending')
+  await head.getByRole('button').click()
+  await expect(page).toHaveURL(/\/what-matters\?dir=asc$/)
+  await head.getByRole('button').click()
   await expect(page).toHaveURL(/\/what-matters$/)
+  await expect(matrix.locator('thead th').first().getByRole('button')).toHaveCount(0)
   await expect(page.locator('figure')).toHaveCount(1)
   // A switcher, not anchors; the crossings section is gone.
   await expect(page.getByRole('navigation', { name: 'On this page' })).toHaveCount(0)
@@ -368,9 +423,25 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await expect(card).toContainText(/95% CI: \[/)
   await expect(card).toContainText(/Based on \d[\d,]* (person|people)/)
 
-  // Within a country: the United States unless another is chosen, its
-  // age bands as the matrix's rows, alone on screen.
+  // Within a country: the tab opens on the United States's own ranking,
+  // one list, most important first (F16: the tab writes by=none).
   await views.getByText('Within a country', { exact: true }).click()
+  await expect(page).toHaveURL(/\/what-matters\?view=within&by=none$/)
+  await expect(
+    page.getByRole('img', {
+      name: /^United States: how important people rate 1 item, most important first/,
+    }),
+  ).toBeVisible()
+  await expect(
+    caption(page).getByText('United States: what matters most', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByLabel('Split by').locator('option:checked')).toHaveText(
+    'Nothing — one ranked list',
+  )
+  await expect(page.locator('figure')).toHaveCount(1)
+  // Split by age band: its bands as the matrix's rows, alone on screen —
+  // the bare link's own default.
+  await page.getByLabel('Split by').selectOption('age_band')
   await expect(page).toHaveURL(/\/what-matters\?view=within$/)
   const split = page.getByRole('img', {
     name: /United States: how important people rate 1 item, as a matrix: a row per age band/,
@@ -383,18 +454,6 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   await page.getByLabel('Split by').selectOption('gender')
   await expect(page).toHaveURL(/view=within&by=gender$/)
   await expect(page.getByRole('img', { name: /a row per gender/ })).toBeVisible()
-  // No split: the country's items as one list, most important first.
-  await page.getByLabel('Split by').selectOption('none')
-  await expect(page).toHaveURL(/view=within&by=none$/)
-  await expect(
-    page.getByRole('img', {
-      name: /^United States: how important people rate 1 item, most important first/,
-    }),
-  ).toBeVisible()
-  await expect(
-    caption(page).getByText('United States: what matters most', { exact: true }),
-  ).toBeVisible()
-  await expect(page.locator('figure')).toHaveCount(1)
 
   // Other questions: one question's bar chart, alone on screen — the
   // synthetic family's one chartable item, Daily social media time.
@@ -407,7 +466,7 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   expect(await page.locator('main').innerText()).not.toMatch(JARGON)
 })
 
-test('9 — US States: the map on state weights loads its own topology chunk, beside the national figure', async ({
+test('9 — US States: opens on the chart beside one US figure, finds a state, and the map loads its own topology chunk', async ({
   page,
 }) => {
   await serveApi(page, {
@@ -417,29 +476,32 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
-  await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
-  await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
-  // The map's own topology arrives as a lazy asset, never in the initial route.
-  const figure = page.getByRole('img', { name: /Happiness by US state/ })
-  await expect(figure).toBeVisible()
-  await expect(figure.locator('svg path').first()).toBeVisible()
-  await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
-  // Adjusted weights are unavailable on Wave 1, with the reason.
-  await expect(page.getByLabel(/Adjusted state weights/)).toBeDisabled()
-  await expect(page.getByText(/no adjusted state weight for Wave 1, 2023/)).toBeVisible()
-  // The chart view and the table carry the server's state codes.
-  await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
-  await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
-  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('table')).toHaveCount(0)
-  // No line under the chart (ADR-0024); the subtitle names the weights.
-  await expect(page.getByText(/weighted so each/)).toHaveCount(0)
-  await expect(page.locator('figcaption').getByText(/state weights/)).toBeVisible()
-  // The US overall figure's label sits above the chart, clear of every
-  // row, value and tick.
+  // The chart by default (ADR-0030): each state's interval; the subtitle
+  // carries the state in the controls' words (ADR-0029).
   const chart = page.getByRole('img', { name: /Happiness by US state/ })
-  const LABEL = 'US overall (state weights)'
+  await expect(chart).toBeVisible()
+  await expect(page.getByRole('group', { name: 'View' }).getByLabel('Chart')).toBeChecked()
+  await expect(page.locator('figcaption').getByText(/· 2023 · highest first$/)).toBeVisible()
+  // One US figure (F14): "United States overall", its CI and n above the
+  // chart and on its line; the national weight's figure in a fold.
+  await expect(page.getByText(/^United States overall:/)).toBeVisible()
+  await expect(page.getByText(/US overall \(state weights\)/)).toHaveCount(0)
+  const fold = page.locator('details', { hasText: 'Why two US figures?' })
+  await expect(fold.getByText(/the United States overall is/)).toBeHidden()
+  await fold.getByText('Why two US figures?').click()
+  await expect(
+    fold.getByText(/the United States overall is .* based on [\d,]+ people\./),
+  ).toBeVisible()
+  await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('cell')).toHaveCount(0)
+  // No line under the chart (ADR-0024).
+  await expect(page.getByText(/weighted so each/)).toHaveCount(0)
+  // Adjusted weights are unavailable in 2023, with the reason in view.
+  await expect(page.getByLabel(/Adjust for who answered in each state/)).toBeDisabled()
+  await expect(page.getByText(/no adjusted state weight for 2023/)).toBeVisible()
+  // The US figure's label sits above the chart, clear of every row,
+  // value and tick.
+  const LABEL = 'United States overall'
   const box = await chart.locator('svg text', { hasText: LABEL }).boundingBox()
   expect(box).not.toBeNull()
   const overlaps: string[] = []
@@ -455,6 +517,25 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
     if (!clear) overlaps.push(text || 'a mark')
   }
   expect(overlaps).toEqual([])
+  // Find a state (F1): its row picked out, its card held open — the URL
+  // unchanged.
+  const find = page.getByLabel('Find a state')
+  const someState = (await find.locator('option').nth(1).textContent()) ?? ''
+  await find.selectOption({ index: 1 })
+  await expect(chart.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
+  await expect(page).toHaveURL(/\/states\?outcome=HAPPY$/)
+  // The map, one click away: its own topology arrives as a lazy asset,
+  // never in the initial route; the found state outlined, its card open.
+  await page.getByRole('group', { name: 'View' }).getByText('Map', { exact: true }).click()
+  await expect(page).toHaveURL(/outcome=HAPPY&view=map$/)
+  const map = page.getByRole('img', { name: /Happiness by US state/ })
+  await expect(map.locator('svg path').first()).toBeVisible()
+  await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText(/Smaller states rest on fewer people — the Chart shows each state’s 95% CI/),
+  ).toBeVisible()
+  await expect(map.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
+  await expect(map.locator('[stroke="var(--ink)"]').first()).toBeAttached()
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */
@@ -558,9 +639,18 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   )
   const views = page.getByRole('group', { name: 'View' })
 
-  // A first visit lands on Compare two with the default pair: the grid,
-  // one SVG, shares in its cells.
+  // A first visit lands on Compare two with the default pair, on All
+  // countries as every page does (ADR-0029)…
   await page.goto('/correlates')
+  await expect(views.getByLabel('Compare two')).toBeChecked()
+  await expect(page.getByLabel('Where')).toHaveValue('all')
+  await expect(
+    page.getByRole('img', { name: /Feelings about household income, averaged over 2 countries/ }),
+  ).toBeVisible()
+  // …and Where picks one country — as the old Country select wrote it —
+  // for the grid: one SVG, shares in its cells.
+  await page.getByLabel('Where').selectOption({ label: 'United States' })
+  await expect(page).toHaveURL(/\/correlates\?country=22$/)
   await expect(views.getByLabel('Compare two')).toBeChecked()
   await expect(
     caption(page).getByText('Life evaluation today and Feelings about household income', {
@@ -604,7 +694,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     .getByRole('option', { name: plan.picked.display_name, exact: true })
     .click()
   await expect(picker).toBeHidden()
-  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.picked.name}$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.picked.name}&country=22$`))
   await expect(
     caption(page).getByText(`${plan.picked.display_name} and Feelings about household income`, {
       exact: true,
@@ -613,7 +703,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // Swap.
   await page.getByRole('button', { name: 'Swap' }).click()
-  await expect(page).toHaveURL(new RegExp(`\\?a=INCOME_FEELINGS&b=${plan.picked.name}$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=INCOME_FEELINGS&b=${plan.picked.name}&country=22$`))
   await expect(
     caption(page).getByText(`Feelings about household income and ${plan.picked.display_name}`, {
       exact: true,
@@ -631,11 +721,11 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       ),
     )
 
-  // Country by country: one dot per country, the grid gone, and the All
-  // countries average as a labelled rule — the chosen country still
-  // picked out; then back.
-  await page.getByText('Country by country', { exact: true }).click()
-  await expect(page).toHaveURL(/scope=all/)
+  // Each country side by side: one dot per country, the grid gone, and
+  // the All countries average as a labelled rule — the chosen country
+  // still picked out; then back. Where writes what the old toggle wrote.
+  await page.getByLabel('Where').selectOption('each')
+  await expect(page).toHaveURL(/scope=all&country=22$/)
   const everyCountry = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(everyCountry).toBeVisible()
   await expect(everyCountry).toHaveAttribute(
@@ -650,8 +740,9 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   ).toBeVisible()
   expect(await everyCountry.innerHTML()).toContain('var(--control-selected)')
   await expect(page.getByText('Share of each column (columns add to 100%)')).toBeHidden()
-  await page.getByText('In United States', { exact: true }).click()
+  await page.getByLabel('Where').selectOption({ label: 'United States' })
   await expect(page).not.toHaveURL(/scope=/)
+  await expect(page).toHaveURL(/country=22$/)
 
   // Compare several: the pair and the first question's top four.
   await views.getByText('Compare several', { exact: true }).click()
@@ -720,14 +811,14 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   ).toBeVisible()
 
   // Old links land on the right view.
-  await page.goto('/correlates?view=ranked&outcome=HAPPY')
+  await page.goto('/correlates?view=ranked&outcome=HAPPY&country=22')
   await expect(views.getByLabel('Find related')).toBeChecked()
   await expect(
     page.getByRole('group', { name: /^Happiness: the \d+ questions most strongly associated/ }),
   ).toBeVisible()
-  await page.goto('/correlates?view=countries&outcome=HAPPY')
+  await page.goto('/correlates?view=countries&outcome=HAPPY&country=22')
   await expect(views.getByLabel('Find related')).toBeChecked()
-  await expect(page.getByLabel('Country by country')).toBeChecked()
+  await expect(page.getByLabel('Where')).toHaveValue('each')
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
@@ -735,18 +826,17 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
-  await expect(
-    page.getByText('All countries (average of 2) · Wave 1, 2023', { exact: true }),
-  ).toBeVisible()
-  const where = page.getByRole('group', { name: 'Where' })
-  await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
+  await expect(page.getByText('All countries (average of 2) · 2023', { exact: true })).toBeVisible()
+  const where = page.getByLabel('Where')
+  await expect(where).toHaveValue('all')
   await expect(
     page.getByRole('img', {
       name: /Feelings about household income, averaged over 2 countries/,
     }),
   ).toBeVisible()
-  // Country by country: every country, none picked out; the strip reads the average.
-  await where.getByText('Country by country', { exact: true }).click()
+  // Each country side by side: every country, none picked out; the strip
+  // reads the average.
+  await where.selectOption('each')
   const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(pooledAcross).toBeVisible()
   expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
@@ -757,7 +847,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
       .first(),
   ).toBeVisible()
-  await where.getByText('All countries', { exact: true }).click()
+  await where.selectOption('all')
   await views.getByText('Compare several', { exact: true }).click()
   await expect(
     page.getByRole('group', {
@@ -800,12 +890,12 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(emptyState).toBeVisible()
   await expect(emptyState.locator('em')).toHaveText(scarce.display_name)
   await expect(page.locator('main figure')).toHaveCount(0)
-  await where.getByText('Country by country', { exact: true }).click()
+  await where.selectOption('each')
   await expect(page).toHaveURL(/scope=all/)
   await expect(emptyState).toBeVisible()
-  await where.getByText('All countries', { exact: true }).click()
+  await where.selectOption('all')
   await expect(page).not.toHaveURL(/scope=/)
-  await page.getByRole('combobox', { name: /^Country/ }).selectOption({ label: 'Testland' })
+  await where.selectOption({ label: 'Testland' })
   await expect(
     page.getByRole('group', {
       name: new RegExp(
@@ -820,10 +910,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // Midyear from the chip: the midyear question beside the same people's
   // 2023 answers, then 2024's; back at 2023 the default returns — and the
   // line under the row says each time what changed on its own.
-  await page.goto('/correlates')
-  const wave = page.getByRole('group', { name: 'Wave' })
+  await page.goto('/correlates?country=22')
+  const wave = page.getByRole('group', { name: 'Year' })
   await wave.getByText('Midyear', { exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY&country=22$`))
   await expect(
     page.getByText(
       `${plan.midyear.display_name}, from the midyear survey, took the place of Life evaluation today.`,
@@ -857,7 +947,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     }),
   ).toBeVisible()
   await wave.getByText('2023', { exact: true }).click()
-  await expect(page).toHaveURL(/\/correlates$/)
+  await expect(page).toHaveURL(/\/correlates\?country=22$/)
   await expect(
     page.getByText(
       `${plan.midyear.display_name} was asked only in the midyear survey, so Life evaluation today took its place.`,
@@ -866,7 +956,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // Midyear from the picker: a midyear question picked at 2023 takes the
   // page to Midyear.
-  await page.goto('/correlates?view=related&outcome=HAPPY')
+  await page.goto('/correlates?view=related&outcome=HAPPY&country=22')
   await page.getByRole('button', { name: 'Question: Happiness' }).click()
   const questionPicker = page.getByRole('dialog', { name: 'Question' })
   await questionPicker.getByRole('searchbox').fill('social')
@@ -896,19 +986,21 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     }),
   ).toBeVisible()
 
-  // A phone: the shared row folds into one line; Change opens it in place.
+  // A phone: Year and Where stay in view; one line says how the chart
+  // is drawn, and Options opens the sheet with the correlation type.
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/correlates')
-  await expect(
-    page.getByText('2023 · United States · Straight-line', { exact: true }),
-  ).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
-  const change = page.getByRole('button', { name: 'Change wave, country and correlation type' })
-  await change.click()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Correlation type' })).toBeVisible()
-  await page.getByRole('button', { name: 'Done changing' }).click()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  await page.goto('/correlates?country=22')
+  await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
+  await expect(page.getByLabel('Where')).toHaveValue('22')
+  await expect(page.getByText('Straight-line · United States', { exact: true })).toBeVisible()
+  const options = page.getByRole('button', { name: 'Options' })
+  await options.click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await sheet.getByText('By rank', { exact: true }).click()
+  await expect(page).toHaveURL(/country=22&method=spearman$/)
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(options).toBeFocused()
   // No sideways scroll at phone width.
   expect(
     await page.evaluate<boolean>(
@@ -952,12 +1044,13 @@ function sideways(page: Page): Promise<number> {
   )
 }
 
-test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too, the options sheet open; the nav keeps one row where its items fit — all seven on a tablet — and "More" opens inside the page', async ({
   page,
 }) => {
-  // Thirty-two page loads, "More" opened on each: about half a second
-  // apiece on the CI runner, so twice the default allowance.
-  test.setTimeout(60_000)
+  // Thirty-two page loads, "More" (and the options sheet) opened on each:
+  // about half a second apiece on the CI runner, so three times the
+  // default allowance.
+  test.setTimeout(90_000)
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await servePairs(page)
   // Every width and font is tried, so one run names every one that fails.
@@ -965,6 +1058,21 @@ test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook
   const nav = page.getByRole('navigation', { name: 'Main' })
   const panel = nav.locator('details > div')
   const column = page.locator('main')
+
+  // A tablet held upright shows all seven pages on one row; a phone folds
+  // three into "More" (F8).
+  await page.setViewportSize({ width: 768, height: 1024 })
+  await page.goto('/')
+  await expect(nav.getByRole('link')).toHaveCount(7)
+  await expect(nav.getByText('More', { exact: true })).toHaveCount(0)
+  const tabletRows = new Set(
+    (await Promise.all((await nav.getByRole('link').all()).map((link) => link.boundingBox()))).map(
+      (box) => Math.round(box!.y),
+    ),
+  )
+  softly(tabletRows.size, 'rows of nav at 768 px').toBe(1)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(nav.getByText('More', { exact: true })).toBeVisible()
 
   for (const { path, rendered } of PHONE_PAGES) {
     for (const font of PHONE_FONTS) {
@@ -1009,6 +1117,15 @@ test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook
           )
           .toBeLessThanOrEqual(1)
         softly(await sideways(page), `${where}, "More" open: px of sideways scroll`).toBe(0)
+
+        // The chart pages' options sheet (ADR-0029), open: still none.
+        const options = page.getByRole('button', { name: 'Options' })
+        if ((await options.count()) > 0) {
+          await page.keyboard.press('Escape')
+          await options.click()
+          await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+          softly(await sideways(page), `${where}, options open: px of sideways scroll`).toBe(0)
+        }
       }
     }
   }
@@ -1024,7 +1141,7 @@ const LONG_ANSWER =
   'Every week, or more often than that, at a church, a mosque, a temple, a shrine or another place of worship or prayer'
 const LONG_NAME = 'Marital status, or the living arrangement nearest to one, when interviewed'
 
-test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments with its options open and Change, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
+test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments and Change with their options sheets open, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
   page,
 }) => {
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
@@ -1064,27 +1181,30 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
     route.fulfill({ json: answers }),
   )
   const softly = expect.configure({ soft: true })
-  // Each stop with what shows it has rendered, a fold to open before it
-  // is measured, and its widths where a phone's are not all.
-  const stops: { path: string; rendered: Locator; open?: string; widths?: number[] }[] = [
+  // Each stop with what shows it has rendered, whether its options sheet
+  // opens before it is measured, and its widths where a phone's are not
+  // all.
+  const stops: { path: string; rendered: Locator; open?: boolean; widths?: number[] }[] = [
     // The entry's value labels scroll in a box of their own.
     {
       path: '/codebook/MARITAL_STATUS',
       rendered: page.getByRole('cell', { name: UNBREAKABLE_LABEL }),
     },
-    // Segments' second breakdown lists every categorical question by
-    // name, inside "More options".
+    // Segments' second split ("then by") lists every categorical question
+    // by name, in the question bar; its options sheet holds the order and
+    // the countries.
     {
       path: '/segments',
       rendered: page.locator('main figure').first(),
-      open: 'More options — split, sort, countries',
+      open: true,
     },
-    // Change's answer level stands in the control row itself — tried on a
-    // phone turned on its side too (680 px), where that row wraps rather
-    // than stacks.
+    // Change's answer level is a select in the options sheet on a phone —
+    // and in the chart's toolbar on a phone turned on its side (680 px),
+    // where the toolbar wraps rather than stacks.
     {
       path: '/change?outcome=ATTEND_SVCS',
-      rendered: page.getByRole('combobox', { name: 'Answer level' }),
+      rendered: page.locator('main figure').first(),
+      open: true,
       widths: [...PHONE_WIDTHS, 680],
     },
   ]
@@ -1096,11 +1216,60 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
         await page.goto(path)
         await expect(rendered).toBeVisible()
         if (font.css) await page.addStyleTag({ content: font.css })
-        if (open) await page.getByText(open, { exact: true }).click()
+        const options = page.getByRole('button', { name: 'Options' })
+        if (open && (await options.count()) > 0) {
+          await options.click()
+          await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+        }
         softly(await sideways(page), `${where}: px of sideways scroll`).toBe(0)
       }
     }
   }
+})
+
+test('13 — a phone: pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(page.locator('main figure').first()).toBeVisible()
+  // The question bar: the question and the year; the picker is a sheet.
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  const picker = page.getByRole('dialog', { name: 'Question' })
+  await picker.getByRole('searchbox').fill('happi')
+  await picker
+    .getByRole('listbox', { name: 'Search results' })
+    .getByRole('option', { name: 'Happiness', exact: true })
+    .click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY$/)
+  // The value label reverses the order: a 44 px target on a phone.
+  const value = page.getByRole('button', { name: 'Mean, highest first' })
+  expect((await value.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await value.click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY&dir=asc$/)
+  // Options: the sheet takes focus; Distribution; Done gives it back.
+  const options = page.getByRole('button', { name: 'Options' })
+  await options.click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('radio', { name: 'Mean' })).toBeFocused()
+  await sheet.getByText('Distribution', { exact: true }).click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY&stat=distribution&dir=asc$/)
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(options).toBeFocused()
+  const line = page.getByText(/^Distribution · /)
+  await expect(line).toBeVisible()
+  const said = await line.textContent()
+  // Reload: the same view, from the URL alone.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByText(said ?? '', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Options' }).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Chart options' })
+      .getByRole('radio', { name: 'Distribution' }),
+  ).toBeChecked()
 })
 
 async function streamToString(download: {

@@ -5,7 +5,6 @@
 import type {
   Country,
   EstimateRow,
-  Meta,
   ResponseMeta,
   VariableDetail,
   VariableSummary,
@@ -19,13 +18,6 @@ import { ciLabel, formatEstimate } from '../format'
 import { endpointsClause, shortName } from '../labels'
 import { WAVE_CHIPS, WAVE_NAMES } from '../waves'
 import { waveTitle, type OtherWave } from './correlates/midyear'
-
-/** The country a URL without one shows: the United States (by its
- * ISO code in meta — the front end owns no country list), else the
- * catalog's first. */
-export function defaultCountry(meta: Pick<Meta, 'countries'>): number | undefined {
-  return meta.countries.find((country) => country.iso3 === 'USA')?.code ?? meta.countries[0]?.code
-}
 
 /** Countries A–Z by name (never by code): the Country select and every
  * country axis on this page. */
@@ -69,9 +61,9 @@ function leftOut(
 }
 
 /** Where an average over the countries stands (ADR-0020): "All countries
- * (average of 23)", or — when fewer asked — "Average of 21 countries (not
+ * (average of 23)", or — when fewer asked — "21 countries, averaged (not
  * asked in China or Egypt)", naming the missing ones when there are three
- * or fewer, the count alone otherwise. */
+ * or fewer, the count alone otherwise — the Where select's own words. */
 export function pooledPlace(
   covered: readonly number[] | null | undefined,
   countries: readonly Country[],
@@ -80,7 +72,7 @@ export function pooledPlace(
   const count = countries.length - missing.length
   if (missing.length === 0) return `${ALL_COUNTRIES} (average of ${count})`
   const named = missing.length <= 3 ? ` (not asked in ${listAnd(missing, 'or')})` : ''
-  return `Average of ${count} ${count === 1 ? 'country' : 'countries'}${named}`
+  return `${count} ${count === 1 ? 'country' : 'countries'}, averaged${named}`
 }
 
 /** An average's place in a sentence (screen readers): "averaged over 23
@@ -91,13 +83,6 @@ export function averagedOver(
 ): string {
   const count = countries.length - leftOut(covered, countries).length
   return `averaged over ${count} ${count === 1 ? 'country' : 'countries'}`
-}
-
-/** The scope toggle's first choice (Compare two, Find related): "In
- * United States", or "All countries" for the average. */
-export function scopeLabel(countryName: string): string {
-  if (countryName === ALL_COUNTRIES) return ALL_COUNTRIES
-  return countryName ? `In ${countryName}` : 'In one country'
 }
 
 /** An average's tooltip line when it covers fewer countries than all of

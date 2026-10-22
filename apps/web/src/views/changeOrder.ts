@@ -7,15 +7,13 @@ import type { ChangeLeg } from '../api/change'
 import type { EstimateRow, Meta, VariableSummary } from '../api/types'
 import { groupValueLabel } from '../labels'
 import { sortAtlasRows } from '../sortRows'
-import type { ChangeSearch } from '../state/search'
 
-/** The countries shown, in the sort order the chart and table share. A
- * three-point response orders countries by its 2023 → 2024 leg and keeps
- * the legs together within each country. */
+/** The countries shown, by change, in the order the chart and the CSV
+ * share. A three-point response orders countries by its 2023 → 2024 leg
+ * and keeps the legs together within each country. */
 export function orderChangeRows(
   rows: EstimateRow[],
   meta: Meta,
-  sort: ChangeSearch['sort'],
   dir: 'asc' | 'desc',
   countries: readonly number[],
   legs: readonly ChangeLeg[] | undefined,
@@ -25,7 +23,7 @@ export function orderChangeRows(
     : rows
   const anchorLeg = legs?.includes('y1_y2') ? 'y1_y2' : legs?.[0]
   const base = anchorLeg ? selected.filter((row) => row.leg === anchorLeg) : selected
-  const ordered = sortAtlasRows(base, meta, sort === 'change' ? 'estimate' : 'name', dir)
+  const ordered = sortAtlasRows(base, meta, dir)
   const label = (row: EstimateRow) =>
     groupValueLabel('country_code', row.group['country_code'] ?? null, meta)
   const countryDomain = ordered.map(label)

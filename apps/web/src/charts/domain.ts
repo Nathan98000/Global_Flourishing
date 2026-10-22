@@ -35,9 +35,12 @@ export function fittedScale(
     targetTicks = 6,
     zeroBaseline = false,
     bounds,
+    minStep = 0,
   }: {
     targetTicks?: number
     zeroBaseline?: boolean
+    /** The least step between two ticks (phoneMinStep). */
+    minStep?: number
     /** The measure's own limits (a 0–10 scale, 0–100 for shares, −1…1
      * for a correlation): the niced window is clamped to them, so an
      * axis never runs past what the measure can be (no 2–12 or 0–15). */
@@ -58,7 +61,7 @@ export function fittedScale(
   const pad = (hi - lo) * 0.05
   if (!zeroBaseline) lo -= pad
   hi += pad
-  const step = niceStep((hi - lo) / Math.max(2, targetTicks - 1))
+  const step = Math.max(minStep, niceStep((hi - lo) / Math.max(2, targetTicks - 1)))
   const decimals = decimalsOf(step)
   const snap = (value: number) => Number(value.toFixed(Math.min(10, decimals + 2)))
   let start = snap(Math.floor(lo / step) * step)
@@ -95,6 +98,17 @@ export function measureBounds(
   if (stat === 'beta') return undefined
   if (variable.min !== null && variable.max !== null) return [variable.min, variable.max]
   return undefined
+}
+
+/** On a phone (a chart under 480 px, the page under 40rem) a mean or
+ * median on a 0–10 scale ticks at most every whole unit, so "9.5" and
+ * "10.0" never touch (F22); 0 — no floor — for anything else. */
+export function phoneMinStep(
+  stat: string,
+  variable: { min: number | null; max: number | null },
+): number {
+  const meanOrMedian = stat === 'mean' || stat === 'quantile'
+  return meanOrMedian && variable.min === 0 && variable.max === 10 ? 1 : 0
 }
 
 /** The plot-space extents a row occupies: its CI when present, else its value. */

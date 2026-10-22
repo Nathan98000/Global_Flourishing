@@ -13,6 +13,7 @@ import { predictorOrder, useCorrelates } from '../../api/correlates'
 import type { Country, EstimateResponse, EstimateRow } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { ChartKey } from '../../charts/ChartKey'
 import { RankedBar } from '../../charts/RankedBar'
 import { divergingTint, signMark } from '../../charts/theme'
 import { HeatTable } from '../../charts/HeatTable'
@@ -20,17 +21,11 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { WordingPanel } from '../../components/WordingPanel'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
-import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
 import { shortName } from '../../labels'
-import {
-  correlatesAcrossCountries,
-  correlatesRequest,
-  relatedQuestion,
-  type CorrelatesScope,
-} from '../../state/search'
+import { correlatesAcrossCountries, correlatesRequest, relatedQuestion } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
@@ -50,7 +45,6 @@ import {
   correlationTip,
   coverageLine,
   pooledPlace,
-  scopeLabel,
   withCoverage,
   starred,
   statisticPhrase,
@@ -77,6 +71,7 @@ export function FindRelated({
   countryName,
   apiReachable,
   controls,
+  chartControls,
 }: ViewProps) {
   const name = relatedQuestion(search)
   const variable = variables.byName[name]
@@ -186,19 +181,6 @@ export function FindRelated({
         </p>
       </div>
       {controls}
-      <div className={own.scopeRow}>
-        <RadioRow<CorrelatesScope>
-          legend="Where"
-          legendHidden
-          name="scope"
-          options={[
-            { value: 'country', label: scopeLabel(countryName) },
-            { value: 'all', label: 'Country by country' },
-          ]}
-          value={search.scope}
-          onChange={(scope) => setSearch({ scope })}
-        />
-      </div>
       {problem ? (
         <EmptyState title="Pick a question to begin">
           <p>{problem} — choose another question above.</p>
@@ -236,6 +218,9 @@ export function FindRelated({
               )}
               ariaLabel={rankedAria}
               interactive
+              toolbar={chartControls}
+              chartKey={<ChartKey mark="dot" label="correlation" color={signMark(1)} />}
+              hint="Select a row to see the two questions together."
               intro={
                 <>
                   {detail && (
@@ -274,7 +259,6 @@ export function FindRelated({
                 rowName={rowName}
                 tagOf={(row) => tagOf(row.predictor ?? '')}
               />
-              <p className={styles.hint}>Select a row to see the two questions together.</p>
             </ChartFigure>
           </>
         ) : predictors.length === 0 ? (
@@ -299,6 +283,7 @@ export function FindRelated({
               otherWave,
             )}
             ariaLabel={`${title}: the ${predictors.length} questions ranked for ${where}, in each of ${served.countries.length} countries, as a matrix — ${pooled ? 'A to Z' : `${countryName} first, the rest A to Z`}. Rust cells go with lower answers to ${short}, teal cells with higher ones.`}
+            toolbar={chartControls}
             csv={csvFor(acrossResponse, acrossName)}
             exportName={acrossName}
             isRefreshing={across.isPlaceholderData}

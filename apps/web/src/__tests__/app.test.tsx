@@ -1,5 +1,5 @@
 // The shell end to end: static-first boot, honest banners scoped to the
-// data views, the deck line, the topic → measure picker, the question on
+// data views, the deck line, the one question picker, the question on
 // the page, coverage on Y2 (derived scores included), empty-state
 // precedence for an unknown measure, invalid-param notices, 404.
 
@@ -9,6 +9,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
+import { tipText } from '../charts/theme'
+import { barLabels } from '../test-utils/bar'
 import { createAppRouter } from '../router'
 import {
   attendVariable,
@@ -91,7 +93,7 @@ function mockFetch(routes: Routes) {
 const phq2Variable = {
   ...sfiVariable,
   name: 'phq2_score',
-  display_name: 'PHQ-2 depression score',
+  display_name: 'Depression screening score (PHQ-2)',
   label: 'Sum of the two PHQ-2 items rescored 0–3 each; 0–6.',
   scale_type: 'count',
   direction: 'lower_better',
@@ -115,6 +117,8 @@ const staticTier: Routes = {
 afterEach(() => {
   vi.unstubAllGlobals()
   resetNegativePathCache()
+  // The picker's recently used list lives in this tab's storage.
+  window.sessionStorage.clear()
 })
 
 async function renderAt(path: string) {
@@ -131,7 +135,7 @@ async function renderAt(path: string) {
   return router
 }
 
-test('the shell renders nav, the deck line, and a citation-only footer', async () => {
+test('the shell renders nav, the deck line, and a footer with the citation and how to read the charts', async () => {
   mockFetch(staticTier)
   await renderAt('/')
   const nav = await screen.findByRole('navigation', { name: 'Main' })
@@ -142,31 +146,69 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
       .getAllByRole('link')
       .map((link) => link.textContent),
   ).toEqual(['Atlas', 'Change', 'What Matters', 'Correlates', 'US States', 'Segments', 'Methods'])
-  // The deck says what this is, above the fold (F5); the count sits in
-  // its own ink-colored span (§6), so match the two parts.
-  expect(await screen.findByText(/207,919 people across/)).toBeInTheDocument()
-  expect(
-    screen.getByText(/rate their own lives — the Global Flourishing Study, 2023–2024/),
-  ).toBeInTheDocument()
+  // The deck says what you can see, then what to do (F5, F18); the
+  // count, from meta, sits in its own ink-colored span (§6).
+  const deck = await screen.findByText(
+    /rate their own lives, from the Global Flourishing Study \(2023–2024\)\. Choose a question to compare countries\./,
+  )
+  expect(deck).toHaveTextContent(/^How people in 2 countries rate their own lives/)
+  expect(within(deck).getByText('2 countries')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Global Flourishing Study/ })).toHaveAttribute(
     'href',
     'https://doi.org/10.17605/OSF.IO/3JTZ8',
   )
-  // The footer carries the citation only (decision 5).
+  // The footer carries the citation (decision 5) and, since the 21 Oct
+  // review, a link to how to read the charts — nothing else.
+  const footer = screen.getByRole('contentinfo')
+  expect(within(footer).getByRole('link', { name: 'How to read the charts' })).toHaveAttribute(
+    'href',
+    '/methods#how-to-read-the-charts',
+  )
+  expect(within(footer).getAllByRole('link')).toHaveLength(2)
   expect(screen.queryByText(/data version/)).toBeNull()
   expect(screen.queryByText(/associations, not causes/)).toBeNull()
   // One light theme (ADR-0023): no theme switch in the header.
   expect(screen.queryByRole('button', { name: /Switch to (dark|light)/ })).toBeNull()
 })
 
+/** The statistics keep their names (owner, 22 Oct 2026): Mean, Median,
+ * Distribution, Share, 95% CI — never these. */
+const RENAMED = /\bAverage\b|Middle value|All answers|likely range/
+
+test('no control, subtitle or card renames a statistic: Mean, Median, Distribution, 95% CI', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByRole('img', { name: /United States/ })
+  const main = screen.getByRole('main')
+  expect(within(main).getByText(/^Mean score, 0–10/)).toBeInTheDocument()
+  expect(main.textContent).not.toMatch(RENAMED)
+  // The Show options name the statistics.
+  const show = screen.getByRole('group', { name: 'Show' })
+  expect(
+    within(show)
+      .getAllByRole('radio')
+      .map((radio) => radio.closest('label')?.textContent),
+  ).toEqual(['Mean', 'Distribution', 'Median'])
+  // Every card's words, for every statistic the pages show.
+  const range = { min: 0, max: 10 }
+  for (const stat of ['mean', 'quantile', 'proportion', 'change', 'change_share', 'pearson_r']) {
+    const card = tipText(testRow({ stat, estimate: 0.5, ci_lo: 0.4, ci_hi: 0.6 }), 'Testland', {
+      range,
+      answer: 'Yes',
+    })
+    expect(card).not.toMatch(RENAMED)
+  }
+  expect(tipText(testRow({ stat: 'mean' }), 'Testland', { range })).toMatch(/^Testland\nMean: /)
+  expect(tipText(testRow({ stat: 'mean' }), 'Testland')).toMatch(/95% CI: \[/)
+})
+
 test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
-  // In the chart/table as well as the country filter.
-  await waitFor(() => expect(screen.getAllByText('United States').length).toBeGreaterThan(1))
+  await screen.findByRole('img', { name: /United States/ })
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
-  expect(screen.getByText(/Mean of the 12 SFI items/)).toBeInTheDocument()
+  expect(within(screen.getByRole('figure')).getByText(/Mean of 12 questions/)).toBeInTheDocument()
   // No footnote under the chart (ADR-0024): the cards name the CI's level.
   expect(screen.queryByText(/Lines are 95% confidence intervals/)).toBeNull()
   expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
@@ -214,7 +256,7 @@ test('a categorical question shows every answer, country by country, from its sh
   })
   const router = await renderAt('/?outcome=ATTEND_SVCS')
   // Share is the default; Distribution is offered beside it.
-  const statistic = await screen.findByRole('group', { name: 'Statistic' })
+  const statistic = await screen.findByRole('group', { name: 'Show' })
   expect(within(statistic).getByLabelText('Share')).toBeChecked()
   fireEvent.click(within(statistic).getByLabelText('Distribution'))
   await waitFor(() => expect(router.state.location.searchStr).toContain('stat=distribution'))
@@ -226,7 +268,11 @@ test('a categorical question shows every answer, country by country, from its sh
       .getAllByRole('listitem')
       .map((item) => item.textContent),
   ).toEqual(['Weekly', 'Sometimes', 'Never'])
-  expect(screen.getByText(/Share giving each answer · sorted by “Weekly”/)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'Share giving each answer · 2023 · all countries · by “Weekly”, highest first',
+    ),
+  ).toBeInTheDocument()
   const svg = figure.querySelector('svg') as SVGSVGElement
   expect(svg.querySelectorAll('g[aria-label="bar"] rect')).toHaveLength(6)
   expect(
@@ -234,7 +280,7 @@ test('a categorical question shows every answer, country by country, from its sh
   ).toEqual(['Testland', 'United States'])
   // Sorted by another answer, the order follows it.
   fireEvent.click(
-    within(screen.getByRole('group', { name: 'Sort by answer' })).getByLabelText('Never'),
+    within(screen.getByRole('group', { name: 'Ordered by % who said' })).getByLabelText('Never'),
   )
   await waitFor(() =>
     expect(
@@ -248,41 +294,83 @@ test('a categorical question shows every answer, country by country, from its sh
   expect(calls.filter((url) => url.includes('ATTEND_SVCS/Y1/proportion')).length).toBeGreaterThan(0)
 })
 
-test('the topic → measure picker: topics carry counts, search jumps across topics', async () => {
+test('the one question picker: closed, the question and its wording; open, topics and search (ADR-0029)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code.json': sfiByCountry,
+  })
+  const router = await renderAt('/?level=2')
+  // Closed: one button — the short name in bold, a line of wording, and
+  // "Change"; its name says what it is.
+  const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
+  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexMean of 12 questions.*Change$/)
+  expect(screen.queryByLabelText('Topic')).toBeNull()
+  expect(screen.queryByLabelText('Measure')).toBeNull()
+  // Open: the panel browses the question's own topic, with counts; the
+  // PHQ-2 and GAD-2 scores are listed under Mental health (ADR-0018).
+  fireEvent.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  const topics = within(dialog).getByRole('listbox', { name: 'Topics' })
+  expect(
+    within(topics)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual(['Flourishing index & its domains1', 'Wellbeing1', 'Mental health1'])
+  expect(within(topics).getByRole('option', { name: /Flourishing index/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  // Search finds a question in any topic; picking it writes `outcome`
+  // and clears `level`, exactly as the old picker did.
+  fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happiness' } })
+  fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Question: Happiness' })).toHaveFocus()
+})
+
+test('the question bar: the same order on every page — what, then when and where (ADR-0029)', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  const topic = (await screen.findByLabelText('Topic')) as HTMLSelectElement
-  expect(topic.value).toBe('derived') // inferred from the sfi outcome
-  expect(screen.getByRole('option', { name: 'Flourishing index & its domains (1)' })).toBeVisible()
-  // The PHQ-2 and GAD-2 scores are catalogued as derived scores but
-  // listed under Mental health, not beside the flourishing index.
-  expect(screen.getByRole('option', { name: 'Mental health (1)' })).toBeVisible()
-  expect([...topic.options].map((option) => option.textContent)).toEqual([
-    'Flourishing index & its domains (1)',
-    'Wellbeing (1)',
-    'Mental health (1)',
-  ])
-  const measure = screen.getByLabelText('Measure') as HTMLSelectElement
-  expect(measure.value).toBe('sfi')
+  await screen.findByRole('button', { name: /^Question: / })
+  expect(barLabels()).toEqual(['Question', 'Year', 'Countries'])
+  cleanup()
+  await renderAt('/segments')
+  await screen.findByRole('button', { name: /^Question: / })
+  expect(barLabels()).toEqual(['Question', 'Split by', 'then by', 'Year', 'Countries'])
+  // Segments' deck in the same voice (F18), never "estimates, cut finer".
+  expect(
+    screen.getByText(
+      'One question, split into groups of people — by age, gender, income and more — country by country.',
+    ),
+  ).toBeInTheDocument()
+  expect(screen.queryByText(/cut finer/)).toBeNull()
+})
 
-  // Changing topic picks that topic's first listed measure (25 Sept), so
-  // the old measure and its settings never linger: the chart follows.
-  fireEvent.change(topic, { target: { value: 'wellbeing' } })
-  const measureAfter = (await screen.findByLabelText('Measure')) as HTMLSelectElement
-  expect(measureAfter.value).toBe('HAPPY')
-  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
-
-  // The search field selects a measure directly and re-infers its topic.
-  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
-  fireEvent.click(await screen.findByRole('button', { name: /Happiness/ }))
-  expect((await screen.findByLabelText('Topic')) as HTMLSelectElement).toHaveValue('wellbeing')
-  // …and a PHQ-2 score found by search lands in Mental health.
-  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'PHQ-2' } })
-  fireEvent.click(await screen.findByRole('button', { name: /PHQ-2 depression score/ }))
-  await waitFor(() =>
-    expect(screen.getByLabelText('Topic') as HTMLSelectElement).toHaveValue('mental_health'),
+test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/?topic=wellbeing')
+  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  expect(within(dialog).getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
   )
-  expect(screen.getByLabelText('Measure') as HTMLSelectElement).toHaveValue('phq2_score')
+  const wellbeing = within(dialog).getByRole('listbox', { name: 'Wellbeing questions' })
+  expect(within(wellbeing).getAllByRole('option')).toHaveLength(1)
+  fireEvent.click(within(wellbeing).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
+})
+
+test('Segments has the same picker; a pick keeps the split', async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/segments?by=gender')
+  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+  fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&by=gender'))
 })
 
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {
@@ -300,9 +388,74 @@ test('an unknown measure gets the empty state, not an API error (F4)', async () 
 test('with the API down the Atlas still renders, with the plain-words banner', async () => {
   mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/')
-  expect(await screen.findByText(/Live data service is/)).toBeInTheDocument()
-  expect(screen.getByText(/standard views still work/)).toBeInTheDocument()
+  const banner = await screen.findByText(/Some views need the live data service, which is/)
+  // What still works, by name, each a link — and no claim that filters
+  // are unavailable (the country filter works offline, F13).
+  expect(banner).toHaveTextContent(
+    'Some views need the live data service, which is offline. The Atlas, Segments and What Matters still work.',
+  )
+  expect(
+    within(banner)
+      .getAllByRole('link')
+      .map((link) => [link.textContent, link.getAttribute('href')]),
+  ).toEqual([
+    ['Atlas', '/'],
+    ['Segments', '/segments'],
+    ['What Matters', '/what-matters'],
+  ])
+  expect(screen.queryByText(/filters (and medians )?are unavailable/)).toBeNull()
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
+})
+
+test('offline, Median says why it is unavailable, and a median link shows the mean without blame', async () => {
+  mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
+  for (const stat of ['quantile', 'median']) {
+    const router = await renderAt(`/?stat=${stat}`)
+    expect(
+      await screen.findByText(
+        'The live data service is offline, so medians can’t be shown right now — showing the mean.',
+      ),
+    ).toBeInTheDocument()
+    // Not the link's fault: no invalid-link notice.
+    expect(screen.queryByText(/This link asked for something/)).toBeNull()
+    expect(await screen.findByText(/^Mean score, 0–10/)).toBeInTheDocument()
+    const median = screen.getByRole('radio', { name: 'Median' })
+    expect(median).toBeDisabled()
+    expect(median).toHaveAccessibleDescription('Median — needs the live data service.')
+    expect(screen.getByRole('radio', { name: 'Mean' })).toBeChecked()
+    // The link keeps its ask, for when the service is back.
+    expect(router.state.location.searchStr).toBe('?stat=quantile')
+    cleanup()
+  }
+})
+
+test('a disabled year says why in view on Segments too (F6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/segments')
+  const midyear = await screen.findByRole('radio', { name: 'Midyear' })
+  expect(midyear).toBeDisabled()
+  expect(midyear).toHaveAccessibleDescription(
+    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+  )
+})
+
+test('a disabled year says why in view, and points to the reason (F6)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByText(/^Mean score, 0–10/)
+  const midyear = screen.getByRole('radio', { name: 'Midyear' })
+  expect(midyear).toBeDisabled()
+  expect(midyear).toHaveAccessibleDescription(
+    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+  )
+  expect(
+    screen.getByText(
+      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
+    ),
+  ).toBeVisible()
+  // No hover-only reason; the open years point nowhere.
+  expect(midyear.closest('label')).not.toHaveAttribute('title')
+  expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
 })
 
 test('an API without a data build is its own banner', async () => {
@@ -320,6 +473,25 @@ test('with no data source at all the shell renders honestly', async () => {
   expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
 })
 
+test('Methods leads in plain words: a 95% CI and the people behind each number; the technical sentence is folded', async () => {
+  mockFetch(staticTier)
+  await renderAt('/methods')
+  expect(await screen.findByRole('heading', { level: 2, name: 'Methods' })).toBeInTheDocument()
+  const lead = screen.getByText(/^Every number here is estimated from a survey/)
+  // The level is the server's (meta.ci_level): wait for it to land.
+  await waitFor(() =>
+    expect(lead).toHaveTextContent(
+      /^Every number here is estimated from a survey, so each comes with a 95% CI — the band drawn through each dot — and the number of people behind it\./,
+    ),
+  )
+  // "Survey-weighted, design-based" lives in the Confidence intervals
+  // section's "For the technically minded" fold, not in the lead.
+  expect(lead).not.toHaveTextContent(/survey-weighted|design-based/)
+  const fold = screen.getByText(/survey-weighted estimate/).closest('details')
+  expect(fold?.querySelector('summary')).toHaveTextContent('For the technically minded')
+  expect(screen.queryByText(/likely range/)).toBeNull()
+})
+
 test('the offline banner stays off Methods and the 404 page (F13)', async () => {
   mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/methods')
@@ -330,9 +502,11 @@ test('the offline banner stays off Methods and the 404 page (F13)', async () => 
 test('invalid search params degrade to defaults with a visible notice', async () => {
   mockFetch(staticTier)
   await renderAt('/?wave=Y9&sort=pie')
-  expect(
-    await screen.findByText(/invalid and were reset to defaults: wave, sort/),
-  ).toBeInTheDocument()
+  const notice = await screen.findByText(/This link asked for something we can’t show/)
+  expect(notice).toHaveTextContent(
+    'This link asked for something we can’t show; showing the default instead. Dismiss',
+  )
+  expect(notice).toHaveAttribute('data-params', 'wave,sort')
   // The view still renders the default query, not a crash.
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
 })
@@ -343,9 +517,12 @@ test('the notice lists every rejected parameter and dismiss clears the URL (F5)'
   // Both rejected params are listed — and stay listed across the
   // router's own URL rebuilds, because the rejected raws stay in the
   // URL until dismissed.
-  expect(await screen.findByText(/reset to defaults: wave, stat/)).toBeInTheDocument()
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'wave,stat',
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-  await waitFor(() => expect(screen.queryByText(/reset to defaults/)).toBeNull())
+  await waitFor(() => expect(screen.queryByText(/This link asked for something/)).toBeNull())
   expect(router.state.location.searchStr).toBe('')
 })
 
@@ -403,14 +580,52 @@ test('unknown routes render the not-found page', async () => {
 
 // --- Visual-redesign behaviours (Sept 2026, §6/§8) ---
 
-test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
+test('the chart header: the state in the subtitle, the key, and a toolbar — Show, How to read this chart, one Download (ADR-0029)', async () => {
   mockFetch(staticTier)
-  await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
-  // Healthy API → the CSV is a real download link; PNG stays a button
-  // whose accessible name carries the verb.
-  expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Download PNG' })).toBeInTheDocument()
+  const router = await renderAt('/')
+  // The subtitle carries the state, in the controls' words.
+  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
+  const figure = screen.getByRole('figure')
+  // The key: the mark and its interval, by name.
+  expect(within(figure).getByText('mean')).toBeInTheDocument()
+  expect(within(figure).getByText('95% CI')).toBeInTheDocument()
+  // The toolbar: the page's display control, then the two links.
+  const toolbar = figure.querySelector('[data-toolbar]') as HTMLElement
+  expect(within(toolbar).getByRole('group', { name: 'Show' })).toBeInTheDocument()
+  expect(within(toolbar).getByRole('link', { name: 'How to read this chart' })).toHaveAttribute(
+    'href',
+    '/methods#how-to-read-the-charts',
+  )
+  // One "Download" (F17): closed, then CSV and PNG. Healthy API → the
+  // CSV is a real download link; PNG stays a button.
+  const download = within(toolbar).getByRole('button', { name: 'Download' })
+  expect(download).toHaveAttribute('aria-expanded', 'false')
+  expect(
+    within(toolbar).getByRole('link', { name: 'Download CSV', hidden: true }),
+  ).not.toBeVisible()
+  fireEvent.click(download)
+  expect(download).toHaveAttribute('aria-expanded', 'true')
+  expect(within(toolbar).getByRole('link', { name: 'Download CSV' })).toBeVisible()
+  expect(within(toolbar).getByRole('button', { name: 'Download PNG' })).toBeVisible()
+  fireEvent.keyDown(download, { key: 'Escape' })
+  expect(download).toHaveAttribute('aria-expanded', 'false')
+  expect(download).toHaveFocus()
+  // The tab order: the question bar, then the toolbar, then the chart.
+  const order = [
+    screen.getByRole('button', { name: /^Question: / }),
+    within(toolbar).getAllByRole('radio')[0] as HTMLElement,
+    download,
+    within(figure).getByRole('img'),
+  ]
+  for (let at = 1; at < order.length; at += 1) {
+    expect(
+      (order[at - 1] as HTMLElement).compareDocumentPosition(order[at] as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  }
+  // A Show choice writes `stat` as before, and the subtitle follows.
+  fireEvent.click(within(toolbar).getByLabelText('Distribution'))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
 })
 
 test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
@@ -438,29 +653,44 @@ function stubViewport(matcher: (query: string) => boolean) {
   }))
 }
 
-test('under 40rem the display options fold into a disclosure; Measure and Wave stay out (§8)', async () => {
+test('on a phone: the question and the year, then one line with Options; the sheet holds Show and Countries (ADR-0029)', async () => {
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
-  await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
-  const summary = screen.getByText('More options — chart, sort, countries')
-  const details = summary.closest('details')
-  expect(details).not.toBeNull()
-  // Wave stays visible outside the fold; Sort lives inside it.
-  const wave = screen.getByRole('group', { name: 'Wave' })
-  expect(details?.contains(wave)).toBe(false)
-  const sort = screen.getByRole('group', { name: 'Sort' })
-  expect(details?.contains(sort)).toBe(true)
-})
-
-test('the Statistic group becomes a native select under 30rem (§8)', async () => {
-  stubViewport(() => true) // a phone matches both 30rem and 40rem
-  mockFetch(staticTier)
-  await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
-  const statistic = screen.getByLabelText('Statistic')
-  expect(statistic.tagName).toBe('SELECT')
-  expect(statistic).toHaveDisplayValue('Mean')
+  const router = await renderAt('/')
+  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
+  // No fold: the bar holds the question and the year alone.
+  expect(screen.queryByText(/More options/)).toBeNull()
+  expect(barLabels()).toEqual(['Question', 'Year'])
+  // The chart's toolbar keeps its links; its controls wait in the sheet.
+  const toolbar = screen.getByRole('figure').querySelector('[data-toolbar]') as HTMLElement
+  expect(within(toolbar).queryByRole('group', { name: 'Show' })).toBeNull()
+  expect(within(toolbar).getByRole('link', { name: 'How to read this chart' })).toBeInTheDocument()
+  // One line says how the chart is drawn, in the controls' words.
+  expect(screen.getByText('Mean · all countries · highest first')).toBeInTheDocument()
+  const options = screen.getByRole('button', { name: 'Options' })
+  expect(options).toHaveAttribute('aria-haspopup', 'dialog')
+  fireEvent.click(options)
+  const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+  expect(sheet).toHaveAttribute('aria-modal', 'true')
+  // Focus moves in, to the first control: Show's first option.
+  const show = within(sheet).getByRole('group', { name: 'Show' })
+  expect(within(show).getByRole('radio', { name: 'Mean' })).toHaveFocus()
+  // Show, then Countries, in place (no popover).
+  expect(within(sheet).getByRole('radio', { name: 'All countries' })).toBeChecked()
+  expect(sheet.querySelector('details')).toBeNull()
+  // Escape closes it; focus returns to Options.
+  fireEvent.keyDown(sheet, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(options).toHaveFocus()
+  // A choice in the sheet writes the URL as the toolbar's did; Done closes.
+  fireEvent.click(options)
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Chart options' })).getByLabelText('Distribution'),
+  )
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
+  fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Options' })).toHaveFocus()
 })
 
 test('on a phone the secondary three nav items collapse behind "More" (type unchanged)', async () => {
@@ -509,7 +739,7 @@ test('on a phone the secondary three nav items collapse behind "More" (type unch
 test('entering an API-only view fires one warm-up ping; the Atlas does not', async () => {
   const atlasCalls = mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText(/207,919 people across/)
+  await screen.findAllByText(/rate their own lives/)
   await waitFor(() => expect(atlasCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
 
   const changeCalls = mockFetch(staticTier)
@@ -537,7 +767,10 @@ test('the Phase 5 routes exist, parse their URL state and say what they are', as
   }
   // Bad params degrade with the notice, never a crash.
   await renderAt('/states?adj=true')
-  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('adj')
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'adj',
+  )
 })
 
 test('an old Compare link lands on Segments with its outcome and wave, and no notice', async () => {
@@ -563,7 +796,7 @@ test('an old Compare link lands on Segments with its outcome and wave, and no no
       countries: [],
       by: ['age_band'],
     })
-    expect(screen.queryByText(/were invalid and were reset/)).toBeNull()
+    expect(screen.queryByText(/This link asked for something/)).toBeNull()
     cleanup()
   }
 })
@@ -573,9 +806,12 @@ test('an old Breakdowns link lands on Segments with every param it carried', asy
   for (const [path, href] of [
     ['/breakdowns?by=gender', '/segments?by=gender'],
     [
-      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
-      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=gap&countries=1%2C22',
+      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=gap&countries=1%2C22',
     ],
+    // An old A–Z order opens the value order, unannounced (ADR-0029):
+    // `name` is never written again.
+    ['/breakdowns?outcome=HAPPY&by=gender&sort=name&dir=asc', '/segments?outcome=HAPPY&by=gender'],
   ] as const) {
     const router = await renderAt(path)
     expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()
@@ -586,5 +822,8 @@ test('an old Breakdowns link lands on Segments with every param it carried', asy
   // A bad value rides along too, and Segments flags it as Breakdowns did.
   const router = await renderAt('/breakdowns?wave=Y9')
   await waitFor(() => expect(router.state.location.href).toBe('/segments?wave=Y9'))
-  expect(await screen.findByText(/were invalid and were reset/)).toHaveTextContent('wave')
+  expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
+    'data-params',
+    'wave',
+  )
 })

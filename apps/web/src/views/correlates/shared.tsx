@@ -10,6 +10,7 @@ import type { Meta, VariableSummary, Wave } from '../../api/types'
 import { useVariableDetails, type VariablesResult } from '../../api/variables'
 import { DIVERGING_RAMP } from '../../charts/theme'
 import { ErrorState } from '../../components/ErrorState'
+import { OfflineLine } from '../../components/StillWorks'
 import { shortName } from '../../labels'
 import type { CorrelatesSearch } from '../../state/search'
 import { WAVE_CHIPS } from '../../waves'
@@ -30,9 +31,12 @@ export interface ViewProps {
   /** Its name — "All countries" for the average. */
   countryName: string
   apiReachable: boolean
-  /** The shared row — wave, country, correlation type — which each view
-   * places under its own question sentence. */
+  /** The shared row — Year, Where — which each view places under its own
+   * question sentence. */
   controls: ReactNode
+  /** How the chart is drawn — the correlation type — for each chart's
+   * toolbar (ADR-0029). */
+  chartControls: ReactNode
   /** Compare several reports the questions its table shows (its default
    * table's, before any is named): the wave row reads them. */
   onTable?: (names: readonly string[]) => void
@@ -175,10 +179,7 @@ export function Turns({ text }: { text: string }) {
  * else the shared error state. */
 export function Failure({ error, apiReachable }: { error: unknown; apiReachable: boolean }) {
   return error instanceof NetworkError && !apiReachable ? (
-    <p className={styles.hint} role="status">
-      This view needs the live data service, which is offline right now — the Atlas and Segments
-      still work.
-    </p>
+    <OfflineLine className={styles.hint} />
   ) : (
     <ErrorState apiReachable={apiReachable} error={error} />
   )

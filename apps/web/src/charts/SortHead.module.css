@@ -1,0 +1,62 @@
+/* The two labels over the chart's columns: the names at the left, the
+   value's word at the right, over the value labels, a hairline under
+   both (the mockups' heads row). */
+.head {
+  display: block;
+  margin: 0 0 2px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--grid);
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+}
+
+.names {
+  padding-bottom: 3px;
+}
+
+.value {
+  /* Over the value labels, which start 16 px past the plot. */
+  padding-right: 8px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: 2px 4px 3px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--control-bg);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.arrow {
+  color: var(--ink-secondary);
+  font-size: 0.85em;
+}
+
+/* A tap target on a phone (44 px), the label itself unchanged. */
+@media (max-width: 40rem) {
+  .button {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+  }
+}

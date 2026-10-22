@@ -7,7 +7,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
@@ -23,6 +23,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
@@ -236,7 +237,7 @@ describe('Change view', () => {
   test('default output: no follow-up rate, no coverage figure, no jargon, no caution sentence', async () => {
     const calls = mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
-    const figure = await screen.findByRole('img', { name: /average change among the same people/ })
+    const figure = await screen.findByRole('img', { name: /mean change among the same people/ })
     expect(figure).toBeInTheDocument()
     const text = visibleText(screen.getByRole('main'))
     // The guard: no percentage other than the interval level, no jargon,
@@ -246,6 +247,9 @@ describe('Change view', () => {
     expect(text).not.toMatch(JARGON)
     expect(text).not.toMatch(WITHDRAWN_CAUTION)
     expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
+    // The statistic keeps its name: "Mean change", never an "average".
+    expect(text).toMatch(/Mean change on the 0–10 scale/)
+    expect(text).not.toMatch(/\bAverage\b|Middle value|All answers|likely range/)
     // Only the change request reaches the API; the earlier wave's
     // cross-section is no longer fetched for anything.
     expect(calls.filter((url) => url.includes('/v1/change'))).toHaveLength(1)
@@ -263,7 +267,9 @@ describe('Change view', () => {
     // No data table anywhere (ADR-0022): the chart's own value labels
     // carry the estimates; each dot's hover card its CI and n.
     expect(screen.queryByText('Data table')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
     const values = figure.querySelector('svg')?.textContent ?? ''
     expect(values).toContain('+0.30')
     expect(values).toContain('−0.12')
@@ -277,7 +283,7 @@ describe('Change view', () => {
     const bins = await screen.findByRole('img', { name: /change in their own answer/ })
     expect(bins.querySelector('svg')?.textContent).toContain('Change in the answer')
     // The dots chart's axis carries a labelled zero and signed ticks.
-    const dots = screen.getByRole('img', { name: /average change among the same people/ })
+    const dots = screen.getByRole('img', { name: /mean change among the same people/ })
     const ticks = [...(dots.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
       (node) => node.textContent,
     )
@@ -298,16 +304,17 @@ describe('Change view', () => {
       ),
     ).toBeInTheDocument()
     // Atlas's control, Atlas's default: the first labelled answer.
-    const control = screen.getByRole('group', { name: 'Answer level' })
+    const control = screen.getByRole('group', { name: 'Showing % who said' })
     expect(within(control).getByLabelText('Weekly')).toBeChecked()
     // No mean of codes anywhere, no histogram of individual change; the
     // value labels are signed percentage points.
     expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
-    // The chart's value labels carry the unit; only the chosen level.
+    // The value labels are bare points (the subtitle names the unit);
+    // only the chosen level.
     const values = figure.querySelector('svg')?.textContent ?? ''
-    expect(values).toContain('+5.0 pp')
-    expect(values).toContain('+1.2 pp')
-    expect(values).not.toContain('−3.0 pp') // another level's row
+    expect(values).toContain('+5.0')
+    expect(values).toContain('+1.2')
+    expect(values).not.toContain('−3.0') // another level's row
   })
 
   test('a directional yes/no item says whether a rise in the share is better', async () => {
@@ -320,16 +327,16 @@ describe('Change view', () => {
     // Yes is the better end of a lower_better item: a rise in "Yes" is better…
     expect(
       within(caption).getByText(
-        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024',
+        'Change in share answering “Yes”, percentage points · a rise is better · 2023 → 2024 · all countries · highest first',
       ),
     ).toBeInTheDocument()
     // …and a rise in "No", the other end, is worse.
     fireEvent.click(
-      within(screen.getByRole('group', { name: 'Answer level' })).getByLabelText('No'),
+      within(screen.getByRole('group', { name: 'Showing % who said' })).getByLabelText('No'),
     )
     expect(
       await within(caption).findByText(
-        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024',
+        'Change in share answering “No”, percentage points · a rise is worse · 2023 → 2024 · all countries · highest first',
       ),
     ).toBeInTheDocument()
   })
@@ -343,7 +350,9 @@ describe('Change view', () => {
     // No matrix of moves between answers, served rows or not.
     expect(document.querySelectorAll('figure')).toHaveLength(1)
     expect(screen.queryByText('Where people moved between answers')).toBeNull()
-    expect(screen.queryByRole('table')).toBeNull()
+    // No data table: no cell anywhere — the only table is the value
+    // label's one-row header (ADR-0029).
+    expect(screen.queryAllByRole('cell')).toHaveLength(0)
   })
 
   test('a measure asked only once says so instead of asking the API', async () => {
@@ -360,7 +369,25 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
   })
 
-  test('one supported comparison reads as text, and the picker lists only measures asked twice', async () => {
+  test('the value label — "Mean change" — reverses the order and writes dir (ADR-0029)', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('img', { name: /mean change among the same people/ })
+    const value = screen.getByRole('columnheader', { name: /^Mean change/ })
+    expect(value).toHaveAttribute('aria-sort', 'descending')
+    fireEvent.click(within(value).getByRole('button'))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&dir=asc'))
+    expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
+  })
+
+  test('the question bar: Question, then Countries — the years are fixed (ADR-0029)', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('button', { name: 'Question: Happiness' })
+    expect(barLabels()).toEqual(['Question', 'Countries'])
+  })
+
+  test('one supported comparison reads as text; the picker keeps a question asked once in view, with why', async () => {
     mockFetch({
       ...tier,
       '/data/variables.json': {
@@ -373,19 +400,26 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /average change among the same people/ })
+    await screen.findByRole('img', { name: /mean change among the same people/ })
     // No measure spans the midyear survey: no pair control at all, and no
     // sentence about it (25 Sept); the multi-pair path keeps its control.
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
     expect(screen.queryByText(/Comparing 2023/)).toBeNull()
     expect(screen.queryByText(/midyear survey asked different questions/)).toBeNull()
-    // Loneliness (asked once) is not offered; the count follows.
-    const measure = screen.getByLabelText('Measure', { exact: true })
-    expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
-    expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
+    // The one picker (ADR-0029): Loneliness (asked once) stays in view,
+    // disabled, with the reason in words; the counts count what Change
+    // can compare.
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    const lonely = within(dialog).getByRole('option', { name: /^Loneliness/ })
+    expect(lonely).toHaveAttribute('aria-disabled', 'true')
+    expect(lonely).toHaveTextContent('Asked only in 2023')
+    expect(within(dialog).getByRole('option', { name: 'Wellbeing, 1' })).toBeInTheDocument()
+    fireEvent.click(lonely)
+    expect(within(dialog).getByRole('option', { name: /^Loneliness/ })).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
     // The country control reads its state; no prompt beside it.
-    expect(screen.getByText('All 2')).toBeInTheDocument()
+    expect(screen.getByText('All countries', { selector: 'summary span' })).toBeInTheDocument()
   })
 
   test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {
@@ -406,14 +440,15 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /average change among the same people/ })
+    await screen.findByRole('img', { name: /mean change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })
     const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()
-    expect(midyear.closest('label')).toHaveAttribute(
-      'title',
-      'Not asked in Midyear survey, Nov 2023–Dec 2024',
+    // The reason is in view, and the option points to it (F6).
+    expect(midyear).toHaveAccessibleDescription(
+      '2023 → Midyear, Midyear → 2024 and 2023 → Midyear → 2024 — not asked in the midyear survey.',
     )
+    expect(midyear.closest('label')).not.toHaveAttribute('title')
     expect(within(compare).getByLabelText('2023 → 2024')).toBeChecked()
   })
 })
@@ -467,7 +502,7 @@ describe('change chart helpers', () => {
       changeRow(22, 0.2, 10, { leg: 'y1_my' }),
       changeRow(22, 0.9, 10, { leg: 'y1_y2' }),
     ]
-    const ordered = orderChangeRows(rows, testMeta, 'change', 'desc', [], ['y1_my', 'y1_y2'])
+    const ordered = orderChangeRows(rows, testMeta, 'desc', [], ['y1_my', 'y1_y2'])
     expect(ordered.countryDomain).toEqual(['United States', 'Testland'])
     expect(ordered.rows.map((row) => [row.group['country_code'], row.leg])).toEqual([
       [22, 'y1_my'],
@@ -503,9 +538,9 @@ describe('change chart helpers', () => {
     expect(formatEstimate(0.25, 'change_distribution')).toBe('25.0%')
     expect(formatEstimate(0.6, 'transition')).toBe('60.0%')
     // A share change is signed and in percentage points, never "−0.0".
-    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 pp')
-    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 pp')
-    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 pp')
+    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 percentage points')
+    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 percentage points')
+    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 percentage points')
   })
 
   test('a three-point response facets by leg with its legs in words', () => {

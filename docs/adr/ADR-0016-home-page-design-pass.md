@@ -1,6 +1,6 @@
 # ADR-0016: The home-page design pass — fewer controls, plainer numbers, server-owned subtopics
 
-**Status:** Accepted · **Date:** 2026-09-25 · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-09-25 · **Phase:** 7 · Picker (decision 5's Subtopic step and the two-step picker) revised by ADR-0029
 
 ## Context
 

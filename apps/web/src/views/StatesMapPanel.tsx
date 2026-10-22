@@ -1,6 +1,8 @@
 // The lazy US map chunk: the states topology (~36 KB gz) and the state
 // choropleth load only when the map view is opened — never in the
-// initial route.
+// initial route. Its legend row says, beside the ramp, what the colours
+// can't show (F1): smaller states rest on fewer people, and the Chart
+// draws each state's interval.
 
 import { useEffect, useState } from 'react'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
@@ -8,7 +10,8 @@ import { MapLegend, mapDomain } from '../charts/mapScale'
 import { StateChoropleth } from '../charts/StateChoropleth'
 import { loadUsStateFeatures, type UsFeature } from '../charts/usTopology'
 import { Skeleton } from '../components/Skeleton'
-import { isShareStat } from '../format'
+import styles from './AtlasView.module.css'
+import { ciLabel, isShareStat } from '../format'
 
 export default function StatesMapPanel({
   rows,
@@ -16,6 +19,7 @@ export default function StatesMapPanel({
   meta,
   variable,
   answer,
+  found,
 }: {
   rows: EstimateRow[]
   responseMeta: ResponseMeta
@@ -23,6 +27,8 @@ export default function StatesMapPanel({
   /** For the hover cards: the measure's scale, and a share's answer. */
   variable?: VariableSummary
   answer?: string
+  /** A state picked out with Find a state. */
+  found?: string
 }) {
   const [features, setFeatures] = useState<UsFeature[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -53,7 +59,16 @@ export default function StatesMapPanel({
 
   return (
     <div>
-      <MapLegend domain={mapDomain(rows, responseMeta)} isShare={isShareStat(responseMeta.stat)} />
+      <div className={styles.legendRow}>
+        <MapLegend
+          domain={mapDomain(rows, responseMeta)}
+          isShare={isShareStat(responseMeta.stat)}
+        />
+        <span className={styles.legendNote}>
+          Smaller states rest on fewer people — the Chart shows each state&rsquo;s{' '}
+          {ciLabel(meta.ci_level)}
+        </span>
+      </div>
       <StateChoropleth
         rows={rows}
         responseMeta={responseMeta}
@@ -61,6 +76,7 @@ export default function StatesMapPanel({
         meta={meta}
         variable={variable}
         answer={answer}
+        found={found}
       />
     </div>
   )

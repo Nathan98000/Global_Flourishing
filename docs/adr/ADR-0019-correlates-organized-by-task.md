@@ -1,6 +1,6 @@
 # ADR-0019: Correlates organized by task — three views with their own pickers, a heat grid for two questions, asterisks for thin estimates, no n in any tooltip
 
-**Status:** Accepted · **Date:** 2026-09-28 · **Phase:** 7
+**Status:** Accepted · **Date:** 2026-09-28 · **Phase:** 7 · Default country and scope toggle revised by ADR-0029 · Derived scores' bins revised by ADR-0030
 
 Supersedes, in ADR-0018: §1 (the four views), §4's chart and response
 (Compare two), §5's display of the table (Compare several), and §6's
