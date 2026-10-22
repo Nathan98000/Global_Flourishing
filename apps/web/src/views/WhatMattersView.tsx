@@ -27,6 +27,7 @@ import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
@@ -532,17 +533,14 @@ export function WhatMattersView() {
       {search.view === 'questions' && chartable.length > 0 && item && (
         <>
           <div className={styles.controls}>
-            <SelectField
+            <QuestionPicker
+              variant="field"
               label="Question"
+              variables={chartable}
+              wave="MY"
               value={item.name}
-              onChange={(event) => setSearch({ item: event.target.value, level: undefined })}
-            >
-              {chartable.map((candidate) => (
-                <option key={candidate.name} value={candidate.name}>
-                  {candidate.display_name}
-                </option>
-              ))}
-            </SelectField>
+              onPick={(name) => setSearch({ item: name, level: undefined })}
+            />
             {itemStat === 'proportion' && itemLevels.length > 0 && (
               <RadioRow
                 legend="Showing % who said"

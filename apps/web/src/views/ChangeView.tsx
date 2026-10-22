@@ -21,7 +21,7 @@ import {
 } from '../api/change'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
-import type { EstimateRow, Wave } from '../api/types'
+import type { EstimateRow, VariableSummary, Wave } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChangeDots, changeBounds } from '../charts/ChangeDots'
@@ -36,7 +36,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
@@ -80,7 +80,8 @@ export function ChangeView() {
   // Only the comparisons at least one servable measure can make are
   // offered (today: 2023 → 2024 alone — the midyear survey asked
   // different questions); more reappear by themselves if the data
-  // changes. The picker lists only measures asked at both waves of one.
+  // changes. The picker lists every question; one that can make none of
+  // them stays in view, disabled, with the reason.
   const allVariables = variables.data?.list
   const supportedPairs = useMemo(
     () =>
@@ -91,15 +92,17 @@ export function ChangeView() {
       ),
     [allVariables],
   )
-  const changeable = useMemo(
-    () =>
-      (allVariables ?? []).filter(
-        (candidate) =>
-          candidate.servable &&
-          supportedPairs.some((pair) => pairSupported(pair, candidate.waves_available)),
-      ),
-    [allVariables, supportedPairs],
-  )
+  // Why a question can't be compared here (the picker lists it all the
+  // same, the reason in words): asked once, or never at both waves of a
+  // comparison the page makes.
+  const changeReason = (candidate: VariableSummary): string | undefined => {
+    if (supportedPairs.some((pair) => pairSupported(pair, candidate.waves_available)))
+      return undefined
+    const [only] = candidate.waves_available
+    return candidate.waves_available.length === 1 && only !== undefined
+      ? `Asked only in ${WAVE_NAMES[only] ?? only}`
+      : 'Not asked in both years'
+  }
   // A categorical item (the server's default stat is a share) changes
   // in the share answering a level; a numeric one in its mean.
   const isCategorical = chartable && variable.default_stat === 'proportion'
@@ -312,12 +315,16 @@ export function ChangeView() {
         }
       />
       <div className={styles.controls}>
-        <OutcomePicker
-          variables={changeable}
+        <QuestionPicker
+          variant="field"
+          label="Question"
+          variables={variables.data.list}
+          wave={search.from}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          unavailable={changeReason}
+          countable={(candidate) => changeReason(candidate) === undefined}
+          onPick={(outcome) => handlePick({ outcome })}
         />
         {supportedPairs.length > 1 && (
           <RadioRow
@@ -349,16 +356,7 @@ export function ChangeView() {
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — order, countries</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={changeable}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
+            <div className={styles.moreBody}>{displayOptions}</div>
           </details>
         ) : (
           displayOptions

@@ -364,7 +364,7 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
   })
 
-  test('one supported comparison reads as text, and the picker lists only measures asked twice', async () => {
+  test('one supported comparison reads as text; the picker keeps a question asked once in view, with why', async () => {
     mockFetch({
       ...tier,
       '/data/variables.json': {
@@ -383,11 +383,18 @@ describe('Change view', () => {
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
     expect(screen.queryByText(/Comparing 2023/)).toBeNull()
     expect(screen.queryByText(/midyear survey asked different questions/)).toBeNull()
-    // Loneliness (asked once) is not offered; the count follows.
-    const measure = screen.getByLabelText('Measure', { exact: true })
-    expect(within(measure).queryByRole('option', { name: 'Loneliness' })).toBeNull()
-    expect(within(measure).getByRole('option', { name: 'Happiness' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search all 3 measures')).toBeInTheDocument()
+    // The one picker (ADR-0029): Loneliness (asked once) stays in view,
+    // disabled, with the reason in words; the counts count what Change
+    // can compare.
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    const lonely = within(dialog).getByRole('option', { name: /^Loneliness/ })
+    expect(lonely).toHaveAttribute('aria-disabled', 'true')
+    expect(lonely).toHaveTextContent('Asked only in 2023')
+    expect(within(dialog).getByRole('option', { name: 'Wellbeing, 1' })).toBeInTheDocument()
+    fireEvent.click(lonely)
+    expect(within(dialog).getByRole('option', { name: /^Loneliness/ })).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
     // The country control reads its state; no prompt beside it.
     expect(screen.getByText('All 2')).toBeInTheDocument()
   })

@@ -1,5 +1,5 @@
 // The shell end to end: static-first boot, honest banners scoped to the
-// data views, the deck line, the topic → measure picker, the question on
+// data views, the deck line, the one question picker, the question on
 // the page, coverage on Y2 (derived scores included), empty-state
 // precedence for an unknown measure, invalid-param notices, 404.
 
@@ -116,6 +116,8 @@ const staticTier: Routes = {
 afterEach(() => {
   vi.unstubAllGlobals()
   resetNegativePathCache()
+  // The picker's recently used list lives in this tab's storage.
+  window.sessionStorage.clear()
 })
 
 async function renderAt(path: string) {
@@ -198,7 +200,9 @@ test('the Atlas renders from the static tier, question on the page, no line unde
   await waitFor(() => expect(screen.getAllByText('United States').length).toBeGreaterThan(1))
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
-  expect(screen.getByText(/Mean of the 12 SFI items/)).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('figure')).getByText(/Mean of the 12 SFI items/),
+  ).toBeInTheDocument()
   // No footnote under the chart (ADR-0024): the cards name the CI's level.
   expect(screen.queryByText(/Lines are 95% confidence intervals/)).toBeNull()
   expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
@@ -280,41 +284,65 @@ test('a categorical question shows every answer, country by country, from its sh
   expect(calls.filter((url) => url.includes('ATTEND_SVCS/Y1/proportion')).length).toBeGreaterThan(0)
 })
 
-test('the topic → measure picker: topics carry counts, search jumps across topics', async () => {
-  mockFetch(staticTier)
-  await renderAt('/')
-  const topic = (await screen.findByLabelText('Topic')) as HTMLSelectElement
-  expect(topic.value).toBe('derived') // inferred from the sfi outcome
-  expect(screen.getByRole('option', { name: 'Flourishing index & its domains (1)' })).toBeVisible()
-  // The PHQ-2 and GAD-2 scores are catalogued as derived scores but
-  // listed under Mental health, not beside the flourishing index.
-  expect(screen.getByRole('option', { name: 'Mental health (1)' })).toBeVisible()
-  expect([...topic.options].map((option) => option.textContent)).toEqual([
-    'Flourishing index & its domains (1)',
-    'Wellbeing (1)',
-    'Mental health (1)',
-  ])
-  const measure = screen.getByLabelText('Measure') as HTMLSelectElement
-  expect(measure.value).toBe('sfi')
-
-  // Changing topic picks that topic's first listed measure (25 Sept), so
-  // the old measure and its settings never linger: the chart follows.
-  fireEvent.change(topic, { target: { value: 'wellbeing' } })
-  const measureAfter = (await screen.findByLabelText('Measure')) as HTMLSelectElement
-  expect(measureAfter.value).toBe('HAPPY')
-  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
-
-  // The search field selects a measure directly and re-infers its topic.
-  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'happiness' } })
-  fireEvent.click(await screen.findByRole('button', { name: /Happiness/ }))
-  expect((await screen.findByLabelText('Topic')) as HTMLSelectElement).toHaveValue('wellbeing')
-  // …and a PHQ-2 score found by search lands in Mental health.
-  fireEvent.change(screen.getByLabelText('Or search'), { target: { value: 'PHQ-2' } })
-  fireEvent.click(await screen.findByRole('button', { name: /PHQ-2 depression score/ }))
-  await waitFor(() =>
-    expect(screen.getByLabelText('Topic') as HTMLSelectElement).toHaveValue('mental_health'),
+test('the one question picker: closed, the question and its wording; open, topics and search (ADR-0029)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code.json': sfiByCountry,
+  })
+  const router = await renderAt('/?level=2')
+  // Closed: one button — the short name in bold, a line of wording, and
+  // "Change"; its name says what it is.
+  const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
+  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexMean of the 12 SFI items.*Change$/)
+  expect(screen.queryByLabelText('Topic')).toBeNull()
+  expect(screen.queryByLabelText('Measure')).toBeNull()
+  // Open: the panel browses the question's own topic, with counts; the
+  // PHQ-2 and GAD-2 scores are listed under Mental health (ADR-0018).
+  fireEvent.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  const topics = within(dialog).getByRole('listbox', { name: 'Topics' })
+  expect(
+    within(topics)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual(['Flourishing index & its domains1', 'Wellbeing1', 'Mental health1'])
+  expect(within(topics).getByRole('option', { name: /Flourishing index/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
   )
-  expect(screen.getByLabelText('Measure') as HTMLSelectElement).toHaveValue('phq2_score')
+  // Search finds a question in any topic; picking it writes `outcome`
+  // and clears `level`, exactly as the old picker did.
+  fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happiness' } })
+  fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Question: Happiness' })).toHaveFocus()
+})
+
+test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/?topic=wellbeing')
+  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  expect(within(dialog).getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  const wellbeing = within(dialog).getByRole('listbox', { name: 'Wellbeing questions' })
+  expect(within(wellbeing).getAllByRole('option')).toHaveLength(1)
+  fireEvent.click(within(wellbeing).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
+})
+
+test('Segments has the same picker; a pick keeps the split', async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/segments?by=gender')
+  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  const dialog = screen.getByRole('dialog', { name: 'Question' })
+  fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+  fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&by=gender'))
 })
 
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {

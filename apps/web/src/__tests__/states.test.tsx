@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
@@ -308,6 +308,18 @@ describe('the US overall label', () => {
 })
 
 describe('US States view', () => {
+  test('the one question picker: every question; a pick writes the outcome and clears the answer', async () => {
+    mockFetch(tier)
+    const router = await renderAt('/states?view=bars&level=2')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&view=bars'))
+  })
+
   test('the map view: states on state weights beside the US overall figure on the same weight, names from the server', async () => {
     const calls = mockFetch(tier)
     await renderAt('/states')

@@ -23,7 +23,7 @@ import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
-import { OutcomePicker } from '../components/controls/OutcomePicker'
+import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
@@ -314,12 +314,14 @@ export function BreakdownsView() {
         }
       />
       <div className={styles.controls}>
-        <OutcomePicker
+        <QuestionPicker
+          variant="field"
+          label="Question"
           variables={variables.data.list}
+          wave={search.wave}
           value={search.outcome}
           topic={search.topic}
-          onSelect={handlePick}
-          fields={narrow ? 'measure' : 'all'}
+          onPick={(outcome) => handlePick({ outcome })}
         />
         <RadioRow
           legend="Year"
@@ -341,16 +343,7 @@ export function BreakdownsView() {
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — split, sort, countries</summary>
-            <div className={styles.moreBody}>
-              <OutcomePicker
-                variables={variables.data.list}
-                value={search.outcome}
-                topic={search.topic}
-                onSelect={handlePick}
-                fields="topic-and-search"
-              />
-              {displayOptions}
-            </div>
+            <div className={styles.moreBody}>{displayOptions}</div>
           </details>
         ) : (
           displayOptions

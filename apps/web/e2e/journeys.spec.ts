@@ -56,10 +56,10 @@ const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage
 const chartRegion = (page: Page) => page.getByRole('img', { name: /by country|panel per country/ })
 // The chart title is the measure alone since §7 (the wave rides last in
 // the subtitle), so title assertions scope to the figure's caption — the
-// bare measure name also labels an <option> in the Measure select.
+// bare measure name also labels the question picker's button.
 const caption = (page: Page) => page.locator('figcaption')
 
-test('1 — Atlas: change topic, measure and wave, share the URL, reload reproduces it', async ({
+test('1 — Atlas: change the question through the picker and the year, share the URL, reload reproduces it', async ({
   page,
   browser,
 }) => {
@@ -72,9 +72,17 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
     }),
   ).toBeVisible()
 
-  // Two steps, not one list of 161: topic first, then that topic's measures.
-  await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
-  await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
+  // One question picker (ADR-0029): the question bar's button opens the
+  // panel — browse a topic, pick a question — and a pick closes it.
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  const picker = page.getByRole('dialog', { name: 'Question' })
+  await picker.getByRole('option', { name: /^Wellbeing/ }).click()
+  await picker
+    .getByRole('listbox', { name: 'Wellbeing questions' })
+    .getByRole('option', { name: /^Happiness/ })
+    .click()
+  await expect(picker).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
   await page.getByRole('group', { name: 'Year' }).getByText('2024', { exact: true }).click()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2024/)).toBeVisible()
@@ -147,7 +155,7 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   // At phone width the control lives in the "More options" fold; its open
   // panel still stays inside the column.
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByText('More options — chart, sort, countries').click()
+  await page.getByText('More options — chart, order, countries').click()
   await trigger.click()
   await expect(countries).toHaveAttribute('open', '')
   await insideColumn()
@@ -180,7 +188,11 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   // since §9 the sentence stands alone — no mini-label above it.
   await expect(page.getByText('What people were asked')).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'The exact question and answers →' })).toBeVisible()
-  await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
+  // The wording under the chart's header (the question bar's trigger
+  // carries it too).
+  await expect(
+    page.locator('figure').getByText('How would you rate: service attendance?'),
+  ).toBeVisible()
 })
 
 test('3 — a small cell renders with its hover card and no flag, not a gap', async ({ page }) => {

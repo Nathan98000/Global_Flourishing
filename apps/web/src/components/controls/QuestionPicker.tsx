@@ -1,7 +1,11 @@
-// One question picker, built for the Correlates page (ADR-0019; the
-// Atlas and US States may adopt it later). Closed, it is a button naming
-// the chosen question by its short label, its role in the accessible
-// name ("First question: Life evaluation today"). Open, it is a panel — a
+// One question picker, built for the Correlates page (ADR-0019) and the
+// only way to choose a question on every page (ADR-0029). Closed, it is
+// a button naming the chosen question by its short label, its role in
+// the accessible name ("First question: Life evaluation today") — in a
+// sentence on Correlates, or, at the head of every other page's question
+// bar (`variant="field"`), a box with the name in bold over a line of its
+// wording and "Change ▾" ("Question: Life satisfaction"). Open, it is a
+// panel — a
 // popover about 660px wide on a desktop, a full-screen sheet under 600px
 // — that reaches any question three ways: search (the page search's own
 // matcher over name, label and wording; results grouped by topic, the
@@ -9,8 +13,9 @@
 // (sessionStorage, five at most), and browse (topics on the left with how
 // many of their questions were asked at the wave, the chosen topic's
 // subtopics nested under it; its questions on the right, each a short
-// label over one line of wording). A question that can't be chosen stays
-// in view, disabled, with the reason in words. Listbox and option
+// label over one line of wording) — opened on the URL's `topic` when it
+// names one, else on the question's own. A question that can't be chosen
+// stays in view, disabled, with the reason in words. Listbox and option
 // semantics: arrows move, Enter picks, Escape closes, and Tab walks
 // search → recently used → topics → questions (→ the footer's buttons).
 // A single-select panel closes on a pick; a multi-select one (Compare
@@ -29,9 +34,23 @@ import {
 } from 'react'
 import type { VariableSummary, Wave } from '../../api/types'
 import { shortName } from '../../labels'
-import { pickerTopicName, subtopicsOf, topicFamily, topicsOf } from '../../topics'
-import { searchMeasures } from './OutcomePicker'
+import { subtopicsOf, topicFamily, topicName, topicsOf } from '../../topics'
 import styles from './QuestionPicker.module.css'
+
+/** The servable questions a search matches: name, display name, label
+ * or wording, case-insensitive. */
+export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return []
+  return variables.filter(
+    (variable) =>
+      variable.servable &&
+      (variable.name.toLowerCase().includes(needle) ||
+        variable.display_name.toLowerCase().includes(needle) ||
+        (variable.label ?? '').toLowerCase().includes(needle) ||
+        (variable.wording ?? '').toLowerCase().includes(needle)),
+  )
+}
 
 /** How many recently used questions the panel keeps and lists. */
 export const RECENT_MAX = 5
@@ -114,7 +133,7 @@ function shelvesOf(variables: readonly VariableSummary[]): Shelf[] {
     const subtopics = subtopicsOf(topic.measures)
     const own: Shelf = {
       key: topic.family,
-      name: pickerTopicName(topic.family),
+      name: topicName(topic.family),
       depth: 0,
       family: topic.family,
       sections:
@@ -135,8 +154,14 @@ function shelvesOf(variables: readonly VariableSummary[]): Shelf[] {
   })
 }
 
-/** The shelf a panel opens on: the question's own subtopic (or topic). */
-function homeShelf(shelves: readonly Shelf[], variable: VariableSummary | undefined): string {
+/** The shelf a panel opens on: the topic a link names, else the
+ * question's own subtopic (or topic). */
+function homeShelf(
+  shelves: readonly Shelf[],
+  variable: VariableSummary | undefined,
+  topic?: string,
+): string {
+  if (topic !== undefined && shelves.some((shelf) => shelf.key === topic)) return topic
   if (variable) {
     const family = topicFamily(variable)
     const sub = shelves.find((shelf) => shelf.key === `${family}:${variable.subfamily ?? ''}`)
@@ -160,6 +185,9 @@ interface Common {
   countable?: (variable: VariableSummary) => boolean
   /** A small tag beside an option's name ("Midyear", "2023 answers"). */
   tagOf?: (variable: VariableSummary) => string | undefined
+  /** A topic (catalog family) to open the browse column on — an old
+   * link's `topic`; absent, the chosen question's own. */
+  topic?: string
 }
 
 interface SingleProps extends Common {
@@ -168,6 +196,10 @@ interface SingleProps extends Common {
   onPick: (name: string) => void
   /** A small tag in the closed button, after the name ("2023"). */
   triggerTag?: string
+  /** `field`: the question bar's box — the role as a label above it,
+   * the name in bold over a line of wording, "Change ▾". Default: a
+   * button inside a sentence (Correlates). */
+  variant?: 'inline' | 'field'
 }
 
 interface MultipleProps extends Common {
@@ -212,6 +244,49 @@ export function QuestionPicker(props: QuestionPickerProps) {
     : props.multiple
       ? props.trigger
       : (props.value ?? 'Choose a question')
+  const panel = open && (
+    <Panel
+      {...props}
+      label={label}
+      variables={variables}
+      wave={wave}
+      unavailable={unavailable}
+      current={current}
+      onClose={close}
+      anchor={anchor}
+    />
+  )
+  if (!props.multiple && props.variant === 'field') {
+    const wording = current ? wordingOf(current) : ''
+    return (
+      <span className={styles.field} ref={anchor}>
+        <span className={styles.fieldLabel} aria-hidden="true">
+          {label}
+        </span>
+        <button
+          ref={button}
+          type="button"
+          className={styles.fieldTrigger}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={`${label}: ${name}`}
+          onClick={() => setOpen((was) => !was)}
+        >
+          <span className={styles.fieldName}>{name}</span>
+          {wording && <span className={styles.fieldWording}>{wording}</span>}
+          <span className={styles.fieldChange} aria-hidden="true">
+            Change
+            <span className={styles.chevron}>
+              <svg viewBox="0 0 12 12" focusable="false">
+                <path d="M2.25 4.5 6 8.25 9.75 4.5" />
+              </svg>
+            </span>
+          </span>
+        </button>
+        {panel}
+      </span>
+    )
+  }
   return (
     <span className={styles.anchor} ref={anchor}>
       <button
@@ -244,18 +319,7 @@ export function QuestionPicker(props: QuestionPickerProps) {
           </>
         )}
       </button>
-      {open && (
-        <Panel
-          {...props}
-          label={label}
-          variables={variables}
-          wave={wave}
-          unavailable={unavailable}
-          current={current}
-          onClose={close}
-          anchor={anchor}
-        />
-      )}
+      {panel}
     </span>
   )
 }
@@ -267,7 +331,8 @@ function Panel(
     anchor: React.RefObject<HTMLSpanElement | null>
   },
 ) {
-  const { label, variables, wave, unavailable, countable, tagOf, current, onClose, anchor } = props
+  const { label, variables, wave, unavailable, countable, tagOf, topic, current, onClose, anchor } =
+    props
   const multiple = props.multiple === true
   const selected = props.multiple ? props.selected : []
   const id = useId()
@@ -284,7 +349,7 @@ function Panel(
   const lastSelected = props.multiple
     ? byName.get(props.selected[props.selected.length - 1] ?? '')
     : undefined
-  const [shelf, setShelf] = useState(() => homeShelf(shelves, current ?? lastSelected))
+  const [shelf, setShelf] = useState(() => homeShelf(shelves, current ?? lastSelected, topic))
   const [cursor, setCursor] = useState<string | undefined>(current?.name)
   const [recentCursor, setRecentCursor] = useState(0)
   const [shift, setShift] = useState(0)
@@ -310,7 +375,7 @@ function Panel(
     const matches = new Set(searchMeasures([...variables], needle).map((v) => v.name))
     return topicsOf([...variables])
       .map((topic) => ({
-        title: pickerTopicName(topic.family),
+        title: topicName(topic.family),
         items: topic.measures.filter((v) => matches.has(v.name)),
       }))
       .filter((section) => section.items.length > 0)

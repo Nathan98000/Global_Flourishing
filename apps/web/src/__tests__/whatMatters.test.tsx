@@ -528,20 +528,31 @@ describe('What Matters view', () => {
 
   test('Other questions: the first chartable item alone, with its answer levels from the codebook', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/what-matters?view=questions')
+    const router = await renderAt('/what-matters?view=questions')
     expect(
       await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
     ).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Showing % who said' })).toBeInTheDocument()
-    const question = screen.getByLabelText(/^Question/) as HTMLSelectElement
-    expect(question.closest('label')?.className).toContain('field')
-    expect(question.closest('label')?.firstElementChild?.textContent).toBe('Question')
     expect(document.querySelectorAll('figure')).toHaveLength(1)
     expect(screen.queryByRole('img', { name: /as a matrix/ })).toBeNull()
     expect(calls.filter((url) => url.includes('MONEY') || url.includes('GOOD_RELATION'))).toEqual(
       [],
     )
     expect(visibleText(screen.getByRole('main'))).not.toMatch(JARGON)
+    // The one question picker (ADR-0029), over this view's own questions:
+    // the midyear survey's chartable ones; a pick writes `item`.
+    const question = screen.getByRole('button', { name: 'Question: Daily social media time' })
+    fireEvent.click(question)
+    const dialog = screen.getByRole('dialog', { name: 'Question' })
+    expect(
+      within(dialog)
+        .getAllByRole('option')
+        .map((option) => option.getAttribute('aria-label')),
+    ).toEqual(['What matters to people, 2', 'Daily social media time', 'Household ran out of food'])
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Household ran out of food' }))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?view=questions&item=FOOD_INSECURE'),
+    )
   })
 
   test('within a country with no split: its items as one list, most important first', async () => {
