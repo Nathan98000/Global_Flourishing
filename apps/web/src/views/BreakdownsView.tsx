@@ -14,7 +14,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
-import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { SmallMultiples, countryEstimates, facetOrder } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -84,6 +84,12 @@ export function BreakdownsView() {
   const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
+  // Each country's own estimate, the same question, year and statistic —
+  // the Atlas's file — orders the panels (ADR-0031): never an average of
+  // the groups, which a one-person group could swing.
+  const countryRequest = request ? { ...request, by: ['country_code'] } : null
+  const countryQuery = useEstimates(countryRequest)
+  const countryRows = countryQuery.data?.response.rows
   const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
@@ -110,18 +116,22 @@ export function BreakdownsView() {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
     // One ordering for the panels and the CSV (items 5/13): the
-    // same facetOrder call the chart makes, then the served level order.
+    // facet order the chart is handed, then the served level order.
     if (!metaForSort) return rows
     const served = metaForSort
+    const overall = countryRows
+      ? countryEstimates(countryRows, served, isCategorical ? activeLevel : undefined)
+      : undefined
     return sortBreakdownRows(
       rows,
       served,
-      (input) => facetOrder(input, served, 'country_code', search.sort, dir),
+      (input) => facetOrder(input, served, 'country_code', search.sort, dir, overall),
       (row) => groupValueLabel(primary, row.group[primary] ?? null, served, labeler),
       levelDomain(primary, served, detail),
     )
   }, [
     response,
+    countryRows,
     isCategorical,
     activeLevel,
     search.countries,
@@ -132,6 +142,18 @@ export function BreakdownsView() {
     labeler,
     detail,
   ])
+  // The panels in that same order: each country once, as the rows run.
+  const panelOrder = useMemo(() => {
+    if (!metaForSort) return undefined
+    const served = metaForSort
+    return [
+      ...new Set(
+        displayRows.map((row) =>
+          groupValueLabel('country_code', row.group['country_code'] ?? null, served),
+        ),
+      ),
+    ]
+  }, [displayRows, metaForSort])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -408,7 +430,7 @@ export function BreakdownsView() {
         </EmptyState>
       ) : (
         <>
-          {estimates.isPending ? (
+          {estimates.isPending || countryQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && !boot.apiReachable ? (
@@ -458,6 +480,7 @@ export function BreakdownsView() {
                   seriesDomain={
                     secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
                   }
+                  facetDomain={panelOrder}
                   sort={search.sort}
                   dir={dir}
                   labeler={labeler}

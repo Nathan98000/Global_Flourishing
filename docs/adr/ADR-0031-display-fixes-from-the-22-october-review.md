@@ -54,6 +54,17 @@ app saying "sure" where it should say "unsure":
    `ci_lo = ci_hi = null`; the SE stays as computed. The card says why
    there is no interval.
 
+4. **Segments orders its countries by each country's own estimate.**
+   "Highest first" and "Lowest first" follow the country's by-country
+   estimate for the same question, year and statistic — the Atlas's
+   number, read from the same file, at the same answer for a share — not
+   the plain average of its groups' estimates, which the page computed in
+   the browser and a one-person group could swing. "Biggest gap first"
+   stays the highest group less the lowest, now over groups that are not
+   flagged; a country with fewer than two goes last. Gender's "Prefer not
+   to answer" stays a group (the catalog records it as an answer); under
+   these rules it no longer moves the order or the gap.
+
 ## Consequences
 
 - The static tier must be rebuilt (`flourish-pipeline run --from

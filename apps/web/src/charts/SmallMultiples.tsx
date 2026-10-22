@@ -22,6 +22,7 @@ import {
   INK,
   INK_SECONDARY,
   PANEL_AXIS_INSET,
+  isThin,
   plotValue,
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
@@ -80,31 +81,68 @@ export function panelTicks(
 export type PanelSort = 'estimate' | 'gap'
 
 /** Facet (country) order under each sort rule and direction — the one
- * ordering the panels and the CSV both consume; ties in name order. */
+ * ordering the panels and the CSV both consume; ties in name order.
+ *
+ * By value, a country goes by its own estimate (`overall`: the Atlas's
+ * by-country number for the same question, year and statistic — the
+ * server's, ADR-0031), never by an average of its groups, which a
+ * one-person group could swing. By gap, the highest group less the
+ * lowest, over groups that aren't thin: a country with fewer than two
+ * goes last. Without `overall` (a facet that is not a country) the
+ * groups' plain average stands in. */
 export function facetOrder(
   rows: EstimateRow[],
   meta: Meta,
   facetColumn: string,
   sort: PanelSort,
   dir: SortDir = 'desc',
+  overall?: ReadonlyMap<string, number>,
 ): string[] {
   const byFacet = new Map<string, number[]>()
   for (const row of rows) {
     const label = groupValueLabel(facetColumn, row.group[facetColumn] ?? null, meta)
     const value = plotValue(row)
     const bucket = byFacet.get(label) ?? []
-    if (value !== null) bucket.push(value)
+    if (value !== null && (sort !== 'gap' || !isThin(row))) bucket.push(value)
     byFacet.set(label, bucket)
   }
   const labels = [...byFacet.keys()]
   const score = (label: string): number => {
     const values = byFacet.get(label) ?? []
+    if (sort === 'gap') {
+      return values.length < 2 ? -Infinity : Math.max(...values) - Math.min(...values)
+    }
+    if (overall) return overall.get(label) ?? -Infinity
     if (values.length === 0) return -Infinity
-    if (sort === 'gap') return Math.max(...values) - Math.min(...values)
     return values.reduce((sum, value) => sum + value, 0) / values.length
   }
   const sign = dir === 'desc' ? 1 : -1
-  return labels.sort((a, b) => sign * (score(b) - score(a)) || a.localeCompare(b))
+  // A country with no score goes last whichever way the order runs.
+  return labels.sort((a, b) => {
+    const sa = score(a)
+    const sb = score(b)
+    if (sa === -Infinity || sb === -Infinity) {
+      return (sa === -Infinity ? 1 : 0) - (sb === -Infinity ? 1 : 0) || a.localeCompare(b)
+    }
+    return sign * (sb - sa) || a.localeCompare(b)
+  })
+}
+
+/** Each country's own estimate, by its label, as the chart plots it —
+ * from the by-country response (at one answer, for a share). */
+export function countryEstimates(
+  rows: readonly EstimateRow[],
+  meta: Meta,
+  level?: number,
+): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const row of rows) {
+    if (level !== undefined && row.level !== level) continue
+    const value = plotValue(row)
+    if (value === null) continue
+    out.set(groupValueLabel('country_code', row.group['country_code'] ?? null, meta), value)
+  }
+  return out
 }
 
 export function SmallMultiples({
