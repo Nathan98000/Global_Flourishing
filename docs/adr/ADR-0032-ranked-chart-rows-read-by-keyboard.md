@@ -88,3 +88,21 @@ not a real screen reader.
 Revisit if screen-reader testing shows browse mode needs the value in
 each row's name, or to give the other dot plots (Change, Segments'
 panels) the same rows.
+
+## Revised (third design review, 22 October 2026 — ADR-0033)
+
+The review's H2 and H3 answered this ADR's "revisit" line:
+
+- **A row's name carries its value.** "Indonesia, 8.10" — the value the
+  chart prints, from the served row — with ", few people" when flagged
+  and ", no estimate" when there is none. A screen reader's browse mode
+  now hears the numbers; the card, with the 95% CI and n, stays the
+  row's description on focus.
+- **Change and Segments read by keyboard too.** The row layer moved to
+  `charts/readableRows.ts` and serves the ranked charts, Change's dots
+  and Segments' panels. Segments' chart is one tab stop over every
+  country: each country a list named by it, ↑ ↓ within it, Home and End
+  to its ends, Page Down and Page Up to the same group of the next and
+  previous country. Both charts are labelled groups.
+- **The Correlates list's buttons** share the one tab stop: ↑ ↓ Home End
+  between them, Enter to open the pair (H18).

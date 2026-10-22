@@ -36,3 +36,14 @@ change is enough.
 Easier: one chart per categorical item, one thing to read. Harder: who
 switched from which answer to which is no longer on the page; the API
 still answers it.
+
+## Revised (third design review, 22 October 2026 — ADR-0033)
+
+The API now sends what the page draws. `/v1/change` returns the
+transition matrix only with `include=transitions` (an unknown `include`
+is a 422); by default a categorical item's response carries its
+`change_share` rows and a numeric item's its `change` and
+`change_distribution` rows. A categorical Change view was 594 kB
+uncompressed, 1,150 of its rows transitions the page stopped drawing.
+The engine still computes them, and the R parity harness still checks
+a full matrix; a golden pins the `include=transitions` payload.

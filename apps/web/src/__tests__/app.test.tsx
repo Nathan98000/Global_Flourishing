@@ -738,6 +738,14 @@ test('Methods leads in plain words: a 95% CI and the people behind each number; 
   // "Survey-weighted, design-based" lives in the Confidence intervals
   // section's "For the technically minded" fold, not in the lead.
   expect(lead).not.toHaveTextContent(/survey-weighted|design-based/)
+  // The thin mark is taught where the lead says every cell is shown.
+  expect(lead).toHaveTextContent(
+    'a hollow dot (or bar) and an asterisk mark a number few people are behind; its interval runs long',
+  )
+  // The sidebar speaks of years, not waves.
+  expect(
+    screen.getByText(/how many people answered it in each country and year\./),
+  ).toBeInTheDocument()
   const fold = screen.getByText(/survey-weighted estimate/).closest('details')
   expect(fold?.querySelector('summary')).toHaveTextContent('For the technically minded')
   expect(screen.queryByText(/likely range/)).toBeNull()

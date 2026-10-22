@@ -34,17 +34,22 @@ see [Verified against R](#verified-against-r) below).
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
   it is, its value in words (a mean, a median or a share), its CI
   written as `95% CI: [low, high]`, and how many people in the sample it
-  rests on. **By keyboard**, on the Atlas, US States, What Matters and
+  rests on. **By keyboard**, on the Atlas, US States, What Matters' Other
+  questions (and a country's own ranking), Change, Segments and
   Correlates' country-by-country chart, Tab into the chart and move
-  between its rows with ↑ and ↓ (Home and End for the ends): the row in
-  focus shows its card.
+  between its rows with ↑ and ↓ (Home and End for the ends; on Segments,
+  Page Down and Page Up from one country to the next): each row is named
+  with its value, and the row in focus shows its card. Compare several's
+  cells and Find related's rows are buttons. For the rest — What
+  Matters' grids, Compare two's grid, the distributions and the map —
+  the CSV holds every number with its 95% CI and n.
 - **Distribution**, for a question with answer options ("A lot / Some /
   Not very much / Not at all"), shows every answer's share as one bar
   per country, the deeper shades for more of what the question names;
   the bars can be sorted by any answer's share.
 - **Download**, in every chart's toolbar, gives a CSV of every number
   with its weight and the number of people behind it (the *n*), or a
-  PNG of the chart.
+  PNG of the chart (a grid drawn as a table has the CSV alone).
 - **A hollow dot** (or bar) **and an asterisk** (`7.12*`) mark a number
   that rests on fewer than 30 people (see [Small groups: shown, never hidden](#small-groups-shown-never-hidden) below);
   its card says "Few people — treat with care", and the key names the
