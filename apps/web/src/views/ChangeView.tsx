@@ -41,7 +41,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, outcomeLevels } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
@@ -277,7 +277,10 @@ export function ChangeView() {
       ? {
           kind: 'client',
           onDownload: () =>
-            downloadTextFile(exportFilename(name, 'csv'), responseToCsv({ ...response, rows })),
+            downloadTextFile(
+              exportFilename(name, 'csv'),
+              responseToCsv({ ...response, rows }, csvLabels(meta.data.meta)),
+            ),
         }
       : undefined
   // The lede's years come from the supported pair, never from literals:

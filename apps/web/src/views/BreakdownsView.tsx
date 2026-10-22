@@ -6,9 +6,9 @@
 
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
-import { exportCsvUrl, useEstimates } from '../api/estimates'
+import { useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
-import { useBootStatus, useHealth, useMeta } from '../api/meta'
+import { useBootStatus, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
@@ -27,7 +27,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
@@ -57,7 +57,6 @@ export function BreakdownsView() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const meta = useMeta()
-  const health = useHealth()
   const boot = useBootStatus()
   const variables = useVariables()
   const variable = variables.data?.byName[search.outcome]
@@ -243,18 +242,20 @@ export function BreakdownsView() {
     waves: WAVE_CHIPS[search.wave] ?? search.wave,
     breakdown: search.by.map((column) => columnLabel(column, meta.data.meta)).join(' and '),
   }
+  // The CSV is the chart's own rows (G8): the countries chosen, in the
+  // chart's order, each code followed by its words — whichever tier
+  // answered.
   const csv: CsvExport | undefined =
-    request === null
+    request === null || !response
       ? undefined
-      : health.isSuccess && health.data.data === 'ok'
-        ? { kind: 'server', href: exportCsvUrl(request) }
-        : response && estimates.data?.source === 'static'
-          ? {
-              kind: 'client',
-              onDownload: () =>
-                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
-            }
-          : undefined
+      : {
+          kind: 'client',
+          onDownload: () =>
+            downloadTextFile(
+              exportFilename(exportName, 'csv'),
+              responseToCsv({ ...response, rows: displayRows }, csvLabels(meta.data.meta)),
+            ),
+        }
 
   // The split, sorts, country filter and answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it;

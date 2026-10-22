@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import csv
 import io
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pyarrow as pa
@@ -66,9 +66,20 @@ def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[Estim
     return rows
 
 
-def response_to_csv(response: EstimateResponse) -> str:
+def label_column(column: str) -> str:
+    """The column a code's words go in, right after it (G8): "country" for
+    the country code, "<column>_label" for any other — the client's
+    `export/csv.ts labelColumn`."""
+    return "country" if column == "country_code" else f"{column}_label"
+
+
+def response_to_csv(
+    response: EstimateResponse, labels: Mapping[str, Mapping[object, str]] | None = None
+) -> str:
     """The same rows as CSV: meta as `# key: value` comment lines, group
-    keys and sub-row keys flattened into columns."""
+    keys and sub-row keys flattened into columns; each group code followed
+    by its words when ``labels`` has them (a country's name, a level's
+    label), so the file reads without the page."""
     buffer = io.StringIO()
     meta = response.meta.model_dump()
     filters = meta.pop("filters")
@@ -113,12 +124,28 @@ def response_to_csv(response: EstimateResponse) -> str:
         "suppressed",
         "flagged",
     ]
+    words = labels or {}
+    heads = [
+        head
+        for name in group_columns
+        for head in ([name, label_column(name)] if name in words else [name])
+    ]
+
+    def group_cells(row: EstimateRow) -> list[object]:
+        cells: list[object] = []
+        for name in group_columns:
+            value = row.group.get(name)
+            cells.append(value)
+            if name in words:
+                cells.append("" if value is None else words[name].get(value, ""))
+        return cells
+
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow([*group_columns, *subrow_keys, *record_fields])
+    writer.writerow([*heads, *subrow_keys, *record_fields])
     for row in response.rows:
         writer.writerow(
             [
-                *[row.group.get(name) for name in group_columns],
+                *group_cells(row),
                 *[getattr(row, key) for key in subrow_keys],
                 *[getattr(row, field) for field in record_fields],
             ]

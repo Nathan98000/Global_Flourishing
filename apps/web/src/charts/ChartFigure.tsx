@@ -18,7 +18,7 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
 import { exportFilename, type ExportName } from '../export/filename'
-import { downloadChartPng } from '../export/png'
+import { downloadChartPng, keyFromFigure } from '../export/png'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { useChartActionsInSheet, type ChartActions } from './ChartActions'
 import styles from './ChartFigure.module.css'
@@ -218,6 +218,7 @@ export function ChartFigure({
   children: ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
+  const figureRef = useRef<HTMLElement | null>(null)
   const [pngFailed, setPngFailed] = useState(false)
   // A refetch keeps the chart (dimmed) and, past the same 600 ms, wears
   // the thin progress bar on its top rule — never a loading block.
@@ -232,7 +233,7 @@ export function ChartFigure({
     try {
       const ok = await downloadChartPng(
         svg,
-        { title },
+        { title, subtitle, key: keyFromFigure(figureRef.current) },
         exportFilename(exportName ?? { measure: title, view: 'Chart', waves: '' }, 'png'),
       )
       setPngFailed(!ok)
@@ -254,7 +255,7 @@ export function ChartFigure({
   const hasAside = asideKey !== undefined || !inSheet
 
   return (
-    <figure className={styles.figure} aria-busy={isRefreshing || undefined}>
+    <figure ref={figureRef} className={styles.figure} aria-busy={isRefreshing || undefined}>
       {showProgress && <ProgressBar className={styles.progress} />}
       <figcaption className={styles.caption}>
         <span className={styles.title}>{title}</span>

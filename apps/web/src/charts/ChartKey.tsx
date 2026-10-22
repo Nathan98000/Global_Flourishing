@@ -31,7 +31,7 @@ export function ChartKey({
 }) {
   return (
     <span className={styles.key}>
-      <span className={styles.entry}>
+      <span className={styles.entry} data-key={mark} data-color={color}>
         <svg className={styles.glyph} viewBox="0 0 14 10" aria-hidden="true" focusable="false">
           {mark === 'dot' ? (
             <circle cx="7" cy="5" r="4" fill={color} />
@@ -42,7 +42,7 @@ export function ChartKey({
         {label}
       </span>
       {ciLevel !== undefined && (
-        <span className={styles.entry}>
+        <span className={styles.entry} data-key="whisker" data-color={color}>
           <svg
             className={`${styles.glyph} ${styles.whisker}`}
             viewBox="0 0 18 10"
@@ -55,7 +55,7 @@ export function ChartKey({
         </span>
       )}
       {thinBelow !== undefined && (
-        <span className={styles.entry}>
+        <span className={styles.entry} data-key={`thin-${mark}`} data-color={color}>
           <svg className={styles.glyph} viewBox="0 0 14 10" aria-hidden="true" focusable="false">
             {mark === 'dot' ? (
               <circle

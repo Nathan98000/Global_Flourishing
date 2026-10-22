@@ -33,7 +33,7 @@ import { WordingPanel } from '../components/WordingPanel'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
@@ -495,7 +495,7 @@ export function StatesView() {
               onDownload: () =>
                 downloadTextFile(
                   exportFilename(exportName, 'csv'),
-                  responseToCsv({ ...response, rows: displayRows }),
+                  responseToCsv({ ...response, rows: displayRows }, served && csvLabels(served)),
                 ),
             }}
             exportName={exportName}

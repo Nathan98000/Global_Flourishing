@@ -238,8 +238,8 @@ test('3 — a small cell renders hollow with its hover card, which says few peop
 test('4 — CSV export downloads from the chart header’s Download menu with the # meta header lines', async ({
   page,
 }) => {
-  // With no API running, this exercises the client-side fallback, which
-  // is byte-compatible with /v1/export.csv (unit-tested against a real
+  // The CSV is built from the chart's own rows on every tier (G8),
+  // byte-compatible with /v1/export.csv (unit-tested against a real
   // server response).
   await page.goto('/?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
@@ -256,9 +256,10 @@ test('4 — CSV export downloads from the chart header’s Download menu with th
   const body = await streamToString(download)
   expect(body).toContain('# data_version: synthetic.0.0.1')
   expect(body).toContain('# outcome: HAPPY')
-  expect(body).toContain('# suppression: none (all cells shown)')
+  expect(body).toContain('# suppression: none (all cells shown); n<30 flagged')
+  // Each country's code, then its name (G8).
   expect(body.split('\n').find((line) => !line.startsWith('#'))).toContain(
-    'country_code,stat,estimate',
+    'country_code,country,stat,estimate',
   )
 })
 

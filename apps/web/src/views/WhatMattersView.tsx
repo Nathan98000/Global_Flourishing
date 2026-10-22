@@ -40,7 +40,7 @@ import { WordingPanel } from '../components/WordingPanel'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { countWord, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
@@ -303,7 +303,8 @@ export function WhatMattersView() {
   const things = ranking.length === 1 ? 'one thing is' : `${countWord(ranking.length)} things are`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
-    onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
+    onDownload: () =>
+      downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response, csvLabels(served))),
   })
   // What a download is called, in words (ADR-0016): the ranking, its
   // split for one country, or the single item.

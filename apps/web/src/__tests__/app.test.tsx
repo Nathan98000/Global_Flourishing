@@ -598,16 +598,16 @@ test('the chart header: the state in the subtitle, the key, and a toolbar — Sh
     'href',
     '/methods#how-to-read-the-charts',
   )
-  // One "Download" (F17): closed, then CSV and PNG. Healthy API → the
-  // CSV is a real download link; PNG stays a button.
+  // One "Download" (F17): closed, then CSV and PNG. The CSV is built
+  // from the chart's own rows on every tier (G8), so both are buttons.
   const download = within(toolbar).getByRole('button', { name: 'Download' })
   expect(download).toHaveAttribute('aria-expanded', 'false')
   expect(
-    within(toolbar).getByRole('link', { name: 'Download CSV', hidden: true }),
+    within(toolbar).getByRole('button', { name: 'Download CSV', hidden: true }),
   ).not.toBeVisible()
   fireEvent.click(download)
   expect(download).toHaveAttribute('aria-expanded', 'true')
-  expect(within(toolbar).getByRole('link', { name: 'Download CSV' })).toBeVisible()
+  expect(within(toolbar).getByRole('button', { name: 'Download CSV' })).toBeVisible()
   expect(within(toolbar).getByRole('button', { name: 'Download PNG' })).toBeVisible()
   fireEvent.keyDown(download, { key: 'Escape' })
   expect(download).toHaveAttribute('aria-expanded', 'false')

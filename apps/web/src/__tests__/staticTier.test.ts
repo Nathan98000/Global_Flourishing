@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'vitest'
 import { staticPathFor } from '../api/estimates'
 import type { EstimateResponse, Meta, VariableList } from '../api/types'
-import { responseToCsv } from '../export/csv'
+import { csvLabels, responseToCsv } from '../export/csv'
 import { fixtureTierPresent, readFixtureJson, readFixtureText } from '../test-utils/staticTier'
 
 interface IndexFile {
@@ -92,7 +92,8 @@ describe('staticPathFor mirrors the exporter', () => {
 describe('CSV parity (client fallback vs the live server)', () => {
   test('the client CSV for the same query equals /v1/export.csv', () => {
     const envelope = readFixtureJson<EstimateResponse>('v1/HAPPY/Y1/mean_by-country_code.json')
-    const clientCsv = responseToCsv(envelope)
+    // With the words for each code, from the same meta the app boots on (G8).
+    const clientCsv = responseToCsv(envelope, csvLabels(readFixtureJson<Meta>('meta.json')))
     const serverCsv = readFixtureText('_fixtures/export-sample.csv')
 
     const metaLines = (csv: string) => csv.split('\n').filter((line) => line.startsWith('#'))
