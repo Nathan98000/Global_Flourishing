@@ -573,7 +573,8 @@ describe('All countries (ADR-0020)', () => {
     expect(screen.getByText('All countries (average of 2) · Wave 1, 2023')).toBeInTheDocument()
     // The toggle's first choice names the scope.
     expect(screen.getByLabelText('All countries')).toBeChecked()
-    expect(figureNote(figure)).toBe('')
+    // Under the grid, its key and nothing else (ADR-0024).
+    expect(figureNote(figure)).toMatch(/^Share of each column/)
     // Back to one country: the URL drops the average.
     fireEvent.change(select, { target: { value: '22' } })
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
@@ -1211,9 +1212,11 @@ describe('Correlates view', () => {
     expect(svg.innerHTML).toContain('var(--seq-')
     expect(svg.innerHTML).toContain('stroke-dasharray="3,2"')
     expect(svg.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
-    // One note, after the data table; no column explanation, no causes.
+    // Right under the grid, its key — no note after it (ADR-0024), no
+    // column explanation, no causes.
     const main = visibleText(screen.getByRole('main'))
-    expect(figureNote(figure)).toBe('')
+    expect(figure.nextElementSibling?.textContent).toMatch(/^Share of each column/)
+    expect(figureNote(figure)).toMatch(/^Share of each column/)
     expect(main).not.toContain('Each column is the people')
     expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)

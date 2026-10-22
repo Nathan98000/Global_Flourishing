@@ -297,8 +297,8 @@ function HeaderRow({ children }: { children: ReactNode }) {
   return <div className={own.headerRow}>{children}</div>
 }
 
-/** The key to the grid: how to read it, its nine fixed bins in the grid
- * ramp's own tokens, and the asterisk. */
+/** The key to the grid, right under it: how to read it, its nine fixed
+ * bins in the grid ramp's own tokens, and the asterisk. */
 function ShareLegend() {
   return (
     <p className={`${styles.legend} ${own.shareLegend}`}>
@@ -423,12 +423,8 @@ function PairFigure({
       title={`${a.display_name} and ${b.display_name}`}
       subtitle={`${place} · ${waveTitle(wave, other)}`}
       ariaLabel={ariaLabel}
-      intro={
-        <>
-          {header}
-          <ShareLegend />
-        </>
-      }
+      intro={header}
+      legend={<ShareLegend />}
       csv={{
         kind: 'client',
         onDownload: () => downloadTextFile(exportFilename(name, 'csv'), pairToCsv(pair)),

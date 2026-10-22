@@ -24,6 +24,7 @@ export function ChartFigure({
   subtitle,
   ariaLabel,
   intro,
+  legend,
   csv,
   exportName,
   isRefreshing = false,
@@ -39,6 +40,10 @@ export function ChartFigure({
    * lives here (decision 3), outside the role="img" node so assistive
    * tech reads it. */
   intro?: React.ReactNode
+  /** Rendered right under the chart: a key that reads the marks above it
+   * (Compare two's shades), outside the role="img" node so assistive
+   * tech reads it — never a note about the numbers (ADR-0024). */
+  legend?: React.ReactNode
   csv?: CsvExport
   /** What the PNG download is called, in words (export/filename.ts); the
    * view's CSV shares it. Absent: the title alone names the file. */
@@ -125,6 +130,7 @@ export function ChartFigure({
       >
         {children}
       </div>
+      {legend}
     </figure>
   )
 }
