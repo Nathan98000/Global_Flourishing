@@ -522,7 +522,7 @@ describe('What Matters view', () => {
     expect(
       await screen.findByRole('img', { name: /Daily social media time \(share answering “None”/ }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Showing % who said' })).toBeInTheDocument()
     const question = screen.getByLabelText(/^Question/) as HTMLSelectElement
     expect(question.closest('label')?.className).toContain('field')
     expect(question.closest('label')?.firstElementChild?.textContent).toBe('Question')

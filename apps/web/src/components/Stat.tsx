@@ -4,7 +4,8 @@
 // codes in the 24 Sept review; the header line follows).
 
 import type { EstimateRow } from '../api/types'
-import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
+import { people } from '../charts/theme'
+import { ciLabel, formatCI, formatEstimate } from '../format'
 import styles from './Stat.module.css'
 
 export function Stat({ row }: { row: EstimateRow }) {
@@ -16,7 +17,7 @@ export function Stat({ row }: { row: EstimateRow }) {
           {formatCI(row)} <span className={styles.dim}>({ciLabel(row.ci_level)})</span>
         </span>
       )}
-      <span className={styles.meta}>n = {formatCount(row.n)}</span>
+      <span className={styles.meta}>based on {people(row.n)}</span>
     </span>
   )
 }

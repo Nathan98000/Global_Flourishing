@@ -250,11 +250,6 @@ export function answered(answer: string, verb = 'answered'): string {
   return /^[\d.,–−+-]+$/.test(answer) ? `${verb} ${answer}` : `${verb} “${answer}”`
 }
 
-/** A share change in words: "+3.2 percentage points". */
-function shareChangeWords(text: string): string {
-  return text.replace(/ pp$/, ' percentage points')
-}
-
 /** A hover card's value line: the number, said as what it is — "Mean:
  * 7.71 on a 0–10 scale", "45.0% answered “Yes”", "Mean change: +0.05".
  * Means and shares are never re-coded (ADR-0015). */
@@ -276,7 +271,7 @@ export function valueLine(row: EstimateRow, context: TipContext = {}): string {
     case 'change':
       return `Mean change: ${value}`
     case 'change_share':
-      return `Change in share: ${shareChangeWords(value)}`
+      return `Change in share: ${value}`
     case 'change_distribution':
       if (context.answer === undefined) return `${value} of people`
       return /^[0.]+$/.test(context.answer)

@@ -570,7 +570,7 @@ describe('All countries (ADR-0020)', () => {
     const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
     expect(request).toContain('pooled=average')
     expect(request).not.toContain('filter=country_code')
-    expect(screen.getByText('All countries (average of 2) · Wave 1, 2023')).toBeInTheDocument()
+    expect(screen.getByText('All countries (average of 2) · 2023')).toBeInTheDocument()
     // The toggle's first choice names the scope.
     expect(screen.getByLabelText('All countries')).toBeChecked()
     // Under the grid, its key and nothing else (ADR-0024).
@@ -588,7 +588,7 @@ describe('All countries (ADR-0020)', () => {
     })
     expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=average'))).toBe(true)
     expect(
-      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
+      screen.getByText('All countries (average of 2) · 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const [lonely, attend] = within(figure).getAllByRole('button')
     fireEvent.focus(lonely as HTMLElement)
@@ -619,7 +619,7 @@ describe('All countries (ADR-0020)', () => {
     expect(headers.some((th) => th.hasAttribute('data-highlight'))).toBe(false)
     expect(
       screen.getByText(
-        'The 2 questions ranked for all countries, country by country · Wave 1, 2023 · correlation, −1 to 1',
+        'The 2 questions ranked for all countries, country by country · 2023 · correlation, −1 to 1',
       ),
     ).toBeInTheDocument()
   })
@@ -644,7 +644,7 @@ describe('All countries (ADR-0020)', () => {
       name: /Correlations among 3 questions averaged over 2 countries/,
     })
     expect(
-      screen.getByText('All countries (average of 2) · Wave 1, 2023 · correlation, −1 to 1'),
+      screen.getByText('All countries (average of 2) · 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
     const lonely = within(figure).getByRole('button', {
       name: 'Loneliness with Happiness, −0.52: see the two questions together',
@@ -788,7 +788,7 @@ describe('Midyear (ADR-0020)', () => {
     const calls = mockFetch(midyearTier)
     const router = await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
-    const wave = screen.getByRole('group', { name: 'Wave' })
+    const wave = screen.getByRole('group', { name: 'Year' })
     expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
     expect(screen.queryByRole('combobox', { name: 'Year of the other answers' })).toBeNull()
     fireEvent.click(within(wave).getByText('Midyear', { exact: true }))
@@ -849,7 +849,7 @@ describe('Midyear (ADR-0020)', () => {
     mockFetch(midyearTier)
     const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
     await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
-    const wave = screen.getByRole('group', { name: 'Wave' })
+    const wave = screen.getByRole('group', { name: 'Year' })
     fireEvent.click(within(wave).getByText('2023', { exact: true }))
     await waitFor(() => expect(router.state.location.searchStr).toBe(''))
     expect(
@@ -979,9 +979,7 @@ describe('Correlates view', () => {
     expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
     expect(ruleLines(figure)).toBe(1)
     expect(screen.getByText('What goes with Happiness')).toBeInTheDocument()
-    expect(
-      screen.getByText('United States · Wave 1, 2023 · correlation, −1 to 1'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('United States · 2023 · correlation, −1 to 1')).toBeInTheDocument()
     const ticks = [...figure.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
       (node) => node.textContent,
     )
@@ -1156,7 +1154,7 @@ describe('Correlates view', () => {
     expect(
       within(caption).getByText('Service attendance and Feelings about household income'),
     ).toBeInTheDocument()
-    expect(screen.getByText('United States · Wave 1, 2023')).toBeInTheDocument()
+    expect(screen.getByText('United States · 2023')).toBeInTheDocument()
     // The header: the correlation strip alone. Where is chosen outside
     // the figure, under the shared control row, as in Find related.
     const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
@@ -1165,7 +1163,7 @@ describe('Correlates view', () => {
     expect(screen.getByLabelText('Country by country')).not.toBeChecked()
     const where = screen.getByRole('group', { name: 'Where' })
     expect(figure.contains(where)).toBe(false)
-    const shared = screen.getByRole('group', { name: 'Correlation type' })
+    const shared = screen.getByRole('group', { name: 'Measured as' })
     expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The legend: how to read it, the fixed bins, and the asterisk.
     const key = screen.getByText('Share of each column (columns add to 100%)')
@@ -1200,7 +1198,7 @@ describe('Correlates view', () => {
     expect(at('Never')).toBeLessThan(at('Sometimes'))
     expect(at('Sometimes')).toBeLessThan(at('Weekly'))
     expect(at('Living comfortably')).toBeLessThan(at('Finding it very difficult'))
-    expect(texts).toContain('Share of respondents who gave each answer to Service attendance')
+    expect(texts).toContain('Share of people who gave each answer to Service attendance')
     expect(texts).toContain('Feelings about household income')
     expect(texts).toContain('Service attendance')
     // Each bar's share, and each cell's share of its column — few people:
@@ -1240,9 +1238,7 @@ describe('Correlates view', () => {
     })
     // Only this chart: the grid has left.
     expect(screen.queryByText('Share of each column (columns add to 100%)')).toBeNull()
-    expect(
-      screen.getByText('Country by country · Wave 1, 2023 · correlation, −1 to 1'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Country by country · 2023 · correlation, −1 to 1')).toBeInTheDocument()
     const request = calls.find((url) => url.includes('by=country_code')) as string
     expect(request).toContain('outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&by=country_code')
     // Strongest first; Testland rests on few people.
@@ -1495,17 +1491,17 @@ describe('Correlates view', () => {
     await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
     expect(screen.getByText('2023 · United States · Straight-line')).toBeVisible()
-    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
     const change = screen.getByRole('button', { name: 'Change wave, country and correlation type' })
     expect(change).toHaveTextContent('Change')
     expect(change).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(change)
-    expect(screen.getByRole('group', { name: 'Wave' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Correlation type' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Year' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Measured as' })).toBeInTheDocument()
     const done = screen.getByRole('button', { name: 'Done changing' })
     expect(done).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(done)
-    expect(screen.queryByRole('group', { name: 'Wave' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
   })
 
   test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {
@@ -1653,9 +1649,7 @@ describe('Correlates view', () => {
     mockFetch(tier)
     // LONELY is asked at Y1 only.
     await renderAt('/correlates?wave=Y2&view=matrix&vars=HAPPY,LONELY,ATTEND_SVCS')
-    expect(
-      await screen.findByText('Left out, not asked in Wave 2, 2024: Loneliness.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Left out, not asked in 2024: Loneliness.')).toBeInTheDocument()
     expect(
       screen.getByRole('list', { name: 'Questions in the table · 2 of 10' }),
     ).toBeInTheDocument()
@@ -1678,15 +1672,15 @@ describe('Correlates view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
     await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
-    const wave = screen.getByRole('group', { name: 'Wave' })
-    const type = screen.getByRole('group', { name: 'Correlation type' })
+    const wave = screen.getByRole('group', { name: 'Year' })
+    const type = screen.getByRole('group', { name: 'Measured as' })
     expect(within(type).getByLabelText('Straight-line')).toBeChecked()
     expect(screen.queryByRole('button', { name: /^Method/ })).toBeNull()
     // The reason a wave is unavailable is one line under the whole row,
     // not inside the Wave column; the disabled options point to it.
     // (Midyear is never unavailable: its questions come from any wave.)
     const note = screen.getByText(
-      "2024 isn't available: the two questions weren't both asked in Wave 2.",
+      "2024 isn't available: the two questions weren't both asked in 2024.",
     )
     expect(wave).not.toContainElement(note)
     expect(note.previousElementSibling).toContainElement(type)
@@ -1768,11 +1762,11 @@ describe('Correlates view', () => {
     // Compare two: the pair's waves; Midyear stays open (ADR-0020).
     await renderAt('/correlates?a=HAPPY&b=LONELY')
     await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
-    const wave = screen.getByRole('group', { name: 'Wave' })
+    const wave = screen.getByRole('group', { name: 'Year' })
     expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
     expect(within(wave).getByLabelText('2024')).toBeDisabled()
     expect(within(wave).getByLabelText('2024')).toHaveAccessibleDescription(
-      "2024 isn't available: the two questions weren't both asked in Wave 2.",
+      "2024 isn't available: the two questions weren't both asked in 2024.",
     )
     // A link at Midyear with no midyear question in view shows the other
     // answers' wave instead, and says so.
@@ -1842,7 +1836,7 @@ describe('correlates helpers', () => {
   test('the legend and subtitle say the window in words', () => {
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
-      'The 20 questions ranked for Japan, country by country · Wave 2, 2024 · correlation, −1 to 1',
+      'The 20 questions ranked for Japan, country by country · 2024 · correlation, −1 to 1',
     )
     expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 question ranked for Japan')
     const countries = [
@@ -1885,9 +1879,7 @@ describe('correlates helpers', () => {
   test('plain words for the method and the waves', () => {
     expect(statisticPhrase(undefined)).toBe('correlation, −1 to 1')
     expect(statisticPhrase('spearman')).toBe('correlation by rank, −1 to 1')
-    expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe(
-      'Japan · Wave 2, 2024 · correlation, −1 to 1',
-    )
+    expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe('Japan · 2024 · correlation, −1 to 1')
     expect(axisEnds('Happiness')).toEqual([
       '← goes with lower answers to Happiness',
       'goes with higher answers to Happiness →',
@@ -1906,14 +1898,12 @@ describe('correlates helpers', () => {
     expect(waveNote(['Y1', 'Y2'])).toBe(
       "Midyear isn't available: this question wasn't asked in the midyear survey.",
     )
-    expect(waveNote(['Y1', 'MY'])).toBe(
-      "2024 isn't available: this question wasn't asked in Wave 2.",
-    )
+    expect(waveNote(['Y1', 'MY'])).toBe("2024 isn't available: this question wasn't asked in 2024.")
     expect(waveNote(['MY'])).toBe(
       "2023 and 2024 aren't available: this question was asked only in the midyear survey.",
     )
     expect(waveNote(['Y1'])).toBe(
-      "Midyear and 2024 aren't available: this question was asked only in Wave 1.",
+      "Midyear and 2024 aren't available: this question was asked only in 2023.",
     )
     expect(waveNote(['Y1', 'MY', 'Y2'])).toBeUndefined()
     expect(waveNote([])).toBeUndefined()
@@ -1922,7 +1912,7 @@ describe('correlates helpers', () => {
       "Midyear isn't available: the two questions weren't both asked in the midyear survey.",
     )
     expect(waveNote(['Y1'], 'table')).toBe(
-      "Midyear and 2024 aren't available: fewer than two of these questions were asked in the midyear survey and Wave 2.",
+      "Midyear and 2024 aren't available: fewer than two of these questions were asked in the midyear survey and 2024.",
     )
   })
 

@@ -5,7 +5,7 @@
 import type { EstimateRow, Meta, VariableDetail, VariableSummary } from './api/types'
 
 /** The subtitle that names the scale once (decision 2, revised in
- * ADR-0016): "Average score, 0–10 (0 = Not true of you at all, 10 =
+ * ADR-0016): "Mean score, 0–10 (0 = Not true of you at all, 10 =
  * Completely true of you)" — the endpoints in the item's own value
  * labels (lowest and highest valid code, exactly as the server gives
  * them; blank middle labels are never listed), never "higher is
@@ -17,7 +17,7 @@ export function scaleSubtitle(
   stat: string,
   detail?: VariableDetail,
 ): string {
-  const lead = stat === 'quantile' ? 'Median score' : 'Average score'
+  const lead = stat === 'quantile' ? 'Median score' : 'Mean score'
   const range =
     variable.min !== null && variable.max !== null ? `, ${variable.min}–${variable.max}` : ''
   return `${lead}${range}${variable.is_derived ? '' : endpointsClause(detail)}`
@@ -43,6 +43,12 @@ export function shortName(
   variable: Pick<VariableSummary, 'display_name'> & { short_label?: string | null },
 ): string {
   return variable.short_label?.trim() || variable.display_name
+}
+
+/** A label inside a sentence: its first letter lowered ("Age band" →
+ * "age band"), unless the word is an acronym ("PHQ-2 …" stays). */
+export function lowerFirst(text: string): string {
+  return /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text
 }
 
 export function columnLabel(column: string, meta: Meta): string {

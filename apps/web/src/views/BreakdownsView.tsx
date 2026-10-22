@@ -29,6 +29,7 @@ import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
   groupValueLabel,
+  lowerFirst,
   highestLevel,
   levelDomain,
   outcomeLevels,
@@ -43,7 +44,7 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/segments')
@@ -183,9 +184,12 @@ export function BreakdownsView() {
         : WAVE_TITLES[wave],
   }))
 
-  // The title keeps its × clause but loses the wave, which rides last in
-  // the subtitle instead (§7).
-  const title = `${variable?.display_name ?? search.outcome} × ${columnLabel(primary, meta.data.meta)}`
+  // The title names the splits in words ("Life satisfaction by gender
+  // and age band"); the wave rides last in the subtitle (§7).
+  const title = `${variable?.display_name ?? search.outcome} by ${[primary, secondary]
+    .filter((column): column is string => column !== undefined)
+    .map((column) => lowerFirst(columnLabel(column, meta.data.meta)))
+    .join(' and ')}`
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
   const subtitle = [
     isCategorical
@@ -195,7 +199,6 @@ export function BreakdownsView() {
       : variable
         ? scaleSubtitle(variable, stat, detail)
         : null,
-    secondary ? `split by ${columnLabel(secondary, meta.data.meta)}` : null,
     WAVE_TITLES[search.wave] ?? search.wave,
   ]
     .filter(Boolean)
@@ -228,7 +231,7 @@ export function BreakdownsView() {
   const displayOptions = (
     <>
       <label className={`${styles.oriented} ${styles.stacksNarrow}`}>
-        Second breakdown{' '}
+        then by{' '}
         <select
           value={secondary ?? ''}
           onChange={(event) =>
@@ -262,7 +265,7 @@ export function BreakdownsView() {
         options={[
           { value: 'estimate', label: 'By value' },
           { value: 'name', label: 'A–Z' },
-          { value: 'gap', label: 'By gap' },
+          { value: 'gap', label: 'Biggest gap first' },
         ]}
         value={search.sort}
         onChange={(sort) => setSearch({ sort, dir: undefined })}
@@ -291,7 +294,7 @@ export function BreakdownsView() {
       />
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
-          legend="Answer level"
+          legend="Showing % who said"
           name="outcome-level"
           wide
           selectOnNarrow
@@ -333,14 +336,15 @@ export function BreakdownsView() {
           fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
+          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
         />
         <RadioRow
-          legend="Break down by"
+          legend="Split by"
           name="by"
           wide
           selectOnNarrow

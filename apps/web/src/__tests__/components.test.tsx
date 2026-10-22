@@ -15,14 +15,14 @@ describe('Stat', () => {
     render(<Stat row={testRow()} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
     expect(screen.getByText(/\[7\.10, 7\.32\]/)).toBeInTheDocument()
-    expect(screen.getByText('n = 1,204')).toBeInTheDocument()
+    expect(screen.getByText('based on 1,204 people')).toBeInTheDocument()
     expect(screen.queryByText(/w_c1/)).toBeNull()
   })
 
   test('a small cell appears with its n and no flag (ADR-0011)', () => {
     render(<Stat row={testRow({ n: 12 })} />)
     expect(screen.getByText('7.21')).toBeInTheDocument()
-    expect(screen.getByText(/n = 12/)).toBeInTheDocument()
+    expect(screen.getByText(/based on 12 people/)).toBeInTheDocument()
     expect(screen.queryByText(/withheld|small cell/)).toBeNull()
   })
 })
@@ -69,14 +69,14 @@ describe('RadioRow', () => {
   test('up to six options stay a segmented radio group', () => {
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={answers(SELECT_ABOVE)}
         value="2"
         onChange={() => undefined}
       />,
     )
-    expect(screen.getByRole('group', { name: 'Answer level' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Showing % who said' })).toBeInTheDocument()
     expect(screen.getAllByRole('radio')).toHaveLength(6)
     expect(screen.getByRole('radio', { name: 'Answer 2' })).toBeChecked()
   })
@@ -85,7 +85,7 @@ describe('RadioRow', () => {
     const onChange = vi.fn()
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={answers(SELECT_ABOVE + 1)}
         value="2"
@@ -93,7 +93,7 @@ describe('RadioRow', () => {
       />,
     )
     expect(screen.queryByRole('radio')).toBeNull()
-    const select = screen.getByLabelText('Answer level')
+    const select = screen.getByLabelText('Showing % who said')
     expect(select.tagName).toBe('SELECT')
     expect(select).toHaveValue('2')
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual(
@@ -135,7 +135,7 @@ describe('RadioRow notes', () => {
   test('as a select, the note describes the select without joining its name', () => {
     render(
       <RadioRow
-        legend="Answer level"
+        legend="Showing % who said"
         name="level"
         options={Array.from({ length: SELECT_ABOVE + 1 }, (_, i) => ({
           value: String(i),
@@ -147,7 +147,7 @@ describe('RadioRow notes', () => {
         note="Answer 0 isn't available."
       />,
     )
-    const select = screen.getByRole('combobox', { name: 'Answer level' })
+    const select = screen.getByRole('combobox', { name: 'Showing % who said' })
     expect(select).toHaveAccessibleDescription("Answer 0 isn't available.")
     // With a note, the box around both is the form: it is what may shrink.
     expect(select.closest('label')?.parentElement?.className).toContain('selectForm')

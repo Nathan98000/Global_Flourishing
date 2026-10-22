@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controls mockups</title>
+<meta name="description" content="Flourish Atlas design review, 21 October 2026: three ways to reorganise the controls at the top of each page, drawn with the app's own tokens. Illustrative labels only; no numbers from the data.">
+<style>
+/* The app's fonts. The serif is the app's own self-hosted file, read
+   from the repo when this page is opened from docs/reviews/; anywhere
+   else it falls back to the app's own fallback stack. No external
+   requests. */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../apps/web/public/fonts/source-serif-4-latin-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../../apps/web/public/fonts/source-serif-4-latin-600.woff2') format('woff2');
+}
+
+/* Tokens copied from apps/web/src/styles/tokens.css (21 Oct 2026). One
+   light theme (ADR-0023). */
+:root {
+  color-scheme: light;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-prose: 1.03125rem;
+  --text-deck: 1.1875rem;
+  --text-h2: 1.3125rem;
+  --text-brand: 1.375rem;
+  --text-h1: 1.75rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --space-7: 4rem;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --page: #f6f4ee;
+  --surface: #fbfaf5;
+  --surface-raised: #fffefb;
+  --ink: #1b1a17;
+  --ink-secondary: #57544c;
+  --ink-muted: #8a867c;
+  --border: rgba(27, 26, 23, 0.14);
+  --border-strong: rgba(27, 26, 23, 0.18);
+  --grid: #e4dfd3;
+  --axis: #c0bbac;
+  --accent: #1f5d55;
+  --accent-hover: #16453f;
+  --accent-ink: #fbfaf5;
+  --focus-ring: #1f5d55;
+  --control-bg: #f1eee6;
+  --control-selected: #e5e0d3;
+  --control-rule: #1b1a17;
+  --whisker: #57544c;
+  --warn-text: #7a5410;
+  --seq-100: #e9dcb8;
+  --seq-200: #d9cfb0;
+  --seq-300: #b3c0a4;
+  --seq-400: #83a596;
+  --seq-500: #598e84;
+  --seq-600: #356a65;
+  --seq-700: #1e4a48;
+  --notice-bg: #eef1ea;
+  --notice-border: #c8d3c8;
+  --warning-bg: #f4ecd9;
+  --warning-border: #ddc99a;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--page); }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ---------- The review page around the mockups ---------- */
+.doc {
+  max-width: 1264px;
+  margin: 0 auto;
+  padding: var(--space-6) 16px var(--space-7);
+}
+.doc > header h1 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 2rem;
+  line-height: 1.15;
+  margin: 0 0 var(--space-3);
+}
+.doc .lede {
+  font-family: var(--font-serif);
+  font-size: var(--text-deck);
+  color: var(--ink-secondary);
+  max-width: 40rem;
+  margin: 0 0 var(--space-4);
+}
+.doc .small { font-size: var(--text-sm); color: var(--ink-secondary); max-width: 46rem; }
+.doc h2 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: var(--text-h2);
+  margin: var(--space-6) 0 var(--space-2);
+}
+.doc p.summary { max-width: 46rem; margin: 0 0 var(--space-3); }
+.doc ul.facts { max-width: 46rem; margin: 0 0 var(--space-3); padding-left: 1.2rem; }
+.doc ul.facts li { margin-bottom: var(--space-1); }
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--control-bg);
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-5) 0 var(--space-4);
+}
+.tabs button {
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  padding: 10px 14px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+.tabs button:last-child { border-right: 0; }
+.tabs button[aria-selected='true'] {
+  background: var(--control-selected);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--control-rule);
+}
+.tag {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+
+table.compare {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  width: 100%;
+  max-width: 100%;
+}
+.tablebox { overflow-x: auto; max-width: 100%; }
+table.compare th, table.compare td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border-top: 1px solid var(--grid);
+}
+table.compare th { font-weight: 600; color: var(--ink-secondary); white-space: nowrap; }
+table.compare tr:first-child th { border-top: 0; }
+
+/* Frames: a 1280 px screen shows the app's 896 px page column; a phone
+   frame is 390 px. Each frame scrolls sideways on its own if the page
+   is narrower than it, never the page. */
+.frames { display: grid; gap: var(--space-5); }
+.framebox { overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+figure.frame { margin: 0; width: fit-content; }
+figure.frame figcaption {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  margin-bottom: var(--space-2);
+  max-width: 900px;
+}
+figure.frame figcaption b { color: var(--ink); }
+.screen {
+  position: relative;
+  background: var(--page);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgba(27, 26, 23, 0.04), 0 8px 24px rgba(27, 26, 23, 0.06);
+  overflow: hidden;
+}
+.w1280 .screen { width: 944px; padding: 24px 24px 28px; }
+.w1280.wide .screen { width: 1232px; }
+.w390 .screen { width: 390px; padding: 20px 16px 24px; }
+.note {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  max-width: 900px;
+  margin: var(--space-2) 0 0;
+}
+.note b { color: var(--ink); }
+
+/* ---------- App chrome inside a frame ---------- */
+.appnav { display: flex; align-items: baseline; gap: 22px; margin-bottom: 18px; flex-wrap: wrap; }
+.brand { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-brand); }
+.links { display: flex; gap: 20px; font-size: var(--text-sm); color: var(--ink-secondary); flex-wrap: wrap; }
+.links span[aria-current] { color: var(--ink); border-bottom: 1px solid var(--ink); }
+.w390 .appnav { display: block; border-bottom: 1px solid var(--grid); padding-bottom: 10px; margin-bottom: 14px; }
+.w390 .brand { font-size: 1.25rem; display: block; margin-bottom: 6px; }
+.w390 .links { gap: 14px; font-size: var(--text-base); }
+.deck {
+  font-family: var(--font-serif);
+  font-size: var(--text-deck);
+  color: var(--ink-secondary);
+  line-height: 1.45;
+  max-width: 34rem;
+  margin: 0 0 var(--space-5);
+}
+.deck b { color: var(--ink); font-weight: 400; }
+.w390 .deck { font-size: var(--text-base); margin-bottom: var(--space-3); }
+
+/* Controls as the app draws them */
+.row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-end; }
+.row + .row { margin-top: var(--space-3); }
+.field { display: grid; gap: 4px; }
+.flabel { font-size: var(--text-sm); color: var(--ink-secondary); }
+.sel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 150px;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.sel::after { content: '▾'; color: var(--ink-secondary); font-size: 11px; }
+.sel.plain::after { content: none; }
+.sel.search { color: var(--ink-muted); }
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--control-bg);
+  overflow: hidden;
+}
+.seg > span, .seg > button {
+  padding: 0 12px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  white-space: nowrap;
+}
+.seg > :last-child { border-right: 0; }
+.seg > .on {
+  background: var(--control-selected);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--control-rule);
+}
+.seg > .off { color: var(--ink-muted); }
+.w390 .seg { display: flex; width: 100%; }
+.w390 .seg > span, .w390 .seg > button { flex: 1; justify-content: center; height: 44px; font-size: var(--text-base); }
+.w390 .sel { width: 100%; height: 44px; font-size: var(--text-base); }
+.w390 .row { display: grid; gap: var(--space-3); }
+.hint { font-size: var(--text-xs); color: var(--ink-secondary); margin-top: 2px; }
+.hint i { font-style: normal; color: var(--warn-text); }
+
+.rule { border: 0; border-top: 1px solid var(--grid); margin: var(--space-5) 0 var(--space-5); }
+
+/* The chart block */
+.chead { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); }
+.chead > div:first-child { flex: 1 1 auto; min-width: 0; }
+.chead > .toolbar, .chead > .links-out { flex: none; padding-top: 8px; }
+.ctitle { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-h1); line-height: 1.15; margin: 0; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.csub { font-size: var(--text-sm); color: var(--ink-secondary); margin: 4px 0 0; }
+.csub b { color: var(--ink); font-weight: 600; }
+.cwording { font-size: var(--text-sm); color: var(--ink-secondary); margin: 8px 0 0; }
+.links-out { font-size: var(--text-sm); white-space: nowrap; }
+.links-out a, .lnk { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.w390 .chead { display: block; }
+.w390 .ctitle { font-size: 1.6rem; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tsel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  padding: 4px 8px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.tsel::after { content: '▾'; color: var(--ink-secondary); font-size: 10px; }
+.tsel.noarrow::after { content: none; }
+.dot-sep { color: var(--ink-muted); }
+
+/* Ghost dot plot: rows, a track with a whisker and a dot, a value pill.
+   Positions are layout, not data. */
+.plot { margin-top: var(--space-4); }
+.plot .heads {
+  display: grid;
+  grid-template-columns: 120px 1fr 64px;
+  gap: 12px;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  border-bottom: 1px solid var(--grid);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.sortbtn {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  text-align: right;
+}
+.sortbtn[aria-sort]:not([aria-sort='none']) { color: var(--ink); font-weight: 600; }
+.sortbtn.left { text-align: right; }
+.sortbtn .arr { display: inline-block; width: 1em; text-align: center; }
+.prow {
+  display: grid;
+  grid-template-columns: 120px 1fr 64px;
+  gap: 12px;
+  align-items: center;
+  height: 24px;
+  font-size: 13.5px;
+}
+.prow .lab { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow .track {
+  position: relative;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), var(--grid) calc(20% - 1px) 20%);
+}
+.prow .ci { position: absolute; top: 50%; height: 1.5px; background: var(--whisker); }
+.prow .dt {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+.prow .val { justify-self: end; width: 34px; height: 9px; border-radius: 5px; background: var(--grid); }
+.w390 .plot .heads, .w390 .prow { grid-template-columns: 92px 1fr 40px; gap: 8px; }
+.w390 .prow { font-size: 14px; height: 28px; }
+.prow.more { color: var(--ink-muted); font-size: var(--text-xs); height: 20px; }
+.prow.more .track { background: none; }
+
+/* Ghost heat grid (Correlates' Compare two) */
+.grid2 { display: grid; grid-template-columns: 90px repeat(5, 1fr); gap: 2px; margin-top: var(--space-3); font-size: var(--text-xs); color: var(--ink-secondary); }
+.grid2 > span { height: 20px; }
+.grid2 .rl { text-align: right; padding-right: 6px; line-height: 20px; }
+.grid2 .cl { text-align: center; height: auto; padding-top: 4px; }
+.strip { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); margin-top: var(--space-3); }
+.strip .bar { position: relative; width: 220px; height: 14px; }
+.strip .bar::before { content: ''; position: absolute; left: 0; right: 0; top: 7px; border-top: 1.5px solid var(--axis); }
+.strip .bar i { position: absolute; top: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.strip .bar b { position: absolute; top: 0; width: 1px; height: 14px; background: var(--axis); }
+
+/* Ghost small multiples (Segments): the country's name over its panel */
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
+.panel h4 { margin: 0 0 4px; font-size: var(--text-sm); font-weight: 600; }
+.panel .prow { grid-template-columns: 54px 1fr; height: 20px; font-size: var(--text-xs); }
+
+/* The sentence pickers (Correlates today; every page in option A) */
+.sentence {
+  font-size: 1.25rem;
+  line-height: 2.1;
+  margin: 0;
+  max-width: 860px;
+}
+.tok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--control-bg);
+  padding: 0 8px;
+  line-height: 1.6;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tok::after { content: '▾'; font-size: 0.7em; color: var(--ink-secondary); font-weight: 400; }
+.tok.quiet { font-weight: 400; background: var(--surface-raised); }
+.w390 .sentence { font-size: 1.125rem; line-height: 2.2; }
+
+/* Option B: the question button and its picker panel */
+.qfield { display: grid; gap: 4px; }
+.qbtn {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 12px;
+  text-align: left;
+  width: 420px;
+  min-height: 52px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+.qbtn .qname { font-weight: 600; font-size: 1.0625rem; }
+.qbtn .qwording { grid-column: 1; font-size: var(--text-xs); color: var(--ink-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qbtn .qchange { grid-row: 1 / span 2; grid-column: 2; font-size: var(--text-sm); color: var(--accent); }
+.w390 .qbtn { width: 100%; min-height: 60px; }
+.picker {
+  position: absolute;
+  z-index: 5;
+  width: 660px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(27, 26, 23, 0.14);
+  padding: 12px;
+}
+.picker[hidden] { display: none; }
+.picker .pbar { display: flex; justify-content: space-between; font-size: var(--text-sm); color: var(--ink-secondary); margin-bottom: 8px; }
+.picker .psearch {
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  color: var(--ink-muted);
+  font-size: var(--text-base);
+  margin-bottom: 10px;
+}
+.picker .pcols { display: grid; grid-template-columns: 190px 1fr; gap: 12px; font-size: var(--text-sm); }
+.picker .ptopics div { padding: 4px 6px; display: flex; justify-content: space-between; color: var(--ink-secondary); }
+.picker .ptopics .on { background: var(--control-selected); color: var(--ink); font-weight: 600; }
+.picker .pq div { padding: 4px 6px; border-bottom: 1px solid var(--grid); }
+.picker .pq div small { display: block; color: var(--ink-secondary); font-size: var(--text-xs); }
+.picker .pq .on { background: var(--control-bg); }
+.picker .pq .no { color: var(--ink-muted); }
+.picker .pq .no small i { font-style: normal; color: var(--warn-text); }
+
+/* Phone: a sheet that rises over the chart */
+.sheetwrap { position: absolute; inset: 0; background: rgba(27, 26, 23, 0.28); display: flex; align-items: flex-end; z-index: 6; }
+.sheetwrap[hidden] { display: none; }
+.sheet {
+  width: 100%;
+  background: var(--surface-raised);
+  border-radius: 10px 10px 0 0;
+  padding: 14px 16px 18px;
+  box-shadow: 0 -8px 24px rgba(27, 26, 23, 0.14);
+}
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--axis); margin: 0 auto 10px; }
+.sheet h5 { margin: 0 0 10px; font-size: var(--text-base); display: flex; justify-content: space-between; }
+.sheet .field { margin-bottom: 12px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+.btn.small { min-height: 32px; font-size: var(--text-sm); padding: 0 10px; }
+.btn.full { width: 100%; }
+.sumline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  border-top: 1px solid var(--grid);
+  border-bottom: 1px solid var(--grid);
+  padding: 6px 0;
+  margin: var(--space-3) 0 0;
+}
+.sumline b { color: var(--ink); font-weight: 600; }
+
+/* Option C: the settings rail */
+.railgrid { display: grid; grid-template-columns: 260px 1fr; gap: 32px; align-items: start; }
+.rail {
+  border-right: 1px solid var(--grid);
+  padding-right: 24px;
+  font-size: var(--text-sm);
+}
+.rail h5 {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  margin: 18px 0 8px;
+}
+.rail h5:first-child { margin-top: 0; }
+.rail .sel, .rail .qbtn { width: 100%; }
+.rail .seg { display: flex; width: 100%; }
+.rail .seg > span { flex: 1; justify-content: center; padding: 0 6px; }
+.rail .field + .field { margin-top: 10px; }
+
+.callout {
+  border-top: 1px solid var(--notice-border);
+  border-bottom: 1px solid var(--notice-border);
+  background: var(--notice-bg);
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  max-width: 900px;
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+@media (max-width: 40rem) {
+  .doc > header h1 { font-size: 1.6rem; }
+  .doc .lede { font-size: var(--text-base); }
+}
+</style>
+</head>
+<body>
+<div class="doc">
+  <header>
+    <h1>The controls at the top of each page — three ways to reorganise them</h1>
+    <p class="lede">Mockups for the Flourish Atlas design review of 21 October 2026, drawn with the app's own colours, type and control styles. Labels are illustrative. The charts are grey stand-ins: no number on this page comes from the data.</p>
+    <p class="small">How to use it: pick a layout below. Each one shows the Atlas, Correlates and Segments as a 1280 px screen would draw them (the app's page column is 896 px wide there) and the Atlas on a 390 px phone. Controls marked ▾ open where it helps to see the flow: the question picker, the phone's options sheet, and sorting from the chart's own column labels. The full reasoning is in <code>design-2026-10-21.md</code>, section “Controls”.</p>
+  </header>
+
+  <div class="tablebox">
+    <table class="compare">
+      <tr><th></th><th>What it is</th><th>What it fixes</th><th>What it costs</th><th>Effort</th></tr>
+      <tr><th>Today</th><td>Topic · Measure · Or search, then up to five more labelled controls, wrapping into two to four rows.</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><th>A · Sentence</th><td>Every page asks its question as a sentence; each noun in it is a picker (Correlates' pattern, everywhere).</td><td>State at a glance; reads like the visitor's own question; one picker.</td><td>Sentences differ page to page and wrap badly with long names; hard to scan for a returning visitor; the largest rewrite.</td><td>Large</td></tr>
+      <tr><th>B · Question bar + chart toolbar <span class="tag">Recommended</span></th><td>One row on top for <em>what, when, where</em> (one question picker, Year, Countries); everything about <em>how it's drawn</em> moves into the chart's own header, and sorting moves onto the chart's column labels.</td><td>Three pickers become one; the same order on every page; Sort + Order become one click; controls take one row instead of three; the phone keeps two controls and one Options button.</td><td>The picker joins the first page load (about 5 kB gzipped, est.); sorting by label must be visibly clickable; revises the two-step Topic → Measure decision (its browse-by-topic survives inside the picker).</td><td>Medium</td></tr>
+      <tr><th>C · Settings panel</th><td>A settings column beside the chart on a desktop; a summary line with “Edit” over the chart on a tablet or phone.</td><td>Chart dominates; one consistent form; a summary line.</td><td>Narrows every chart by about 290 px or widens the page beyond its reading column; a dashboard, not a publication (ADR-0012); every change on a phone is two taps.</td><td>Large</td></tr>
+    </table>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Layouts">
+    <button role="tab" id="tab-today" aria-controls="opt-today" aria-selected="false">Today</button>
+    <button role="tab" id="tab-a" aria-controls="opt-a" aria-selected="false">A · Sentence</button>
+    <button role="tab" id="tab-b" aria-controls="opt-b" aria-selected="true">B · Question bar + chart toolbar</button>
+    <button role="tab" id="tab-c" aria-controls="opt-c" aria-selected="false">C · Settings panel</button>
+  </div>
+
+  <!-- ================= TODAY ================= -->
+  <section role="tabpanel" id="opt-today" aria-labelledby="tab-today" hidden>
+    <h2>Today, for comparison</h2>
+    <p class="summary">The Atlas as it stands on <code>claude/charts-only-methods</code>, simplified. At 1280 × 800 the first country appears about four-fifths of the way down the first screen; only six of the 23 rows are visible before scrolling.</p>
+    <div class="frames">
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Atlas · 1280 px</b> — three rows of controls; Countries alone on the third.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <p class="deck">How <b>people across the study's countries</b> rate their own lives — the Global Flourishing Study, 2023–2024. Pick a measure below; every number carries its sample size and margin of error.</p>
+          <div class="row">
+            <div class="field"><span class="flabel">Topic</span><span class="sel" style="width:248px">Flourishing index questions</span></div>
+            <div class="field"><span class="flabel">Measure</span><span class="sel" style="width:248px">Life satisfaction</span></div>
+            <div class="field"><span class="flabel">Or search</span><span class="sel plain search" style="width:192px">Search all measures</span></div>
+          </div>
+          <div class="row">
+            <div class="field"><span class="flabel">Wave</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span></div>
+            <div class="field"><span class="flabel">Statistic</span><span class="seg"><span class="on">Mean</span><span>Distribution</span><span>Median</span></span></div>
+            <div class="field"><span class="flabel">Sort</span><span class="seg"><span class="on">By value</span><span>A–Z</span></span></div>
+            <div class="field"><span class="flabel">Order</span><span class="seg"><span class="on">High to low</span><span>Low to high</span></span></div>
+          </div>
+          <div class="row">
+            <div class="field"><span class="flabel">Countries</span><span class="sel plain" style="width:128px">All</span></div>
+          </div>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Life satisfaction</h3><p class="csub">Average score, 0–10 (0 = Not at all satisfied …, 10 = Completely satisfied …) · Wave 1, 2023</p><p class="cwording">Overall, how satisfied are you with life as a whole these days? <span class="lnk">Answer codes &amp; details →</span></p></div>
+            <div class="links-out"><a>Download CSV</a> · <a>PNG</a></div>
+          </div>
+          <div class="plot" data-rows="5"></div>
+        </div>
+      </figure></div>
+    </div>
+  </section>
+
+  <!-- ================= OPTION A ================= -->
+  <section role="tabpanel" id="opt-a" aria-labelledby="tab-a" hidden>
+    <h2>A · Ask it as a sentence</h2>
+    <p class="summary">Correlates already asks “How do answers to … relate to …?”. Option A gives every page a sentence like that. Each noun is a button: the question opens the question picker, the year and the countries open small lists. How the chart is drawn (average or middle value, order) sits as two quiet words in the chart header.</p>
+    <ul class="facts">
+      <li><b>Other pages:</b> Change — “How did <u>life satisfaction</u> change from 2023 to 2024 for the same people in <u>all countries</u>?” What Matters — “What matters most to people in <u>Brazil</u>, <u>by age</u>?” US States — “How do people rate <u>life satisfaction</u> in each state, <u>2023</u>?”</li>
+      <li><b>Fixes:</b> the controls read as the visitor's own question; the sentence is the summary; three pickers become one.</li>
+      <li><b>Costs:</b> long question names (“Feelings about household income”) break the sentence onto three lines at 1280 and five on a phone; every page needs its own grammar, and answers like “More than once a week” do not fit a sentence slot; settings that are not nouns (sort, the correlation type, adjusted weights) still need somewhere else to live. Large.</li>
+    </ul>
+    <div class="frames">
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Atlas · 1280 px</b></figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <p class="deck">How people in every country of the study rate their own lives. Ask a question; every number shows how sure it is.</p>
+          <p class="sentence">How do people rate <button class="tok" data-open="pick-a1">life satisfaction</button> in <button class="tok">2023</button> across <button class="tok">all countries</button>?</p>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Life satisfaction</h3><p class="csub">Average score, 0–10 · 2023 · all countries · highest first</p><p class="cwording">Overall, how satisfied are you with life as a whole these days? <span class="lnk">The exact question and answers →</span></p></div>
+            <div class="toolbar">Show <span class="tsel">average</span> <span class="dot-sep">·</span> Order <span class="tsel">highest first</span></div>
+          </div>
+          <div class="plot" data-rows="6"></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Correlates · 1280 px</b> — the sentence it has today, with the year and the place folded in.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span aria-current="page">Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <div class="seg" style="margin-bottom:14px"><span class="on">Compare two</span><span>Compare several</span><span>Find related</span></div>
+          <p class="sentence">How do answers to <button class="tok">Religious service attendance</button> relate to <button class="tok">Meaning &amp; purpose</button> in <button class="tok">2023</button>, <button class="tok">averaged over all countries</button>?</p>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Religious service attendance and meaning &amp; purpose</h3><p class="csub">All countries, averaged · 2023</p></div>
+            <div class="toolbar">Measured as <span class="tsel">straight-line</span> <span class="lnk">What's the difference?</span></div>
+          </div>
+          <div class="strip"><span>How closely they go together</span><span class="bar"><b style="left:0"></b><b style="left:50%"></b><b style="left:100%"></b><i style="left:56%"></i></span><span style="color:var(--ink-secondary)">−1 · 0 · +1</span></div>
+          <div class="grid2" data-grid></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Segments · 1280 px</b> — the second split becomes “and by …”, added only when wanted.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span aria-current="page">Segments</span><span>Methods</span></span></div>
+          <p class="sentence">How does <button class="tok">life satisfaction</button> differ by <button class="tok">age</button> <button class="tok quiet">+ and by …</button> in <button class="tok">2023</button> across <button class="tok">all countries</button>?</p>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Life satisfaction by age</h3><p class="csub">Average score, 0–10 · 2023 · countries highest first</p></div>
+            <div class="toolbar">Order countries <span class="tsel">highest first</span></div>
+          </div>
+          <div class="panels" data-panels></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w390">
+        <figcaption><b>Atlas · 390 px</b> — the sentence wraps; every token is a 44 px target.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>More ▾</span></span></div>
+          <p class="sentence">How do people rate <button class="tok">life satisfaction</button> in <button class="tok">2023</button> across <button class="tok">all countries</button>?</p>
+          <hr class="rule" style="margin:14px 0">
+          <h3 class="ctitle">Life satisfaction</h3>
+          <p class="csub">Average score, 0–10 · 2023 · all countries · highest first</p>
+          <p class="csub"><span class="lnk">Average ▾</span> · <span class="lnk">Highest first ▾</span></p>
+          <div class="plot" data-rows="7"></div>
+        </div>
+      </figure></div>
+    </div>
+  </section>
+
+  <!-- ================= OPTION B ================= -->
+  <section role="tabpanel" id="opt-b" aria-labelledby="tab-b">
+    <h2>B · A question bar on top, a toolbar on the chart <span class="tag">Recommended</span></h2>
+    <p class="summary">The top of every page holds only <em>what</em> you are looking at and <em>when and where</em>: one question button (search and browse by topic in one panel — the Correlates picker), then Year, then Countries, always in that order. Everything about <em>how it is drawn</em> moves into the chart's own header, beside the downloads; sorting moves onto the chart's column labels, as the What Matters matrix already works.</p>
+    <ul class="facts">
+      <li><b>Other pages:</b> Change — Question · Countries (its years are fixed: 2023 → 2024). What Matters — its three views stay as tabs; Within a country gets Country · Split by on top. US States — Question · Year; Map/Chart, Show and the adjusted-weights switch go in the chart toolbar, plus “Find a state”.</li>
+      <li><b>Fixes:</b> Topic, Measure and Or search become one control; Sort and Order become one click on a label; the same three things sit in the same place on every page; at 1280 the controls take one row (about 70 px, down from about 190 px); on a phone, two controls and one Options button.</li>
+      <li><b>Costs:</b> the picker joins the first page load (about 5 kB gzipped, est.; 206 → about 211 of 250); sort-by-label needs a visible arrow and keyboard focus; revises the two-step picker decision (browse-by-topic survives inside the panel). Medium.</li>
+    </ul>
+    <div class="frames">
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Atlas · 1280 px</b> — click the question to open the picker; click “Country” or “Average” over the chart to sort.</figcaption>
+        <div class="screen" id="b-atlas">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <p class="deck">How people in every country of the study rate their own lives. Choose a question; every number shows how sure it is.</p>
+          <div class="row">
+            <div class="qfield"><span class="flabel">Question</span>
+              <button class="qbtn" data-open="pick-b" aria-expanded="false" aria-controls="pick-b"><span class="qname">Life satisfaction</span><span class="qchange">Change ▾</span><span class="qwording">Overall, how satisfied are you with life as a whole these days?</span></button>
+            </div>
+            <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span></div>
+            <div class="field"><span class="flabel">Countries</span><span class="sel" style="width:150px">All countries</span></div>
+          </div>
+          <p class="hint" id="b-midyear-hint"><i>Midyear</i> — not asked in the midyear survey.</p>
+          <div class="picker" id="pick-b" hidden style="top:272px;left:24px" role="dialog" aria-label="Choose a question">
+            <div class="pbar"><span>Choose a question</span><button class="btn small" data-close="pick-b">Close ✕</button></div>
+            <div class="psearch">Search questions — try “happy”, “money”, “church”</div>
+            <div class="pcols">
+              <div class="ptopics">
+                <div><span>Flourishing index &amp; its domains</span><span></span></div>
+                <div class="on"><span>Flourishing index questions</span><span></span></div>
+                <div><span>Wellbeing</span><span></span></div>
+                <div><span>Mental health</span><span></span></div>
+                <div><span>Physical health &amp; habits</span><span></span></div>
+                <div><span>Social &amp; civic life</span><span></span></div>
+                <div><span>Character &amp; personality</span><span></span></div>
+                <div><span>Religion &amp; spirituality</span><span></span></div>
+                <div><span>What matters to people</span><span></span></div>
+                <div><span>…</span><span></span></div>
+              </div>
+              <div class="pq">
+                <div>Doing worthwhile things<small>Overall, to what extent do you feel the things you do in your life are worthwhile?</small></div>
+                <div>Happiness<small>In general, how happy or unhappy do you usually feel?</small></div>
+                <div class="on">Life satisfaction<small>Overall, how satisfied are you with life as a whole these days?</small></div>
+                <div>Mental health<small>In general, how would you rate your mental health?</small></div>
+                <div class="no">A question this year did not ask<small><i>Not asked in 2023</i> — it stays listed, with the reason, as in the Correlates picker</small></div>
+              </div>
+            </div>
+          </div>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Life satisfaction</h3><p class="csub" data-summary>Average score, 0–10 · 2023 · all countries · <b>highest first</b></p><p class="cwording">Overall, how satisfied are you with life as a whole these days? <span class="lnk">The exact question and answers →</span></p></div>
+            <div class="toolbar">Show <span class="tsel">Average</span> <span class="dot-sep">·</span> <span class="lnk">How to read this chart</span> <span class="dot-sep">·</span> <span class="lnk">Download ▾</span></div>
+          </div>
+          <div class="plot" data-rows="6" data-sortable></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Correlates · 1280 px</b> — the sentence is this page's question bar; one “Where” replaces Country plus “In United States | Country by country”; the correlation type moves to the chart.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span aria-current="page">Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <div class="seg" style="margin-bottom:14px"><span class="on">Compare two</span><span>Compare several</span><span>Find related</span></div>
+          <p class="sentence" style="font-size:1.1875rem">How do answers to <button class="tok">Religious service attendance</button> relate to <button class="tok">Meaning &amp; purpose</button>? <button class="btn small">⇄ Swap</button></p>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span>Midyear</span><span>2024</span></span></div>
+            <div class="field"><span class="flabel">Where</span><span class="sel" style="width:260px">All countries, averaged</span></div>
+          </div>
+          <p class="hint">Where: All countries, averaged · Each country side by side · or any one country.</p>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Religious service attendance and meaning &amp; purpose</h3><p class="csub">All countries, averaged · 2023</p></div>
+            <div class="toolbar">Measured as <span class="tsel">Straight-line</span> <span class="lnk">What's the difference?</span> <span class="dot-sep">·</span> <span class="lnk">Download ▾</span></div>
+          </div>
+          <div class="strip"><span>How closely they go together</span><span class="bar"><b style="left:0"></b><b style="left:50%"></b><b style="left:100%"></b><i style="left:56%"></i></span><span style="color:var(--ink-secondary)">weak, positive</span></div>
+          <div class="grid2" data-grid></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280">
+        <figcaption><b>Segments · 1280 px</b> — “Split by” and “then by” read as one phrase; country order lives on the chart.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span aria-current="page">Segments</span><span>Methods</span></span></div>
+          <p class="deck">One question, split into groups of people — by age, gender, income and more — country by country.</p>
+          <div class="row">
+            <div class="qfield"><span class="flabel">Question</span>
+              <button class="qbtn" style="width:300px"><span class="qname">Life satisfaction</span><span class="qchange">Change ▾</span><span class="qwording">Overall, how satisfied are you with life …</span></button>
+            </div>
+            <div class="field"><span class="flabel">Split by</span><span class="row" style="gap:6px;flex-wrap:nowrap"><span class="sel" style="min-width:110px">Age</span><span class="flabel" style="align-self:center">then</span><span class="sel" style="min-width:96px;color:var(--ink-muted)">nothing</span></span></div>
+            <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span></div>
+          </div>
+          <div class="row"><div class="field"><span class="flabel">Countries</span><span class="sel" style="width:150px">All countries</span></div></div>
+          <hr class="rule">
+          <div class="chead">
+            <div><h3 class="ctitle">Life satisfaction by age</h3><p class="csub">Average score, 0–10 · 2023 · countries highest first</p></div>
+            <div class="toolbar">Order countries <span class="tsel">Highest first</span> <span class="dot-sep">·</span> <span class="lnk">Download ▾</span></div>
+          </div>
+          <div class="panels" data-panels></div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w390">
+        <figcaption><b>Atlas · 390 px</b> — the question and the year on top; “Options” opens a sheet (show, order, countries). Try it.</figcaption>
+        <div class="screen" id="b-phone">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>More ▾</span></span></div>
+          <p class="deck">How people in every country of the study rate their own lives.</p>
+          <div class="row">
+            <div class="qfield"><span class="flabel">Question</span>
+              <button class="qbtn"><span class="qname">Life satisfaction</span><span class="qchange">Change ▾</span><span class="qwording">Overall, how satisfied are you with life …</span></button>
+            </div>
+            <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span><span class="hint"><i>Midyear</i> — not asked in the midyear survey.</span></div>
+          </div>
+          <div class="sumline"><span><b>Average</b> · all countries · highest first</span><button class="btn small" data-open="sheet-b" aria-expanded="false" aria-controls="sheet-b">Options</button></div>
+          <h3 class="ctitle" style="margin-top:16px">Life satisfaction</h3>
+          <p class="csub">Average score, 0–10 · 2023</p>
+          <div class="plot" data-rows="8"></div>
+          <div class="sheetwrap" id="sheet-b" hidden>
+            <div class="sheet" role="dialog" aria-label="Chart options">
+              <div class="grab"></div>
+              <h5><span>Chart options</span><button class="btn small" data-close="sheet-b">Done</button></h5>
+              <div class="field"><span class="flabel">Show</span><span class="seg"><span class="on">Average</span><span>Middle value</span><span>All answers</span></span></div>
+              <div class="field"><span class="flabel">Order</span><span class="seg"><span class="on">Highest first</span><span>Lowest first</span><span>A–Z</span></span></div>
+              <div class="field"><span class="flabel">Countries</span><span class="sel">All countries</span></div>
+            </div>
+          </div>
+        </div>
+      </figure></div>
+    </div>
+  </section>
+
+  <!-- ================= OPTION C ================= -->
+  <section role="tabpanel" id="opt-c" aria-labelledby="tab-c" hidden>
+    <h2>C · A settings panel beside the chart</h2>
+    <p class="summary">On a desktop every control moves into a column at the left, grouped under three headings — Question, Year &amp; place, Display — and the chart takes the rest. On a tablet or a phone the column becomes a summary line over the chart with an Edit button that opens the same form as a sheet.</p>
+    <ul class="facts">
+      <li><b>Other pages:</b> the same three groups everywhere; Correlates' tabs stay above the panel; What Matters' views stay as tabs.</li>
+      <li><b>Fixes:</b> the chart is the biggest thing on the first screen; one form, one order; the summary line answers “what am I looking at?”.</li>
+      <li><b>Costs:</b> either the chart loses about 290 px of width at 1280 (896 → about 600), or the page grows past its 896 px reading column as drawn here (1184 px) and stops lining up with Methods; the look turns from publication to dashboard (ADR-0012); on a phone every change is two taps (Edit, then the control). Large.</li>
+    </ul>
+    <div class="frames">
+      <div class="framebox"><figure class="frame w1280 wide">
+        <figcaption><b>Atlas · 1280 px</b> — drawn with the page widened to 1184 px so the chart keeps its width.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <div class="railgrid">
+            <aside class="rail">
+              <h5>Question</h5>
+              <button class="qbtn"><span class="qname">Life satisfaction</span><span class="qchange">▾</span><span class="qwording">Overall, how satisfied are you …</span></button>
+              <h5>Year &amp; place</h5>
+              <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span><span class="hint"><i>Midyear</i> — not asked then.</span></div>
+              <div class="field"><span class="flabel">Countries</span><span class="sel">All countries</span></div>
+              <h5>Display</h5>
+              <div class="field"><span class="flabel">Show</span><span class="seg"><span class="on">Average</span><span>Middle</span><span>All</span></span></div>
+              <div class="field"><span class="flabel">Order</span><span class="sel">Highest first</span></div>
+            </aside>
+            <div>
+              <p class="deck" style="margin-bottom:16px">How people in every country of the study rate their own lives.</p>
+              <div class="chead">
+                <div><h3 class="ctitle">Life satisfaction</h3><p class="csub">Average score, 0–10 · 2023 · all countries · highest first</p></div>
+                <div class="links-out"><a>Download ▾</a></div>
+              </div>
+              <div class="plot" data-rows="9"></div>
+            </div>
+          </div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280 wide">
+        <figcaption><b>Correlates · 1280 px</b></figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span aria-current="page">Correlates</span><span>US States</span><span>Segments</span><span>Methods</span></span></div>
+          <div class="seg" style="margin-bottom:14px"><span class="on">Compare two</span><span>Compare several</span><span>Find related</span></div>
+          <div class="railgrid">
+            <aside class="rail">
+              <h5>Questions</h5>
+              <button class="qbtn"><span class="qname">Religious service attendance</span><span class="qchange">▾</span><span class="qwording">How often do you attend religious services?</span></button>
+              <div style="text-align:center;margin:6px 0"><button class="btn small">⇄ Swap</button></div>
+              <button class="qbtn"><span class="qname">Meaning &amp; purpose</span><span class="qchange">▾</span><span class="qwording">Doing worthwhile things; understanding life's purpose</span></button>
+              <h5>Year &amp; place</h5>
+              <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span>Midyear</span><span>2024</span></span></div>
+              <div class="field"><span class="flabel">Where</span><span class="sel">All countries, averaged</span></div>
+              <h5>Display</h5>
+              <div class="field"><span class="flabel">Measured as</span><span class="seg"><span class="on">Straight-line</span><span>By rank</span></span></div>
+            </aside>
+            <div>
+              <div class="chead"><div><h3 class="ctitle">Religious service attendance and meaning &amp; purpose</h3><p class="csub">All countries, averaged · 2023</p></div></div>
+              <div class="strip"><span>How closely they go together</span><span class="bar"><b style="left:0"></b><b style="left:50%"></b><b style="left:100%"></b><i style="left:56%"></i></span></div>
+              <div class="grid2" data-grid></div>
+            </div>
+          </div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w1280 wide">
+        <figcaption><b>Segments · 1280 px</b></figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span>Atlas</span><span>Change</span><span>What Matters</span><span>Correlates</span><span>US States</span><span aria-current="page">Segments</span><span>Methods</span></span></div>
+          <div class="railgrid">
+            <aside class="rail">
+              <h5>Question</h5>
+              <button class="qbtn"><span class="qname">Life satisfaction</span><span class="qchange">▾</span><span class="qwording">Overall, how satisfied are you …</span></button>
+              <h5>Groups</h5>
+              <div class="field"><span class="flabel">Split by</span><span class="sel">Age</span></div>
+              <div class="field"><span class="flabel">Then by</span><span class="sel" style="color:var(--ink-muted)">Nothing</span></div>
+              <h5>Year &amp; place</h5>
+              <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span></div>
+              <div class="field"><span class="flabel">Countries</span><span class="sel">All countries</span></div>
+              <h5>Display</h5>
+              <div class="field"><span class="flabel">Order countries</span><span class="sel">Highest first</span></div>
+            </aside>
+            <div>
+              <div class="chead"><div><h3 class="ctitle">Life satisfaction by age</h3><p class="csub">Average score, 0–10 · 2023 · countries highest first</p></div></div>
+              <div class="panels" data-panels></div>
+            </div>
+          </div>
+        </div>
+      </figure></div>
+
+      <div class="framebox"><figure class="frame w390">
+        <figcaption><b>Atlas · 390 px</b> — a summary line and one Edit button; every change is a sheet.</figcaption>
+        <div class="screen">
+          <div class="appnav"><span class="brand">Flourish Atlas</span><span class="links"><span aria-current="page">Atlas</span><span>Change</span><span>What Matters</span><span>More ▾</span></span></div>
+          <p class="deck">How people in every country of the study rate their own lives.</p>
+          <div class="sumline" style="border-top:0"><span><b>Life satisfaction</b> · 2023 · all countries · average · highest first</span><button class="btn small" data-open="sheet-c" aria-expanded="false" aria-controls="sheet-c">Edit</button></div>
+          <h3 class="ctitle" style="margin-top:16px">Life satisfaction</h3>
+          <p class="csub">Average score, 0–10 · 2023</p>
+          <div class="plot" data-rows="9"></div>
+          <div class="sheetwrap" id="sheet-c" hidden>
+            <div class="sheet" role="dialog" aria-label="Edit the chart">
+              <div class="grab"></div>
+              <h5><span>Edit the chart</span><button class="btn small" data-close="sheet-c">Done</button></h5>
+              <div class="field"><span class="flabel">Question</span><button class="qbtn"><span class="qname">Life satisfaction</span><span class="qchange">▾</span><span class="qwording">Overall, how satisfied …</span></button></div>
+              <div class="field"><span class="flabel">Year</span><span class="seg"><span class="on">2023</span><span class="off">Midyear</span><span>2024</span></span></div>
+              <div class="field"><span class="flabel">Countries</span><span class="sel">All countries</span></div>
+              <div class="field"><span class="flabel">Show</span><span class="seg"><span class="on">Average</span><span>Middle</span><span>All</span></span></div>
+              <div class="field"><span class="flabel">Order</span><span class="seg"><span class="on">Highest</span><span>Lowest</span><span>A–Z</span></span></div>
+            </div>
+          </div>
+        </div>
+      </figure></div>
+    </div>
+  </section>
+
+  <p class="callout"><b>Owner's changes, 22 Oct 2026:</b> Mean, Median, Distribution and “95% CI” keep their names (not “Average”, “Middle value”, “All answers” or “likely range”), and nothing sorts A–Z — the name column is not a sort button; only the value label sorts, and a second click reverses it. The prompt to run is <code>docs/prompts/design-review-fixes-2026-10-22.md</code>.</p>
+  <h2>Words used in the mockups</h2>
+  <p class="summary">Wave → <b>Year</b> · Statistic → <b>Show</b> · Mean → <b>Average</b> · Median → <b>Middle value</b> · Distribution → <b>All answers</b> · Sort + Order → <b>Order</b> (or a click on a column label) · Topic + Measure + Or search → <b>Question</b> · Break down by / Second breakdown → <b>Split by … then by …</b> · Correlation type → <b>Measured as</b> · Country + scope → <b>Where</b>. The URL parameters (<code>wave</code>, <code>stat</code>, <code>sort</code>, <code>dir</code>, <code>countries</code>, <code>by</code>, <code>method</code>, <code>country</code>, <code>view</code>) do not change.</p>
+</div>
+
+<script>
+// Layout tabs.
+const tabs = [...document.querySelectorAll('[role=tab]')]
+function show(tab) {
+  for (const t of tabs) {
+    const on = t === tab
+    t.setAttribute('aria-selected', String(on))
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !on
+  }
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => show(t))
+  t.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
+    next.focus()
+    show(next)
+  })
+})
+
+// Ghost dot plots. Positions are made up for layout; there are no values.
+const NAMES = ['Country A', 'Country B', 'Country C', 'Country D', 'Country E', 'Country F', 'Country G', 'Country H', 'Country I']
+function rowsHtml(n, names) {
+  let html = ''
+  for (let i = 0; i < n; i++) {
+    const x = 84 - i * (44 / Math.max(n - 1, 1))
+    const w = 3 + ((i * 5) % 4)
+    html += `<div class="prow" data-i="${i}"><span class="lab">${names[i]}</span><span class="track"><i class="ci" style="left:${x - w}%;width:${2 * w}%"></i><i class="dt" style="left:${x}%"></i></span><span class="val" aria-hidden="true"></span></div>`
+  }
+  return html
+}
+for (const el of document.querySelectorAll('.plot')) {
+  const n = Number(el.dataset.rows || 6)
+  const heads = el.hasAttribute('data-sortable')
+    ? `<div class="heads"><button class="sortbtn left" data-sort="name" aria-sort="none">Country <span class="arr">⇅</span></button><span></span><button class="sortbtn" data-sort="value" aria-sort="descending">Average <span class="arr">↓</span></button></div>`
+    : ''
+  el.innerHTML = heads + rowsHtml(n, NAMES) + '<div class="prow more"><span class="lab">…</span><span class="track"></span><span></span></div>'
+}
+
+// Sorting from the chart's labels (option B): one click sorts, a second
+// reverses — the What Matters rule (ADR-0026), on every chart.
+for (const el of document.querySelectorAll('.plot[data-sortable]')) {
+  const summary = el.closest('.screen').querySelector('[data-summary] b')
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('.sortbtn')
+    if (!btn) return
+    const key = btn.dataset.sort
+    const was = btn.getAttribute('aria-sort')
+    const dir = was === 'none' ? (key === 'name' ? 'ascending' : 'descending') : was === 'ascending' ? 'descending' : 'ascending'
+    for (const b of el.querySelectorAll('.sortbtn')) {
+      b.setAttribute('aria-sort', 'none')
+      b.querySelector('.arr').textContent = '⇅'
+    }
+    btn.setAttribute('aria-sort', dir)
+    btn.querySelector('.arr').textContent = dir === 'ascending' ? '↑' : '↓'
+    const rows = [...el.querySelectorAll('.prow:not(.more)')]
+    const more = el.querySelector('.prow.more')
+    rows.sort((a, b) => {
+      if (key === 'name') {
+        const c = a.querySelector('.lab').textContent.localeCompare(b.querySelector('.lab').textContent)
+        return dir === 'ascending' ? c : -c
+      }
+      const c = Number(a.dataset.i) - Number(b.dataset.i)
+      return dir === 'descending' ? c : -c
+    })
+    rows.forEach((r) => el.insertBefore(r, more))
+    if (summary) summary.textContent = key === 'name' ? (dir === 'ascending' ? 'A–Z' : 'Z–A') : dir === 'descending' ? 'highest first' : 'lowest first'
+  })
+}
+
+// Ghost heat grids (Correlates' Compare two). Shades are layout only.
+const SHADES = ['--seq-100', '--seq-200', '--seq-300', '--seq-400', '--seq-500', '--seq-600']
+const COLS = ['Never', 'A few times a year', 'Monthly', 'Weekly', 'More than weekly']
+for (const el of document.querySelectorAll('[data-grid]')) {
+  let html = ''
+  for (let r = 0; r < 6; r++) {
+    html += `<span class="rl">${r === 0 ? 'highest' : r === 5 ? 'lowest' : ''}</span>`
+    for (let c = 0; c < 5; c++) {
+      const s = Math.max(0, Math.min(5, 5 - r + c - 2 + ((r * 3 + c) % 2)))
+      html += `<span style="background:var(${SHADES[s]})"></span>`
+    }
+  }
+  html += '<span></span>' + COLS.map((c) => `<span class="cl">${c}</span>`).join('')
+  el.innerHTML = html
+}
+
+// Ghost small multiples (Segments): the country's name over its panel.
+const AGES = ['18–24', '25–29', '30–39', '40–49', '50+']
+for (const el of document.querySelectorAll('[data-panels]')) {
+  let html = ''
+  for (let p = 0; p < 3; p++) {
+    html += `<div class="panel"><h4>${NAMES[p]}</h4>`
+    AGES.forEach((age, i) => {
+      const x = 70 - p * 8 + ((i * 7) % 9) - 4
+      html += `<div class="prow"><span class="lab">${age}</span><span class="track"><i class="ci" style="left:${x - 5}%;width:10%"></i><i class="dt" style="left:${x}%"></i></span></div>`
+    })
+    html += '</div>'
+  }
+  el.innerHTML = html
+}
+
+// Pickers and sheets that open and close.
+document.addEventListener('click', (e) => {
+  const opener = e.target.closest('[data-open]')
+  const closer = e.target.closest('[data-close]')
+  if (opener) {
+    const target = document.getElementById(opener.dataset.open)
+    if (!target) return
+    target.hidden = !target.hidden
+    opener.setAttribute('aria-expanded', String(!target.hidden))
+  } else if (closer) {
+    const target = document.getElementById(closer.dataset.close)
+    target.hidden = true
+    const back = document.querySelector(`[data-open="${closer.dataset.close}"]`)
+    if (back) { back.setAttribute('aria-expanded', 'false'); back.focus() }
+  } else if (e.target.classList.contains('sheetwrap')) {
+    e.target.hidden = true
+  }
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return
+  for (const el of document.querySelectorAll('.picker:not([hidden]), .sheetwrap:not([hidden])')) el.hidden = true
+})
+</script>
+</body>
+</html>

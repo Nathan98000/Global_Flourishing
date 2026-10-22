@@ -228,7 +228,7 @@ export function ChangeView() {
         .filter(Boolean)
         .join(' · ')
     : [
-        `Average change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
+        `Mean change${range}, among the same people${directionNote ? ` · ${directionNote}` : ''}`,
         pair,
       ].join(' · ')
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
@@ -341,7 +341,7 @@ export function ChangeView() {
         )}
         {isCategorical && levels.length > 0 && (
           <RadioRow
-            legend="Answer level"
+            legend="Showing % who said"
             name="level"
             wide
             selectOnNarrow
@@ -410,7 +410,7 @@ export function ChangeView() {
               meta.data.meta,
               isCategorical
                 ? `${title}: change in the share of the same people answering “${activeLevelLabel ?? activeLevel}”, ${pair}, by country, in percentage points.`
-                : `${title}: average change among the same people, ${pair}, by country.`,
+                : `${title}: mean change among the same people, ${pair}, by country.`,
             )}
             intro={
               detail && (

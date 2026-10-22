@@ -553,7 +553,7 @@ export function WhatMattersView() {
             </SelectField>
             {itemStat === 'proportion' && itemLevels.length > 0 && (
               <RadioRow
-                legend="Answer level"
+                legend="Showing % who said"
                 name="item-level"
                 wide
                 selectOnNarrow

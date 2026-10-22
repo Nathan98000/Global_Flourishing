@@ -10,7 +10,7 @@
 import * as Plot from '@observablehq/plot'
 import type { ChangeLeg } from '../api/change'
 import type { EstimateRow, Meta } from '../api/types'
-import { formatEstimate } from '../format'
+import { formatValueLabel } from '../format'
 import { groupValueLabel } from '../labels'
 import { legTitle } from '../waves'
 import { dotMarks, type DotEntry } from './DotPlot'
@@ -147,7 +147,7 @@ export function ChangeDots({
                 Plot.text(entries, {
                   y: 'level',
                   x: hi,
-                  text: (entry: DotEntry) => formatEstimate(entry.row.estimate, entry.row.stat),
+                  text: (entry: DotEntry) => formatValueLabel(entry.row.estimate, entry.row.stat),
                   dx: 16,
                   textAnchor: 'start',
                   fill: INK,

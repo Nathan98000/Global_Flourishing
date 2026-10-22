@@ -9,6 +9,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
+import { tipText } from '../charts/theme'
 import { createAppRouter } from '../router'
 import {
   attendVariable,
@@ -159,6 +160,37 @@ test('the shell renders nav, the deck line, and a citation-only footer', async (
   expect(screen.queryByRole('button', { name: /Switch to (dark|light)/ })).toBeNull()
 })
 
+/** The statistics keep their names (owner, 22 Oct 2026): Mean, Median,
+ * Distribution, Share, 95% CI — never these. */
+const RENAMED = /\bAverage\b|Middle value|All answers|likely range/
+
+test('no control, subtitle or card renames a statistic: Mean, Median, Distribution, 95% CI', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await waitFor(() => expect(screen.getAllByText('United States').length).toBeGreaterThan(1))
+  const main = screen.getByRole('main')
+  expect(within(main).getByText(/^Mean score, 0–10/)).toBeInTheDocument()
+  expect(main.textContent).not.toMatch(RENAMED)
+  // The Show options name the statistics.
+  const show = screen.getByRole('group', { name: 'Show' })
+  expect(
+    within(show)
+      .getAllByRole('radio')
+      .map((radio) => radio.closest('label')?.textContent),
+  ).toEqual(['Mean', 'Distribution', 'Median'])
+  // Every card's words, for every statistic the pages show.
+  const range = { min: 0, max: 10 }
+  for (const stat of ['mean', 'quantile', 'proportion', 'change', 'change_share', 'pearson_r']) {
+    const card = tipText(testRow({ stat, estimate: 0.5, ci_lo: 0.4, ci_hi: 0.6 }), 'Testland', {
+      range,
+      answer: 'Yes',
+    })
+    expect(card).not.toMatch(RENAMED)
+  }
+  expect(tipText(testRow({ stat: 'mean' }), 'Testland', { range })).toMatch(/^Testland\nMean: /)
+  expect(tipText(testRow({ stat: 'mean' }), 'Testland')).toMatch(/95% CI: \[/)
+})
+
 test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
@@ -214,7 +246,7 @@ test('a categorical question shows every answer, country by country, from its sh
   })
   const router = await renderAt('/?outcome=ATTEND_SVCS')
   // Share is the default; Distribution is offered beside it.
-  const statistic = await screen.findByRole('group', { name: 'Statistic' })
+  const statistic = await screen.findByRole('group', { name: 'Show' })
   expect(within(statistic).getByLabelText('Share')).toBeChecked()
   fireEvent.click(within(statistic).getByLabelText('Distribution'))
   await waitFor(() => expect(router.state.location.searchStr).toContain('stat=distribution'))
@@ -406,7 +438,7 @@ test('unknown routes render the not-found page', async () => {
 test('chart exports are quiet text links: "Download CSV · PNG" (§6)', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
+  await screen.findByText('Mean score, 0–10 · 2023')
   // Healthy API → the CSV is a real download link; PNG stays a button
   // whose accessible name carries the verb.
   expect(screen.getByRole('link', { name: 'Download CSV' })).toBeInTheDocument()
@@ -442,12 +474,12 @@ test('under 40rem the display options fold into a disclosure; Measure and Wave s
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
+  await screen.findByText('Mean score, 0–10 · 2023')
   const summary = screen.getByText('More options — chart, sort, countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
   // Wave stays visible outside the fold; Sort lives inside it.
-  const wave = screen.getByRole('group', { name: 'Wave' })
+  const wave = screen.getByRole('group', { name: 'Year' })
   expect(details?.contains(wave)).toBe(false)
   const sort = screen.getByRole('group', { name: 'Sort' })
   expect(details?.contains(sort)).toBe(true)
@@ -457,8 +489,8 @@ test('the Statistic group becomes a native select under 30rem (§8)', async () =
   stubViewport(() => true) // a phone matches both 30rem and 40rem
   mockFetch(staticTier)
   await renderAt('/')
-  await screen.findByText('Average score, 0–10 · Wave 1, 2023')
-  const statistic = screen.getByLabelText('Statistic')
+  await screen.findByText('Mean score, 0–10 · 2023')
+  const statistic = screen.getByLabelText('Show')
   expect(statistic.tagName).toBe('SELECT')
   expect(statistic).toHaveDisplayValue('Mean')
 })

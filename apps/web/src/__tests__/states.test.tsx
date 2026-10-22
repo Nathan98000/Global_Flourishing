@@ -327,7 +327,7 @@ describe('US States view', () => {
     expect(await screen.findByText(/US overall \(state weights\)/)).toBeInTheDocument()
     expect(screen.getByText('7.02')).toBeInTheDocument()
     // The n, and no weight code: the weighting is said in words.
-    expect(screen.getByText('n = 38,142')).toBeInTheDocument()
+    expect(screen.getByText('based on 38,142 people')).toBeInTheDocument()
     expect(screen.queryByText(/n = 38,142 · /)).toBeNull()
     expect(
       screen.getByText(/On the national weight, the US overall figure is 7\.21 \[7\.10, 7\.32\]/),
@@ -358,7 +358,7 @@ describe('US States view', () => {
     // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
     expect(text).not.toContain('weighted so each')
-    const reason = screen.getByText(/The release has no adjusted state weight for Wave 1, 2023/)
+    const reason = screen.getByText(/The release has no adjusted state weight for 2023/)
     expect(reason.className).toContain('reason')
   })
 
@@ -366,13 +366,13 @@ describe('US States view', () => {
     const calls = mockFetch(tier)
     const router = await renderAt('/states?view=bars')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    const adj = screen.getByLabelText(/Adjusted state weights/) as HTMLInputElement
+    const adj = screen.getByLabelText(/Adjust for who answered in each state/) as HTMLInputElement
     expect(adj).toBeDisabled()
-    expect(screen.getByText(/no adjusted state weight for Wave 1, 2023/)).toBeInTheDocument()
+    expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole('group', { name: 'Wave' }).querySelector('input[value="Y2"]') as HTMLElement,
+      screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,
     )
-    const adjY2 = await screen.findByLabelText(/Adjusted state weights/)
+    const adjY2 = await screen.findByLabelText(/Adjust for who answered in each state/)
     expect(adjY2).not.toBeDisabled()
     fireEvent.click(adjY2)
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })

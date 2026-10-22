@@ -67,7 +67,7 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   // The subtitle carries the rest, wave last (§7).
   await expect(
-    caption(page).getByText('Average score, 0–10 · Wave 1, 2023', {
+    caption(page).getByText('Mean score, 0–10 · 2023', {
       exact: true,
     }),
   ).toBeVisible()
@@ -75,9 +75,9 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   // Two steps, not one list of 161: topic first, then that topic's measures.
   await page.getByLabel('Topic', { exact: true }).selectOption('wellbeing')
   await page.getByLabel('Measure', { exact: true }).selectOption('HAPPY')
-  await page.getByRole('group', { name: 'Wave' }).getByText('2024', { exact: true }).click()
+  await page.getByRole('group', { name: 'Year' }).getByText('2024', { exact: true }).click()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2024/)).toBeVisible()
 
   const shared = page.url()
   expect(shared).toContain('outcome=HAPPY')
@@ -86,21 +86,21 @@ test('1 — Atlas: change topic, measure and wave, share the URL, reload reprodu
   // Reload reproduces the view…
   await page.reload()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2024/)).toBeVisible()
 
   // …and so does pasting the URL into a fresh browser context.
   const context = await browser.newContext()
   const second = await context.newPage()
   await second.goto(shared)
   await expect(caption(second).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(second).getByText(/Wave 2, 2024/)).toBeVisible()
+  await expect(caption(second).getByText(/· 2024/)).toBeVisible()
   // The address bar stays canonical: defaults never reach the URL (§2.2).
   await expect(second).toHaveURL(/\?outcome=HAPPY&wave=Y2$/)
   await context.close()
 
   // Back returns to the previous state (the URL is the state).
   await page.goBack()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
 
   // A control moved: the URL changes, the page stays put (ADR-0016) — and
@@ -174,12 +174,12 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   await page.getByRole('link', { name: 'Chart this →' }).click()
   await expect(page).toHaveURL(/outcome=ATTEND_SVCS/)
   await expect(caption(page).getByText('Service attendance', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
 
   // The question is on the page, not behind a button (decision 3), and
   // since §9 the sentence stands alone — no mini-label above it.
   await expect(page.getByText('What people were asked')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: 'Answer codes & details →' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'The exact question and answers →' })).toBeVisible()
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 })
 
@@ -211,7 +211,7 @@ test('4 — CSV export downloads with the # meta header lines', async ({ page })
   // server response).
   await page.goto('/?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
 
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'CSV' }).click()
@@ -251,7 +251,7 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await page.goto('/')
   // The chart renders from the static tier…
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
   // …and the app says so in plain words (F6).
   await expect(page.getByText(/Live data service is offline/)).toBeVisible()
@@ -279,7 +279,7 @@ test('7 — Change with a country where fewer people answered again: the interva
       .first()
       .getByText(/2023 → 2024/),
   ).toBeVisible()
-  const figure = page.getByRole('img', { name: /average change among the same people/ })
+  const figure = page.getByRole('img', { name: /mean change among the same people/ })
   await expect(figure).toBeVisible()
 
   // The withdrawn sentence is absent, and nothing shaped like it.
@@ -417,7 +417,7 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   })
   await page.goto('/states?outcome=HAPPY')
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
-  await expect(caption(page).getByText(/state weights · Wave 1, 2023/)).toBeVisible()
+  await expect(caption(page).getByText(/state weights · 2023/)).toBeVisible()
   await expect(page.getByText(/US overall \(state weights\)/).first()).toBeVisible()
   await expect(page.getByText(/On the national weight, the US overall figure is/)).toBeVisible()
   // The map's own topology arrives as a lazy asset, never in the initial route.
@@ -426,8 +426,8 @@ test('9 — US States: the map on state weights loads its own topology chunk, be
   await expect(figure.locator('svg path').first()).toBeVisible()
   await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
   // Adjusted weights are unavailable on Wave 1, with the reason.
-  await expect(page.getByLabel(/Adjusted state weights/)).toBeDisabled()
-  await expect(page.getByText(/no adjusted state weight for Wave 1, 2023/)).toBeVisible()
+  await expect(page.getByLabel(/Adjust for who answered in each state/)).toBeDisabled()
+  await expect(page.getByText(/no adjusted state weight for 2023/)).toBeVisible()
   // The chart view and the table carry the server's state codes.
   await page.getByRole('group', { name: 'View' }).getByText('Chart', { exact: true }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&view=bars$/)
@@ -735,9 +735,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
-  await expect(
-    page.getByText('All countries (average of 2) · Wave 1, 2023', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('All countries (average of 2) · 2023', { exact: true })).toBeVisible()
   const where = page.getByRole('group', { name: 'Where' })
   await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
   await expect(
@@ -821,7 +819,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // 2023 answers, then 2024's; back at 2023 the default returns — and the
   // line under the row says each time what changed on its own.
   await page.goto('/correlates')
-  const wave = page.getByRole('group', { name: 'Wave' })
+  const wave = page.getByRole('group', { name: 'Year' })
   await wave.getByText('Midyear', { exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY$`))
   await expect(
@@ -902,13 +900,13 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(
     page.getByText('2023 · United States · Straight-line', { exact: true }),
   ).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  await expect(page.getByRole('group', { name: 'Year' })).toBeHidden()
   const change = page.getByRole('button', { name: 'Change wave, country and correlation type' })
   await change.click()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Correlation type' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Measured as' })).toBeVisible()
   await page.getByRole('button', { name: 'Done changing' }).click()
-  await expect(page.getByRole('group', { name: 'Wave' })).toBeHidden()
+  await expect(page.getByRole('group', { name: 'Year' })).toBeHidden()
   // No sideways scroll at phone width.
   expect(
     await page.evaluate<boolean>(
@@ -1084,7 +1082,7 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
     // than stacks.
     {
       path: '/change?outcome=ATTEND_SVCS',
-      rendered: page.getByRole('combobox', { name: 'Answer level' }),
+      rendered: page.getByRole('combobox', { name: 'Showing % who said' }),
       widths: [...PHONE_WIDTHS, 680],
     },
   ]

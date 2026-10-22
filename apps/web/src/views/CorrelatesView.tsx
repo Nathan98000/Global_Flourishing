@@ -34,7 +34,7 @@ import {
   type CorrelatesSearch,
   type CorrelatesViewName,
 } from '../state/search'
-import { WAVE_CHIPS } from '../waves'
+import { MIDYEAR_NOTE, WAVE_CHIPS } from '../waves'
 import {
   ALL_COUNTRIES,
   METHOD_DIFFERENCE,
@@ -230,7 +230,7 @@ export function CorrelatesView() {
       )}
       <div id={cellsId} className={own.controlCells} hidden={folded}>
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
           value={search.wave}
@@ -264,7 +264,7 @@ export function CorrelatesView() {
         </label>
         <div className={own.typeCell}>
           <RadioRow<CorrelationMethod>
-            legend="Correlation type"
+            legend="Measured as"
             name="method"
             options={METHOD_OPTIONS}
             value={search.method ?? 'pearson'}
@@ -283,11 +283,11 @@ export function CorrelatesView() {
           </Disclosure>
         </div>
       </div>
-      {note && (
-        <p id={noteId} className={own.rowNote}>
-          {note}
-        </p>
-      )}
+      {/* Why a year is unavailable, or what happens at Midyear — else
+          what the midyear survey is. */}
+      <p id={noteId} className={own.rowNote}>
+        {note ?? MIDYEAR_NOTE}
+      </p>
       {/* What changed on its own (ADR-0020): always in the page, so the
           polite region is there before it speaks. */}
       <p role="status" className={own.notice}>

@@ -71,7 +71,7 @@ describe('scaleSubtitle names the endpoints, never a direction (ADR-0016)', () =
 
   test('an item with labelled endpoints names them from its value labels', () => {
     expect(scaleSubtitle(happyVariable, 'mean', detail)).toBe(
-      'Average score, 0–10 (0 = Not true of you at all, 10 = Completely true of you)',
+      'Mean score, 0–10 (0 = Not true of you at all, 10 = Completely true of you)',
     )
     expect(scaleSubtitle(happyVariable, 'quantile', detail)).toBe(
       'Median score, 0–10 (0 = Not true of you at all, 10 = Completely true of you)',
@@ -83,11 +83,11 @@ describe('scaleSubtitle names the endpoints, never a direction (ADR-0016)', () =
 
   test('a derived score, or an item without labels, shows just the range', () => {
     expect(scaleSubtitle(sfiVariable, 'mean', { ...detail, ...sfiVariable })).toBe(
-      'Average score, 0–10',
+      'Mean score, 0–10',
     )
-    expect(scaleSubtitle(happyVariable, 'mean')).toBe('Average score, 0–10')
+    expect(scaleSubtitle(happyVariable, 'mean')).toBe('Mean score, 0–10')
     expect(scaleSubtitle(happyVariable, 'mean', { ...detail, value_labels: [] })).toBe(
-      'Average score, 0–10',
+      'Mean score, 0–10',
     )
     // A blank endpoint label means no clause at all — nothing is invented.
     expect(endpointsClause({ ...detail, value_labels: [label(0, ''), label(10, 'Top')] })).toBe('')

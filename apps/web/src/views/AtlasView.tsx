@@ -34,7 +34,7 @@ import { defaultDir, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import styles from './AtlasView.module.css'
 
 const route = getRouteApi('/')
@@ -249,7 +249,7 @@ export function AtlasView() {
     <>
       {statOptions && (
         <RadioRow
-          legend="Statistic"
+          legend="Show"
           name="stat"
           options={statOptions}
           value={search.stat ?? 'default'}
@@ -297,7 +297,7 @@ export function AtlasView() {
       />
       {isCategorical && levels.length > 0 && !(allAnswers && search.sort === 'name') && (
         <RadioRow
-          legend={allAnswers ? 'Sort by answer' : 'Answer level'}
+          legend={allAnswers ? 'Sort by answer' : 'Showing % who said'}
           name="level"
           wide
           selectOnNarrow
@@ -348,11 +348,12 @@ export function AtlasView() {
           fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
+          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
         />
         {narrow ? (
           <details className={styles.moreOptions}>

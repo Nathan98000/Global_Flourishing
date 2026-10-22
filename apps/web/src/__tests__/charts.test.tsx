@@ -486,10 +486,8 @@ describe('Histogram', () => {
 
 describe('figure copy', () => {
   test('a subtitle starts with a capital letter, whatever clause leads', () => {
-    expect(capitalize('share answering “Weekly” · Wave 1, 2023')).toBe(
-      'Share answering “Weekly” · Wave 1, 2023',
-    )
-    expect(capitalize('Average score')).toBe('Average score')
+    expect(capitalize('share answering “Weekly” · 2023')).toBe('Share answering “Weekly” · 2023')
+    expect(capitalize('Mean score')).toBe('Mean score')
     expect(capitalize('')).toBe('')
   })
 })
@@ -611,7 +609,7 @@ describe('hover cards (ADR-0022)', () => {
       ci_hi: 0.054,
     })
     expect(valueLine(shareChange)).toBe('Change in share: +3.2 percentage points')
-    expect(ciLine(shareChange)).toBe('95% CI: [+1.0 pp, +5.4 pp]')
+    expect(ciLine(shareChange)).toBe('95% CI: [+1.0, +5.4]')
     const moved = testRow({ stat: 'change_distribution', estimate: 0.2, n: 40 })
     expect(valueLine(moved, { answer: '+2' })).toBe('20.0% changed their answer by +2')
     expect(valueLine(moved, { answer: '0' })).toBe('20.0% gave the same answer both times')
@@ -837,7 +835,7 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
       rows,
       xTitle: `${longest} · ${ends}`,
       yTitle: `${longest} · ${ends}`,
-      barCaption: `Share of respondents who gave each answer to ${longest}`,
+      barCaption: `Share of people who gave each answer to ${longest}`,
       cellTexts,
       barTexts: cellTexts,
       measurer,
@@ -904,9 +902,7 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
         }
         expect(layout.cellFontSize).toBeGreaterThanOrEqual(9)
         // Nothing is cut: every word of every title is still there.
-        expect(caption.lines.join(' ')).toBe(
-          `Share of respondents who gave each answer to ${longest}`,
-        )
+        expect(caption.lines.join(' ')).toBe(`Share of people who gave each answer to ${longest}`)
         expect(xTitle.lines.join(' ')).toBe(`${longest} · ${ends}`)
       })
     }
@@ -941,12 +937,12 @@ describe('the cross-tab gives every text its own lines (ADR-0020)', () => {
         cells={[]}
         xTitle={`${longest} · ${ends}`}
         yTitle={`${longest} · ${ends}`}
-        barCaption={`Share of respondents who gave each answer to ${longest}`}
+        barCaption={`Share of people who gave each answer to ${longest}`}
       />,
     )
     const svg = container.querySelector('svg') as SVGSVGElement
     const texts = [...svg.querySelectorAll('text')]
-    const captionNode = texts.find((node) => node.textContent?.startsWith('Share of respondents'))
+    const captionNode = texts.find((node) => node.textContent?.startsWith('Share of people'))
     const layout = layoutAt(660, [{ label: 'Yes' }, { label: 'No' }])
     // (One line is drawn as the text itself; several as its tspans.)
     const tspans = [...(captionNode?.querySelectorAll('tspan') ?? [])]

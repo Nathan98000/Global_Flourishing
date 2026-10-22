@@ -1,5 +1,5 @@
 // Number formatting: one place, one locale (the site is English), so
-// every view renders 7.21 [7.10, 7.32] · n = 1,204 the same way.
+// every view renders 7.21 [7.10, 7.32] and 1,204 people the same way.
 
 import type { EstimateRow } from './api/types'
 
@@ -37,15 +37,21 @@ export function formatChange(value: number): string {
 
 /** A categorical item's change is the change in the share answering a
  * level (the engine's `change_share`, a fraction): shown in percentage
- * points, signed — +3.2 pp, −1.0 pp, 0.0 pp. */
+ * points, signed — "+3.2 percentage points", never "pp". */
 export function isShareChangeStat(stat: string): boolean {
   return stat === 'change_share'
 }
 
-export function formatShareChange(fraction: number): string {
+/** The signed number of points alone — +3.2, −1.0, 0.0 — for an
+ * interval's ends and a chart's value column, whose line or label
+ * already names the unit. */
+function signedPoints(fraction: number): string {
   const rendered = one.format(Math.abs(fraction * 100))
-  const signed = rendered === '0.0' ? rendered : fraction > 0 ? `+${rendered}` : `−${rendered}`
-  return `${signed} pp`
+  return rendered === '0.0' ? rendered : fraction > 0 ? `+${rendered}` : `−${rendered}`
+}
+
+export function formatShareChange(fraction: number): string {
+  return `${signedPoints(fraction)} percentage points`
 }
 
 /** Correlations and model coefficients are signed quantities around
@@ -69,7 +75,17 @@ export function formatEstimate(value: number | null | undefined, stat: string): 
  * zero-width mark. */
 export function formatCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi' | 'stat'>): string {
   if (row.ci_lo === null || row.ci_hi === null) return '—'
+  // A share change's ends are bare points: its value line names the unit.
+  if (isShareChangeStat(row.stat)) return `[${signedPoints(row.ci_lo)}, ${signedPoints(row.ci_hi)}]`
   return `[${formatEstimate(row.ci_lo, row.stat)}, ${formatEstimate(row.ci_hi, row.stat)}]`
+}
+
+/** A chart's value column: the estimate as formatEstimate gives it, a
+ * share change as bare points (the column's label and the subtitle say
+ * "percentage points"; the hover card says it again). */
+export function formatValueLabel(value: number | null | undefined, stat: string): string {
+  if (value !== null && value !== undefined && isShareChangeStat(stat)) return signedPoints(value)
+  return formatEstimate(value, stat)
 }
 
 /** "95% CI" from meta.ci_level (never hard-coded 95). */

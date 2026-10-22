@@ -236,7 +236,7 @@ describe('Change view', () => {
   test('default output: no follow-up rate, no coverage figure, no jargon, no caution sentence', async () => {
     const calls = mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
-    const figure = await screen.findByRole('img', { name: /average change among the same people/ })
+    const figure = await screen.findByRole('img', { name: /mean change among the same people/ })
     expect(figure).toBeInTheDocument()
     const text = visibleText(screen.getByRole('main'))
     // The guard: no percentage other than the interval level, no jargon,
@@ -246,6 +246,9 @@ describe('Change view', () => {
     expect(text).not.toMatch(JARGON)
     expect(text).not.toMatch(WITHDRAWN_CAUTION)
     expect(text).not.toMatch(/less certain|fewer people answered|follow-up/i)
+    // The statistic keeps its name: "Mean change", never an "average".
+    expect(text).toMatch(/Mean change on the 0–10 scale/)
+    expect(text).not.toMatch(/\bAverage\b|Middle value|All answers|likely range/)
     // Only the change request reaches the API; the earlier wave's
     // cross-section is no longer fetched for anything.
     expect(calls.filter((url) => url.includes('/v1/change'))).toHaveLength(1)
@@ -277,7 +280,7 @@ describe('Change view', () => {
     const bins = await screen.findByRole('img', { name: /change in their own answer/ })
     expect(bins.querySelector('svg')?.textContent).toContain('Change in the answer')
     // The dots chart's axis carries a labelled zero and signed ticks.
-    const dots = screen.getByRole('img', { name: /average change among the same people/ })
+    const dots = screen.getByRole('img', { name: /mean change among the same people/ })
     const ticks = [...(dots.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
       (node) => node.textContent,
     )
@@ -298,16 +301,17 @@ describe('Change view', () => {
       ),
     ).toBeInTheDocument()
     // Atlas's control, Atlas's default: the first labelled answer.
-    const control = screen.getByRole('group', { name: 'Answer level' })
+    const control = screen.getByRole('group', { name: 'Showing % who said' })
     expect(within(control).getByLabelText('Weekly')).toBeChecked()
     // No mean of codes anywhere, no histogram of individual change; the
     // value labels are signed percentage points.
     expect(screen.queryByRole('img', { name: /change in their own answer/ })).toBeNull()
-    // The chart's value labels carry the unit; only the chosen level.
+    // The value labels are bare points (the subtitle names the unit);
+    // only the chosen level.
     const values = figure.querySelector('svg')?.textContent ?? ''
-    expect(values).toContain('+5.0 pp')
-    expect(values).toContain('+1.2 pp')
-    expect(values).not.toContain('−3.0 pp') // another level's row
+    expect(values).toContain('+5.0')
+    expect(values).toContain('+1.2')
+    expect(values).not.toContain('−3.0') // another level's row
   })
 
   test('a directional yes/no item says whether a rise in the share is better', async () => {
@@ -325,7 +329,7 @@ describe('Change view', () => {
     ).toBeInTheDocument()
     // …and a rise in "No", the other end, is worse.
     fireEvent.click(
-      within(screen.getByRole('group', { name: 'Answer level' })).getByLabelText('No'),
+      within(screen.getByRole('group', { name: 'Showing % who said' })).getByLabelText('No'),
     )
     expect(
       await within(caption).findByText(
@@ -373,7 +377,7 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /average change among the same people/ })
+    await screen.findByRole('img', { name: /mean change among the same people/ })
     // No measure spans the midyear survey: no pair control at all, and no
     // sentence about it (25 Sept); the multi-pair path keeps its control.
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
@@ -406,7 +410,7 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /average change among the same people/ })
+    await screen.findByRole('img', { name: /mean change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })
     const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()
@@ -503,9 +507,9 @@ describe('change chart helpers', () => {
     expect(formatEstimate(0.25, 'change_distribution')).toBe('25.0%')
     expect(formatEstimate(0.6, 'transition')).toBe('60.0%')
     // A share change is signed and in percentage points, never "−0.0".
-    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 pp')
-    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 pp')
-    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 pp')
+    expect(formatEstimate(0.05, 'change_share')).toBe('+5.0 percentage points')
+    expect(formatEstimate(-0.031, 'change_share')).toBe('−3.1 percentage points')
+    expect(formatEstimate(-0.0001, 'change_share')).toBe('0.0 percentage points')
   })
 
   test('a three-point response facets by leg with its legs in words', () => {

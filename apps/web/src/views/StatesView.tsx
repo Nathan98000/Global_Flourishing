@@ -19,7 +19,7 @@ import { useVariable, useVariables } from '../api/variables'
 import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
 import { RankedBar, type Reference } from '../charts/RankedBar'
-import { outcomeColor, plotValue } from '../charts/theme'
+import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -31,13 +31,13 @@ import { OutcomePicker } from '../components/controls/OutcomePicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { ciLabel, formatCI, formatCount, formatEstimate } from '../format'
+import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { defaultDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES } from '../waves'
+import { MIDYEAR_NOTE, WAVE_CHIPS, WAVE_TITLES } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
 
@@ -206,7 +206,7 @@ export function StatesView() {
           nationalRow.ci_lo !== null && nationalRow.ci_hi !== null
             ? ` ${formatCI(nationalRow)} (${ciLabel(nationalRow.ci_level)})`
             : ''
-        }, n = ${formatCount(nationalRow.n)}.`
+        }, based on ${people(nationalRow.n)}.`
       : undefined
   const extremes = (() => {
     const valid = displayRows.filter((row) => row.estimate !== null)
@@ -221,7 +221,7 @@ export function StatesView() {
     <>
       {statOptions && (
         <RadioRow
-          legend="Statistic"
+          legend="Show"
           name="stat"
           options={statOptions}
           value={search.stat ?? 'default'}
@@ -273,7 +273,7 @@ export function StatesView() {
       )}
       {isCategorical && levels.length > 0 && (
         <RadioRow
-          legend="Answer level"
+          legend="Showing % who said"
           name="level"
           wide
           selectOnNarrow
@@ -289,7 +289,7 @@ export function StatesView() {
           disabled={!adjAvailable}
           onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
         />{' '}
-        Adjusted state weights
+        Adjust for who answered in each state
         {!adjAvailable && <span className={styles.reason}>{adjReason}</span>}
       </label>
     </>
@@ -328,9 +328,10 @@ export function StatesView() {
           fields={narrow ? 'measure' : 'all'}
         />
         <RadioRow
-          legend="Wave"
+          legend="Year"
           name="wave"
           options={waveOptions}
+          note={waveOptions.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined}
           value={search.wave}
           onChange={(wave) =>
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })

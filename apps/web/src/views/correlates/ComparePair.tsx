@@ -438,7 +438,7 @@ function PairFigure({
         cells={cells}
         xTitle={aTitle}
         yTitle={bTitle}
-        barCaption={`Share of respondents who gave each answer to ${aShort}`}
+        barCaption={`Share of people who gave each answer to ${aShort}`}
       />
     </ChartFigure>
   )
