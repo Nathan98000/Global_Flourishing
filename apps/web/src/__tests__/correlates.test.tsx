@@ -45,6 +45,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import {
   CORRELATION_SCALE,
   askedInTooFew,
@@ -53,10 +54,8 @@ import {
   averagedOver,
   coverageLine,
   pooledPlace,
-  scopeLabel,
   countriesByName,
   fewPeople,
-  defaultCountry,
   heatCells,
   acrossSubtitle,
   legendEnds,
@@ -555,29 +554,34 @@ const tooFewTier: Routes = {
 }
 
 describe('All countries (ADR-0020)', () => {
-  test('the Country select offers All countries first; chosen, Compare two averages every country', async () => {
+  test('Where offers the average first; with no country in the URL, Compare two averages every country (ADR-0029)', async () => {
     const calls = mockFetch(pooledTier)
     const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
-    await screen.findByRole('img', { name: /in United States: for each of 3 answers/ })
-    const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
-    expect(select.options[0]?.text).toBe('All countries')
-    expect(select.value).toBe('22')
-    fireEvent.change(select, { target: { value: 'all' } })
-    await waitFor(() => expect(router.state.location.searchStr).toContain('country=all'))
+    // The default, as on every other page: All countries, averaged.
     const figure = await screen.findByRole('img', {
       name: /, averaged over 2 countries: for each of 3 answers/,
     })
+    const where = within(screen.getByRole('main')).getByLabelText('Where') as HTMLSelectElement
+    expect([...where.options].slice(0, 2).map((option) => option.text)).toEqual([
+      'All countries, averaged',
+      'Each country side by side',
+    ])
+    expect(where.value).toBe('all')
     const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
     expect(request).toContain('pooled=average')
     expect(request).not.toContain('filter=country_code')
     expect(screen.getByText('All countries (average of 2) · 2023')).toBeInTheDocument()
-    // The toggle's first choice names the scope.
-    expect(screen.getByLabelText('All countries')).toBeChecked()
+    // No second place control: the scope toggle is gone.
+    expect(screen.queryByRole('group', { name: 'Where' })).toBeNull()
     // Under the grid, its key and nothing else (ADR-0024).
     expect(figureNote(figure)).toMatch(/^Share of each column/)
-    // Back to one country: the URL drops the average.
-    fireEvent.change(select, { target: { value: '22' } })
-    await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
+    // One country: written, as the Country select wrote it.
+    fireEvent.change(where, { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&country=22'))
+    await screen.findByRole('img', { name: /in United States: for each of 3 answers/ })
+    // Back to the average: the URL forgets the default.
+    fireEvent.change(where, { target: { value: 'all' } })
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS'))
   })
 
   test('Find related, All countries: the averaged list; a row asked in fewer countries says so', async () => {
@@ -671,17 +675,15 @@ describe('All countries (ADR-0020)', () => {
     expect(pooledPlace(everyone, countries)).toBe('All countries (average of 6)')
     expect(pooledPlace(undefined, countries)).toBe('All countries (average of 6)')
     expect(pooledPlace([1, 22, 9, 23], countries)).toBe(
-      'Average of 4 countries (not asked in China or Egypt)',
+      '4 countries, averaged (not asked in China or Egypt)',
     )
     // More than three left out: the count alone.
-    expect(pooledPlace([1, 22], countries)).toBe('Average of 2 countries')
-    expect(pooledPlace([22], countries)).toBe('Average of 1 country')
+    expect(pooledPlace([1, 22], countries)).toBe('2 countries, averaged')
+    expect(pooledPlace([22], countries)).toBe('1 country, averaged')
     expect(averagedOver([1, 22, 9, 23], countries)).toBe('averaged over 4 countries')
     expect(coverageLine({ n_countries: 21 }, 23)).toBe('Asked in 21 of 23 countries.')
     expect(coverageLine({ n_countries: 23 }, 23)).toBeUndefined()
     expect(coverageLine({ n_countries: null }, 23)).toBeUndefined()
-    expect(scopeLabel('All countries')).toBe('All countries')
-    expect(scopeLabel('Japan')).toBe('In Japan')
   })
 
   test('Find related, All countries, a question asked in fewer than half the countries: an empty state, no list', async () => {
@@ -701,20 +703,18 @@ describe('All countries (ADR-0020)', () => {
     expect(main.querySelector('figure')).toBeNull()
     expect(visibleText(main)).not.toContain("Weighted so each country's sample")
     expect(screen.getByRole('button', { name: 'Question: Loneliness' })).toBeInTheDocument()
-    expect(screen.getByLabelText('All countries', { selector: 'input' })).toBeChecked()
+    expect(screen.getByLabelText('Where')).toHaveValue('all')
     // Country by country follows the list: the same words, and no request
     // for a table of nothing.
-    fireEvent.click(screen.getByLabelText('Country by country'))
+    fireEvent.change(screen.getByLabelText('Where'), { target: { value: 'each' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     expect(screen.getByText('No All countries list')).toBeInTheDocument()
     expect(screen.queryByText('Nothing ranked')).toBeNull()
     expect(calls.some((url) => url.includes('by=country_code'))).toBe(false)
     // Choosing a country brings that country's list: the rule is about
     // All countries lists only.
-    fireEvent.click(screen.getByLabelText('All countries', { selector: 'input' }))
+    fireEvent.change(within(main).getByLabelText('Where'), { target: { value: '22' } })
     await waitFor(() => expect(router.state.location.searchStr).not.toContain('scope='))
-    const select = within(main).getByLabelText('Country') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: '22' } })
     await screen.findByRole('group', {
       name: /^Loneliness: the 2 questions most strongly associated with it in United States/,
     })
@@ -786,13 +786,15 @@ function noteSentence(): string {
 describe('Midyear (ADR-0020)', () => {
   test('the Midyear chip is open; chosen, Compare two takes a midyear question beside 2023 answers', async () => {
     const calls = mockFetch(midyearTier)
-    const router = await renderAt('/correlates')
+    const router = await renderAt('/correlates?country=22')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
     const wave = screen.getByRole('group', { name: 'Year' })
     expect(within(wave).getByLabelText('Midyear')).toBeEnabled()
     expect(screen.queryByRole('combobox', { name: 'Year of the other answers' })).toBeNull()
     fireEvent.click(within(wave).getByText('Midyear', { exact: true }))
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY'))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?a=TIME_MEDIA&wave=MY&country=22'),
+    )
     expect(
       screen.getByText(
         'Daily social media time, from the midyear survey, took the place of Life evaluation today.',
@@ -825,7 +827,7 @@ describe('Midyear (ADR-0020)', () => {
 
   test('2024 answers: the note’s choice switches the request, the note and the subtitle', async () => {
     const calls = mockFetch(midyearTier)
-    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY&country=22')
     await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
     const other = screen.getByRole('combobox', { name: 'Year of the other answers' })
     fireEvent.change(other, { target: { value: 'Y2' } })
@@ -847,11 +849,11 @@ describe('Midyear (ADR-0020)', () => {
 
   test('back to 2023 with a midyear question in view: the default takes its place, the line says so', async () => {
     mockFetch(midyearTier)
-    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY')
+    const router = await renderAt('/correlates?a=TIME_MEDIA&wave=MY&country=22')
     await screen.findByRole('img', { name: /Daily social media time and Feelings about/ })
     const wave = screen.getByRole('group', { name: 'Year' })
     fireEvent.click(within(wave).getByText('2023', { exact: true }))
-    await waitFor(() => expect(router.state.location.searchStr).toBe(''))
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?country=22'))
     expect(
       screen.getByText(
         'Daily social media time was asked only in the midyear survey, so Life evaluation today took its place.',
@@ -861,7 +863,7 @@ describe('Midyear (ADR-0020)', () => {
 
   test('picking a midyear question at 2023 switches to Midyear; the picker tags it', async () => {
     mockFetch(midyearTier)
-    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
     const picker = screen.getByRole('dialog', { name: 'Question' })
@@ -870,7 +872,9 @@ describe('Midyear (ADR-0020)', () => {
     expect(option).not.toHaveAttribute('aria-disabled')
     fireEvent.click(option)
     await waitFor(() =>
-      expect(router.state.location.searchStr).toBe('?view=related&outcome=TIME_MEDIA&wave=MY'),
+      expect(router.state.location.searchStr).toBe(
+        '?view=related&outcome=TIME_MEDIA&wave=MY&country=22',
+      ),
     )
     // Only what changed: the note under the row says whose answers and when.
     expect(
@@ -882,7 +886,7 @@ describe('Midyear (ADR-0020)', () => {
 
   test('Find related at Midyear ranks other waves’ questions; the note, not each row, names their year', async () => {
     const calls = mockFetch(midyearTier)
-    await renderAt('/correlates?view=related&outcome=TIME_MEDIA&wave=MY')
+    await renderAt('/correlates?view=related&outcome=TIME_MEDIA&wave=MY&country=22')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     const request = calls.find((url) => url.includes('/v1/correlates')) as string
     expect(request).toContain('outcome=TIME_MEDIA&wave=MY')
@@ -919,7 +923,7 @@ describe('Correlates view', () => {
     const calls = mockFetch(tier)
     await renderAt('/correlates')
     await screen.findByRole('img', {
-      name: /Life evaluation today and Feelings about household income in United States/,
+      name: /Life evaluation today and Feelings about household income/,
     })
     const main = screen.getByRole('main')
     // The lede, the switcher right under it, the view's purpose in a line.
@@ -948,17 +952,18 @@ describe('Correlates view', () => {
     expect(screen.queryByLabelText('Or search')).toBeNull()
     // The pair: the second question on the rows (the API's y), the first on the columns.
     const pair = calls.find((url) => url.includes('/v1/correlations/pair')) as string
-    expect(pair).toContain('y=INCOME_FEELINGS&x=WB_TODAY&wave=Y1&filter=country_code%3A22')
+    expect(pair).toContain('y=INCOME_FEELINGS&x=WB_TODAY&wave=Y1&pooled=average')
+    expect(pair).not.toContain('filter=country_code')
     expect(calls.some((url) => url.includes('/v1/correlates'))).toBe(false)
     // No cause-and-effect reminder anywhere on the page.
     expect(visibleText(main)).not.toMatch(/cause|Associations, not/i)
-    // The United States by default (found by its ISO code in meta).
-    expect(within(main).getByLabelText('Country')).toHaveValue('22')
+    // All countries by default, as on every other page (ADR-0029).
+    expect(within(main).getByLabelText('Where')).toHaveValue('all')
   })
 
   test('Find related: a ranked list of questions with no interval anywhere', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?view=related&outcome=HAPPY')
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     expect(
       screen.getByText(
@@ -1035,7 +1040,7 @@ describe('Correlates view', () => {
     expect(correlates[0]).toContain('outcome=HAPPY')
     expect(correlates[0]).toContain('filter=country_code%3A22')
     expect(correlates[0]).not.toContain('adjusted')
-    expect(screen.getByLabelText('In United States')).toBeChecked()
+    expect(screen.getByLabelText('Where')).toHaveValue('22')
     // No data table (ADR-0022), and no weight code anywhere (review M6).
     expect(screen.queryByText('Data table')).toBeNull()
     expect(screen.queryByRole('table')).toBeNull()
@@ -1044,9 +1049,9 @@ describe('Correlates view', () => {
 
   test('Find related in every country: the ranked questions across countries, the chosen one pinned first', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.click(screen.getByLabelText('Country by country'))
+    fireEvent.change(screen.getByLabelText('Where'), { target: { value: 'each' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     // The ranked chart has left the page: one chart at a time.
@@ -1112,7 +1117,7 @@ describe('Correlates view', () => {
         rows: [...acrossPlain.rows.slice(0, 3), empty],
       },
     })
-    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
+    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all&country=22')
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
     const cell = within(matrix).getAllByRole('cell')[2] as HTMLElement
     expect(cell).toHaveTextContent('—, no estimate')
@@ -1125,15 +1130,15 @@ describe('Correlates view', () => {
 
   test('old links land on the right view: the ranked list, the matrix, the old pair', async () => {
     mockFetch(tier)
-    await renderAt('/correlates?outcome=HAPPY&view=ranked')
+    await renderAt('/correlates?outcome=HAPPY&view=ranked&country=22')
     expect(
       await screen.findByRole('group', { name: /most strongly associated with it/ }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Find related')).toBeChecked()
     expect(screen.queryByText(/were invalid/)).toBeNull()
-    await renderAt('/correlates?outcome=HAPPY&view=countries')
+    await renderAt('/correlates?outcome=HAPPY&view=countries&country=22')
     expect(await screen.findByRole('img', { name: /as a matrix/ })).toBeInTheDocument()
-    await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS')
+    await renderAt('/correlates?outcome=HAPPY&view=pair&x=ATTEND_SVCS&country=22')
     expect(
       await screen.findByRole('img', { name: /Service attendance and Happiness in United States/ }),
     ).toBeInTheDocument()
@@ -1143,7 +1148,7 @@ describe('Correlates view', () => {
 
   test('Compare two: a column-percent heat grid under bars of who gave each answer', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=22')
     const figure = await screen.findByRole('img', {
       name: /Service attendance and Feelings about household income in United States: for each of 3 answers/,
     })
@@ -1159,11 +1164,10 @@ describe('Correlates view', () => {
     // the figure, under the shared control row, as in Find related.
     const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
-    expect(screen.getByLabelText('In United States')).toBeChecked()
-    expect(screen.getByLabelText('Country by country')).not.toBeChecked()
-    const where = screen.getByRole('group', { name: 'Where' })
+    const where = screen.getByLabelText('Where') as HTMLSelectElement
+    expect(where.value).toBe('22')
     expect(figure.contains(where)).toBe(false)
-    const shared = screen.getByRole('group', { name: 'Measured as' })
+    const shared = screen.getByRole('group', { name: 'Year' })
     expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The legend: how to read it, the fixed bins, and the asterisk.
     const key = screen.getByText('Share of each column (columns add to 100%)')
@@ -1227,11 +1231,11 @@ describe('Correlates view', () => {
 
   test('Compare two in every country: the pair’s correlation in each, the chosen one picked out', async () => {
     const calls = mockFetch(pooledTier)
-    const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS')
+    const router = await renderAt('/correlates?a=ATTEND_SVCS&b=INCOME_FEELINGS&country=22')
     await screen.findByRole('img', {
       name: /Service attendance and Feelings about household income in/,
     })
-    fireEvent.click(screen.getByLabelText('Country by country'))
+    fireEvent.change(screen.getByLabelText('Where'), { target: { value: 'each' } })
     await waitFor(() => expect(router.state.location.searchStr).toContain('scope=all'))
     const figure = await screen.findByRole('img', {
       name: /their correlation in each of 2 countries/,
@@ -1350,10 +1354,12 @@ describe('Correlates view', () => {
 
   test('a Find related row opens Compare two with the question first and the row second', async () => {
     mockFetch(tier)
-    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     fireEvent.click(within(figure).getByRole('button', { name: /^Service attendance/ }))
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=HAPPY&b=ATTEND_SVCS'))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?a=HAPPY&b=ATTEND_SVCS&country=22'),
+    )
     expect(
       await screen.findByRole('img', { name: /Happiness and Service attendance in/ }),
     ).toBeInTheDocument()
@@ -1361,11 +1367,13 @@ describe('Correlates view', () => {
 
   test('state carries across views: Find related’s question seeds Compare two, and back', async () => {
     mockFetch(tier)
-    const router = await renderAt('/correlates?a=HAPPY&b=LONELY')
+    const router = await renderAt('/correlates?a=HAPPY&b=LONELY&country=22')
     await screen.findByRole('img', { name: /Happiness and Loneliness in/ })
     fireEvent.click(screen.getByLabelText('Find related'))
     await waitFor(() =>
-      expect(router.state.location.searchStr).toBe('?view=related&b=LONELY&outcome=HAPPY'),
+      expect(router.state.location.searchStr).toBe(
+        '?view=related&b=LONELY&outcome=HAPPY&country=22',
+      ),
     )
     expect(
       await screen.findByRole('group', { name: /Happiness: the 2 questions most strongly/ }),
@@ -1377,7 +1385,9 @@ describe('Correlates view', () => {
     fireEvent.click(within(dialog).getByRole('option', { name: 'Service attendance' }))
     await waitFor(() => expect(router.state.location.searchStr).toContain('outcome=ATTEND_SVCS'))
     fireEvent.click(screen.getByLabelText('Compare two'))
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&b=LONELY'))
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?a=ATTEND_SVCS&b=LONELY&country=22'),
+    )
   })
 
   test('the ranking’s overlap is not spelled out under the chart', async () => {
@@ -1388,7 +1398,7 @@ describe('Correlates view', () => {
         meta: { ...rankedPlain.meta, dropped_overlap: { HAPPY_ITEM: 'sfi', LONELY_ITEM: 'sfi' } },
       },
     })
-    await renderAt('/correlates?view=related&outcome=HAPPY')
+    await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     const figure = await screen.findByRole('group', { name: /most strongly associated with it/ })
     expect(figureNote(figure)).toBe('')
     expect(screen.queryByText(/are left out/)).toBeNull()
@@ -1396,7 +1406,7 @@ describe('Correlates view', () => {
 
   test('Compare several starts from the pair and the first question’s top correlates', async () => {
     const calls = mockFetch(tier)
-    const router = await renderAt('/correlates?view=matrix&a=HAPPY&b=sfi')
+    const router = await renderAt('/correlates?view=matrix&a=HAPPY&b=sfi&country=22')
     await screen.findByRole('group', { name: /Correlations among 4 questions/ })
     expect(
       screen.getByText('Pick up to 10 questions to see how strongly each pair goes together.'),
@@ -1490,7 +1500,7 @@ describe('Correlates view', () => {
     mockFetch(tier)
     await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
-    expect(screen.getByText('2023 · United States · Straight-line')).toBeVisible()
+    expect(screen.getByText('2023 · All countries, averaged · Straight-line')).toBeVisible()
     expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
     const change = screen.getByRole('button', { name: 'Change wave, country and correlation type' })
     expect(change).toHaveTextContent('Change')
@@ -1657,7 +1667,7 @@ describe('Correlates view', () => {
 
   test('an old link asking for the adjusted model gets the usual notice, and never sends it', async () => {
     const calls = mockFetch(tier)
-    await renderAt('/correlates?view=related&outcome=HAPPY&adjusted=true')
+    await renderAt('/correlates?view=related&outcome=HAPPY&adjusted=true&country=22')
     expect(await screen.findByText(/This link asked for something/)).toHaveAttribute(
       'data-params',
       'adjusted',
@@ -1726,16 +1736,19 @@ describe('Correlates view', () => {
         countries: [...testMeta.countries, { code: 5, name: 'Albania', iso3: 'ALB' }],
       },
     })
-    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all')
+    await renderAt('/correlates?view=related&outcome=HAPPY&scope=all&country=22')
     const matrix = await screen.findByRole('img', { name: /as a matrix/ })
-    const select = within(screen.getByRole('main')).getByLabelText('Country') as HTMLSelectElement
-    // Every country pooled first, then each A–Z.
+    const select = within(screen.getByRole('main')).getByLabelText('Where') as HTMLSelectElement
+    // The average, each side by side, then every country A–Z (a list to
+    // pick from, not a sort).
     expect([...select.options].map((option) => option.text)).toEqual([
-      'All countries',
+      'All countries, averaged',
+      'Each country side by side',
       'Albania',
       'Testland',
       'United States',
     ])
+    expect(select.value).toBe('each')
     expect(
       within(matrix)
         .getAllByRole('columnheader')
@@ -1778,7 +1791,14 @@ describe('Correlates view', () => {
     ).toBeInTheDocument()
   })
 
-  test('choosing a country changes the request; the default country never reaches the URL', async () => {
+  test('the shared row after the sentence: Year, then Where (ADR-0029)', async () => {
+    mockFetch(tier)
+    await renderAt('/correlates?country=22')
+    await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
+    expect(barLabels().slice(0, 2)).toEqual(['Year', 'Where'])
+  })
+
+  test('Where writes the URLs the Country select and the scope toggle wrote (ADR-0029)', async () => {
     const calls = mockFetch({
       ...tier,
       'filter=country_code%3A1': {
@@ -1786,15 +1806,29 @@ describe('Correlates view', () => {
         meta: { ...rankedPlain.meta, filters: { country_code: [1] } },
       },
     })
-    const router = await renderAt('/correlates?view=related&outcome=HAPPY')
+    const router = await renderAt('/correlates?view=related&outcome=HAPPY&country=22')
     await screen.findByRole('group', { name: /most strongly associated with it/ })
-    fireEvent.change(screen.getByLabelText('Country'), { target: { value: '1' } })
+    const where = screen.getByLabelText('Where')
+    // A country: `country`, the one-country scope.
+    fireEvent.change(where, { target: { value: '1' } })
     await waitFor(() =>
       expect(calls.some((url) => url.includes('filter=country_code%3A1'))).toBe(true),
     )
-    expect(router.state.location.searchStr).toContain('country=1')
-    fireEvent.change(screen.getByLabelText('Country'), { target: { value: '22' } })
-    await waitFor(() => expect(router.state.location.searchStr).not.toContain('country='))
+    expect(router.state.location.searchStr).toBe('?view=related&outcome=HAPPY&country=1')
+    // Each country side by side: `scope=all`, the country kept.
+    fireEvent.change(where, { target: { value: 'each' } })
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe(
+        '?view=related&outcome=HAPPY&scope=all&country=1',
+      ),
+    )
+    // The average: neither (the default), and back to one country.
+    fireEvent.change(where, { target: { value: 'all' } })
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?view=related&outcome=HAPPY'))
+    fireEvent.change(where, { target: { value: '22' } })
+    await waitFor(() =>
+      expect(router.state.location.searchStr).toBe('?view=related&outcome=HAPPY&country=22'),
+    )
   })
 })
 
@@ -1829,9 +1863,6 @@ describe('correlates helpers', () => {
         { code: 2, name: 'Sweden', iso3: 'SWE' },
       ]).map((country) => country.name),
     ).toEqual(['China', 'Sweden', 'United States'])
-    // The United States by its ISO code; the first country without one.
-    expect(defaultCountry(testMeta)).toBe(22)
-    expect(defaultCountry({ countries: [{ code: 3, name: 'Elsewhere', iso3: 'ELS' }] })).toBe(3)
   })
 
   test('the legend and subtitle say the window in words', () => {

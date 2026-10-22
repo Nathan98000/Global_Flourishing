@@ -39,6 +39,22 @@
   margin-bottom: var(--space-5);
 }
 
+/* The question bar (ADR-0029): the same order on every page — what,
+   then when and where. It aligns on its label lines, so a note under
+   Year hangs below it without pulling the other controls down. */
+.questionBar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+/* A select under its label, the bar's way (Segments' "then by"). */
+.questionBar > label {
+  min-width: 0;
+}
+
 /* Correlates: the row aligns on its label lines (every control has one),
    so a note under the Wave row hangs below it without pulling the other
    controls down to its baseline. */
@@ -240,7 +256,8 @@
     margin-bottom: var(--space-3);
   }
 
-  .controls {
+  .controls,
+  .questionBar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);

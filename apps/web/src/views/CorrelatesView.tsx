@@ -35,13 +35,7 @@ import {
   type CorrelatesViewName,
 } from '../state/search'
 import { MIDYEAR_NOTE, WAVE_CHIPS } from '../waves'
-import {
-  ALL_COUNTRIES,
-  METHOD_DIFFERENCE,
-  countriesByName,
-  defaultCountry,
-  waveNote,
-} from './correlatesRows'
+import { ALL_COUNTRIES, METHOD_DIFFERENCE, countriesByName, waveNote } from './correlatesRows'
 import { ComparePair } from './correlates/ComparePair'
 import { CompareSeveral } from './correlates/CompareSeveral'
 import { FindRelated } from './correlates/FindRelated'
@@ -78,6 +72,11 @@ const PURPOSE: Record<CorrelatesViewName, string> = {
     'Pick one question to find the other questions whose answers rise or fall most closely with it, strongest first. Select any row to see the two side by side.',
 }
 
+/** The Where select's two first choices, and the value of the second. */
+const WHERE_ALL = 'All countries, averaged'
+const WHERE_EACH = 'Each country side by side'
+const EACH_COUNTRY = 'each'
+
 const METHOD_OPTIONS: RadioOption<CorrelationMethod>[] = [
   { value: 'pearson', label: 'Straight-line' },
   { value: 'spearman', label: 'By rank' },
@@ -91,8 +90,9 @@ export function CorrelatesView() {
   const boot = useBootStatus()
   const variables = useVariables()
   const served = meta.data?.meta
-  // A country's code, or `all`: every country pooled (ADR-0020).
-  const country = search.country ?? (served ? defaultCountry(served) : undefined)
+  // A country's code, or `all`: the average of every country (ADR-0020)
+  // — what a URL with no country shows, as on every other page (ADR-0029).
+  const country = search.country ?? 'all'
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
   const cellsId = useId()
@@ -153,11 +153,19 @@ export function CorrelatesView() {
   }
 
   const countryName =
-    country === 'all'
-      ? ALL_COUNTRIES
-      : country !== undefined
-        ? groupValueLabel('country_code', country, served)
-        : ''
+    country === 'all' ? ALL_COUNTRIES : groupValueLabel('country_code', country, served)
+  // Where, in one select (ADR-0029): the average of every country, each
+  // country side by side (Compare two and Find related), or one country —
+  // the URLs today's Country select and scope toggle wrote together.
+  const sideBySide = search.view !== 'matrix'
+  const where =
+    sideBySide && search.scope === 'all'
+      ? EACH_COUNTRY
+      : country === 'all'
+        ? 'all'
+        : String(country)
+  const whereLabel =
+    where === EACH_COUNTRY ? WHERE_EACH : country === 'all' ? WHERE_ALL : countryName
   // A wave the view's questions were not asked in stays in the row,
   // disabled, and the line under the row says why. Midyear never is: its
   // questions are reachable from every wave (ADR-0020).
@@ -203,11 +211,11 @@ export function CorrelatesView() {
     waveNote(WAVES.filter(open), inView.who)
   )
 
-  // One row — Wave · Country · Correlation type, each under its label —
-  // and, under the whole row, why a wave is unavailable. On a phone, one
-  // line says what the three are set to, with "Change" to open them.
+  // One row — Year · Where · Measured as, each under its label — and,
+  // under the whole row, why a wave is unavailable. On a phone, one line
+  // says what the three are set to, with "Change" to open them.
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
-  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, countryName, method?.label]
+  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, whereLabel, method?.label]
     .filter(Boolean)
     .join(' · ')
   const folded = narrow && !changing
@@ -228,7 +236,7 @@ export function CorrelatesView() {
           </button>
         </p>
       )}
-      <div id={cellsId} className={own.controlCells} hidden={folded}>
+      <div id={cellsId} className={own.controlCells} hidden={folded} data-bar="question">
         <RadioRow
           legend="Year"
           name="wave"
@@ -238,23 +246,20 @@ export function CorrelatesView() {
           noteId={note ? noteId : undefined}
         />
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Country</span>
+          <span className={styles.fieldLabel}>Where</span>
           <select
-            value={country ?? ''}
+            value={where}
             onChange={(event) => {
               const value = event.target.value
-              setSearch({
-                country:
-                  value === 'all'
-                    ? 'all'
-                    : Number(value) === defaultCountry(served)
-                      ? undefined
-                      : Number(value),
-              })
+              if (value === EACH_COUNTRY) setSearch({ scope: 'all' })
+              else if (value === 'all') setSearch({ country: undefined, scope: 'country' })
+              else setSearch({ country: Number(value), scope: 'country' })
             }}
           >
-            {/* Every country pooled first, then each on its own, A–Z. */}
-            <option value="all">{ALL_COUNTRIES}</option>
+            {/* The average first, then side by side, then each country
+                A–Z (a list to pick from, not a sort). */}
+            <option value="all">{WHERE_ALL}</option>
+            {sideBySide && <option value={EACH_COUNTRY}>{WHERE_EACH}</option>}
             {countries.map((entry) => (
               <option key={entry.code} value={entry.code}>
                 {entry.name}

@@ -274,19 +274,32 @@ export function ChangeView() {
   const ledePair = supportedPairs[0] ?? { from: search.from, to: search.to }
   const ledeYears = `${WAVE_MOMENTS[ledePair.from]} to ${WAVE_MOMENTS[ledePair.to]}`
 
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
   const displayOptions = (
     <>
+      {isCategorical && levels.length > 0 && (
+        <RadioRow
+          legend="Showing % who said"
+          name="level"
+          wide
+          selectOnNarrow
+          options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+          value={String(activeLevel)}
+          onChange={(value) => setSearch({ level: Number(value) })}
+        />
+      )}
       <RadioRow
         legend="Order"
         name="dir"
         options={VALUE_ORDER}
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
-      />
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
       />
     </>
   )
@@ -314,7 +327,9 @@ export function ChangeView() {
           )
         }
       />
-      <div className={styles.controls}>
+      {/* The question bar (ADR-0029): what, then where — its years are
+          fixed. */}
+      <div className={styles.questionBar} data-bar="question">
         <QuestionPicker
           variant="field"
           label="Question"
@@ -342,26 +357,19 @@ export function ChangeView() {
             }}
           />
         )}
-        {isCategorical && levels.length > 0 && (
-          <RadioRow
-            legend="Showing % who said"
-            name="level"
-            wide
-            selectOnNarrow
-            options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-            value={String(activeLevel)}
-            onChange={(value) => setSearch({ level: Number(value) })}
-          />
-        )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — order, countries</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
+            <summary>More options — answer, order, countries</summary>
+            <div className={styles.moreBody}>
+              {countryFilter}
+              {displayOptions}
+            </div>
           </details>
         ) : (
-          displayOptions
+          countryFilter
         )}
       </div>
+      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">

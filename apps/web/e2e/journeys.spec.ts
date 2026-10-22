@@ -114,13 +114,14 @@ test('1 — Atlas: change the question through the picker and the year, share th
   // A control moved: the URL changes, the page stays put (ADR-0016) — and
   // the country popover stays open while several countries are ticked in
   // a row.
-  await page.evaluate('window.scrollTo(0, 240)')
+  // (The question bar is one row now: the fixture page scrolls less.)
+  await page.evaluate('window.scrollTo(0, 120)')
   const scrolled = await page.evaluate<number>('window.scrollY')
-  expect(scrolled).toBeGreaterThan(200)
+  expect(scrolled).toBeGreaterThan(100)
   // The control's own <details> — not the "More options" fold that wraps
   // it at phone width.
   const countries = page.locator('details', {
-    has: page.locator('summary', { hasText: /All \d+|selected|Choose up to/ }),
+    has: page.locator('summary', { hasText: /countr/ }),
     hasNot: page.locator('summary', { hasText: 'More options' }),
   })
   const trigger = countries.locator('summary')
@@ -137,9 +138,14 @@ test('1 — Atlas: change the question through the picker and the year, share th
   // label above it and a minimum width (25 Sept fix) — and the open
   // panel stays inside the page column.
   const before = await trigger.boundingBox()
+  await expect(trigger).toHaveText('Countries: All countries')
   await trigger.click()
   await expect(countries).toHaveAttribute('open', '')
   await insideColumn()
+  // "All countries" first; "Choose countries" brings the ticks (F20).
+  await expect(countries.getByRole('radio', { name: 'All countries' })).toBeChecked()
+  await expect(countries.getByRole('checkbox')).toHaveCount(0)
+  await countries.getByRole('radio', { name: 'Choose countries' }).check()
   const boxes = countries.getByRole('checkbox')
   await boxes.nth(0).check()
   await expect(page).toHaveURL(/countries=1$/)
@@ -599,9 +605,18 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   )
   const views = page.getByRole('group', { name: 'View' })
 
-  // A first visit lands on Compare two with the default pair: the grid,
-  // one SVG, shares in its cells.
+  // A first visit lands on Compare two with the default pair, on All
+  // countries as every page does (ADR-0029)…
   await page.goto('/correlates')
+  await expect(views.getByLabel('Compare two')).toBeChecked()
+  await expect(page.getByLabel('Where')).toHaveValue('all')
+  await expect(
+    page.getByRole('img', { name: /Feelings about household income, averaged over 2 countries/ }),
+  ).toBeVisible()
+  // …and Where picks one country — as the old Country select wrote it —
+  // for the grid: one SVG, shares in its cells.
+  await page.getByLabel('Where').selectOption({ label: 'United States' })
+  await expect(page).toHaveURL(/\/correlates\?country=22$/)
   await expect(views.getByLabel('Compare two')).toBeChecked()
   await expect(
     caption(page).getByText('Life evaluation today and Feelings about household income', {
@@ -645,7 +660,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     .getByRole('option', { name: plan.picked.display_name, exact: true })
     .click()
   await expect(picker).toBeHidden()
-  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.picked.name}$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.picked.name}&country=22$`))
   await expect(
     caption(page).getByText(`${plan.picked.display_name} and Feelings about household income`, {
       exact: true,
@@ -654,7 +669,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // Swap.
   await page.getByRole('button', { name: 'Swap' }).click()
-  await expect(page).toHaveURL(new RegExp(`\\?a=INCOME_FEELINGS&b=${plan.picked.name}$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=INCOME_FEELINGS&b=${plan.picked.name}&country=22$`))
   await expect(
     caption(page).getByText(`Feelings about household income and ${plan.picked.display_name}`, {
       exact: true,
@@ -672,11 +687,11 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       ),
     )
 
-  // Country by country: one dot per country, the grid gone, and the All
-  // countries average as a labelled rule — the chosen country still
-  // picked out; then back.
-  await page.getByText('Country by country', { exact: true }).click()
-  await expect(page).toHaveURL(/scope=all/)
+  // Each country side by side: one dot per country, the grid gone, and
+  // the All countries average as a labelled rule — the chosen country
+  // still picked out; then back. Where writes what the old toggle wrote.
+  await page.getByLabel('Where').selectOption('each')
+  await expect(page).toHaveURL(/scope=all&country=22$/)
   const everyCountry = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(everyCountry).toBeVisible()
   await expect(everyCountry).toHaveAttribute(
@@ -691,8 +706,9 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   ).toBeVisible()
   expect(await everyCountry.innerHTML()).toContain('var(--control-selected)')
   await expect(page.getByText('Share of each column (columns add to 100%)')).toBeHidden()
-  await page.getByText('In United States', { exact: true }).click()
+  await page.getByLabel('Where').selectOption({ label: 'United States' })
   await expect(page).not.toHaveURL(/scope=/)
+  await expect(page).toHaveURL(/country=22$/)
 
   // Compare several: the pair and the first question's top four.
   await views.getByText('Compare several', { exact: true }).click()
@@ -761,14 +777,14 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   ).toBeVisible()
 
   // Old links land on the right view.
-  await page.goto('/correlates?view=ranked&outcome=HAPPY')
+  await page.goto('/correlates?view=ranked&outcome=HAPPY&country=22')
   await expect(views.getByLabel('Find related')).toBeChecked()
   await expect(
     page.getByRole('group', { name: /^Happiness: the \d+ questions most strongly associated/ }),
   ).toBeVisible()
-  await page.goto('/correlates?view=countries&outcome=HAPPY')
+  await page.goto('/correlates?view=countries&outcome=HAPPY&country=22')
   await expect(views.getByLabel('Find related')).toBeChecked()
-  await expect(page.getByLabel('Country by country')).toBeChecked()
+  await expect(page.getByLabel('Where')).toHaveValue('each')
   const matrix = page.getByRole('img', { name: /as a matrix/ })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('columnheader').nth(1)).toHaveText('United States')
@@ -777,15 +793,16 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
   await expect(page.getByText('All countries (average of 2) · 2023', { exact: true })).toBeVisible()
-  const where = page.getByRole('group', { name: 'Where' })
-  await expect(where.getByLabel('All countries', { exact: true })).toBeChecked()
+  const where = page.getByLabel('Where')
+  await expect(where).toHaveValue('all')
   await expect(
     page.getByRole('img', {
       name: /Feelings about household income, averaged over 2 countries/,
     }),
   ).toBeVisible()
-  // Country by country: every country, none picked out; the strip reads the average.
-  await where.getByText('Country by country', { exact: true }).click()
+  // Each country side by side: every country, none picked out; the strip
+  // reads the average.
+  await where.selectOption('each')
   const pooledAcross = page.getByRole('img', { name: /their correlation in each of 2 countries/ })
   await expect(pooledAcross).toBeVisible()
   expect(await pooledAcross.innerHTML()).not.toContain('var(--control-selected)')
@@ -796,7 +813,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       .filter({ hasText: /^All countries [+−]?\d\.\d\d/ })
       .first(),
   ).toBeVisible()
-  await where.getByText('All countries', { exact: true }).click()
+  await where.selectOption('all')
   await views.getByText('Compare several', { exact: true }).click()
   await expect(
     page.getByRole('group', {
@@ -839,12 +856,12 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await expect(emptyState).toBeVisible()
   await expect(emptyState.locator('em')).toHaveText(scarce.display_name)
   await expect(page.locator('main figure')).toHaveCount(0)
-  await where.getByText('Country by country', { exact: true }).click()
+  await where.selectOption('each')
   await expect(page).toHaveURL(/scope=all/)
   await expect(emptyState).toBeVisible()
-  await where.getByText('All countries', { exact: true }).click()
+  await where.selectOption('all')
   await expect(page).not.toHaveURL(/scope=/)
-  await page.getByRole('combobox', { name: /^Country/ }).selectOption({ label: 'Testland' })
+  await where.selectOption({ label: 'Testland' })
   await expect(
     page.getByRole('group', {
       name: new RegExp(
@@ -859,10 +876,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // Midyear from the chip: the midyear question beside the same people's
   // 2023 answers, then 2024's; back at 2023 the default returns — and the
   // line under the row says each time what changed on its own.
-  await page.goto('/correlates')
+  await page.goto('/correlates?country=22')
   const wave = page.getByRole('group', { name: 'Year' })
   await wave.getByText('Midyear', { exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY$`))
+  await expect(page).toHaveURL(new RegExp(`\\?a=${plan.midyear.name}&wave=MY&country=22$`))
   await expect(
     page.getByText(
       `${plan.midyear.display_name}, from the midyear survey, took the place of Life evaluation today.`,
@@ -896,7 +913,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     }),
   ).toBeVisible()
   await wave.getByText('2023', { exact: true }).click()
-  await expect(page).toHaveURL(/\/correlates$/)
+  await expect(page).toHaveURL(/\/correlates\?country=22$/)
   await expect(
     page.getByText(
       `${plan.midyear.display_name} was asked only in the midyear survey, so Life evaluation today took its place.`,
@@ -905,7 +922,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // Midyear from the picker: a midyear question picked at 2023 takes the
   // page to Midyear.
-  await page.goto('/correlates?view=related&outcome=HAPPY')
+  await page.goto('/correlates?view=related&outcome=HAPPY&country=22')
   await page.getByRole('button', { name: 'Question: Happiness' }).click()
   const questionPicker = page.getByRole('dialog', { name: 'Question' })
   await questionPicker.getByRole('searchbox').fill('social')
@@ -937,7 +954,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // A phone: the shared row folds into one line; Change opens it in place.
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/correlates')
+  await page.goto('/correlates?country=22')
   await expect(
     page.getByText('2023 · United States · Straight-line', { exact: true }),
   ).toBeVisible()

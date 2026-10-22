@@ -23,6 +23,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from '../views/changeOrder'
 
 const okHealth: ApiHealth = {
@@ -364,6 +365,13 @@ describe('Change view', () => {
     expect(calls.some((url) => url.includes('/v1/change'))).toBe(false)
   })
 
+  test('the question bar: Question, then Countries — the years are fixed (ADR-0029)', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=HAPPY')
+    await screen.findByRole('button', { name: 'Question: Happiness' })
+    expect(barLabels()).toEqual(['Question', 'Countries'])
+  })
+
   test('one supported comparison reads as text; the picker keeps a question asked once in view, with why', async () => {
     mockFetch({
       ...tier,
@@ -396,7 +404,7 @@ describe('Change view', () => {
     expect(within(dialog).getByRole('option', { name: /^Loneliness/ })).toBeInTheDocument()
     fireEvent.keyDown(dialog, { key: 'Escape' })
     // The country control reads its state; no prompt beside it.
-    expect(screen.getByText('All 2')).toBeInTheDocument()
+    expect(screen.getByText('All countries', { selector: 'summary span' })).toBeInTheDocument()
   })
 
   test('comparisons reappear when a measure supports them, disabled with a reason where not', async () => {

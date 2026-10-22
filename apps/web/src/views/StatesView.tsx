@@ -299,7 +299,8 @@ export function StatesView() {
           )
         }
       />
-      <div className={styles.controls}>
+      {/* The question bar (ADR-0029): what, then when (one country). */}
+      <div className={styles.questionBar} data-bar="question">
         <QuestionPicker
           variant="field"
           label="Question"
@@ -319,15 +320,14 @@ export function StatesView() {
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })
           }
         />
-        {narrow ? (
+        {narrow && (
           <details className={styles.moreOptions}>
             <summary>More options — view, order, weights</summary>
             <div className={styles.moreBody}>{displayOptions}</div>
           </details>
-        ) : (
-          displayOptions
         )}
       </div>
+      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">

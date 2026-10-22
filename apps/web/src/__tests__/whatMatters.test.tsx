@@ -12,6 +12,7 @@ import { SEQUENTIAL_RAMP } from '../charts/theme'
 import { tintInk } from '../charts/HeatTable'
 import { createAppRouter } from '../router'
 import { happyVariable, sfiVariable, testMeta, testResponse, testRow } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import { IMPORTANCE_ITEMS, splitMidyear } from '../topics'
 import {
   columnRanges,
@@ -553,6 +554,17 @@ describe('What Matters view', () => {
     await waitFor(() =>
       expect(router.state.location.searchStr).toBe('?view=questions&item=FOOD_INSECURE'),
     )
+  })
+
+  test('the question bars: Country then Split by within a country; Question for the others (ADR-0029)', async () => {
+    mockFetch(tier)
+    await renderAt('/what-matters?view=within')
+    await screen.findByText('United States by age band')
+    expect(barLabels()).toEqual(['Country', 'Split by'])
+    cleanup()
+    await renderAt('/what-matters?view=questions')
+    await screen.findByRole('button', { name: /^Question: / })
+    expect(barLabels()).toEqual(['Question'])
   })
 
   test('within a country with no split: its items as one list, most important first', async () => {

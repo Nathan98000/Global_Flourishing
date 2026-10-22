@@ -502,7 +502,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--space-3);
-  width: 26rem;
+  width: var(--field-width, 26rem);
   max-width: 100%;
   min-height: 52px;
   margin: 0;

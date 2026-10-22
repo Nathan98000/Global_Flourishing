@@ -437,7 +437,8 @@ export function WhatMattersView() {
 
       {search.view === 'within' && ranking.length > 0 && (
         <>
-          <div className={styles.controls}>
+          {/* The question bar (ADR-0029): where, then how it is split. */}
+          <div className={styles.questionBar} data-bar="question">
             <SelectField
               label="Country"
               value={splitCountry ?? ''}
@@ -532,7 +533,8 @@ export function WhatMattersView() {
 
       {search.view === 'questions' && chartable.length > 0 && item && (
         <>
-          <div className={styles.controls}>
+          {/* The question bar (ADR-0029): this view's question. */}
+          <div className={styles.questionBar} data-bar="question">
             <QuestionPicker
               variant="field"
               label="Question"
@@ -541,6 +543,8 @@ export function WhatMattersView() {
               value={item.name}
               onPick={(name) => setSearch({ item: name, level: undefined })}
             />
+          </div>
+          <div className={styles.controls}>
             {itemStat === 'proportion' && itemLevels.length > 0 && (
               <RadioRow
                 legend="Showing % who said"

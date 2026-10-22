@@ -25,6 +25,7 @@ import {
   testResponseMeta,
   testRow,
 } from '../test-utils/fixtures'
+import { barLabels } from '../test-utils/bar'
 import { sortStateRows } from '../views/stateRows'
 
 const topology = JSON.parse(
@@ -308,6 +309,13 @@ describe('the US overall label', () => {
 })
 
 describe('US States view', () => {
+  test('the question bar: Question, then Year (ADR-0029)', async () => {
+    mockFetch(tier)
+    await renderAt('/states')
+    await screen.findByRole('button', { name: /^Question: / })
+    expect(barLabels()).toEqual(['Question', 'Year'])
+  })
+
   test('the one question picker: every question; a pick writes the outcome and clears the answer', async () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars&level=2')

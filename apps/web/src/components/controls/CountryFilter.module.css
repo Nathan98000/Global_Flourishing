@@ -1,5 +1,5 @@
 /* The label above the trigger, in the segmented rows' label voice, so the
-   control lines up with Wave, Sort and Order. */
+   control lines up with Question and Year. */
 .field {
   display: flex;
   flex-direction: column;
@@ -17,18 +17,51 @@
 }
 
 .summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   cursor: pointer;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-3);
-  background: var(--surface);
-  color: var(--ink-secondary);
+  padding: 5px var(--space-3);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: var(--text-sm);
   list-style: none;
   width: fit-content;
-  /* Fits the longest state ("5 of 5 selected"), so a selection change
+  /* Fits the longest state ("23 countries"), so a selection change
      never changes the width and never moves the trigger to another line. */
-  min-width: 8rem;
+  min-width: 9.5rem;
   text-align: left;
+}
+
+.summary:hover {
+  border-color: var(--ink-secondary);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A drawn chevron, as on the question picker's button. */
+.chevron {
+  display: inline-flex;
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  color: var(--ink-secondary);
+}
+
+.chevron svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .summary::-webkit-details-marker {
@@ -36,7 +69,18 @@
 }
 
 .details[open] .summary {
-  color: var(--ink);
+  border-color: var(--ink-secondary);
+}
+
+/* All countries, or Choose countries: the panel's first choice. */
+.mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--space-2);
+  padding: 0 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--grid);
 }
 
 .panel {
@@ -61,26 +105,6 @@
 .panel[data-anchor='right'] {
   right: 0;
   left: auto;
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-.clear {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--accent);
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-}
-
-.clear:disabled {
-  color: var(--ink-muted);
-  cursor: default;
 }
 
 .list {
@@ -111,7 +135,7 @@
     height: 1.15rem;
   }
 
-  .clear {
+  .summary {
     min-height: 44px;
   }
 }

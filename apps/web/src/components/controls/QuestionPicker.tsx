@@ -200,6 +200,8 @@ interface SingleProps extends Common {
    * the name in bold over a line of wording, "Change ▾". Default: a
    * button inside a sentence (Correlates). */
   variant?: 'inline' | 'field'
+  /** The field's width, when the bar holds more (Segments' splits). */
+  fieldWidth?: string
 }
 
 interface MultipleProps extends Common {
@@ -259,7 +261,13 @@ export function QuestionPicker(props: QuestionPickerProps) {
   if (!props.multiple && props.variant === 'field') {
     const wording = current ? wordingOf(current) : ''
     return (
-      <span className={styles.field} ref={anchor}>
+      <span
+        className={styles.field}
+        ref={anchor}
+        style={
+          props.fieldWidth ? ({ '--field-width': props.fieldWidth } as CSSProperties) : undefined
+        }
+      >
         <span className={styles.fieldLabel} aria-hidden="true">
           {label}
         </span>

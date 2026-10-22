@@ -249,6 +249,13 @@ export function AtlasView() {
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
   // and Wave stay visible so the chart starts within the first phone
   // screen.
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
   const displayOptions = (
     <>
       {statOptions && (
@@ -277,11 +284,6 @@ export function AtlasView() {
           onChange={(value) => setSearch({ dir: value })}
         />
       )}
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
-      />
       {isCategorical && levels.length > 0 && (
         <RadioRow
           legend={allAnswers ? 'Sort by answer' : 'Showing % who said'}
@@ -332,7 +334,8 @@ export function AtlasView() {
           mean.
         </StatusNotice>
       )}
-      <div className={styles.controls}>
+      {/* The question bar (ADR-0029): what, then when and where. */}
+      <div className={styles.questionBar} data-bar="question">
         <QuestionPicker
           variant="field"
           label="Question"
@@ -353,12 +356,16 @@ export function AtlasView() {
         {narrow ? (
           <details className={styles.moreOptions}>
             <summary>More options — chart, order, countries</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
+            <div className={styles.moreBody}>
+              {countryFilter}
+              {displayOptions}
+            </div>
           </details>
         ) : (
-          displayOptions
+          countryFilter
         )}
       </div>
+      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         // No measure is selected — the state of the data service is

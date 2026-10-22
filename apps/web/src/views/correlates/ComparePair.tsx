@@ -3,10 +3,10 @@
 // in a sentence ("How do answers to [A ▾] relate to [B ▾]?") with a Swap;
 // A is the columns, B the rows. Its chart is a column-percent heat grid
 // (each column adds to 100%) under bars of who gave each of A's answers,
-// headed by the pair's correlation strip. The scope toggle — In {country}
-// · Country by country, where the grid gives way to the pair's
-// correlation in each country — sits under the shared control row, as in
-// Find related. One chart at a time. Every number is the server's.
+// headed by the pair's correlation strip. The shared row's Where chooses
+// one country, the average of every country, or each country side by
+// side — where the grid gives way to the pair's correlation in each
+// (ADR-0029). One chart at a time. Every number is the server's.
 
 import { useMemo, type ReactNode } from 'react'
 import { useCorrelates } from '../../api/correlates'
@@ -34,7 +34,6 @@ import { SHARE_RAMP, signMark } from '../../charts/theme'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
-import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, pairToCsv, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
@@ -45,7 +44,6 @@ import {
   firstQuestion,
   pairRequest,
   secondQuestion,
-  type CorrelatesScope,
 } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
@@ -57,7 +55,6 @@ import {
   fewPeople,
   shareCI,
   pooledPlace,
-  scopeLabel,
   pairAxisTitle,
   pairBarTip,
   pairCellTip,
@@ -158,19 +155,6 @@ export function ComparePair({
     return undefined
   })()
 
-  const scopeToggle = (
-    <RadioRow<CorrelatesScope>
-      legend="Where"
-      legendHidden
-      name="pair-scope"
-      options={[
-        { value: 'country', label: scopeLabel(countryName) },
-        { value: 'all', label: 'Country by country' },
-      ]}
-      value={search.scope}
-      onChange={(scope) => setSearch({ scope })}
-    />
-  )
   const acrossResponse = across.data
   const chosenRow =
     country === 'all'
@@ -223,8 +207,6 @@ export function ComparePair({
         </p>
       </div>
       {controls}
-      {/* Where, in the one place every view has it: under the shared row. */}
-      <div className={own.scopeRow}>{scopeToggle}</div>
       {problem || !a || !b ? (
         <EmptyState title="Pick two questions to compare">
           <p>{problem ?? 'Choose two questions'} — choose another question above.</p>

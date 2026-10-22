@@ -165,31 +165,42 @@ describe('CountryFilter', () => {
     return onChange
   }
 
-  test('the trigger reports its state in a few words under a visible "Countries" label', () => {
+  test('the trigger is a button that reports its state in a few words, under a "Countries" label', () => {
     const { unmount } = render(
       <CountryFilter countries={countries} selected={[]} onChange={vi.fn()} />,
     )
-    expect(screen.getByText('Countries')).toBeInTheDocument()
-    const trigger = screen.getByText('All 2').closest('summary')
+    expect(screen.getByText('Countries', { selector: 'span' })).toBeInTheDocument()
+    const trigger = screen
+      .getByText('All countries', { selector: 'summary span' })
+      .closest('summary')
     // "Countries" stays in the accessible name (a visually hidden prefix).
-    expect(trigger?.textContent).toBe('Countries: All 2')
+    expect(trigger?.textContent).toBe('Countries: All countries')
     unmount()
     render(<CountryFilter countries={countries} selected={[1]} onChange={vi.fn()} />)
-    expect(screen.getByText('1 selected')).toBeInTheDocument()
-    expect(countryTriggerText(0, 23)).toBe('All 23')
-    expect(countryTriggerText(23, 23)).toBe('All 23')
-    expect(countryTriggerText(3, 23)).toBe('3 selected')
+    expect(screen.getByText('1 country', { selector: 'summary span' })).toBeInTheDocument()
+    expect(countryTriggerText(0, 23)).toBe('All countries')
+    expect(countryTriggerText(23, 23)).toBe('All countries')
+    expect(countryTriggerText(3, 23)).toBe('3 countries')
   })
 
-  test('Select all checks every country', () => {
+  test('the panel starts with All countries; "all" is never shown as nothing ticked (F20)', () => {
     const onChange = renderFilter([])
-    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
-    expect(onChange).toHaveBeenCalledWith([1, 22])
+    const all = screen.getByRole('radio', { name: 'All countries' })
+    expect(all).toBeChecked()
+    // No list of unticked boxes while all countries are shown.
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    // Choose countries: the ticks appear; a tick chooses that country.
+    fireEvent.click(screen.getByRole('radio', { name: 'Choose countries' }))
+    expect(screen.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'United States' }))
+    expect(onChange).toHaveBeenCalledWith([22])
   })
 
-  test('Clear returns to the all-countries default', () => {
-    const onChange = renderFilter([1, 22])
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+  test('with countries chosen, All countries returns to the default', () => {
+    const onChange = renderFilter([1, 22].slice(0, 1))
+    expect(screen.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Testland' })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'All countries' }))
     expect(onChange).toHaveBeenCalledWith([])
   })
 
@@ -210,7 +221,7 @@ describe('CountryFilter', () => {
     expect(details.open).toBe(false)
     // …while a pointerdown inside keeps it open.
     details.open = true
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.pointerDown(screen.getByRole('radio', { name: 'Choose countries' }))
     expect(details.open).toBe(true)
   })
 })

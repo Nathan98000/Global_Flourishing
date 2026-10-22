@@ -10,6 +10,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, VariableDetail } from '../api/types'
 import { tipText } from '../charts/theme'
+import { barLabels } from '../test-utils/bar'
 import { createAppRouter } from '../router'
 import {
   attendVariable,
@@ -169,7 +170,7 @@ const RENAMED = /\bAverage\b|Middle value|All answers|likely range/
 test('no control, subtitle or card renames a statistic: Mean, Median, Distribution, 95% CI', async () => {
   mockFetch(staticTier)
   await renderAt('/')
-  await waitFor(() => expect(screen.getAllByText('United States').length).toBeGreaterThan(1))
+  await screen.findByRole('img', { name: /United States/ })
   const main = screen.getByRole('main')
   expect(within(main).getByText(/^Mean score, 0–10/)).toBeInTheDocument()
   expect(main.textContent).not.toMatch(RENAMED)
@@ -196,8 +197,7 @@ test('no control, subtitle or card renames a statistic: Mean, Median, Distributi
 test('the Atlas renders from the static tier, question on the page, no line under the chart', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/')
-  // In the chart/table as well as the country filter.
-  await waitFor(() => expect(screen.getAllByText('United States').length).toBeGreaterThan(1))
+  await screen.findByRole('img', { name: /United States/ })
   // The wording (here a derived score's description) is on the page, not
   // behind a button (decision 3).
   expect(
@@ -318,6 +318,17 @@ test('the one question picker: closed, the question and its wording; open, topic
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Question: Happiness' })).toHaveFocus()
+})
+
+test('the question bar: the same order on every page — what, then when and where (ADR-0029)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/')
+  await screen.findByRole('button', { name: /^Question: / })
+  expect(barLabels()).toEqual(['Question', 'Year', 'Countries'])
+  cleanup()
+  await renderAt('/segments')
+  await screen.findByRole('button', { name: /^Question: / })
+  expect(barLabels()).toEqual(['Question', 'Split by', 'then by', 'Year', 'Countries'])
 })
 
 test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {

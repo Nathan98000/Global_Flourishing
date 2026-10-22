@@ -20,17 +20,11 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingBlock } from '../../components/Loading'
 import { WordingPanel } from '../../components/WordingPanel'
 import { QuestionPicker } from '../../components/controls/QuestionPicker'
-import { RadioRow } from '../../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../../export/csv'
 import { exportFilename, type ExportName } from '../../export/filename'
 import { formatEstimate } from '../../format'
 import { shortName } from '../../labels'
-import {
-  correlatesAcrossCountries,
-  correlatesRequest,
-  relatedQuestion,
-  type CorrelatesScope,
-} from '../../state/search'
+import { correlatesAcrossCountries, correlatesRequest, relatedQuestion } from '../../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../../useMediaQuery'
 import { WAVE_TITLES } from '../../waves'
 import {
@@ -50,7 +44,6 @@ import {
   correlationTip,
   coverageLine,
   pooledPlace,
-  scopeLabel,
   withCoverage,
   starred,
   statisticPhrase,
@@ -186,19 +179,6 @@ export function FindRelated({
         </p>
       </div>
       {controls}
-      <div className={own.scopeRow}>
-        <RadioRow<CorrelatesScope>
-          legend="Where"
-          legendHidden
-          name="scope"
-          options={[
-            { value: 'country', label: scopeLabel(countryName) },
-            { value: 'all', label: 'Country by country' },
-          ]}
-          value={search.scope}
-          onChange={(scope) => setSearch({ scope })}
-        />
-      </div>
       {problem ? (
         <EmptyState title="Pick a question to begin">
           <p>{problem} — choose another question above.</p>

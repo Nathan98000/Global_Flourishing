@@ -225,37 +225,48 @@ export function BreakdownsView() {
   // The split, sorts, country filter and answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it;
   // Measure, Wave and the breakdown itself stay visible.
-  const displayOptions = (
-    <>
-      <label className={`${styles.oriented} ${styles.stacksNarrow}`}>
-        then by{' '}
-        <select
-          value={secondary ?? ''}
-          onChange={(event) =>
-            setSearch({
-              by: event.target.value ? [primary, event.target.value] : [primary],
-            })
-          }
-        >
-          <option value="">—</option>
-          <optgroup label="demographics">
-            {demographics
-              .filter((column) => column !== primary)
-              .map((column) => (
-                <option key={column} value={column}>
-                  {columnLabel(column, meta.data.meta)}
-                </option>
-              ))}
-          </optgroup>
-          <optgroup label="survey variables">
-            {categoricalVariables.map((candidate) => (
-              <option key={candidate.name} value={candidate.name}>
-                {candidate.display_name}
+  // "Split by [ ] then by [ ]": the second split's label above its select,
+  // as every other label is (F15).
+  const thenBy = (
+    <label className={styles.field}>
+      <span className={styles.fieldLabel}>then by</span>
+      <select
+        value={secondary ?? ''}
+        onChange={(event) =>
+          setSearch({
+            by: event.target.value ? [primary, event.target.value] : [primary],
+          })
+        }
+      >
+        <option value="">Nothing</option>
+        <optgroup label="demographics">
+          {demographics
+            .filter((column) => column !== primary)
+            .map((column) => (
+              <option key={column} value={column}>
+                {columnLabel(column, meta.data.meta)}
               </option>
             ))}
-          </optgroup>
-        </select>
-      </label>
+        </optgroup>
+        <optgroup label="survey variables">
+          {categoricalVariables.map((candidate) => (
+            <option key={candidate.name} value={candidate.name}>
+              {candidate.display_name}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    </label>
+  )
+  const countryFilter = (
+    <CountryFilter
+      countries={meta.data.meta.countries}
+      selected={search.countries}
+      onChange={(countries) => setSearch({ countries })}
+    />
+  )
+  const displayOptions = (
+    <>
       <RadioRow
         legend="Sort countries"
         name="sort"
@@ -272,11 +283,6 @@ export function BreakdownsView() {
         options={VALUE_ORDER}
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
-      />
-      <CountryFilter
-        countries={meta.data.meta.countries}
-        selected={search.countries}
-        onChange={(countries) => setSearch({ countries })}
       />
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
@@ -313,7 +319,9 @@ export function BreakdownsView() {
           )
         }
       />
-      <div className={styles.controls}>
+      {/* The question bar (ADR-0029): what — the question and its split —
+          then when and where. */}
+      <div className={styles.questionBar} data-bar="question">
         <QuestionPicker
           variant="field"
           label="Question"
@@ -321,15 +329,8 @@ export function BreakdownsView() {
           wave={search.wave}
           value={search.outcome}
           topic={search.topic}
+          fieldWidth="18rem"
           onPick={(outcome) => handlePick({ outcome })}
-        />
-        <RadioRow
-          legend="Year"
-          name="wave"
-          options={waveOptions}
-          value={search.wave}
-          onChange={(wave) => setSearch({ wave })}
-          note={yearNote(waveOptions)}
         />
         <RadioRow
           legend="Split by"
@@ -340,15 +341,28 @@ export function BreakdownsView() {
           value={primary}
           onChange={(column) => setSearch({ by: secondary ? [column, secondary] : [column] })}
         />
+        {thenBy}
+        <RadioRow
+          legend="Year"
+          name="wave"
+          options={waveOptions}
+          value={search.wave}
+          onChange={(wave) => setSearch({ wave })}
+          note={yearNote(waveOptions)}
+        />
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — split, sort, countries</summary>
-            <div className={styles.moreBody}>{displayOptions}</div>
+            <summary>More options — countries, order</summary>
+            <div className={styles.moreBody}>
+              {countryFilter}
+              {displayOptions}
+            </div>
           </details>
         ) : (
-          displayOptions
+          countryFilter
         )}
       </div>
+      {!narrow && <div className={styles.controls}>{displayOptions}</div>}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
