@@ -34,13 +34,34 @@ def test_change_distribution_bins_are_shown_and_countable(client: TestClient) ->
     assert sum(r["n"] for r in dist) == change_row["n"]
 
 
+def test_transitions_are_served_only_when_asked(client: TestClient) -> None:
+    """The Change page draws no transitions (ADR-0027), so the default
+    payload carries none; ``include=transitions`` brings them back."""
+    params = {"outcome": "ATTEND_SVCS", "from": "Y1", "to": "Y2", "by": "country_code"}
+    _, rows = get_change(client, **params)
+    assert {r["stat"] for r in rows} == {"change_share"}
+    _, numeric = get_change(client, **{**params, "outcome": "HAPPY"})
+    assert {r["stat"] for r in numeric} == {"change", "change_distribution"}
+    _, asked = get_change(client, **params, include="transitions")
+    assert {r["stat"] for r in asked} == {"change_share", "transition"}
+    resp = client.get("/v1/change", params={**params, "include": "everything"})
+    assert resp.status_code == 422
+    assert any("include must be one of" in problem for problem in resp.json()["detail"])
+
+
 def test_ordinal_outcome_gets_a_transition_matrix(client: TestClient) -> None:
     _, rows = get_change(
-        client, outcome="ATTEND_SVCS", **{"from": "Y1"}, to="Y2", filter="country_code:1"
+        client,
+        outcome="ATTEND_SVCS",
+        **{"from": "Y1"},
+        to="Y2",
+        filter="country_code:1",
+        include="transitions",
     )
     stats = {r["stat"] for r in rows}
     # A categorical item's change is the change in share at each answer
-    # plus the transitions — never a mean of its codes (ADR-0015).
+    # (plus the transitions, when asked) — never a mean of its codes
+    # (ADR-0015).
     assert stats == {"change_share", "transition"}
     joint = [r for r in rows if r["measure"] == "transition_joint"]
     assert {(r["from_level"], r["to_level"]) for r in joint} == {

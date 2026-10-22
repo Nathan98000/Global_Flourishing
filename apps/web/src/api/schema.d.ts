@@ -64,7 +64,8 @@ export interface paths {
          *     of what the measure names (``stat = "change"``), plus the distribution
          *     of individual change; categorical items report the change in the
          *     share answering each level (``stat = "change_share"``, a fraction —
-         *     × 100 for percentage points) plus the transition matrix.
+         *     × 100 for percentage points), plus the transition matrix with
+         *     ``include=transitions``.
          *     ``from=Y1&via=MY&to=Y2`` returns the three panel legs under the
          *     three-point weight (numeric scales only).
          */
@@ -995,6 +996,7 @@ export interface operations {
                 scope?: string;
                 rect?: boolean;
                 from?: string;
+                include?: string[] | null;
             };
             header?: never;
             path?: never;

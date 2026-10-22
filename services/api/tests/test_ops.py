@@ -69,6 +69,58 @@ class TestCaching:
         resp = client.get("/health")
         assert "etag" not in resp.headers
 
+    def test_a_strong_form_of_the_tag_still_matches(self, client: TestClient) -> None:
+        # A proxy may strip the W/ prefix; If-None-Match compares weakly.
+        etag = client.get("/v1/aggregate", params=PARAMS).headers["etag"]
+        assert etag.startswith('W/"')
+        resp = client.get("/v1/aggregate", params=PARAMS, headers={"If-None-Match": etag[2:]})
+        assert resp.status_code == 304
+
+
+class TestCompression:
+    """Gzip for 1 kB and up, when asked (ADR-0033); the ETag is weak and
+    names the uncompressed body, so it survives the encoding."""
+
+    def test_gzip_when_asked_none_when_not(self, client: TestClient) -> None:
+        gz = client.get("/v1/aggregate", params=PARAMS, headers={"Accept-Encoding": "gzip"})
+        assert gz.headers["content-encoding"] == "gzip"
+        assert gz.headers["vary"] == "Accept-Encoding"
+        plain = client.get("/v1/aggregate", params=PARAMS, headers={"Accept-Encoding": "identity"})
+        assert "content-encoding" not in plain.headers
+        assert plain.headers["vary"] == "Accept-Encoding"
+        # httpx decodes the gzipped body: the same envelope, the same tag.
+        assert gz.json() == plain.json()
+        assert gz.headers["etag"] == plain.headers["etag"]
+        assert gz.headers["etag"].startswith('W/"')
+
+    def test_small_responses_go_uncompressed_with_vary(self, client: TestClient) -> None:
+        resp = client.get(
+            "/v1/aggregate",
+            params={"outcome": "HAPPY", "wave": "Y1", "filter": "country_code:1"},
+            headers={"Accept-Encoding": "gzip"},
+        )
+        assert len(resp.content) < 1024
+        assert "content-encoding" not in resp.headers
+        assert resp.headers["vary"] == "Accept-Encoding"
+
+    def test_a_gzipped_client_gets_its_304(self, client: TestClient) -> None:
+        headers = {"Accept-Encoding": "gzip"}
+        etag = client.get("/v1/aggregate", params=PARAMS, headers=headers).headers["etag"]
+        resp = client.get(
+            "/v1/aggregate", params=PARAMS, headers={**headers, "If-None-Match": etag}
+        )
+        assert resp.status_code == 304
+        assert resp.headers["etag"] == etag
+        assert resp.headers["vary"] == "Accept-Encoding"
+        assert resp.content == b""
+
+    def test_a_cache_hit_is_gzipped_too(self, client: TestClient) -> None:
+        headers = {"Accept-Encoding": "gzip"}
+        client.get("/v1/aggregate", params=PARAMS, headers=headers)
+        again = client.get("/v1/aggregate", params=PARAMS, headers=headers)
+        assert again.headers["x-cache"] == "hit"
+        assert again.headers["content-encoding"] == "gzip"
+
 
 class TestRateLimit:
     @pytest.fixture()

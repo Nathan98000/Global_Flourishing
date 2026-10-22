@@ -31,9 +31,10 @@ from flourish_api.serialize import rows_from_table
 router = APIRouter()
 
 #: Categorical scale types: their change is the change in share at each
-#: code (``change_share``) plus the transition matrix — never a mean of
-#: codes (ADR-0015). Numeric scales (``MEAN_SCALE_TYPES``) get the mean
-#: change on aligned values and the histogram of individual change.
+#: code (``change_share``), plus the transition matrix when asked
+#: (``include=transitions``) — never a mean of codes (ADR-0015). Numeric
+#: scales (``MEAN_SCALE_TYPES``) get the mean change on aligned values and
+#: the histogram of individual change.
 CATEGORICAL_SCALE_TYPES = frozenset({"ordinal", "nominal", "binary"})
 
 
@@ -55,14 +56,18 @@ def change_tables(
             observed = set(frame[earlier].drop_nulls().to_list())
             observed |= set(frame[later].drop_nulls().to_list())
             levels = sorted(observed)
-        return [
+        tables = [
             paired_share_change(
                 frame, earlier, later, design, levels=levels, by=groups, policy=policy
-            ),
-            transition_matrix(
-                frame, earlier, later, design, by=groups, levels=levels, policy=policy
-            ),
+            )
         ]
+        if query.transitions:
+            tables.append(
+                transition_matrix(
+                    frame, earlier, later, design, by=groups, levels=levels, policy=policy
+                )
+            )
+        return tables
     tables = [paired_change(frame, earlier, later, design, by=groups, policy=policy)]
     if levels is not None and frame[earlier].dtype.is_integer():
         span = levels[-1] - levels[0]
@@ -92,13 +97,15 @@ def change(
     scope: str = "global",
     rect: bool = False,
     from_wave: Annotated[str, Query(alias="from")] = "Y1",
+    include: Annotated[list[str] | None, Query()] = None,
 ) -> EstimateResponse:
     """Within-person change with a design-based CI. Numeric scales (0–10,
     counts) report the mean change on values aligned so higher means more
     of what the measure names (``stat = "change"``), plus the distribution
     of individual change; categorical items report the change in the
     share answering each level (``stat = "change_share"``, a fraction —
-    × 100 for percentage points) plus the transition matrix.
+    × 100 for percentage points), plus the transition matrix with
+    ``include=transitions``.
     ``from=Y1&via=MY&to=Y2`` returns the three panel legs under the
     three-point weight (numeric scales only)."""
     assert store.catalog is not None
@@ -112,6 +119,7 @@ def change(
         filters=filter or [],
         scope=scope,
         rect=rect,
+        include=include,
     )
     assembled = assemble_change_frame(store, query)
     rows = [
