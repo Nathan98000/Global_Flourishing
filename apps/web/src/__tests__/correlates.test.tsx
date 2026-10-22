@@ -1162,8 +1162,17 @@ describe('Correlates view', () => {
     expect(screen.getByText('United States · 2023')).toBeInTheDocument()
     // The header: the correlation strip alone. Where is chosen outside
     // the figure, under the shared control row, as in Find related.
-    const strip = screen.getByText('Correlation', { selector: 'span' }).parentElement as HTMLElement
+    const strip = screen.getByText(/^Correlation/, { selector: 'span' })
+      .parentElement as HTMLElement
     expect(within(strip).getByText('+0.31')).toBeInTheDocument()
+    // What a correlation is, beside its name; the scale's ends in words,
+    // as Find related's (F12) — and still no strength word.
+    expect(strip).toHaveTextContent(
+      'Correlation — how closely two answers rise and fall together, from −1 to +1',
+    )
+    expect(strip).toHaveTextContent('← goes with lower answers to Service attendance')
+    expect(strip).toHaveTextContent('goes with higher answers to Service attendance →')
+    expect(strip.textContent).not.toMatch(/weak|strong|moderate/)
     const where = screen.getByLabelText('Where') as HTMLSelectElement
     expect(where.value).toBe('22')
     expect(figure.contains(where)).toBe(false)
@@ -1199,6 +1208,12 @@ describe('Correlates view', () => {
     })
     // Columns left to right in aligned order; rows with the most at the top.
     const at = (label: string) => texts.findIndex((text) => text.includes(label))
+    // The answers label the columns twice (F12): over the grid, under the
+    // bars, so they are on screen with the first rows — and under it.
+    expect(texts.filter((text) => text === 'Never')).toHaveLength(2)
+    expect(texts.filter((text) => text === 'Weekly')).toHaveLength(2)
+    expect(at('Never')).toBeLessThan(at('Feelings about household income'))
+    expect(texts.lastIndexOf('Never')).toBeGreaterThan(at('Finding it very difficult'))
     expect(at('Never')).toBeLessThan(at('Sometimes'))
     expect(at('Sometimes')).toBeLessThan(at('Weekly'))
     expect(at('Living comfortably')).toBeLessThan(at('Finding it very difficult'))

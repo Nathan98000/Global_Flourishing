@@ -51,6 +51,7 @@ import { WAVE_TITLES } from '../../waves'
 import {
   ALL_COUNTRIES,
   CORRELATION_SCALE,
+  axisEnds,
   averagedOver,
   FEW_PEOPLE_KEY,
   fewPeople,
@@ -240,6 +241,7 @@ export function ComparePair({
                     row={chosenRow}
                     scope={countryName}
                     flagged={fewPeople(chosenRow, acrossResponse.meta.min_n)}
+                    ends={axisEnds(yearTagged(shortName(a), a, search.wave, otherWave))}
                   />
                 ) : null}
               </HeaderRow>
@@ -269,6 +271,7 @@ export function ComparePair({
                 row={pair.data.correlation}
                 scope={countryName}
                 flagged={fewPeople(pair.data.correlation, pair.data.min_n)}
+                ends={axisEnds(yearTagged(shortName(a), a, search.wave, otherWave))}
               />
             </HeaderRow>
           }
