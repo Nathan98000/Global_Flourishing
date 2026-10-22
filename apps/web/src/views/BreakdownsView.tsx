@@ -448,6 +448,12 @@ export function BreakdownsView() {
                 title={title}
                 subtitle={subtitle}
                 narrowSubtitle={narrowSubtitle}
+                hint={
+                  // Two splits on a phone run long: a way to shorten it (G6).
+                  narrow && secondary !== undefined && search.countries.length === 0
+                    ? 'Two splits for every country make a long page — choose fewer countries in Options.'
+                    : undefined
+                }
                 ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
                 intro={
                   detail && (

@@ -65,6 +65,15 @@ app saying "sure" where it should say "unsure":
    to answer" stays a group (the catalog records it as an answer); under
    these rules it no longer moves the order or the gap.
 
+5. **A panel grid's window fits its solid cells.** Segments' (and What
+   Matters' split) shared window is ADR-0010's fitted window over the
+   cells with 30 or more people behind them; a thin cell's dot beyond it
+   sits at the window's edge, hollow, with an arrow pointing on, and its
+   card gives its value. A second split held 150 thin cells from 2.3 to
+   10 around solid ones from 5.3 to 8.5, which stretched every facet to
+   0–10 and hid every difference. A level with no estimate in any panel
+   shown takes no row.
+
 ## Consequences
 
 - The static tier must be rebuilt (`flourish-pipeline run --from

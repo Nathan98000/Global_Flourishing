@@ -14,7 +14,7 @@ import * as Plot from '@observablehq/plot'
 import type { EstimateRow, Meta, ResponseMeta, VariableSummary } from '../api/types'
 import { columnLabel, groupValueLabel } from '../labels'
 import type { SortDir } from '../sortRows'
-import { dotEntries, dotMarks, type LevelLabeler } from './DotPlot'
+import { dotEntries, dotMarks, type DotEntry, type LevelLabeler } from './DotPlot'
 import { ciExtents, fittedScale, measureBounds, phoneMinStep } from './domain'
 import {
   FACET_PADDING,
@@ -191,12 +191,23 @@ export function SmallMultiples({
   const container = usePlot(
     (available) => {
       const facets = facetDomain ?? facetOrder(rows, meta, facetColumn, sort, dir)
+      // A level with no estimate in any panel shown takes no row, and a
+      // column of a second breakdown none, so empty rows never repeat down
+      // every panel (G6).
+      const base = dotEntries(rows, meta, levelColumn, facetColumn, labeler)
+      const valued = base.filter((entry) => entry.value !== null)
+      const levels = levelDomain.filter((level) => valued.some((entry) => entry.level === level))
+      const seriesOf = (entry: DotEntry) =>
+        seriesColumn
+          ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
+          : ''
+      const presentSeries = new Set(valued.map(seriesOf))
       const isShare = responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution'
       const width = chartWidth(seriesColumn ? 820 : 700, available)
       const narrow = width < 480
       // On a phone the row labels get the room their longest needs (up
       // to two-fifths of the width), so "Prefer not to answer" is never cut.
-      const longest = Math.max(0, ...levelDomain.map((level) => level.length))
+      const longest = Math.max(0, ...levels.map((level) => level.length))
       const marginLeft = narrow
         ? Math.round(Math.min(width * 0.4, Math.max(90, longest * GLYPH + 12)))
         : (labelWidth ?? 150)
@@ -206,7 +217,9 @@ export function SmallMultiples({
       // leave each MIN_FACET_WIDTH, MIN_FACET_GAP apart; the rest wrap
       // onto the next row under the same title (F15). No outer padding, so
       // a band step is inner / (n − padding).
-      const series = seriesColumn ? (seriesDomain ?? []) : []
+      const series = seriesColumn
+        ? (seriesDomain ?? []).filter((label) => presentSeries.has(label))
+        : []
       const perRow = seriesColumn
         ? Math.max(
             1,
@@ -234,10 +247,8 @@ export function SmallMultiples({
       const bands = facets.flatMap((facet) =>
         Array.from({ length: chunks }, (_, chunk) => bandOf(facet, chunk)),
       )
-      const entries = dotEntries(rows, meta, levelColumn, facetColumn, labeler).map((entry) => {
-        const column = seriesColumn
-          ? groupValueLabel(seriesColumn, entry.row.group[seriesColumn] ?? null, meta, labeler)
-          : ''
+      const entries = base.map((entry) => {
+        const column = seriesOf(entry)
         const { slot, chunk } = place(column)
         // The second breakdown rides into the card under the first.
         return {
@@ -254,12 +265,28 @@ export function SmallMultiples({
       // One shared, data-fitted window across every panel (F1): shared so
       // panels stay comparable, fitted so the variation is visible — and
       // its ticks repeat inside each panel, so no panel is read against an
-      // axis 23 rows away.
-      const scale = fittedScale(ciExtents(entries.filter((entry) => entry.value !== null)), {
+      // axis 23 rows away. It fits the cells with enough people behind
+      // them (G6): a handful of people could stretch it across the whole
+      // scale — a second split held 150 thin cells from 2.3 to 10 around
+      // solid ones from 5.3 to 8.5. A thin cell beyond the window sits at
+      // its edge with an arrow pointing on; its card gives its value.
+      const solid = entries.filter((entry) => entry.value !== null && !isThin(entry.row))
+      const scale = fittedScale(ciExtents(solid.length > 0 ? solid : entries), {
         // Fewer ticks when a second breakdown splits the width into columns.
         targetTicks: seriesColumn || narrow ? 4 : 5,
         bounds: measureBounds(responseMeta.stat, variable),
         minStep: narrow ? phoneMinStep(responseMeta.stat, variable) : 0,
+      })
+      const [lo, hi] = scale.domain
+      const beyond = (entry: DotEntry) =>
+        entry.value === null ? null : entry.value < lo ? 'low' : entry.value > hi ? 'high' : null
+      const drawn = entries.map((entry) => {
+        const side = beyond(entry)
+        return side === null ? entry : { ...entry, value: side === 'low' ? lo : hi, ci: null }
+      })
+      const arrows = entries.flatMap((entry, index) => {
+        const side = beyond(entry)
+        return side === null ? [] : [{ ...(drawn[index] as (typeof drawn)[number]), side }]
       })
       const tickLabel = (tick: number) => (isShare ? `${scale.format(tick)}%` : scale.format(tick))
       const ticks = panelTicks(scale.ticks, scale.domain, tickLabel, facetWidth)
@@ -267,7 +294,7 @@ export function SmallMultiples({
       // column's label) and one under its last row for its tick labels, so
       // neither sits on a row label or a dot.
       const headRoom = PANEL_TITLE_ROOM + (seriesColumn ? COLUMN_LABEL_ROOM : 0)
-      const panelHeight = levelDomain.length * 22 + 48 + PANEL_AXIS_INSET + headRoom
+      const panelHeight = levels.length * 22 + 48 + PANEL_AXIS_INSET + headRoom
       const facetChannel: Record<string, string> = seriesColumn
         ? { fy: 'band', fx: 'slot' }
         : { fy: 'band' }
@@ -308,7 +335,7 @@ export function SmallMultiples({
         // No axis over the chart: each panel reads its own, under it.
         x: { domain: scale.domain, axis: null, label: null },
         y: {
-          domain: levelDomain,
+          domain: levels,
           label: null,
           tickSize: 0,
           insetTop: headRoom,
@@ -365,10 +392,26 @@ export function SmallMultiples({
           tickMarks(ticks.slice(0, 1), 'start'),
           tickMarks(ticks.slice(1, -1), 'middle'),
           ...(ticks.length > 1 ? [tickMarks(ticks.slice(-1), 'end')] : []),
-          ...dotMarks(entries, color, facetChannel, scale.domain[0], {
+          ...dotMarks(drawn, color, facetChannel, lo, {
             answer,
             range: variable,
           }),
+          // Beyond the window: an arrow just outside its edge, pointing on.
+          ...(['low', 'high'] as const).map((side) =>
+            Plot.text(
+              arrows.filter((entry) => entry.side === side),
+              {
+                ...facetChannel,
+                y: 'level',
+                x: 'value',
+                text: () => (side === 'low' ? '◂' : '▸'),
+                dx: side === 'low' ? -9 : 9,
+                fill: color,
+                fontSize: 10,
+                ariaDescription: 'beyond the window',
+              },
+            ),
+          ),
         ],
       })
     },
