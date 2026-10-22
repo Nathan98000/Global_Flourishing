@@ -73,6 +73,10 @@ RESULT_COLUMNS: tuple[str, ...] = (
 
 ALL = "_all_"  # internal group key when `by` is empty
 
+#: An SE at or below this is zero up to floating point (a one-person cell
+#: comes out as 1e-16, not 0): such an estimate gets no interval.
+ZERO_SE = 1e-9
+
 
 def to_polars(frame: object) -> pl.DataFrame:
     # `object` rather than `Frame`: the public signatures promise `Frame`,
@@ -233,7 +237,9 @@ def proportion_records(
     Shared by proportions, distributions and transition matrices. The
     returned ``n`` is the unweighted count *at the level* (the cell the
     suppression policy protects); ``sum_w`` stays the group's weighted
-    denominator.
+    denominator, and ``n_base`` its unweighted one — the people the
+    share rests on, which ``finalize`` flags by (ADR-0031) and never
+    serves.
     """
     if levels is None:
         levels = sorted(df[value].drop_nulls().unique().to_list())
@@ -268,6 +274,7 @@ def proportion_records(
         parts.append(
             records.join(level_n, on=groups, how="left")
             .with_columns(
+                pl.col("n").alias("n_base"),
                 pl.col("_level_n").fill_null(0).alias("n"),
                 pl.lit(level, dtype=level_frame["level"].dtype).alias("level"),
             )
@@ -291,15 +298,22 @@ def finalize(
 ) -> pa.Table:
     """Join estimates onto the group universe, add CIs, suppress, order."""
     keys = [*groups, *extra]
+    if "n_base" not in records.columns:
+        records = records.with_columns(pl.col("n").alias("n_base"))
     out = universe.join(records, on=keys, how="left").with_columns(
         pl.col("n").fill_null(0),
+        pl.col("n_base").fill_null(0),
         pl.col("sum_w").fill_null(0.0),
     )
     if ci_method == "normal":
         z = NormalDist().inv_cdf((1.0 + ci_level) / 2.0)
+        # A zero SE (one person, or every answer in the cell the same) has
+        # no interval to draw: [x, x] would read as the surest number on
+        # the page (ADR-0031). The SE itself stays as computed.
+        spread = pl.col("se") > ZERO_SE
         out = out.with_columns(
-            (pl.col("estimate") - z * pl.col("se")).alias("ci_lo"),
-            (pl.col("estimate") + z * pl.col("se")).alias("ci_hi"),
+            pl.when(spread).then(pl.col("estimate") - z * pl.col("se")).alias("ci_lo"),
+            pl.when(spread).then(pl.col("estimate") + z * pl.col("se")).alias("ci_hi"),
         )
     else:
         out = out.with_columns(
@@ -307,9 +321,16 @@ def finalize(
             pl.lit(None, dtype=pl.Float64).alias("ci_lo"),
             pl.lit(None, dtype=pl.Float64).alias("ci_hi"),
         )
+    # Suppression protects the cell (the count at a share's level); the
+    # flag says how many people the estimate rests on — a share's whole
+    # group of answerers (ADR-0031). For a mean the two are the same n.
     out = out.with_columns(
         (pl.col("n") < policy.threshold).alias("suppressed"),
-        ((pl.col("n") >= policy.threshold) & (pl.col("n") < policy.flag_below)).alias("flagged"),
+        (
+            (pl.col("n") >= policy.threshold)
+            & (pl.col("n_base") < policy.flag_below)
+            & pl.col("estimate").is_not_null()
+        ).alias("flagged"),
     )
     nulled = [
         pl.when(pl.col("suppressed")).then(None).otherwise(pl.col(c)).alias(c)

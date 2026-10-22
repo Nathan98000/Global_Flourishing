@@ -37,6 +37,18 @@ _CORRELATES_META = (
 )
 
 
+def suppression_line(suppression: dict[str, int]) -> str:
+    """The CSV's suppression line — byte-identical in the client's export
+    (``export/csv.ts suppressionLine``)."""
+    threshold, flag_below = suppression["threshold"], suppression["flag_below"]
+    if threshold == 0:
+        # ADR-0011: every cell is shown; ADR-0031 flags the thin ones.
+        if flag_below == 0:
+            return "none (all cells shown)"
+        return f"none (all cells shown); n<{flag_below} flagged"
+    return f"n<{threshold} suppressed, n<{flag_below} flagged"
+
+
 def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[EstimateRow]:
     rows: list[EstimateRow] = []
     for record in table.to_pylist():
@@ -75,12 +87,7 @@ def response_to_csv(response: EstimateResponse) -> str:
         else:
             rendered = str(value)
         buffer.write(f"# {key}: {rendered}\n")
-    threshold, flag_below = suppression["threshold"], suppression["flag_below"]
-    if threshold == 0 and flag_below == 0:
-        # ADR-0011 default: every cell is shown.
-        buffer.write("# suppression: none (all cells shown)\n")
-    else:
-        buffer.write(f"# suppression: n<{threshold} suppressed, n<{flag_below} flagged\n")
+    buffer.write(f"# suppression: {suppression_line(suppression)}\n")
     for column, values in filters.items():
         buffer.write(f"# filter {column}: {','.join(map(str, values))}\n")
 

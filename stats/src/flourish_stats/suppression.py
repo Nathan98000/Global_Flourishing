@@ -51,3 +51,9 @@ DEFAULT_POLICY = SuppressionPolicy()
 #: policy object away (``DEFAULT_POLICY``, or ``FA_SUPPRESSION_*`` in
 #: the API): this is a change of default, not a removal of capability.
 NO_SUPPRESSION = SuppressionPolicy(threshold=0, flag_below=0)
+
+#: What the app serves since ADR-0031: every cell still shown (ADR-0011),
+#: and an estimate with fewer than 30 people behind it flagged, so the
+#: charts draw it hollow with an asterisk. For a share the 30 counts the
+#: group's answerers, not the people at the level (``finalize``).
+SERVING_POLICY = SuppressionPolicy(threshold=0, flag_below=30)

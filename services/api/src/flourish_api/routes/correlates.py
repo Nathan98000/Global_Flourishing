@@ -294,12 +294,13 @@ def country_rows(
             record = found.get((predictor.name, code))
             n = int(record["n"]) if record else 0
             suppressed = n < policy.threshold
+            estimate = None if suppressed or not record else record["estimate"]
             rows[predictor.name].append(
                 EstimateRow(
                     group={COUNTRY: code},
                     predictor=predictor.name,
                     stat=stat,
-                    estimate=None if suppressed or not record else record["estimate"],
+                    estimate=estimate,
                     se=None,
                     ci_lo=None,
                     ci_hi=None,
@@ -313,7 +314,8 @@ def country_rows(
                     se_method="none",
                     weight=weight,
                     suppressed=suppressed,
-                    flagged=not suppressed and n < policy.flag_below,
+                    # As finalize: a cell with no estimate has nothing to flag.
+                    flagged=estimate is not None and n < policy.flag_below,
                 )
             )
     return rows

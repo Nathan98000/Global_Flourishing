@@ -1,7 +1,7 @@
 // PNG serializer (token inlining, stamping), the download names and CSV helpers.
 
 import { describe, expect, test } from 'vitest'
-import { correlationTableToCsv, responseToCsv } from '../export/csv'
+import { correlationTableToCsv, responseToCsv, suppressionLine } from '../export/csv'
 import { exportFilename, slugify } from '../export/filename'
 import { CITATION_LINE, inlineTokenColors, serializeSvg, stampLines } from '../export/png'
 import { testResponse, testRow } from '../test-utils/fixtures'
@@ -89,6 +89,16 @@ describe('download names (ADR-0016)', () => {
 })
 
 describe('CSV helpers', () => {
+  test('the suppression line matches the API for each policy (ADR-0031)', () => {
+    expect(suppressionLine({ threshold: 0, flag_below: 0 })).toBe('none (all cells shown)')
+    expect(suppressionLine({ threshold: 0, flag_below: 30 })).toBe(
+      'none (all cells shown); n<30 flagged',
+    )
+    expect(suppressionLine({ threshold: 50, flag_below: 100 })).toBe(
+      'n<50 suppressed, n<100 flagged',
+    )
+  })
+
   test('quoting matches the csv module (commas and quotes)', () => {
     const response = testResponse([testRow({ group: { country_code: 1 }, weight: 'w_c1' })])
     response.meta.by = ['country_code']

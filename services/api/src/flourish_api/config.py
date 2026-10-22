@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
+from flourish_stats import SERVING_POLICY
 from flourish_stats.correlations import CORRELATES_MIN_N
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,13 +35,14 @@ class Settings(BaseSettings):
     duckdb_threads: int = 2
     duckdb_memory_limit: str = "256MB"
 
-    # Small-cell serving policy (ADR-0011): zeros show every cell — with
-    # both thresholds 0, `n < 0` is never true, so nothing is suppressed
-    # or flagged. Setting FA_SUPPRESSION_THRESHOLD=50 and
+    # Small-cell serving policy (flourish_stats.SERVING_POLICY): a zero
+    # threshold shows every cell (ADR-0011), and an estimate with fewer
+    # than 30 people behind it is flagged — drawn hollow with an asterisk
+    # (ADR-0031). Setting FA_SUPPRESSION_THRESHOLD=50 and
     # FA_SUPPRESSION_FLAG_BELOW=100 restores the pre-ADR-0011 rule; the
     # machinery in flourish_stats.suppression is untouched either way.
-    suppression_threshold: int = 0
-    suppression_flag_below: int = 0
+    suppression_threshold: int = SERVING_POLICY.threshold
+    suppression_flag_below: int = SERVING_POLICY.flag_below
 
     # The ranked correlates sweep leaves out predictors with fewer complete
     # cases than this in the country (ADR-0015; the default lives with the

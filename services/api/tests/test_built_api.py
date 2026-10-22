@@ -83,9 +83,11 @@ def test_mean_by_age_band_shows_every_cell_live(built_client: TestClient) -> Non
     )
     body = resp.json()
     rows = [r for r in body["rows"] if r["group"]["age_band"] is not None]
-    # ADR-0011: nothing withheld or flagged, even the smallest band; the
-    # n rides on every row so a reader can see what a number rests on.
-    assert all(not r["flagged"] and not r["suppressed"] for r in rows)
+    # ADR-0011: nothing withheld, even the smallest band; the n rides on
+    # every row so a reader can see what a number rests on, and a band
+    # under 30 people is flagged (ADR-0031).
+    assert all(not r["suppressed"] for r in rows)
+    assert all(r["flagged"] == (r["n"] < 30) for r in rows)
     assert all(r["n"] > 0 and r["estimate"] is not None for r in rows)
 
 

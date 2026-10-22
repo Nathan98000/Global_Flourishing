@@ -98,6 +98,19 @@ function countriesColumn(rows: readonly (EstimateRow | null | undefined)[]): boo
   return rows.some((row) => row?.n_countries !== null && row?.n_countries !== undefined)
 }
 
+/** The suppression line, byte-identical to the API's
+ * (`flourish_api.serialize.suppression_line`): every cell shown
+ * (ADR-0011), and the thin ones flagged (ADR-0031). */
+export function suppressionLine(suppression: { threshold: number; flag_below: number }): string {
+  const { threshold, flag_below: flagBelow } = suppression
+  if (threshold === 0) {
+    return flagBelow === 0
+      ? 'none (all cells shown)'
+      : `none (all cells shown); n<${flagBelow} flagged`
+  }
+  return `n<${threshold} suppressed, n<${flagBelow} flagged`
+}
+
 export function responseToCsv(response: EstimateResponse): string {
   const meta = response.meta
   const lines: string[] = []
@@ -107,15 +120,7 @@ export function responseToCsv(response: EstimateResponse): string {
     lines.push(`# ${field}: ${rendered}`)
   }
   lines.push(...pooledLines(meta), ...midyearLines(meta))
-  if (meta.suppression.threshold === 0 && meta.suppression.flag_below === 0) {
-    // ADR-0011 default: every cell is shown (byte-identical to the API).
-    lines.push('# suppression: none (all cells shown)')
-  } else {
-    lines.push(
-      `# suppression: n<${meta.suppression.threshold} suppressed, ` +
-        `n<${meta.suppression.flag_below} flagged`,
-    )
-  }
+  lines.push(`# suppression: ${suppressionLine(meta.suppression)}`)
   for (const [column, values] of Object.entries(meta.filters)) {
     lines.push(`# filter ${column}: ${values.map(String).join(',')}`)
   }
@@ -161,9 +166,7 @@ export function correlationTableToCsv(table: CorrelationsResponse): string {
     `# ci_level: ${pythonStr(meta.ci_level)}`,
     `# n_frame: ${meta.n_frame}`,
     `# min_n: ${meta.min_n}`,
-    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
-      ? '# suppression: none (all cells shown)'
-      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    `# suppression: ${suppressionLine(meta.suppression)}`,
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
@@ -224,9 +227,7 @@ export function pairToCsv(pair: PairResponse): string {
     `# correlation: ${cell(correlation.estimate)} (${correlation.stat}, n=${correlation.n})`,
     `# cell_flag_below: ${pair.cell_flag_below}`,
     `# column_flag_below: ${pair.column_flag_below}`,
-    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
-      ? '# suppression: none (all cells shown)'
-      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    `# suppression: ${suppressionLine(meta.suppression)}`,
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),

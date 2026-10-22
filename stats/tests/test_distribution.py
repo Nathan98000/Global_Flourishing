@@ -25,7 +25,11 @@ def test_bins_cover_the_contiguous_observed_range() -> None:
     assert by_level[4]["n"] == 0 and by_level[4]["estimate"] == 0.0  # empty bin kept
     assert sum(r["estimate"] for r in rows) == pytest.approx(1.0, abs=1e-12)
     assert all(r["stat"] == "distribution" for r in rows)
-    assert all(r["se"] is not None and r["ci_lo"] is not None for r in rows)
+    assert all(r["se"] is not None for r in rows)
+    # The empty bin's share is exactly 0 with a zero SE: no interval to
+    # draw (ADR-0031); every bin with answers has one.
+    assert by_level[4]["ci_lo"] is None and by_level[4]["ci_hi"] is None
+    assert all(r["ci_lo"] is not None for r in rows if r["level"] != 4)
     assert by_level[3]["sum_w"] == pytest.approx(10.5)
 
 
