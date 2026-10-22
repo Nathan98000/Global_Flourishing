@@ -100,7 +100,7 @@ export function StateChoropleth({
           Plot.geo(thin, {
             geometry: (entry: StateEntry) => entry.feature,
             fill: 'none',
-            stroke: INK,
+            stroke: INK_SECONDARY,
             strokeWidth: 1,
             strokeDasharray: '3 2',
             pointerEvents: 'none',

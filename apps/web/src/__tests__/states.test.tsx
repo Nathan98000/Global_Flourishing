@@ -459,18 +459,24 @@ describe('US States view', () => {
     const find = screen.getByLabelText('Find a state') as HTMLSelectElement
     // The server's state names, a list to pick from.
     expect([...find.options].map((option) => option.textContent)).toEqual([
-      'None',
+      'Choose a state',
       'California',
       'New York',
       'Texas',
       'Vermont',
     ])
+    // Finding it brings its card to the middle of the screen (G5).
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
     fireEvent.change(find, { target: { value: 'TX' } })
     // The chart: its row picked out, its card open with no pointer.
     // (The pointer's own tip is an empty group until hovered.)
     const tips = (root: Element) =>
       [...root.querySelectorAll('g[aria-label="tip"]')].map((tip) => tip.textContent).join('|')
     await waitFor(() => expect(tips(figure)).toContain('Texas'))
+    await waitFor(() =>
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: 'center' })),
+    )
     expect(figure.innerHTML).toContain('var(--control-selected)')
     // View state, not data: the URL is unchanged.
     expect(router.state.location.searchStr).toBe('')

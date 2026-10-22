@@ -543,6 +543,23 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   ).toBeVisible()
   await expect(map.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
   await expect(map.locator('[stroke="var(--ink)"]').first()).toBeAttached()
+
+  // On a phone the found state's card stays inside the page (G5).
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/states?outcome=HAPPY')
+  await page.getByRole('button', { name: 'Options' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  const lastState =
+    (await sheet.getByLabel('Find a state').locator('option').last().textContent()) ?? ''
+  await sheet.getByLabel('Find a state').selectOption({ label: lastState })
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  const card = page
+    .getByRole('img', { name: /Happiness by US state/ })
+    .locator('g[aria-label="tip"]', { hasText: lastState })
+  await expect(card).toBeVisible()
+  const cardBox = (await card.boundingBox())!
+  expect(cardBox.x).toBeGreaterThanOrEqual(0)
+  expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(390)
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */

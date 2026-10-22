@@ -63,6 +63,25 @@ export function StatesView() {
   const adjReasonId = useId()
   // Find a state: the state picked out, until cleared.
   const [found, setFound] = useState<string | undefined>()
+  // Finding a state shows it (G5): once the chart has drawn its pinned
+  // card (or the map its outline), that part of the chart comes to the
+  // middle of the screen — smoothly, unless motion is reduced.
+  const find = (code: string | undefined) => {
+    setFound(code)
+    if (code === undefined) return
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const chart = document.querySelector('main figure [role="img"]')
+        // The pinned card: the tip that holds text (the hover tip is empty).
+        const pinned = [...(chart?.querySelectorAll('g[aria-label="tip"]') ?? [])].find(
+          (tip) => tip.textContent,
+        )
+        const target = pinned ?? chart
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        target?.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+      }),
+    )
+  }
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
@@ -319,8 +338,8 @@ export function StatesView() {
           held open — view state, not data, so not in the URL. */}
       <label className={inline ? styles.inlineField : styles.field}>
         <span className={styles.fieldLabel}>Find a state</span>
-        <select value={found ?? ''} onChange={(event) => setFound(event.target.value || undefined)}>
-          <option value="">None</option>
+        <select value={found ?? ''} onChange={(event) => find(event.target.value || undefined)}>
+          <option value="">Choose a state</option>
           {stateOptions.map((state) => (
             <option key={state.code} value={state.code}>
               {state.name}

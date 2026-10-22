@@ -538,7 +538,14 @@ export function RankedBar({
             }),
             ...ends.marks,
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
-            ...pinnedTip(entries, tip, pinnedOf, lo),
+            ...pinnedTip(
+              entries,
+              tip,
+              pinnedOf,
+              scale.domain,
+              { width, marginLeft, marginRight },
+              narrow,
+            ),
             ...referenceMarks(scale.domain),
           ],
         })
@@ -600,7 +607,14 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
-          ...pinnedTip(entries, tip, pinnedOf, 0),
+          ...pinnedTip(
+            entries,
+            tip,
+            pinnedOf,
+            [0, xMax],
+            { width, marginLeft, marginRight },
+            narrow,
+          ),
           ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
         ],
       })
@@ -643,20 +657,39 @@ function pinnedTip(
   entries: Entry[],
   tip: (entry: Entry) => string,
   pinnedOf: ((row: EstimateRow) => boolean) | undefined,
-  fallback: number,
+  domain: [number, number],
+  frame: { width: number; marginLeft: number; marginRight: number },
+  narrow: boolean,
 ) {
   if (!pinnedOf) return []
   const pinned = entries.filter((entry) => pinnedOf(entry.row))
   if (pinned.length === 0) return []
-  return [
-    Plot.tip(pinned, {
+  const [lo, hi] = domain
+  const inner = frame.width - frame.marginLeft - frame.marginRight
+  // The card opens toward the side with room for it, so it stays inside
+  // the chart (G5): beside its mark on a wide chart, under it on a phone,
+  // centred when neither side has room. Its width is estimated from its
+  // longest line at the card's 13px.
+  const anchor = (entry: Entry) => {
+    const lines = tip(entry).split('\n')
+    const card = Math.max(...lines.map((line) => line.length)) * 7.2 + 28
+    const x = frame.marginLeft + (((entry.value ?? lo) - lo) / (hi - lo || 1)) * inner
+    const [toRight, toLeft, centred] = narrow
+      ? (['top-left', 'top-right', 'top'] as const)
+      : (['left', 'right', 'top'] as const)
+    if (frame.width - x >= card) return toRight
+    if (x >= card) return toLeft
+    return centred
+  }
+  return pinned.map((entry) =>
+    Plot.tip([entry], {
       y: 'label',
-      x: (entry: Entry) => entry.value ?? fallback,
+      x: (row: Entry) => row.value ?? lo,
       title: tip,
-      anchor: 'left',
       ...TIP_OPTIONS,
+      anchor: anchor(entry),
     }),
-  ]
+  )
 }
 
 /** Plot's own pointer tip, for charts whose rows are not buttons. */
