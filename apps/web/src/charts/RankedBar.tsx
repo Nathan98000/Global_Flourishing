@@ -82,12 +82,9 @@ export interface Reference {
 }
 
 /** Room above the top axis for the reference label, and where it sits:
- * its baseline clears the axis's tick labels. A share chart has no top
- * axis: its label sits just over the first row. */
+ * its baseline clears the axis's tick labels (a share chart's too, G16). */
 const REFERENCE_TOP_ROOM = 18
 const REFERENCE_TOP_DY = -26
-const REFERENCE_SHARE_DY = -6
-const REFERENCE_SHARE_MARGIN = 28
 
 /** A window that is not fitted to the data: its edges, its ticks, and
  * fewer ticks on a phone. */
@@ -560,15 +557,19 @@ export function RankedBar({
         ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05),
         (reference?.value ?? 0) * 1.05,
       )
+      // The axis on top, as the dot plots carry it (G16): read with the
+      // first rows, not under the last of twenty-three.
       return Plot.plot({
-        height: height + topRoom,
-        ...(reference ? { marginTop: REFERENCE_SHARE_MARGIN } : {}),
+        height: height - 44 + 34 + 8 + topRoom,
+        marginTop: 34 + topRoom,
+        marginBottom: 8,
         width,
         marginLeft,
         marginRight,
         style,
         x: {
           domain: [0, xMax],
+          axis: 'top',
           label: null,
           grid: true,
           tickFormat: (d: number) => `${d}%`,
@@ -615,7 +616,7 @@ export function RankedBar({
             { width, marginLeft, marginRight },
             narrow,
           ),
-          ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
+          ...referenceMarks([0, xMax]),
         ],
       })
     },

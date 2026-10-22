@@ -14,7 +14,7 @@ import { useVariable } from '../api/variables'
 import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount, formatPercent } from '../format'
-import { WAVE_CHIPS } from '../waves'
+import { WAVE_CHIPS, WAVE_NAMES } from '../waves'
 import { topicName } from '../topics'
 import styles from './CodebookDetailView.module.css'
 
@@ -108,7 +108,7 @@ export function answeredInWords(missingness: readonly MissingnessRow[]): string 
   for (const row of missingness) byWave.set(row.wave, (byWave.get(row.wave) ?? 0) + row.n_valid)
   const parts = [...byWave].map(
     ([wave, count], index) =>
-      `${formatCount(count)}${index === 0 ? ' people' : ''} in ${WAVE_CHIPS[wave] ?? wave}`,
+      `${formatCount(count)}${index === 0 ? ' people' : ''} in ${WAVE_NAMES[wave] ?? wave}`,
   )
   return parts.length > 0 ? `Answered by ${inWords(parts)}.` : null
 }
@@ -203,7 +203,7 @@ export function CodebookDetailView() {
       </h2>
       <p className={styles.facts}>
         {topicName(detail.family)} · asked in{' '}
-        {inWords(detail.waves_available.map((wave) => WAVE_CHIPS[wave] ?? wave))}
+        {inWords(detail.waves_available.map((wave) => WAVE_NAMES[wave] ?? wave))}
       </p>
 
       {detail.servable ? (

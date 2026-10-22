@@ -521,6 +521,9 @@ export function WhatMattersView() {
                       thinBelow={keyThinBelow(countryItems, served.suppression)}
                     />
                   }
+                  // The value's label over its column, as on every dot plot
+                  // (G18); the ranking's order is fixed, so not a button.
+                  sortHead={<SortHead names="What matters" value="Mean" dir="desc" />}
                   csv={csvFor(countryItemsResponse, countryItemsName)}
                   exportName={countryItemsName}
                   isRefreshing={rankingQuery.isPlaceholderData}

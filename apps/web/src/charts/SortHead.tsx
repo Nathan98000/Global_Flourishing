@@ -22,7 +22,9 @@ export function SortHead({
   /** The value column's statistic, by name ("Mean"). */
   value: string
   dir: SortDir
-  onToggle: () => void
+  /** Absent, a chart whose order is fixed (What Matters' ranking, always
+   * highest first): the labels alone, no button and no sort (G18). */
+  onToggle?: () => void
 }) {
   return (
     <div
@@ -34,23 +36,29 @@ export function SortHead({
         <span role="columnheader" className={styles.names}>
           {names}
         </span>
-        <span
-          role="columnheader"
-          aria-sort={dir === 'desc' ? 'descending' : 'ascending'}
-          className={styles.value}
-        >
-          <button
-            type="button"
-            className={styles.button}
-            aria-label={`${value}, ${orderPhrase(dir)}`}
-            onClick={onToggle}
-          >
+        {onToggle === undefined ? (
+          <span role="columnheader" className={`${styles.value} ${styles.plain}`}>
             {value}
-            <span className={styles.arrow} aria-hidden="true">
-              {dir === 'desc' ? '▼' : '▲'}
-            </span>
-          </button>
-        </span>
+          </span>
+        ) : (
+          <span
+            role="columnheader"
+            aria-sort={dir === 'desc' ? 'descending' : 'ascending'}
+            className={styles.value}
+          >
+            <button
+              type="button"
+              className={styles.button}
+              aria-label={`${value}, ${orderPhrase(dir)}`}
+              onClick={onToggle}
+            >
+              {value}
+              <span className={styles.arrow} aria-hidden="true">
+                {dir === 'desc' ? '▼' : '▲'}
+              </span>
+            </button>
+          </span>
+        )}
       </div>
     </div>
   )

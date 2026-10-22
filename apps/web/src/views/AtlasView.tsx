@@ -99,20 +99,31 @@ export function AtlasView() {
   // order the chart's other views use — the server's estimates of the
   // default statistic, ordered as the Atlas orders them.
   const firstFourNeeded = stat === 'distribution' && !allAnswers && search.countries.length === 0
+  // The panels follow that value order too, chosen countries included —
+  // never A–Z (G10).
+  const numericDistribution = stat === 'distribution' && !allAnswers
   const orderEstimates = useEstimates(
-    chartable && firstFourNeeded ? atlasRequest({ ...search, stat: undefined }, variable) : null,
+    chartable && numericDistribution
+      ? atlasRequest({ ...search, countries: [], stat: undefined }, variable)
+      : null,
   )
   const orderRows = orderEstimates.data?.response.rows
-  const firstFour = useMemo(
+  const valueOrder = useMemo(
     () =>
       orderRows && metaForSort
-        ? sortAtlasRows(orderRows, metaForSort, dir)
-            .slice(0, 4)
-            .map((row) => Number(row.group['country_code']))
+        ? sortAtlasRows(orderRows, metaForSort, dir).map((row) => Number(row.group['country_code']))
         : [],
     [orderRows, metaForSort, dir],
   )
-  const distributionCountries = search.countries.length ? search.countries.slice(0, 4) : firstFour
+  const distributionCountries = useMemo(() => {
+    if (!search.countries.length) return valueOrder.slice(0, 4)
+    const at = (code: number) => {
+      const index = valueOrder.indexOf(code)
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index
+    }
+    return [...search.countries].sort((a, b) => at(a) - at(b)).slice(0, 4)
+  }, [search.countries, valueOrder])
+  const firstFour = distributionCountries
 
   const displayRows = useMemo(() => {
     if (!response) return []
@@ -143,7 +154,12 @@ export function AtlasView() {
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
-      return rows.filter((row) => distributionCountries.includes(Number(row.group['country_code'])))
+      const order = new Map(distributionCountries.map((code, index) => [code, index]))
+      const at = (row: (typeof rows)[number]) =>
+        order.get(Number(row.group['country_code'])) ?? Number.MAX_SAFE_INTEGER
+      return rows
+        .filter((row) => order.has(Number(row.group['country_code'])))
+        .sort((a, b) => at(a) - at(b) || (a.level ?? 0) - (b.level ?? 0))
     }
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
@@ -251,8 +267,9 @@ export function AtlasView() {
   const ordered = stat !== 'distribution' || allAnswers
   const orderState =
     allAnswers && levelLabel ? `by “${levelLabel}”, ${orderPhrase(dir)}` : orderPhrase(dir)
+  const fourWord = `the four with the ${dir === 'asc' ? 'lowest' : 'highest'} mean`
   const countriesState = firstFourNeeded
-    ? 'first four countries'
+    ? fourWord
     : countriesPhrase(search.countries.length, countryCount)
   const subtitle = stateLine(subtitleBase, waveTitle, countriesState, ordered && orderState)
   // On a phone the summary line says the countries and the order (G3).
@@ -263,9 +280,9 @@ export function AtlasView() {
     stat !== 'distribution' || allAnswers
       ? undefined
       : firstFourNeeded
-        ? 'Showing the first four countries — choose others with Countries.'
+        ? `Showing ${fourWord} — choose others with Countries.`
         : search.countries.length > 4
-          ? 'Showing the first four of the countries chosen.'
+          ? `Showing the four of the countries chosen with the ${dir === 'asc' ? 'lowest' : 'highest'} mean.`
           : undefined
   // The chart's key, in its header: the mark, and its interval when the
   // marks carry one.

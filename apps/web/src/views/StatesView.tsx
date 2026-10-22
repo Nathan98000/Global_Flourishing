@@ -209,7 +209,8 @@ export function StatesView() {
         ]
       : null
   const adjAvailable = adjustedWeightsExist(search.wave)
-  const adjReason = `The release has no adjusted state weight for ${WAVE_TITLES[NO_ADJUSTED_WEIGHT_WAVE] ?? NO_ADJUSTED_WEIGHT_WAVE}.`
+  // Plain words for why the switch is off (G18): no "release", no "weight".
+  const adjReason = `Not available for ${WAVE_TITLES[NO_ADJUSTED_WEIGHT_WAVE] ?? NO_ADJUSTED_WEIGHT_WAVE}: the study adjusted its state figures only from the midyear survey on.`
 
   const title = variable?.display_name ?? search.outcome
   const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
@@ -423,15 +424,18 @@ export function StatesView() {
       ) : states.isPending ? (
         <LoadingBlock height={480} label="Loading estimates" />
       ) : states.isError ? (
-        // No chart, no header: its controls stay reachable here.
-        <>
-          {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
-          {states.error instanceof NetworkError && !boot.apiReachable ? (
-            <OfflineLine className={styles.hint} />
-          ) : (
+        states.error instanceof NetworkError && !boot.apiReachable ? (
+          // Offline: no chart, so no toolbar either (G11) — one line on
+          // what still works.
+          <OfflineLine className={styles.hint} />
+        ) : (
+          // Another failure: no chart, no header; its controls stay
+          // reachable here, a way out.
+          <>
+            {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
             <ErrorState apiReachable={boot.apiReachable} error={states.error} />
-          )}
-        </>
+          </>
+        )
       ) : response && variable ? (
         <>
           <p role="status" className="visually-hidden">

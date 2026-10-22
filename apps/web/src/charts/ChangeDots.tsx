@@ -53,10 +53,13 @@ export function changeScale(
   targetTicks = 6,
   bounds?: readonly [number, number],
 ) {
-  return fittedScale([0, ...ciExtents(entries.filter((entry) => entry.value !== null))], {
-    targetTicks,
-    bounds,
-  })
+  const values = [0, ...ciExtents(entries.filter((entry) => entry.value !== null))]
+  // A narrow window on a wide chart ticks every 0.1, not 0.25, so one
+  // country's long tail does not round the edge out to −1.00 and leave
+  // the rest in a fifth of the width (G18).
+  const span = Math.max(...values) - Math.min(...values)
+  const fine = targetTicks >= 6 && span < 1.5
+  return fittedScale(values, { targetTicks: fine ? 12 : targetTicks, bounds })
 }
 
 /** The widest a change can be: ±the measure's span for a mean change,

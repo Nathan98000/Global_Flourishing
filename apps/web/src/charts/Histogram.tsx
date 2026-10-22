@@ -137,7 +137,7 @@ export function Histogram({
         y: {
           domain: scale.domain,
           ticks: scale.ticks,
-          label: 'Weighted share (%)',
+          label: 'Share of people (%)',
           grid: true,
           tickFormat: (d: number) => `${scale.format(d)}%`,
         },

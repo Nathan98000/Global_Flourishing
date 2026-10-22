@@ -260,7 +260,7 @@ export function axisLabel(
 ): string {
   if (responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution') {
     const of = levelLabel ? ` of “${levelLabel}”` : ''
-    return `Weighted share${of} (%)`
+    return `Share of people${of} (%)`
   }
   const range =
     variable.min !== null && variable.max !== null ? ` (${variable.min}–${variable.max})` : ''

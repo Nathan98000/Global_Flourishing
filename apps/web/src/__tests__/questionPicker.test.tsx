@@ -114,7 +114,7 @@ describe('QuestionPicker', () => {
       'Mental health1',
       'Religion & spirituality2',
       // One name for the midyear topic on every page (ADR-0029).
-      'What matters to people0',
+      'What matters to peopleOnly in the midyear survey',
     ])
     const wellbeing = within(topics).getByRole('option', { name: /Wellbeing/ })
     expect(wellbeing).toHaveAttribute('aria-selected', 'true')

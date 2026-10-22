@@ -302,9 +302,11 @@ describe('the US overall label', () => {
     const firstBar = svg.querySelector('g[aria-label="bar"] > path') as SVGPathElement
     const barTop = Number(/^M[-\d.]+,([-\d.]+)/.exec(firstBar.getAttribute('d') ?? '')?.[1])
     expect(drawnY(label)).toBeLessThan(barTop)
-    // The axis's labels are under the bars, far from it.
+    // The axis's labels are on top, as on the dot plots (G16), and the
+    // label clears them, above.
     const tick = svg.querySelector('g[aria-label="x-axis tick label"] text') as SVGTextElement
-    expect(drawnY(tick)).toBeGreaterThan(barTop)
+    expect(drawnY(tick)).toBeLessThan(barTop)
+    expect(drawnY(label)).toBeLessThan(drawnY(tick))
   })
 })
 
@@ -407,7 +409,9 @@ describe('US States view', () => {
     // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
     expect(text).not.toContain('weighted so each')
-    const reason = screen.getByText(/The release has no adjusted state weight for 2023/)
+    const reason = screen.getByText(
+      /Not available for 2023: the study adjusted its state figures only/,
+    )
     expect(reason.className).toContain('reason')
   })
 
@@ -423,7 +427,9 @@ describe('US States view', () => {
     })
     expect(midyear).toBeDisabled()
     expect(midyear).toHaveAccessibleDescription('Midyear: not asked')
-    expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Not available for 2023: the study adjusted its state figures/),
+    ).toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,
     )

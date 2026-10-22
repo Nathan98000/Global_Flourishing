@@ -170,9 +170,11 @@ describe('the Atlas Distribution, no countries chosen (F9)', () => {
     // No dead end: a chart, and the header says whose it is.
     expect(screen.queryByText('Choose countries to compare')).toBeNull()
     expect(
-      within(figure).getByText('Showing the first four countries — choose others with Countries.'),
+      within(figure).getByText(
+        'Showing the four with the highest mean — choose others with Countries.',
+      ),
     ).toBeInTheDocument()
-    expect(within(figure).getByText(/· first four countries$/)).toBeInTheDocument()
+    expect(within(figure).getByText(/· the four with the highest mean$/)).toBeInTheDocument()
     // The four, in the value order: one panel each, Country 1 left out.
     const chart = within(figure).getByRole('img')
     const text = chart.textContent ?? ''

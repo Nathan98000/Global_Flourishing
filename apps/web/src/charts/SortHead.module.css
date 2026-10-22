@@ -25,6 +25,14 @@
   padding-right: 8px;
 }
 
+/* A fixed order's value label: the button's words and weight, no button. */
+.plain {
+  padding-bottom: 3px;
+  padding-right: 12px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .button {
   display: inline-flex;
   align-items: center;

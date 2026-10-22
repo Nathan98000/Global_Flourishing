@@ -506,7 +506,9 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   await expect(page.getByText(/weighted so each/)).toHaveCount(0)
   // Adjusted weights are unavailable in 2023, with the reason in view.
   await expect(page.getByLabel(/Adjust for who answered in each state/)).toBeDisabled()
-  await expect(page.getByText(/no adjusted state weight for 2023/)).toBeVisible()
+  await expect(
+    page.getByText(/Not available for 2023: the study adjusted its state figures/),
+  ).toBeVisible()
   // The US figure's label sits above the chart, clear of every row,
   // value and tick.
   const LABEL = 'United States overall'
