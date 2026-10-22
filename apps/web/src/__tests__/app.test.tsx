@@ -431,26 +431,65 @@ test('an unknown measure gets the empty state, not an API error (F4)', async () 
   )
 })
 
-test('with the API down the Atlas still renders, with the plain-words banner', async () => {
-  mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
+test('with the API down the Atlas renders with nothing above it; the nav marks the pages that need the service (H6)', async () => {
+  const calls = mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/')
-  const banner = await screen.findByText(/Some views need the live data service, which is/)
-  // What still works, by name, each a link — and no claim that filters
-  // are unavailable (the country filter works offline, F13).
-  expect(banner).toHaveTextContent(
-    'Some views need the live data service, which is offline. The Atlas, Segments and What Matters still work.',
-  )
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  // Each page that needs the live service says so in its link: a compact
+  // mark, the reason in full in the link's name.
   expect(
-    within(banner)
-      .getAllByRole('link')
-      .map((link) => [link.textContent, link.getAttribute('href')]),
-  ).toEqual([
-    ['Atlas', '/'],
-    ['Segments', '/segments'],
-    ['What Matters', '/what-matters'],
-  ])
+    await within(nav).findByRole('link', {
+      name: 'Change — needs the live data service, offline right now',
+    }),
+  ).toHaveTextContent('Changeoffline')
+  for (const name of ['Correlates', 'US States']) {
+    expect(
+      within(nav).getByRole('link', {
+        name: `${name} — needs the live data service, offline right now`,
+      }),
+    ).toBeInTheDocument()
+  }
+  for (const name of ['Atlas', 'What Matters', 'Segments', 'Methods']) {
+    expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+  }
+  // Nothing is inserted above the page (it pushed the page down), and no
+  // band repeats the pages' own messages.
+  expect(screen.getByRole('main').previousElementSibling?.tagName).toBe('HEADER')
+  expect(screen.queryByText(/Some views need the live data service/)).toBeNull()
   expect(screen.queryByText(/filters (and medians )?are unavailable/)).toBeNull()
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
+  // The health check was tried twice before the service counted as down.
+  expect(calls.filter((url) => url.endsWith('/health')).length).toBeGreaterThanOrEqual(2)
+})
+
+test('the health check is retried once: a blip does not mark the service offline (H6)', async () => {
+  let attempts = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const json = (value: unknown) =>
+        new Response(JSON.stringify(value), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      if (url.endsWith('/health')) {
+        attempts += 1
+        if (attempts === 1) throw new TypeError('blip')
+        return json(okHealth)
+      }
+      for (const [needle, value] of Object.entries(staticTier)) {
+        if (url.includes(needle)) return json(value)
+      }
+      return new Response('not found', { status: 404 })
+    }),
+  )
+  await renderAt('/')
+  await waitFor(() => expect(attempts).toBe(2))
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  await waitFor(() => expect(within(nav).getByRole('link', { name: 'Change' })).toBeInTheDocument())
+  expect(within(nav).queryByText('offline')).toBeNull()
+  expect(await screen.findByRole('radio', { name: 'Median' })).not.toBeDisabled()
 })
 
 test('offline, Median says why it is unavailable, and a median link shows the mean without blame', async () => {
@@ -499,10 +538,16 @@ test('a disabled year says why in view, and points to the reason (F6)', async ()
   expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
 })
 
-test('an API without a data build is its own banner', async () => {
+test('an API without a data build marks the nav, with no band above the page', async () => {
   mockFetch({ ...staticTier, '/health': { ...okHealth, data: 'absent', data_version: null } })
   await renderAt('/')
-  expect(await screen.findByText(/no data yet/)).toBeInTheDocument()
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  expect(
+    await within(nav).findByRole('link', {
+      name: 'Change — needs the live data service, which has no data yet',
+    }),
+  ).toHaveTextContent('Changeno data')
+  expect(screen.getByRole('main').previousElementSibling?.tagName).toBe('HEADER')
 })
 
 test('with no data source at all the shell renders honestly', async () => {

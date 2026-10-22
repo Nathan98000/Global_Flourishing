@@ -1,5 +1,8 @@
 // The shell: skip link, header/nav, honest boot banner on the data
-// views, and a footer that carries the citation and a link to how to
+// views when no page can load or every view is live (never above a page
+// that works: while only the live service is down, the nav marks the
+// pages that need it and each page says its own piece — H6, ADR-0033),
+// and a footer that carries the citation and a link to how to
 // read the charts — nothing else (owner decision 5; the link, the
 // 21 Oct review: the data version lives in the CSV header and Methods; the
 // causation caveat lives on Methods, where it is explained rather than
@@ -22,7 +25,6 @@ import {
 } from 'react'
 import { useBootStatus } from '../api/meta'
 import { HOW_TO_READ } from '../charts/ChartFigure'
-import { StillWorks } from './StillWorks'
 import { NAV_ITEMS, NAV_PRIMARY_COUNT, isDataView, navCovers, type NavItem } from '../nav'
 import { NARROW_VIEWPORT, NAV_FOLD_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import styles from './AppShell.module.css'
@@ -32,25 +34,16 @@ const DATA_CITATION_URL = 'https://doi.org/10.17605/OSF.IO/3JTZ8'
 function BootBanner() {
   const boot = useBootStatus()
   let message: ReactNode = null
+  // The static tier answers but the live service is offline or has no
+  // data: no band above the page — it pushed the page down after the
+  // first paint (layout shift 0.26–0.63) and repeated the pages' own
+  // messages. The nav marks the pages that need the service instead.
   if (boot.state === 'no-data') {
     message = (
       <>
         <strong>No data</strong> is reachable right now — neither the built-in views nor the live
         data service answered, so charts cannot load. The deployment may still be setting up its
         data.
-      </>
-    )
-  } else if (boot.state === 'static-only') {
-    // What still works, by name (F13): the country filter works offline
-    // too, so the banner no longer says "filters are unavailable".
-    message = boot.apiReachable ? (
-      <>
-        The live data service has <strong>no data yet</strong>, so some views can&rsquo;t load.{' '}
-        <StillWorks />
-      </>
-    ) : (
-      <>
-        Some views need the live data service, which is <strong>offline</strong>. <StillWorks />
       </>
     )
   } else if (boot.state === 'api-only') {
@@ -64,16 +57,48 @@ function BootBanner() {
   )
 }
 
+/** While the live service is down, what the nav says on the links to
+ * the pages that need it: a compact mark, and the reason in full in the
+ * link's name (H6). */
+interface LiveDown {
+  mark: string
+  reason: string
+}
+
+function useLiveDown(): LiveDown | undefined {
+  const boot = useBootStatus()
+  if (boot.state !== 'static-only') return undefined
+  return boot.apiReachable
+    ? { mark: 'no data', reason: 'needs the live data service, which has no data yet' }
+    : { mark: 'offline', reason: 'needs the live data service, offline right now' }
+}
+
 /** A nav link: active on its own pages (the router says so) and on the
- * pages it covers — styled as current there, though not the page itself. */
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+ * pages it covers — styled as current there, though not the page itself;
+ * marked when its page needs the live service and that is down. */
+function NavLink({
+  item,
+  pathname,
+  down,
+}: {
+  item: NavItem
+  pathname: string
+  down: LiveDown | undefined
+}) {
+  const marked = item.live && down !== undefined
   return (
     <Link
       to={item.to}
       activeOptions={{ exact: item.to === '/' }}
+      aria-label={marked ? `${item.label} — ${down.reason}` : undefined}
       {...(navCovers(item, pathname) ? { 'data-status': 'active' } : {})}
     >
       {item.label}
+      {marked && (
+        <small className={styles.navMark} aria-hidden="true">
+          {down.mark}
+        </small>
+      )}
     </Link>
   )
 }
@@ -83,7 +108,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
  * active when the current view lives inside it. The row never pushes the
  * page sideways: a stretch of space follows each link, giving way before
  * the row wraps (AppShell.module.css). */
-function NarrowNav({ pathname }: { pathname: string }) {
+function NarrowNav({ pathname, down }: { pathname: string; down: LiveDown | undefined }) {
   const details = useRef<HTMLDetailsElement | null>(null)
   const panel = useRef<HTMLDivElement | null>(null)
   // The open panel hangs from "More"'s right edge, moved right by however
@@ -115,7 +140,7 @@ function NarrowNav({ pathname }: { pathname: string }) {
     <>
       {primary.map((item) => (
         <Fragment key={item.to}>
-          <NavLink item={item} pathname={pathname} />
+          <NavLink item={item} pathname={pathname} down={down} />
           <span className={styles.navGap} />
         </Fragment>
       ))}
@@ -137,7 +162,7 @@ function NarrowNav({ pathname }: { pathname: string }) {
           style={{ '--panel-shift': `${shift}px` } as CSSProperties}
         >
           {secondary.map((item) => (
-            <NavLink key={item.to} item={item} pathname={pathname} />
+            <NavLink key={item.to} item={item} pathname={pathname} down={down} />
           ))}
         </div>
       </details>
@@ -182,6 +207,7 @@ export function AppShell() {
   const ownRow = useMediaQuery(NAV_FOLD_VIEWPORT)
   const header = useRef<HTMLElement | null>(null)
   const copy = useRef<HTMLSpanElement | null>(null)
+  const down = useLiveDown()
   const fits = useNavFits(header, copy)
   const narrow = phone || (ownRow && !fits)
   return (
@@ -202,17 +228,19 @@ export function AppShell() {
         </h1>
         <nav aria-label="Main" className={styles.nav}>
           {narrow ? (
-            <NarrowNav pathname={pathname} />
+            <NarrowNav pathname={pathname} down={down} />
           ) : ownRow ? (
             // Its own row, all seven: the spacing gives way first (.navGap).
             NAV_ITEMS.map((item) => (
               <Fragment key={item.to}>
-                <NavLink item={item} pathname={pathname} />
+                <NavLink item={item} pathname={pathname} down={down} />
                 <span className={styles.navGap} />
               </Fragment>
             ))
           ) : (
-            NAV_ITEMS.map((item) => <NavLink key={item.to} item={item} pathname={pathname} />)
+            NAV_ITEMS.map((item) => (
+              <NavLink key={item.to} item={item} pathname={pathname} down={down} />
+            ))
           )}
         </nav>
       </header>

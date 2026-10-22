@@ -117,10 +117,11 @@ test('1 — Atlas: change the question through the picker and the year, share th
   // A control moved: the URL changes, the page stays put (ADR-0016) — and
   // the country popover stays open while several countries are ticked in
   // a row.
-  // (The question bar is one row now: the fixture page scrolls less.)
-  await page.evaluate('window.scrollTo(0, 120)')
+  // (The question bar is one row now, and no band stands above the page
+  // offline (H6): the fixture page scrolls less.)
+  await page.evaluate('window.scrollTo(0, 50)')
   const scrolled = await page.evaluate<number>('window.scrollY')
-  expect(scrolled).toBeGreaterThan(100)
+  expect(scrolled).toBeGreaterThan(30)
   // The control's own <details> — not the "More options" fold that wraps
   // it at phone width.
   const countries = page.locator('details', {
@@ -281,28 +282,44 @@ test('5 — one light theme, whatever the OS prefers', async ({ page }) => {
   ).toBe('light')
 })
 
-test('6 — with the API blocked at the network level, the Atlas still renders and says so', async ({
+test('6 — with the API blocked at the network level, the Atlas still renders, nothing moves, and the nav says which pages need the service', async ({
   page,
 }) => {
   await page.route('http://localhost:8080/**', (route) => route.abort())
+  // Every layout shift the page makes, as Lighthouse counts them.
+  await page.addInitScript(`
+    window.__layoutShift = 0
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) window.__layoutShift += entry.value
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  `)
 
   await page.goto('/')
   // The chart renders from the static tier…
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
-  // …and the app says so in plain words, naming what still works, each
-  // a link (F13).
-  const banner = page.getByText(/Some views need the live data service, which is offline/)
-  await expect(banner).toBeVisible()
-  for (const [name, href] of [
-    ['Atlas', '/'],
-    ['Segments', '/segments'],
-    ['What Matters', '/what-matters'],
-  ] as const) {
-    await expect(banner.getByRole('link', { name, exact: true })).toHaveAttribute('href', href)
+  // …and once the health check has failed twice (H6), the nav marks the
+  // pages that need the live service, the reason in each link's name.
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  for (const name of ['Change', 'Correlates', 'US States']) {
+    await expect(
+      nav.getByRole('link', { name: `${name} — needs the live data service, offline right now` }),
+    ).toBeVisible()
   }
+  await expect(nav.getByRole('link', { name: 'Segments', exact: true })).toBeVisible()
+  // Nothing is inserted above the page: the page never moves for it.
+  expect(await page.evaluate('document.querySelector("main").previousElementSibling.tagName')).toBe(
+    'HEADER',
+  )
+  await expect(page.getByText(/Some views need the live data service/)).toHaveCount(0)
   await expect(page.getByText(/filters (and medians )?are unavailable/)).toHaveCount(0)
+  // Median keeps its own reason, in its line held from the first failed
+  // check — the chart drawn meanwhile does not move down for it.
+  await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
+  expect(await page.evaluate<number>('window.__layoutShift')).toBeLessThan(0.1)
 
   // A median link offline shows the mean, says why, and blames no one:
   // Median is unavailable, with its reason in view.
@@ -316,8 +333,14 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await expect(caption(page).getByText(/^Mean score, 0–10/)).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Median' })).toBeDisabled()
   await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
-  await banner.getByRole('link', { name: 'Segments', exact: true }).click()
-  await expect(page).toHaveURL(/\/segments$/)
+  // A page that needs the service says so itself, once, with what still
+  // works.
+  await nav.getByRole('link', { name: /^Change — / }).click()
+  await expect(page).toHaveURL(/\/change$/)
+  await expect(
+    page.getByText(/This view needs the live data service, which is offline right now/),
+  ).toBeVisible()
+  await expect(page.getByText(/Some views need/)).toHaveCount(0)
 })
 
 test('7 — Change with a country where fewer people answered again: the interval and n carry it, no sentence, no rate', async ({
@@ -1296,8 +1319,7 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
 test('13 — a phone: the chart on the first screen; pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
   page,
 }) => {
-  // The live service up, as a visitor would have it (offline, a banner
-  // rightly stands over the page).
+  // The live service up, as a visitor would have it.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

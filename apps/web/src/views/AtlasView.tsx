@@ -83,6 +83,10 @@ export function AtlasView() {
   // data) a median link shows the mean, and says why (F13) — no fault of
   // the link's. Still deciding (health pending) keeps the link's ask.
   const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
+  // The first check failed and its retry is pending (H6): Median's reason
+  // may be about to show, so its line is held from now — the chart drawn
+  // meanwhile never moves down for it.
+  const liveDoubtful = health.isPending && health.failureCount > 0
   const medianOffline = search.stat === 'quantile' && liveDown
   const defaultStat = (variable?.default_stat as Stat | undefined) ?? 'mean'
   const requested: Stat = medianOffline ? defaultStat : (search.stat ?? defaultStat)
@@ -368,7 +372,9 @@ export function AtlasView() {
           note={
             statOptions.some((option) => option.disabled)
               ? 'Median — needs the live data service.'
-              : undefined
+              : liveDoubtful
+                ? '\u00a0'
+                : undefined
           }
         />
       )}

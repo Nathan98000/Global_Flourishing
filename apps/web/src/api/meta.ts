@@ -4,7 +4,7 @@
 // Cloud Run instance while the visitor reads a static chart.
 
 import { useQuery } from '@tanstack/react-query'
-import { API_BASE_URL, STATIC_BASE_URL } from '../config'
+import { API_BASE_URL, HEALTH_RETRY_DELAY_MS, STATIC_BASE_URL } from '../config'
 import { STATIC_MISS, fetchApiJson, fetchStaticJson } from './http'
 import type { ApiHealth, Meta } from './types'
 
@@ -26,10 +26,15 @@ export function useMeta() {
   return useQuery({ queryKey: ['meta'], queryFn: fetchMeta })
 }
 
+/** The live service's health. A failure is tried once more, about 3 s
+ * later, before the service counts as offline (H6); every other query
+ * keeps the app's `retry: false`. */
 export function useHealth() {
   return useQuery({
     queryKey: ['health'],
     queryFn: () => fetchApiJson<ApiHealth>(`${API_BASE_URL}/health`),
+    retry: 1,
+    retryDelay: HEALTH_RETRY_DELAY_MS,
   })
 }
 
