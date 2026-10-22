@@ -33,6 +33,7 @@ export function RadioRow<T extends string>({
   wide = false,
   selectOnNarrow = false,
   note,
+  noteBeside = false,
   noteId: outsideNote,
   legendHidden = false,
   size,
@@ -50,6 +51,9 @@ export function RadioRow<T extends string>({
   /** One line under the row saying why the disabled options are
    * unavailable; each of them is described by it. */
   note?: string
+  /** That reason on the label's own line, at its right (a Year's
+   * "Midyear: not asked", G14), not under the row. */
+  noteBeside?: boolean
   /** The id of that line when it is shown elsewhere (under a whole row
    * of controls, not under this group): the disabled options point to it. */
   noteId?: string
@@ -68,7 +72,7 @@ export function RadioRow<T extends string>({
   const describedBy = (option: RadioOption<T>) =>
     option.disabled ? (note ? noteId : outsideNote) : undefined
   const noteLine = note ? (
-    <span id={noteId} className={styles.note}>
+    <span id={noteId} className={noteBeside ? styles.noteBeside : styles.note}>
       {note}
     </span>
   ) : null
@@ -104,7 +108,11 @@ export function RadioRow<T extends string>({
     )
   }
   return (
-    <fieldset className={`${styles.fieldset}${inlineClass}`} data-wide={wide || undefined}>
+    <fieldset
+      className={`${styles.fieldset}${inlineClass}`}
+      data-wide={wide || undefined}
+      data-note-beside={(noteBeside && note !== undefined) || undefined}
+    >
       <legend className={inline ? 'visually-hidden' : legendClass}>{legend}</legend>
       {inline && (
         <span className={styles.inlineLabel} aria-hidden="true">

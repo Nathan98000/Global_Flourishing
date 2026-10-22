@@ -302,9 +302,11 @@ describe('the US overall label', () => {
     const firstBar = svg.querySelector('g[aria-label="bar"] > path') as SVGPathElement
     const barTop = Number(/^M[-\d.]+,([-\d.]+)/.exec(firstBar.getAttribute('d') ?? '')?.[1])
     expect(drawnY(label)).toBeLessThan(barTop)
-    // The axis's labels are under the bars, far from it.
+    // The axis's labels are on top, as on the dot plots (G16), and the
+    // label clears them, above.
     const tick = svg.querySelector('g[aria-label="x-axis tick label"] text') as SVGTextElement
-    expect(drawnY(tick)).toBeGreaterThan(barTop)
+    expect(drawnY(tick)).toBeLessThan(barTop)
+    expect(drawnY(label)).toBeLessThan(drawnY(tick))
   })
 })
 
@@ -407,7 +409,9 @@ describe('US States view', () => {
     // No line under the chart (ADR-0024).
     const text = screen.getByRole('main').textContent ?? ''
     expect(text).not.toContain('weighted so each')
-    const reason = screen.getByText(/The release has no adjusted state weight for 2023/)
+    const reason = screen.getByText(
+      /Not available for 2023: the study adjusted its state figures only/,
+    )
     expect(reason.className).toContain('reason')
   })
 
@@ -422,10 +426,10 @@ describe('US States view', () => {
       name: 'Midyear',
     })
     expect(midyear).toBeDisabled()
-    expect(midyear).toHaveAccessibleDescription(
-      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
-    )
-    expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
+    expect(midyear).toHaveAccessibleDescription('Midyear: not asked')
+    expect(
+      screen.getByText(/Not available for 2023: the study adjusted its state figures/),
+    ).toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,
     )
@@ -461,18 +465,24 @@ describe('US States view', () => {
     const find = screen.getByLabelText('Find a state') as HTMLSelectElement
     // The server's state names, a list to pick from.
     expect([...find.options].map((option) => option.textContent)).toEqual([
-      'None',
+      'Choose a state',
       'California',
       'New York',
       'Texas',
       'Vermont',
     ])
+    // Finding it brings its card to the middle of the screen (G5).
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
     fireEvent.change(find, { target: { value: 'TX' } })
     // The chart: its row picked out, its card open with no pointer.
     // (The pointer's own tip is an empty group until hovered.)
     const tips = (root: Element) =>
       [...root.querySelectorAll('g[aria-label="tip"]')].map((tip) => tip.textContent).join('|')
     await waitFor(() => expect(tips(figure)).toContain('Texas'))
+    await waitFor(() =>
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: 'center' })),
+    )
     expect(figure.innerHTML).toContain('var(--control-selected)')
     // View state, not data: the URL is unchanged.
     expect(router.state.location.searchStr).toBe('')

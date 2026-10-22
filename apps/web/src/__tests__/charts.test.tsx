@@ -462,7 +462,7 @@ describe('Histogram', () => {
       />,
     )
     const svg = container.querySelector('svg')
-    expect(svg?.textContent).toContain('Weighted share (%)')
+    expect(svg?.textContent).toContain('Share of people (%)')
     expect(svg?.textContent).toContain('Answer (0–10)')
     // Eleven bars, the 12-person bin drawn like any other (ADR-0011).
     expect(svg?.querySelectorAll('[aria-label="bar"] > *').length).toBe(11)

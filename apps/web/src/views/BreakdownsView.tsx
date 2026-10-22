@@ -5,16 +5,16 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo } from 'react'
-import { exportCsvUrl, useEstimates } from '../api/estimates'
+import { useMemo } from 'react'
+import { useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
-import { useBootStatus, useHealth, useMeta } from '../api/meta'
+import { useBootStatus, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
 import { useVariable, useVariables } from '../api/variables'
 import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
-import { SmallMultiples, facetOrder } from '../charts/SmallMultiples'
+import { SmallMultiples, countryEstimates, facetOrder } from '../charts/SmallMultiples'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -27,7 +27,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import {
   columnLabel,
@@ -47,18 +47,16 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/segments')
 
 export function BreakdownsView() {
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
-  const health = useHealth()
   const boot = useBootStatus()
   const variables = useVariables()
   const variable = variables.data?.byName[search.outcome]
@@ -84,6 +82,12 @@ export function BreakdownsView() {
   const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
+  // Each country's own estimate, the same question, year and statistic —
+  // the Atlas's file — orders the panels (ADR-0031): never an average of
+  // the groups, which a one-person group could swing.
+  const countryRequest = request ? { ...request, by: ['country_code'] } : null
+  const countryQuery = useEstimates(countryRequest)
+  const countryRows = countryQuery.data?.response.rows
   const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
@@ -110,18 +114,22 @@ export function BreakdownsView() {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
     }
     // One ordering for the panels and the CSV (items 5/13): the
-    // same facetOrder call the chart makes, then the served level order.
+    // facet order the chart is handed, then the served level order.
     if (!metaForSort) return rows
     const served = metaForSort
+    const overall = countryRows
+      ? countryEstimates(countryRows, served, isCategorical ? activeLevel : undefined)
+      : undefined
     return sortBreakdownRows(
       rows,
       served,
-      (input) => facetOrder(input, served, 'country_code', search.sort, dir),
+      (input) => facetOrder(input, served, 'country_code', search.sort, dir, overall),
       (row) => groupValueLabel(primary, row.group[primary] ?? null, served, labeler),
       levelDomain(primary, served, detail),
     )
   }, [
     response,
+    countryRows,
     isCategorical,
     activeLevel,
     search.countries,
@@ -132,6 +140,18 @@ export function BreakdownsView() {
     labeler,
     detail,
   ])
+  // The panels in that same order: each country once, as the rows run.
+  const panelOrder = useMemo(() => {
+    if (!metaForSort) return undefined
+    const served = metaForSort
+    return [
+      ...new Set(
+        displayRows.map((row) =>
+          groupValueLabel('country_code', row.group['country_code'] ?? null, served),
+        ),
+      ),
+    ]
+  }, [displayRows, metaForSort])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -186,6 +206,7 @@ export function BreakdownsView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
 
   // The title names the splits in words ("Life satisfaction by gender
   // and age band"); the wave rides last in the subtitle (§7).
@@ -196,18 +217,22 @@ export function BreakdownsView() {
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
   // The state, in the controls' words (ADR-0029): the year, the
   // countries, their order.
+  const units = isCategorical
+    ? levelLabel
+      ? `share answering “${levelLabel}”`
+      : null
+    : variable
+      ? scaleSubtitle(variable, stat, detail)
+      : null
+  const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
   const subtitle = stateLine(
-    isCategorical
-      ? levelLabel
-        ? `share answering “${levelLabel}”`
-        : null
-      : variable
-        ? scaleSubtitle(variable, stat, detail)
-        : null,
-    WAVE_TITLES[search.wave] ?? search.wave,
+    units,
+    waveTitle,
     countriesPhrase(search.countries.length, meta.data.meta.countries.length),
     search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
   )
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(units, waveTitle)
 
   // What a download is called, in words (ADR-0016): the measure, then
   // `by-<breakdown>` for the split; the server names its CSV the same way.
@@ -217,18 +242,20 @@ export function BreakdownsView() {
     waves: WAVE_CHIPS[search.wave] ?? search.wave,
     breakdown: search.by.map((column) => columnLabel(column, meta.data.meta)).join(' and '),
   }
+  // The CSV is the chart's own rows (G8): the countries chosen, in the
+  // chart's order, each code followed by its words — whichever tier
+  // answered.
   const csv: CsvExport | undefined =
-    request === null
+    request === null || !response
       ? undefined
-      : health.isSuccess && health.data.data === 'ok'
-        ? { kind: 'server', href: exportCsvUrl(request) }
-        : response && estimates.data?.source === 'static'
-          ? {
-              kind: 'client',
-              onDownload: () =>
-                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
-            }
-          : undefined
+      : {
+          kind: 'client',
+          onDownload: () =>
+            downloadTextFile(
+              exportFilename(exportName, 'csv'),
+              responseToCsv({ ...response, rows: displayRows }, csvLabels(meta.data.meta)),
+            ),
+        }
 
   // The split, sorts, country filter and answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it;
@@ -376,13 +403,10 @@ export function BreakdownsView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
         {!narrow && countryFilter}
       </div>
       {narrow && chartable && (
@@ -408,7 +432,7 @@ export function BreakdownsView() {
         </EmptyState>
       ) : (
         <>
-          {estimates.isPending ? (
+          {estimates.isPending || countryQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : estimates.isError ? (
             estimates.error instanceof NetworkError && !boot.apiReachable ? (
@@ -424,6 +448,13 @@ export function BreakdownsView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
+                narrowSubtitle={narrowSubtitle}
+                hint={
+                  // Two splits on a phone run long: a way to shorten it (G6).
+                  narrow && secondary !== undefined && search.countries.length === 0
+                    ? 'Two splits for every country make a long page — choose fewer countries in Options.'
+                    : undefined
+                }
                 ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
                 intro={
                   detail && (
@@ -439,6 +470,7 @@ export function BreakdownsView() {
                     label={isCategorical ? 'share' : 'mean'}
                     color={outcomeColor(variable.name)}
                     ciLevel={keyCiLevel(displayRows)}
+                    thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
                   />
                 }
                 csv={csv}
@@ -457,6 +489,7 @@ export function BreakdownsView() {
                   seriesDomain={
                     secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
                   }
+                  facetDomain={panelOrder}
                   sort={search.sort}
                   dir={dir}
                   labeler={labeler}

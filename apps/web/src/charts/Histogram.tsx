@@ -18,6 +18,8 @@ import {
   INK_SECONDARY,
   SURFACE,
   TIP_OPTIONS,
+  isThin,
+  markFill,
   plotCI,
   plotValue,
   tipText,
@@ -135,7 +137,7 @@ export function Histogram({
         y: {
           domain: scale.domain,
           ticks: scale.ticks,
-          label: 'Weighted share (%)',
+          label: 'Share of people (%)',
           grid: true,
           tickFormat: (d: number) => `${scale.format(d)}%`,
         },
@@ -143,11 +145,14 @@ export function Histogram({
           ? { fx: { domain: facets, label: null, axis: 'top', paddingInner: FACET_PADDING } }
           : {}),
         marks: [
+          // A country few people answered in: its bars hollow (ADR-0031).
           Plot.barY(valid, {
             ...facetChannel,
             x: 'level',
             y: 'value',
-            fill: color,
+            fill: (entry: BinEntry) => markFill(entry.row, color),
+            stroke: (entry: BinEntry) => (isThin(entry.row) ? color : 'none'),
+            strokeWidth: 1.5,
             ry2: BAR_RADIUS,
             insetLeft: 1,
             insetRight: 1,

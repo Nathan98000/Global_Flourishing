@@ -33,7 +33,7 @@ import { WordingPanel } from '../components/WordingPanel'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
@@ -41,10 +41,10 @@ import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
 
@@ -56,7 +56,6 @@ const route = getRouteApi('/states')
 export function StatesView() {
   useWarmApi()
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const boot = useBootStatus()
@@ -64,6 +63,25 @@ export function StatesView() {
   const adjReasonId = useId()
   // Find a state: the state picked out, until cleared.
   const [found, setFound] = useState<string | undefined>()
+  // Finding a state shows it (G5): once the chart has drawn its pinned
+  // card (or the map its outline), that part of the chart comes to the
+  // middle of the screen — smoothly, unless motion is reduced.
+  const find = (code: string | undefined) => {
+    setFound(code)
+    if (code === undefined) return
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const chart = document.querySelector('main figure [role="img"]')
+        // The pinned card: the tip that holds text (the hover tip is empty).
+        const pinned = [...(chart?.querySelectorAll('g[aria-label="tip"]') ?? [])].find(
+          (tip) => tip.textContent,
+        )
+        const target = pinned ?? chart
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        target?.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+      }),
+    )
+  }
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
@@ -182,6 +200,7 @@ export function StatesView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
   const statOptions: RadioOption<string>[] | null =
     variable && (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
       ? [
@@ -190,7 +209,8 @@ export function StatesView() {
         ]
       : null
   const adjAvailable = adjustedWeightsExist(search.wave)
-  const adjReason = `The release has no adjusted state weight for ${WAVE_TITLES[NO_ADJUSTED_WEIGHT_WAVE] ?? NO_ADJUSTED_WEIGHT_WAVE}.`
+  // Plain words for why the switch is off (G18): no "release", no "weight".
+  const adjReason = `Not available for ${WAVE_TITLES[NO_ADJUSTED_WEIGHT_WAVE] ?? NO_ADJUSTED_WEIGHT_WAVE}: the study adjusted its state figures only from the midyear survey on.`
 
   const title = variable?.display_name ?? search.outcome
   const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
@@ -215,6 +235,12 @@ export function StatesView() {
     search.adj && 'adjusted for who answered in each state',
     waveTitle,
     search.view === 'bars' && orderPhrase(dir),
+  )
+  // On a phone the summary line says the order (G3).
+  const narrowSubtitle = stateLine(
+    subtitleBase,
+    search.adj && 'adjusted for who answered in each state',
+    waveTitle,
   )
   // One US figure (F14): the whole US on the states' own weight, the
   // line the states are read against.
@@ -249,7 +275,29 @@ export function StatesView() {
 
   // How the chart is drawn: in its header's toolbar (`inline`), or in
   // the phone's options sheet (ADR-0029).
-  const chartControls = (inline: boolean) => (
+  // The switch with its reason in view when it is off (F6); on a desktop
+  // it sits on its own line under the toolbar's row (G4).
+  const adjustSwitch = (row: boolean) => (
+    <span className={styles.switch} data-row={row || undefined}>
+      <label className={styles.oriented}>
+        <input
+          type="checkbox"
+          checked={search.adj ?? false}
+          disabled={!adjAvailable}
+          aria-describedby={adjAvailable ? undefined : adjReasonId}
+          onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
+        />{' '}
+        Adjust for who answered in each state
+      </label>
+      {!adjAvailable && (
+        <span id={adjReasonId} className={styles.reason}>
+          {adjReason}
+        </span>
+      )}
+    </span>
+  )
+
+  const chartControls = (inline: boolean, withSwitch = true) => (
     <>
       {statOptions && (
         <RadioRow
@@ -291,8 +339,8 @@ export function StatesView() {
           held open — view state, not data, so not in the URL. */}
       <label className={inline ? styles.inlineField : styles.field}>
         <span className={styles.fieldLabel}>Find a state</span>
-        <select value={found ?? ''} onChange={(event) => setFound(event.target.value || undefined)}>
-          <option value="">None</option>
+        <select value={found ?? ''} onChange={(event) => find(event.target.value || undefined)}>
+          <option value="">Choose a state</option>
           {stateOptions.map((state) => (
             <option key={state.code} value={state.code}>
               {state.name}
@@ -300,24 +348,7 @@ export function StatesView() {
           ))}
         </select>
       </label>
-      {/* The switch with its reason in view when it is off (F6). */}
-      <span className={styles.switch} data-inline={inline || undefined}>
-        <label className={styles.oriented}>
-          <input
-            type="checkbox"
-            checked={search.adj ?? false}
-            disabled={!adjAvailable}
-            aria-describedby={adjAvailable ? undefined : adjReasonId}
-            onChange={(event) => setSearch({ adj: event.target.checked || undefined })}
-          />{' '}
-          Adjust for who answered in each state
-        </label>
-        {!adjAvailable && (
-          <span id={adjReasonId} className={styles.reason}>
-            {adjReason}
-          </span>
-        )}
-      </span>
+      {withSwitch && adjustSwitch(false)}
     </>
   )
 
@@ -368,17 +399,14 @@ export function StatesView() {
           legend="Year"
           name="wave"
           options={waveOptions}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
           value={search.wave}
           onChange={(wave) =>
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })
           }
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
       </div>
       {narrow && chartable && (
         <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
@@ -396,15 +424,18 @@ export function StatesView() {
       ) : states.isPending ? (
         <LoadingBlock height={480} label="Loading estimates" />
       ) : states.isError ? (
-        // No chart, no header: its controls stay reachable here.
-        <>
-          {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
-          {states.error instanceof NetworkError && !boot.apiReachable ? (
-            <OfflineLine className={styles.hint} />
-          ) : (
+        states.error instanceof NetworkError && !boot.apiReachable ? (
+          // Offline: no chart, so no toolbar either (G11) — one line on
+          // what still works.
+          <OfflineLine className={styles.hint} />
+        ) : (
+          // Another failure: no chart, no header; its controls stay
+          // reachable here, a way out.
+          <>
+            {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
             <ErrorState apiReachable={boot.apiReachable} error={states.error} />
-          )}
-        </>
+          </>
+        )
       ) : response && variable ? (
         <>
           <p role="status" className="visually-hidden">
@@ -413,6 +444,7 @@ export function StatesView() {
           <ChartFigure
             title={title}
             subtitle={subtitle}
+            narrowSubtitle={narrowSubtitle}
             ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
             intro={
               <>
@@ -438,7 +470,8 @@ export function StatesView() {
                 )}
               </>
             }
-            toolbar={narrow ? undefined : chartControls(true)}
+            toolbar={narrow ? undefined : chartControls(true, false)}
+            afterToolbar={narrow ? undefined : adjustSwitch(true)}
             sortHead={
               // The chart's order is its value label's (ADR-0029).
               search.view === 'bars' ? (
@@ -457,6 +490,7 @@ export function StatesView() {
                   label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
                   color={outcomeColor(variable.name)}
                   ciLevel={keyCiLevel(displayRows)}
+                  thinBelow={keyThinBelow(displayRows, served?.suppression)}
                 />
               ) : undefined
             }
@@ -465,7 +499,7 @@ export function StatesView() {
               onDownload: () =>
                 downloadTextFile(
                   exportFilename(exportName, 'csv'),
-                  responseToCsv({ ...response, rows: displayRows }),
+                  responseToCsv({ ...response, rows: displayRows }, served && csvLabels(served)),
                 ),
             }}
             exportName={exportName}

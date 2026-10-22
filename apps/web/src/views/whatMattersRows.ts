@@ -161,26 +161,35 @@ export function splitGroupOrder(
     .filter((value) => present.has(value))
 }
 
-/** The matrix's one tint window (F2, ADR-0030): the [lowest, highest]
- * estimate of every cell shown, so a shade means the same number in
- * every column and reading across a row reads the order — fitted to the
- * data (ADR-0010's rule), widened to at least `minSpan` points about its
- * midpoint, or near-equal values (US money by age runs 7.46–7.66) would
- * spread a fifth of a point over the whole ramp. Undefined: no
- * estimate to shade. */
-export function matrixRange(
+/** The matrix's seven shades in equal-count steps (ADR-0031): each cell
+ * shaded by its rank among the cells shown — its mid-rank, so ties share
+ * a shade — so each shade holds about a seventh of the cells, the lowest
+ * the lightest and the highest the deepest, on one scale for the whole
+ * grid (rows stay comparable). Equal steps over 2.76–9.65 put 126 of 161
+ * cells in the two darkest. `cuts` are the lowest value in steps 2 to 7,
+ * for the key. Undefined: no estimate to shade. */
+export function matrixSteps(
   rows: readonly EstimateRow[],
-  minSpan = 1,
-): [number, number] | undefined {
-  let lo = Infinity
-  let hi = -Infinity
-  for (const row of rows) {
-    if (row.estimate === null) continue
-    lo = Math.min(lo, row.estimate)
-    hi = Math.max(hi, row.estimate)
+  steps = 7,
+): { lo: number; hi: number; cuts: number[]; step: (value: number) => number } | undefined {
+  const values = rows
+    .map((row) => row.estimate)
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b)
+  const n = values.length
+  if (n === 0) return undefined
+  const step = (value: number) => {
+    const first = values.findIndex((candidate) => candidate >= value)
+    const after = values.findIndex((candidate) => candidate > value)
+    const from = first === -1 ? n - 1 : first
+    const to = after === -1 ? n - 1 : Math.max(from, after - 1)
+    const rank = (from + to) / 2
+    return Math.min(steps - 1, Math.floor(((rank + 0.5) / n) * steps))
   }
-  if (lo > hi) return undefined
-  if (hi - lo >= minSpan) return [lo, hi]
-  const mid = (lo + hi) / 2
-  return [mid - minSpan / 2, mid + minSpan / 2]
+  const hi = values[n - 1] as number
+  const cuts = Array.from(
+    { length: steps - 1 },
+    (_, index) => values.find((value) => step(value) >= index + 1) ?? hi,
+  )
+  return { lo: values[0] as number, hi, cuts, step }
 }

@@ -5,8 +5,8 @@
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo, type ReactNode } from 'react'
-import { exportCsvUrl, useEstimates } from '../api/estimates'
+import { useMemo, type ReactNode } from 'react'
+import { useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
 import type { Stat } from '../api/types'
@@ -30,7 +30,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
@@ -38,15 +38,14 @@ import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/')
 
 export function AtlasView() {
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -100,20 +99,31 @@ export function AtlasView() {
   // order the chart's other views use — the server's estimates of the
   // default statistic, ordered as the Atlas orders them.
   const firstFourNeeded = stat === 'distribution' && !allAnswers && search.countries.length === 0
+  // The panels follow that value order too, chosen countries included —
+  // never A–Z (G10).
+  const numericDistribution = stat === 'distribution' && !allAnswers
   const orderEstimates = useEstimates(
-    chartable && firstFourNeeded ? atlasRequest({ ...search, stat: undefined }, variable) : null,
+    chartable && numericDistribution
+      ? atlasRequest({ ...search, countries: [], stat: undefined }, variable)
+      : null,
   )
   const orderRows = orderEstimates.data?.response.rows
-  const firstFour = useMemo(
+  const valueOrder = useMemo(
     () =>
       orderRows && metaForSort
-        ? sortAtlasRows(orderRows, metaForSort, dir)
-            .slice(0, 4)
-            .map((row) => Number(row.group['country_code']))
+        ? sortAtlasRows(orderRows, metaForSort, dir).map((row) => Number(row.group['country_code']))
         : [],
     [orderRows, metaForSort, dir],
   )
-  const distributionCountries = search.countries.length ? search.countries.slice(0, 4) : firstFour
+  const distributionCountries = useMemo(() => {
+    if (!search.countries.length) return valueOrder.slice(0, 4)
+    const at = (code: number) => {
+      const index = valueOrder.indexOf(code)
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index
+    }
+    return [...search.countries].sort((a, b) => at(a) - at(b)).slice(0, 4)
+  }, [search.countries, valueOrder])
+  const firstFour = distributionCountries
 
   const displayRows = useMemo(() => {
     if (!response) return []
@@ -144,7 +154,12 @@ export function AtlasView() {
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
     if (stat === 'distribution') {
-      return rows.filter((row) => distributionCountries.includes(Number(row.group['country_code'])))
+      const order = new Map(distributionCountries.map((code, index) => [code, index]))
+      const at = (row: (typeof rows)[number]) =>
+        order.get(Number(row.group['country_code'])) ?? Number.MAX_SAFE_INTEGER
+      return rows
+        .filter((row) => order.has(Number(row.group['country_code'])))
+        .sort((a, b) => at(a) - at(b) || (a.level ?? 0) - (b.level ?? 0))
     }
     if (search.countries.length) {
       rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
@@ -210,6 +225,7 @@ export function AtlasView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
 
   const statOptions: RadioOption<string>[] | null =
     variable && variable.scale_type === 'scale_0_10'
@@ -251,19 +267,22 @@ export function AtlasView() {
   const ordered = stat !== 'distribution' || allAnswers
   const orderState =
     allAnswers && levelLabel ? `by “${levelLabel}”, ${orderPhrase(dir)}` : orderPhrase(dir)
+  const fourWord = `the four with the ${dir === 'asc' ? 'lowest' : 'highest'} mean`
   const countriesState = firstFourNeeded
-    ? 'first four countries'
+    ? fourWord
     : countriesPhrase(search.countries.length, countryCount)
   const subtitle = stateLine(subtitleBase, waveTitle, countriesState, ordered && orderState)
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(subtitleBase, waveTitle)
   // The distribution's four countries, said in the header (ADR-0024: no
   // line under the chart).
   const distributionHint =
     stat !== 'distribution' || allAnswers
       ? undefined
       : firstFourNeeded
-        ? 'Showing the first four countries — choose others with Countries.'
+        ? `Showing ${fourWord} — choose others with Countries.`
         : search.countries.length > 4
-          ? 'Showing the first four of the countries chosen.'
+          ? `Showing the four of the countries chosen with the ${dir === 'asc' ? 'lowest' : 'highest'} mean.`
           : undefined
   // The chart's key, in its header: the mark, and its interval when the
   // marks carry one.
@@ -274,6 +293,7 @@ export function AtlasView() {
         label="share of people"
         color={variable ? outcomeColor(variable.name) : undefined}
         ciLevel={keyCiLevel(displayRows)}
+        thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
       />
     ) : allAnswers ? undefined : (
       <ChartKey
@@ -281,6 +301,7 @@ export function AtlasView() {
         label={stat === 'proportion' ? 'share' : stat === 'quantile' ? 'median' : 'mean'}
         color={variable ? outcomeColor(variable.name) : undefined}
         ciLevel={keyCiLevel(displayRows)}
+        thinBelow={keyThinBelow(displayRows, meta.data.meta.suppression)}
       />
     )
 
@@ -291,18 +312,20 @@ export function AtlasView() {
     view: 'By country',
     waves: WAVE_CHIPS[search.wave] ?? search.wave,
   }
+  // The CSV is the chart's own rows (G8): the countries chosen, in the
+  // chart's order, each code followed by its words — whichever tier
+  // answered.
   const csv: CsvExport | undefined =
-    request === null
+    request === null || !response
       ? undefined
-      : health.isSuccess && health.data.data === 'ok'
-        ? { kind: 'server', href: exportCsvUrl(request) }
-        : response && estimates.data?.source === 'static'
-          ? {
-              kind: 'client',
-              onDownload: () =>
-                downloadTextFile(exportFilename(exportName, 'csv'), responseToCsv(response)),
-            }
-          : undefined
+      : {
+          kind: 'client',
+          onDownload: () =>
+            downloadTextFile(
+              exportFilename(exportName, 'csv'),
+              responseToCsv({ ...response, rows: displayRows }, csvLabels(meta.data.meta)),
+            ),
+        }
 
   // Statistic, Order, Countries and Answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
@@ -426,13 +449,10 @@ export function AtlasView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
         {!narrow && countryFilter}
       </div>
       {narrow && chartable && (
@@ -483,6 +503,7 @@ export function AtlasView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
+                narrowSubtitle={narrowSubtitle}
                 ariaLabel={
                   allAnswers
                     ? summarizeExtremes(

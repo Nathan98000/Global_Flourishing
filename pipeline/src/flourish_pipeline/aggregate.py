@@ -24,7 +24,8 @@ without the API ever answering.
 
 Everything runs through ``flourish_stats`` with the weight resolved from
 the wave→weight→eligibility table; the serving policy is
-``NO_SUPPRESSION`` (ADR-0011: every cell is shown — pass a policy to
+``SERVING_POLICY`` (every cell is shown, ADR-0011, and estimates with
+fewer than 30 people behind them flagged, ADR-0031 — pass a policy to
 bake the 50/100 rule back in). Output bytes are deterministic (sorted
 keys, index sorted by path).
 """
@@ -47,7 +48,7 @@ import duckdb
 import polars as pl
 import pyarrow as pa
 from flourish_stats import (
-    NO_SUPPRESSION,
+    SERVING_POLICY,
     Design,
     SuppressionPolicy,
     WeightSpec,
@@ -321,7 +322,7 @@ def export_catalog(
     static_dir: Path,
     data_version: str | None,
     files: list[dict[str, Any]],
-    policy: SuppressionPolicy = NO_SUPPRESSION,
+    policy: SuppressionPolicy = SERVING_POLICY,
 ) -> None:
     """Write meta.json, variables.json and every v1/<name>/variable.json.
 
@@ -446,7 +447,7 @@ def export_static(
     *,
     data_version: str | None,
     only: tuple[str, ...] | None = None,
-    policy: SuppressionPolicy = NO_SUPPRESSION,
+    policy: SuppressionPolicy = SERVING_POLICY,
 ) -> dict[str, Any]:
     """Write every hot view; returns the index (also written to disk).
 

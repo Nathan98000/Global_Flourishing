@@ -25,7 +25,13 @@ from .panel import (
     three_point_panel,
     transition_matrix,
 )
-from .suppression import DEFAULT_POLICY, NO_SUPPRESSION, SuppressionPolicy, suppress
+from .suppression import (
+    DEFAULT_POLICY,
+    NO_SUPPRESSION,
+    SERVING_POLICY,
+    SuppressionPolicy,
+    suppress,
+)
 from .weights import (
     WEIGHT_TABLE,
     WeightSpec,
@@ -42,6 +48,7 @@ __all__ = [
     "DEFAULT_POLICY",
     "NO_SUPPRESSION",
     "RESULT_COLUMNS",
+    "SERVING_POLICY",
     "WEIGHT_TABLE",
     "Design",
     "SuppressionPolicy",

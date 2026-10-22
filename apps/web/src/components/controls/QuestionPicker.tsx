@@ -3,8 +3,8 @@
 // a button naming the chosen question by its short label, its role in
 // the accessible name ("First question: Life evaluation today") — in a
 // sentence on Correlates, or, at the head of every other page's question
-// bar (`variant="field"`), a box with the name in bold over a line of its
-// wording and "Change ▾" ("Question: Life satisfaction"). Open, it is a
+// bar (`variant="field"`), a box with the name in bold — wrapping, never
+// cut short; the chart under it gives the wording (G13) — and "Change ▾" ("Question: Life satisfaction"). Open, it is a
 // panel — a
 // popover about 660px wide on a desktop, a full-screen sheet under 600px
 // — that reaches any question three ways: search (the page search's own
@@ -34,21 +34,59 @@ import {
 } from 'react'
 import type { VariableSummary, Wave } from '../../api/types'
 import { shortName } from '../../labels'
+import { WAVE_NAMES } from '../../waves'
 import { subtopicsOf, topicFamily, topicName, topicsOf } from '../../topics'
 import styles from './QuestionPicker.module.css'
 
+/** A search word's stem (G18): a common ending trimmed, so "satisfied"
+ * finds "satisfaction" and "happy" finds "happiness" — never shorter than
+ * four letters. */
+export function stemOf(needle: string): string {
+  for (const ending of [
+    'ation',
+    'ition',
+    'ness',
+    'ment',
+    'ing',
+    'ied',
+    'ies',
+    'ly',
+    'ed',
+    'es',
+    'y',
+    's',
+  ]) {
+    if (needle.endsWith(ending) && needle.length - ending.length >= 4) {
+      return needle.slice(0, -ending.length)
+    }
+  }
+  return needle
+}
+
+/** Where a search lands in a text: the words as typed, else their stem
+ * (−1 when neither). */
+export function findNeedle(text: string, needle: string): { at: number; length: number } {
+  if (!needle) return { at: -1, length: 0 }
+  const lower = text.toLowerCase()
+  const exact = lower.indexOf(needle)
+  if (exact >= 0) return { at: exact, length: needle.length }
+  const stem = stemOf(needle)
+  return { at: stem === needle ? -1 : lower.indexOf(stem), length: stem.length }
+}
+
 /** The servable questions a search matches: name, display name, label
- * or wording, case-insensitive. */
+ * or wording, case-insensitive, by the words or their stem. */
 export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
+  const hit = (text: string | null) => findNeedle(text ?? '', needle).at >= 0
   return variables.filter(
     (variable) =>
       variable.servable &&
-      (variable.name.toLowerCase().includes(needle) ||
-        variable.display_name.toLowerCase().includes(needle) ||
-        (variable.label ?? '').toLowerCase().includes(needle) ||
-        (variable.wording ?? '').toLowerCase().includes(needle)),
+      (hit(variable.name) ||
+        hit(variable.display_name) ||
+        hit(variable.label) ||
+        hit(variable.wording)),
   )
 }
 
@@ -91,13 +129,13 @@ function wordingOf(variable: VariableSummary): string {
 
 /** `text` with the first match of `needle` marked. */
 function marked(text: string, needle: string): ReactNode {
-  const at = needle ? text.toLowerCase().indexOf(needle) : -1
+  const { at, length } = findNeedle(text, needle)
   if (at < 0) return text
   return (
     <>
       {text.slice(0, at)}
-      <mark className={styles.mark}>{text.slice(at, at + needle.length)}</mark>
-      {text.slice(at + needle.length)}
+      <mark className={styles.mark}>{text.slice(at, at + length)}</mark>
+      {text.slice(at + length)}
     </>
   )
 }
@@ -105,7 +143,7 @@ function marked(text: string, needle: string): ReactNode {
 /** The wording line is one line: when the match sits far into it, start
  * a few words before the match so the mark is in view. */
 export function wordingSnippet(text: string, needle: string): string {
-  const at = needle ? text.toLowerCase().indexOf(needle) : -1
+  const { at } = findNeedle(text, needle)
   if (at <= 40) return text
   const start = text.lastIndexOf(' ', at - 20)
   return `…${text.slice(start + 1)}`
@@ -259,7 +297,6 @@ export function QuestionPicker(props: QuestionPickerProps) {
     />
   )
   if (!props.multiple && props.variant === 'field') {
-    const wording = current ? wordingOf(current) : ''
     return (
       <span
         className={styles.field}
@@ -280,8 +317,9 @@ export function QuestionPicker(props: QuestionPickerProps) {
           aria-label={`${label}: ${name}`}
           onClick={() => setOpen((was) => !was)}
         >
+          {/* The name alone, wrapping, never cut short (G13): the chart's
+              own line under its title gives the wording. */}
           <span className={styles.fieldName}>{name}</span>
-          {wording && <span className={styles.fieldWording}>{wording}</span>}
           <span className={styles.fieldChange} aria-hidden="true">
             Change
             <span className={styles.chevron}>
@@ -629,9 +667,17 @@ function Panel(
             onKeyDown={onTopicsKey}
           >
             {visibleShelves.map((entry) => {
-              const count = entry.sections
-                .flatMap((section) => section.items)
-                .filter((v) => (countable ? countable(v) : v.waves_available.includes(wave))).length
+              const items = entry.sections.flatMap((section) => section.items)
+              const count = items.filter((v) =>
+                countable ? countable(v) : v.waves_available.includes(wave),
+              ).length
+              // A topic with nothing to pick this year says when it was
+              // asked, greyed, in place of its 0 (G18).
+              const askedIn = [...new Set(items.flatMap((v) => v.waves_available))]
+              const onlyIn =
+                count === 0 && askedIn.length > 0
+                  ? `Only in ${askedIn.map((w) => WAVE_NAMES[w] ?? w).join(' and ')}`
+                  : undefined
               return (
                 // eslint-disable-next-line jsx-a11y/click-events-have-key-events
                 <li
@@ -639,16 +685,17 @@ function Panel(
                   id={`${id}-t-${entry.key}`}
                   role="option"
                   aria-selected={entry.key === activeShelf?.key}
-                  aria-label={`${entry.name}, ${count}`}
+                  aria-label={`${entry.name}, ${onlyIn ?? count}`}
                   className={styles.topic}
                   data-depth={entry.depth}
+                  data-empty={onlyIn ? true : undefined}
                   onClick={() => {
                     setShelf(entry.key)
                     setCursor(undefined)
                   }}
                 >
                   <span>{entry.name}</span>
-                  <span className={styles.count}>{count}</span>
+                  <span className={styles.count}>{onlyIn ?? count}</span>
                 </li>
               )
             })}

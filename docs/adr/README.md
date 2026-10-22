@@ -16,7 +16,7 @@ it.
 | [ADR-0008](ADR-0008-one-envelope-two-tiers.md) | One response envelope for two tiers; request-keyed caching | Accepted |
 | [ADR-0009](ADR-0009-static-first-fetch-layer.md) | Static-first fetch layer | Accepted |
 | [ADR-0010](ADR-0010-frontend-rendering-stack.md) | Front-end rendering stack | Accepted |
-| [ADR-0011](ADR-0011-small-cells-shown.md) | Small cells are shown, not withheld (policy default; env-restorable) | Accepted |
+| [ADR-0011](ADR-0011-small-cells-shown.md) | Small cells are shown, not withheld (policy default; env-restorable) | Accepted; the flag set at 30 people by ADR-0031 |
 | [ADR-0012](ADR-0012-visual-identity.md) | Visual identity — warm paper, serif structure, quiet controls | Accepted; the dark theme removed by ADR-0023 |
 | [ADR-0013](ADR-0013-phase-5-serving-and-display.md) | Phase 5 — API-only views, a progress affordance that is not a spinner, retention kept off the screen | Accepted |
 | [ADR-0014](ADR-0014-adjusted-associations.md) | Phase 6 — adjusted associations on numpy, the `svyglm` sandwich, a fixed control set, ranked correlations without intervals | Accepted |
@@ -35,4 +35,5 @@ it.
 | [ADR-0027](ADR-0027-change-shows-overall-change.md) | Change shows the overall change alone: the matrix of where people moved between answers removed from the page (the API still serves transitions) | Accepted |
 | [ADR-0028](ADR-0028-every-state-on-its-own.md) | Every US state on its own: respondents keyed by the state they live in (`REGION1`), not the release's four pooled small-state groups | Accepted |
 | [ADR-0029](ADR-0029-question-bar-chart-toolbar-one-picker-value-order.md) | Controls: a question bar on top (what, then when and where), a toolbar on the chart (how it's drawn), one question picker, every chart ordered by value and sorted from its value label; Correlates opens on All countries | Accepted |
-| [ADR-0030](ADR-0030-display-fixes-from-the-21-october-review.md) | Display fixes from the 21 October review: What Matters shaded on one range, US States opens on the chart (Find a state, the two US figures in a fold), Compare two's derived 0–10 scores in whole-number bands | Accepted |
+| [ADR-0030](ADR-0030-display-fixes-from-the-21-october-review.md) | Display fixes from the 21 October review: What Matters shaded on one range, US States opens on the chart (Find a state, the two US figures in a fold), Compare two's derived 0–10 scores in whole-number bands | Accepted; What Matters' equal steps revised by ADR-0031 (equal-count steps) |
+| [ADR-0031](ADR-0031-display-fixes-from-the-22-october-review.md) | Display fixes from the 22 October review: thin estimates flagged at 30 people (a share by its group's answerers), no zero-width intervals, Segments in each country's own order, What Matters in equal-count steps | Accepted |

@@ -76,19 +76,22 @@ def test_every_row_carries_the_full_record(client: TestClient) -> None:
         assert row["weight"] == "w_c1" and row["se_method"] == "taylor"
 
 
-def test_small_cells_appear_with_their_n_and_no_flag(client: TestClient) -> None:
+def test_small_cells_appear_with_their_n_and_a_flag(client: TestClient) -> None:
     """ADR-0011: every cell is shown. The 15-ish-person cells that the old
-    50/100 rule withheld now carry their estimate, with n visible so a
-    reader can see what the number rests on."""
+    50/100 rule withheld carry their estimate, with n visible so a reader
+    can see what the number rests on — and, under 30 people, the flag the
+    charts draw hollow with an asterisk (ADR-0031)."""
     _, rows = get_rows(client, outcome="HAPPY", wave="Y1", by=["country_code", "age_band"])
     assert len(rows) == 8  # 2 countries × 4 bands
-    assert all(not r["suppressed"] and not r["flagged"] for r in rows)
+    assert all(not r["suppressed"] for r in rows)
+    assert all(r["flagged"] == (r["n"] < 30) for r in rows)
+    assert any(r["flagged"] for r in rows)
     assert all(r["estimate"] is not None and r["n"] > 0 for r in rows)
 
 
 def test_whole_country_cells_are_clean(client: TestClient) -> None:
     _, rows = get_rows(client, outcome="HAPPY", wave="Y1", by="country_code")
-    # 54 valid respondents per country — and no flag at any size (ADR-0011).
+    # 54 valid respondents per country: shown, and above the flag's 30.
     assert all(not r["suppressed"] and not r["flagged"] for r in rows)
     assert all(r["estimate"] is not None for r in rows)
 

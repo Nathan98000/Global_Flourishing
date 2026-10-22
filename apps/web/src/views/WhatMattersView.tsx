@@ -21,7 +21,15 @@ import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
-import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
+import {
+  SEQUENTIAL_RAMP,
+  THIN_LINE,
+  isThin,
+  outcomeColor,
+  starValue,
+  thinKey,
+  tipText,
+} from '../charts/theme'
 import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -32,7 +40,7 @@ import { WordingPanel } from '../components/WordingPanel'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { countWord, formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
@@ -51,7 +59,7 @@ import {
   defaultSplitCountry,
   itemLabel,
   matrixCountryOrder,
-  matrixRange,
+  matrixSteps,
   narrowestWrap,
   orderMatrixRows,
   rankItems,
@@ -59,7 +67,7 @@ import {
   splitGroupOrder,
 } from './whatMattersRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/what-matters')
 
@@ -295,7 +303,8 @@ export function WhatMattersView() {
   const things = ranking.length === 1 ? 'one thing is' : `${countWord(ranking.length)} things are`
   const csvFor = (response: EstimateResponse, name: ExportName): CsvExport => ({
     kind: 'client',
-    onDownload: () => downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response)),
+    onDownload: () =>
+      downloadTextFile(exportFilename(name, 'csv'), responseToCsv(response, csvLabels(served))),
   })
   // What a download is called, in words (ADR-0016): the ranking, its
   // split for one country, or the single item.
@@ -350,17 +359,16 @@ export function WhatMattersView() {
   const itemStat: Stat = (item?.default_stat as Stat | undefined) ?? 'mean'
   const itemLevel = search.level ?? itemLevels[0]?.value
   const itemLevelLabel = itemLevels.find((level) => level.value === itemLevel)?.label
-  const itemSubtitle = item
-    ? stateLine(
-        itemStat === 'proportion'
-          ? itemLevelLabel
-            ? `share answering “${itemLevelLabel}”`
-            : 'weighted share'
-          : scaleSubtitle(item, itemStat, itemDetail),
-        MIDYEAR_TITLE,
-        orderPhrase(qdir),
-      )
-    : ''
+  const itemUnits = item
+    ? itemStat === 'proportion'
+      ? itemLevelLabel
+        ? `share answering “${itemLevelLabel}”`
+        : 'weighted share'
+      : scaleSubtitle(item, itemStat, itemDetail)
+    : null
+  const itemSubtitle = item ? stateLine(itemUnits, MIDYEAR_TITLE, orderPhrase(qdir)) : ''
+  // On a phone the summary line says the order (G3).
+  const itemNarrowSubtitle = item ? stateLine(itemUnits, MIDYEAR_TITLE) : ''
   const itemResponse = itemQuery.results[0]?.response
   // The answer a share counts: in the chart's toolbar (`inline`), or in
   // the phone's options sheet (ADR-0029).
@@ -510,8 +518,12 @@ export function WhatMattersView() {
                       label="mean"
                       color={outcomeColor(first.name)}
                       ciLevel={keyCiLevel(countryItems)}
+                      thinBelow={keyThinBelow(countryItems, served.suppression)}
                     />
                   }
+                  // The value's label over its column, as on every dot plot
+                  // (G18); the ranking's order is fixed, so not a button.
+                  sortHead={<SortHead names="What matters" value="Mean" dir="desc" />}
                   csv={csvFor(countryItemsResponse, countryItemsName)}
                   exportName={countryItemsName}
                   isRefreshing={rankingQuery.isPlaceholderData}
@@ -592,6 +604,7 @@ export function WhatMattersView() {
             <ChartFigure
               title={item.display_name}
               subtitle={itemSubtitle}
+              narrowSubtitle={itemNarrowSubtitle}
               ariaLabel={summarizeExtremes(
                 itemRows,
                 served,
@@ -620,6 +633,7 @@ export function WhatMattersView() {
                   label={itemStat === 'proportion' ? 'share' : 'mean'}
                   color={outcomeColor(item.name)}
                   ciLevel={keyCiLevel(itemRows)}
+                  thinBelow={keyThinBelow(itemRows, served.suppression)}
                 />
               }
               csv={csvFor(
@@ -673,21 +687,43 @@ function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-/** The matrix's key, in its caption's place: the seven ramp steps from
- * the lowest to the highest number in the matrix — the tokens
- * themselves, one range for every column (ADR-0030). */
-function TintLegend({ range }: { range: [number, number] | undefined }) {
-  const [lo, hi] = range ?? [undefined, undefined]
+/** The matrix's key, in its caption's place: the seven ramp steps, the
+ * tokens themselves, with the number where each begins under it — equal
+ * counts of cells, one scale for every column (ADR-0031). */
+function TintLegend({
+  steps,
+  thinBelow,
+}: {
+  steps: Pick<NonNullable<ReturnType<typeof matrixSteps>>, 'lo' | 'hi' | 'cuts'> | undefined
+  thinBelow?: number
+}) {
+  const edges = steps ? [steps.lo, ...steps.cuts, steps.hi] : []
   return (
     <span className={styles.legend}>
       <span className={styles.legendKey}>
-        Lower{lo !== undefined ? ` (${formatEstimate(lo, 'mean')})` : ''}{' '}
-        <span className={styles.ramp} aria-hidden="true">
-          {SEQUENTIAL_RAMP.map((token) => (
-            <span key={token} style={{ background: token }} />
-          ))}
-        </span>{' '}
-        Higher{hi !== undefined ? ` (${formatEstimate(hi, 'mean')})` : ''}
+        Lower
+        <span className={styles.stepKey} aria-hidden="true">
+          <span className={styles.ramp}>
+            {SEQUENTIAL_RAMP.map((token) => (
+              <span key={token} style={{ background: token }} />
+            ))}
+          </span>
+          <span className={styles.stepTicks}>
+            {edges.map((edge, index) => (
+              <span key={index}>{edge.toFixed(1)}</span>
+            ))}
+          </span>
+        </span>
+        Higher
+      </span>{' '}
+      <span className={styles.legendNote}>
+        — each shade about a seventh of the cells
+        {steps && (
+          <span className="visually-hidden">
+            , from {steps.lo.toFixed(1)} to {steps.hi.toFixed(1)}
+          </span>
+        )}
+        {thinBelow !== undefined && ` · * ${thinKey(thinBelow)}`}
       </span>
     </span>
   )
@@ -732,11 +768,12 @@ function ImportanceMatrix({
   // One scale for the whole matrix, over the rows on screen (F2): a
   // shade is the same number in every column.
   const shown = new Set<unknown>(rowOrder)
-  const range = matrixRange(rows.filter((row) => shown.has(row.group[rowColumn])))
-  const tint = range ? quantizeSequential(range) : undefined
+  const onScreen = rows.filter((row) => shown.has(row.group[rowColumn]))
+  const steps = matrixSteps(onScreen)
+  const tint = steps ? (value: number) => SEQUENTIAL_RAMP[steps.step(value)] as string : undefined
   return (
     <HeatTable
-      caption={<TintLegend range={range} />}
+      caption={<TintLegend steps={steps} thinBelow={keyThinBelow(onScreen, served.suppression)} />}
       corner={corner}
       rows={rowOrder.map((value) => ({
         key: String(value),
@@ -751,11 +788,14 @@ function ImportanceMatrix({
         const cell = cells.get(`${column.key}:${row.key}`)
         if (!cell) return undefined
         return {
-          text: formatEstimate(cell.estimate, cell.stat),
+          text: starValue(formatEstimate(cell.estimate, cell.stat), cell),
           title: tipText(cell, `${row.label} · ${column.label}`, {
             range: items.find((item) => item.name === column.key),
           }),
           tint: cell.estimate === null || !tint ? 'transparent' : tint(cell.estimate),
+          // Few people behind it (ADR-0031): the dashed inner outline.
+          flagged: isThin(cell),
+          hidden: isThin(cell) ? `, ${THIN_LINE.toLowerCase()}` : undefined,
         }
       }}
     />

@@ -999,13 +999,18 @@ describe('Correlates view', () => {
       const lines = [...node.querySelectorAll(':scope > tspan')]
       return (lines.length > 0 ? lines : [node]).map((line) => line.textContent).join(' ')
     })
+    // Both questions named (G9): the one in each row, and the one asked.
     expect(ends).toEqual([
-      '← goes with lower answers to Happiness',
-      'goes with higher answers to Happiness →',
+      '← higher answers to the question in the row go with lower answers to Happiness',
+      'higher answers to the question in the row go with higher answers to Happiness →',
     ])
     expect(svgText).not.toMatch(/with a (higher|lower)/)
     const turns = [...figure.querySelectorAll('g[aria-description="axis end"] tspan[font-style]')]
-    expect(turns.map((node) => node.textContent)).toEqual(['lower', 'higher'])
+    expect(turns.map((node) => node.textContent)).toEqual(['higher', 'lower', 'higher', 'higher'])
+    // The same words above the list, where its first rows are read.
+    expect(
+      screen.getAllByText(/the question in the row go with/, { selector: 'span' }).length,
+    ).toBeGreaterThan(0)
     for (const node of turns) {
       expect(node.getAttribute('font-style')).toBe('italic')
       expect(node.getAttribute('font-weight')).toBe('600')
@@ -1170,8 +1175,13 @@ describe('Correlates view', () => {
     expect(strip).toHaveTextContent(
       'Correlation — how closely two answers rise and fall together, from −1 to +1',
     )
-    expect(strip).toHaveTextContent('← goes with lower answers to Service attendance')
-    expect(strip).toHaveTextContent('goes with higher answers to Service attendance →')
+    // Both questions named (G9).
+    expect(strip.textContent).toMatch(
+      /← higher answers to .+ go with lower answers to Service attendance/,
+    )
+    expect(strip.textContent).toMatch(
+      /higher answers to .+ go with higher answers to Service attendance →/,
+    )
     expect(strip.textContent).not.toMatch(/weak|strong|moderate/)
     const where = screen.getByLabelText('Where') as HTMLSelectElement
     expect(where.value).toBe('22')
@@ -1521,7 +1531,8 @@ describe('Correlates view', () => {
     // The old "Change" button is gone (it collided with the Change page).
     expect(screen.queryByRole('button', { name: /^Change wave/ })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Measured as' })).toBeNull()
-    expect(screen.getByText('Straight-line · All countries, averaged')).toBeVisible()
+    // The line names only what Options holds (G12): Where is right above.
+    expect(screen.getByText('Measured as: straight-line')).toBeVisible()
     const options = screen.getByRole('button', { name: 'Options' })
     fireEvent.click(options)
     const sheet = screen.getByRole('dialog', { name: 'Chart options' })
@@ -1935,9 +1946,9 @@ describe('correlates helpers', () => {
     expect(statisticPhrase(undefined)).toBe('correlation, −1 to 1')
     expect(statisticPhrase('spearman')).toBe('correlation by rank, −1 to 1')
     expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe('Japan · 2024 · correlation, −1 to 1')
-    expect(axisEnds('Happiness')).toEqual([
-      '← goes with lower answers to Happiness',
-      'goes with higher answers to Happiness →',
+    expect(axisEnds('Happiness', 'Life satisfaction')).toEqual([
+      '← higher answers to Life satisfaction go with lower answers to Happiness',
+      'higher answers to Life satisfaction go with higher answers to Happiness →',
     ])
     // No tooltip carries an n (ADR-0016, restored by ADR-0019); a
     // correlation few people are behind keeps its asterisk, and no more.

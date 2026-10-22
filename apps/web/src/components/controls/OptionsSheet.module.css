@@ -5,10 +5,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  /* The chart's own top rule closes the line from below (G3): one rule,
+     not two 16 px apart. */
+  margin: calc(-1 * var(--space-2)) 0 0;
   padding: var(--space-1) 0;
   border-top: 1px solid var(--grid);
-  border-bottom: 1px solid var(--grid);
   color: var(--ink-secondary);
   font-size: var(--text-sm);
 }
@@ -91,4 +92,47 @@
   gap: var(--space-4);
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* The chart's links at the sheet's foot (G3): how to read it, and its
+   downloads, each a 44 px target. */
+.chartActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.chartActions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.downloads {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-secondary);
+}
+
+.link {
+  min-height: 44px;
+  min-width: 44px;
+  border: 0;
+  background: none;
+  padding: 0 var(--space-2);
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

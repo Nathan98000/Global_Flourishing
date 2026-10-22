@@ -41,7 +41,7 @@ import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
-import { downloadTextFile, responseToCsv } from '../export/csv'
+import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, outcomeLevels } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
@@ -51,7 +51,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, orderPhrase, stateLine } from './viewState'
+import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -252,6 +252,14 @@ export function ChangeView() {
     countriesPhrase(search.countries.length, meta.data.meta.countries.length),
     orderPhrase(dir),
   )
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(
+    isCategorical
+      ? `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`
+      : `Mean change${range}, among the same people`,
+    directionNote,
+    pair,
+  )
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
   // What a download is called, in words (ADR-0016): the measure, the
   // figure ("Change", "Change distribution", "Transitions") and the
@@ -269,7 +277,10 @@ export function ChangeView() {
       ? {
           kind: 'client',
           onDownload: () =>
-            downloadTextFile(exportFilename(name, 'csv'), responseToCsv({ ...response, rows })),
+            downloadTextFile(
+              exportFilename(name, 'csv'),
+              responseToCsv({ ...response, rows }, csvLabels(meta.data.meta)),
+            ),
         }
       : undefined
   // The lede's years come from the supported pair, never from literals:
@@ -407,6 +418,7 @@ export function ChangeView() {
           <ChartFigure
             title={title}
             subtitle={subtitle}
+            narrowSubtitle={narrowSubtitle}
             ariaLabel={summarizeExtremes(
               legs ? display.rows.filter((row) => row.leg === 'y1_y2') : display.rows,
               meta.data.meta,
@@ -437,6 +449,7 @@ export function ChangeView() {
                 label={isCategorical ? 'change in share' : 'mean change'}
                 color={color}
                 ciLevel={keyCiLevel(display.rows)}
+                thinBelow={keyThinBelow(display.rows, meta.data.meta.suppression)}
               />
             }
             csv={csvFor(display.rows, nameFor('Change'))}
@@ -465,6 +478,7 @@ export function ChangeView() {
                     label="share of people"
                     color={color}
                     ciLevel={keyCiLevel(distribution)}
+                    thinBelow={keyThinBelow(distribution, meta.data.meta.suppression)}
                   />
                 }
                 csv={csvFor(distribution, nameFor('Change distribution'))}

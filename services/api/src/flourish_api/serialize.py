@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import csv
 import io
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pyarrow as pa
@@ -37,6 +37,18 @@ _CORRELATES_META = (
 )
 
 
+def suppression_line(suppression: dict[str, int]) -> str:
+    """The CSV's suppression line — byte-identical in the client's export
+    (``export/csv.ts suppressionLine``)."""
+    threshold, flag_below = suppression["threshold"], suppression["flag_below"]
+    if threshold == 0:
+        # ADR-0011: every cell is shown; ADR-0031 flags the thin ones.
+        if flag_below == 0:
+            return "none (all cells shown)"
+        return f"none (all cells shown); n<{flag_below} flagged"
+    return f"n<{threshold} suppressed, n<{flag_below} flagged"
+
+
 def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[EstimateRow]:
     rows: list[EstimateRow] = []
     for record in table.to_pylist():
@@ -54,9 +66,20 @@ def rows_from_table(table: pa.Table, group_columns: Sequence[str]) -> list[Estim
     return rows
 
 
-def response_to_csv(response: EstimateResponse) -> str:
+def label_column(column: str) -> str:
+    """The column a code's words go in, right after it (G8): "country" for
+    the country code, "<column>_label" for any other — the client's
+    `export/csv.ts labelColumn`."""
+    return "country" if column == "country_code" else f"{column}_label"
+
+
+def response_to_csv(
+    response: EstimateResponse, labels: Mapping[str, Mapping[object, str]] | None = None
+) -> str:
     """The same rows as CSV: meta as `# key: value` comment lines, group
-    keys and sub-row keys flattened into columns."""
+    keys and sub-row keys flattened into columns; each group code followed
+    by its words when ``labels`` has them (a country's name, a level's
+    label), so the file reads without the page."""
     buffer = io.StringIO()
     meta = response.meta.model_dump()
     filters = meta.pop("filters")
@@ -75,12 +98,7 @@ def response_to_csv(response: EstimateResponse) -> str:
         else:
             rendered = str(value)
         buffer.write(f"# {key}: {rendered}\n")
-    threshold, flag_below = suppression["threshold"], suppression["flag_below"]
-    if threshold == 0 and flag_below == 0:
-        # ADR-0011 default: every cell is shown.
-        buffer.write("# suppression: none (all cells shown)\n")
-    else:
-        buffer.write(f"# suppression: n<{threshold} suppressed, n<{flag_below} flagged\n")
+    buffer.write(f"# suppression: {suppression_line(suppression)}\n")
     for column, values in filters.items():
         buffer.write(f"# filter {column}: {','.join(map(str, values))}\n")
 
@@ -106,12 +124,28 @@ def response_to_csv(response: EstimateResponse) -> str:
         "suppressed",
         "flagged",
     ]
+    words = labels or {}
+    heads = [
+        head
+        for name in group_columns
+        for head in ([name, label_column(name)] if name in words else [name])
+    ]
+
+    def group_cells(row: EstimateRow) -> list[object]:
+        cells: list[object] = []
+        for name in group_columns:
+            value = row.group.get(name)
+            cells.append(value)
+            if name in words:
+                cells.append("" if value is None else words[name].get(value, ""))
+        return cells
+
     writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow([*group_columns, *subrow_keys, *record_fields])
+    writer.writerow([*heads, *subrow_keys, *record_fields])
     for row in response.rows:
         writer.writerow(
             [
-                *[row.group.get(name) for name in group_columns],
+                *group_cells(row),
                 *[getattr(row, key) for key in subrow_keys],
                 *[getattr(row, field) for field in record_fields],
             ]

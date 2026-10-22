@@ -1,7 +1,7 @@
 /* The chart block (§5): no card — a hairline rule and space separate it
-   from the controls. The header is a two-column grid (ADR-0029): the
-   caption (title, subtitle) on the left, the toolbar on the right; the
-   rest spans both. */
+   from the controls. The header runs down the column (G4): the title
+   and subtitle at full width, then one toolbar row — how it's drawn on
+   the left; the key, how to read it and the downloads on the right. */
 .figure {
   position: relative;
   margin: 0;
@@ -9,16 +9,8 @@
   /* The chart sits close under the header that names it (F19). */
   padding: var(--space-5) 0 var(--space-5);
   display: grid;
-  /* The title keeps 22rem (or the column) before the toolbar takes any:
-     at tablet width the toolbar's controls wrap, never the title into a
-     one-word column. */
-  grid-template-columns: minmax(min(100%, 22rem), 1fr) auto;
-  column-gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-}
-
-.figure > :not(.caption, .toolbar, .progress) {
-  grid-column: 1 / -1;
 }
 
 /* The refetch bar rides on the figure's own top rule. */
@@ -27,7 +19,6 @@
 }
 
 .caption {
-  grid-column: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -47,16 +38,14 @@
   font-size: var(--text-sm);
 }
 
-/* How it's drawn: the page's controls, then the two links; the key on
-   its own line under them, beside the subtitle. */
+/* How it's drawn on the left, the key and the links on the right; a row
+   too full wraps, the right-hand group keeping to the right edge. */
 .toolbar {
-  grid-column: 2;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-2);
-  max-width: 34rem;
-  padding-top: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
   margin-bottom: var(--space-3);
 }
 
@@ -64,8 +53,24 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--space-2) var(--space-4);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+.aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2) var(--space-4);
+  margin-left: auto;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+}
+
+.afterToolbar {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3);
   color: var(--ink-secondary);
   font-size: var(--text-sm);
 }
@@ -205,15 +210,30 @@
   transition: opacity 0.15s;
 }
 
-/* On a phone the toolbar goes under the subtitle, left-aligned. */
+/* On a phone the key reads with the column labels (G3): over the row,
+   between "Country" and the value's label, its words wrapping there. */
+.heads {
+  display: grid;
+}
+
+.heads > * {
+  grid-area: 1 / 1;
+}
+
+.headKey {
+  align-self: center;
+  justify-self: center;
+  max-width: calc(100% - 11rem);
+  padding-bottom: 2px;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+/* On a phone everything sits at the left edge, a little closer. */
 @media (max-width: 40rem) {
   .figure {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .caption,
-  .toolbar {
-    grid-column: 1;
+    padding-top: var(--space-4);
   }
 
   .caption {
@@ -221,14 +241,13 @@
   }
 
   .toolbar,
-  .tools {
-    align-items: flex-start;
+  .tools,
+  .aside {
     justify-content: flex-start;
   }
 
-  .toolbar {
-    max-width: none;
-    padding-top: 0;
+  .aside {
+    margin-left: 0;
   }
 
   .action,

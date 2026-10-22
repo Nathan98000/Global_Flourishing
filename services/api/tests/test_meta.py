@@ -9,7 +9,7 @@ def test_meta_shape(client: TestClient) -> None:
     assert [c["code"] for c in body["countries"]] == [1, 22]
     assert body["waves"] == ["Y1", "MY", "Y2"]
     assert body["ci_level"] == 0.95
-    assert body["suppression"] == {"threshold": 0, "flag_below": 0}
+    assert body["suppression"] == {"threshold": 0, "flag_below": 30}
     assert "age_band" in body["breakdowns"] and "country_code" in body["breakdowns"]
     assert "wellbeing" in body["families"]
 

@@ -28,7 +28,7 @@
     "se_method": "taylor",
     "stat": "mean",
     "suppression": {
-      "flag_below": 0,
+      "flag_below": 30,
       "threshold": 0
     },
     "waves": [

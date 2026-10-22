@@ -8,8 +8,37 @@ import type {
   CorrelationsResponse,
   EstimateResponse,
   EstimateRow,
+  Meta,
   PairResponse,
 } from '../api/types'
+
+/** The words for a group column's codes (G8), from the served meta: a
+ * country's name, a breakdown level's label. The API writes the same
+ * (`flourish_api.serialize.response_to_csv`'s `labels`). */
+export type CsvLabels = Record<string, Map<string | number, string>>
+
+export function csvLabels(
+  meta: Pick<Meta, 'countries' | 'breakdown_labels'> & Partial<Pick<Meta, 'state_labels'>>,
+): CsvLabels {
+  const labels: CsvLabels = {
+    country_code: new Map(meta.countries.map((country) => [country.code, country.name])),
+  }
+  for (const [column, entry] of Object.entries(meta.breakdown_labels)) {
+    labels[column] = new Map(entry.levels.map((level) => [level.value, level.label]))
+  }
+  if (meta.state_labels) {
+    labels['state'] = new Map(
+      Object.entries(meta.state_labels).map(([code, { name }]) => [code, name]),
+    )
+  }
+  return labels
+}
+
+/** The column a code's words go in, right after it: "country" for the
+ * country code, "<column>_label" for any other. */
+export function labelColumn(column: string): string {
+  return column === 'country_code' ? 'country' : `${column}_label`
+}
 
 const SUBROW_KEYS = ['predictor', 'level', 'p', 'leg', 'from_level', 'to_level', 'measure'] as const
 
@@ -98,7 +127,20 @@ function countriesColumn(rows: readonly (EstimateRow | null | undefined)[]): boo
   return rows.some((row) => row?.n_countries !== null && row?.n_countries !== undefined)
 }
 
-export function responseToCsv(response: EstimateResponse): string {
+/** The suppression line, byte-identical to the API's
+ * (`flourish_api.serialize.suppression_line`): every cell shown
+ * (ADR-0011), and the thin ones flagged (ADR-0031). */
+export function suppressionLine(suppression: { threshold: number; flag_below: number }): string {
+  const { threshold, flag_below: flagBelow } = suppression
+  if (threshold === 0) {
+    return flagBelow === 0
+      ? 'none (all cells shown)'
+      : `none (all cells shown); n<${flagBelow} flagged`
+  }
+  return `n<${threshold} suppressed, n<${flagBelow} flagged`
+}
+
+export function responseToCsv(response: EstimateResponse, labels?: CsvLabels): string {
   const meta = response.meta
   const lines: string[] = []
   for (const field of META_FIELDS) {
@@ -107,15 +149,7 @@ export function responseToCsv(response: EstimateResponse): string {
     lines.push(`# ${field}: ${rendered}`)
   }
   lines.push(...pooledLines(meta), ...midyearLines(meta))
-  if (meta.suppression.threshold === 0 && meta.suppression.flag_below === 0) {
-    // ADR-0011 default: every cell is shown (byte-identical to the API).
-    lines.push('# suppression: none (all cells shown)')
-  } else {
-    lines.push(
-      `# suppression: n<${meta.suppression.threshold} suppressed, ` +
-        `n<${meta.suppression.flag_below} flagged`,
-    )
-  }
+  lines.push(`# suppression: ${suppressionLine(meta.suppression)}`)
   for (const [column, values] of Object.entries(meta.filters)) {
     lines.push(`# filter ${column}: ${values.map(String).join(',')}`)
   }
@@ -125,15 +159,29 @@ export function responseToCsv(response: EstimateResponse): string {
     response.rows.some((row) => row[key] !== null && row[key] !== undefined),
   )
   const countries = countriesColumn(response.rows)
+  // Each code, then its words when there are some (G8).
+  const labelled = (column: string) => labels?.[column] !== undefined
+  const groupHeads = groupColumns.flatMap((column) =>
+    labelled(column) ? [column, labelColumn(column)] : [column],
+  )
   lines.push(
-    [...groupColumns, ...subrowKeys, ...RECORD_FIELDS, ...(countries ? ['n_countries'] : [])]
+    [...groupHeads, ...subrowKeys, ...RECORD_FIELDS, ...(countries ? ['n_countries'] : [])]
       .map(quoted)
       .join(','),
   )
   for (const row of response.rows) {
+    const groupCells = groupColumns.flatMap((column) => {
+      const value = row.group[column]
+      if (!labelled(column)) return [cell(value)]
+      const words =
+        typeof value === 'string' || typeof value === 'number'
+          ? (labels?.[column]?.get(value) ?? '')
+          : ''
+      return [cell(value), words]
+    })
     lines.push(
       [
-        ...groupColumns.map((column) => cell(row.group[column])),
+        ...groupCells,
         ...subrowKeys.map((key) => cell(row[key])),
         ...RECORD_FIELDS.map((field) => cell(row[field as keyof EstimateRow])),
         ...(countries ? [cell(row.n_countries)] : []),
@@ -161,9 +209,7 @@ export function correlationTableToCsv(table: CorrelationsResponse): string {
     `# ci_level: ${pythonStr(meta.ci_level)}`,
     `# n_frame: ${meta.n_frame}`,
     `# min_n: ${meta.min_n}`,
-    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
-      ? '# suppression: none (all cells shown)'
-      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    `# suppression: ${suppressionLine(meta.suppression)}`,
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),
@@ -224,9 +270,7 @@ export function pairToCsv(pair: PairResponse): string {
     `# correlation: ${cell(correlation.estimate)} (${correlation.stat}, n=${correlation.n})`,
     `# cell_flag_below: ${pair.cell_flag_below}`,
     `# column_flag_below: ${pair.column_flag_below}`,
-    meta.suppression.threshold === 0 && meta.suppression.flag_below === 0
-      ? '# suppression: none (all cells shown)'
-      : `# suppression: n<${meta.suppression.threshold} suppressed, n<${meta.suppression.flag_below} flagged`,
+    `# suppression: ${suppressionLine(meta.suppression)}`,
     ...Object.entries(meta.filters).map(
       ([column, values]) => `# filter ${column}: ${values.map(String).join(',')}`,
     ),

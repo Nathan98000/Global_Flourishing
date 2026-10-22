@@ -20,6 +20,6 @@
   flex: none;
 }
 
-.entry + .entry .glyph {
+.whisker {
   width: 18px;
 }

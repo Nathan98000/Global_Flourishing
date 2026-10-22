@@ -74,12 +74,18 @@ export function CorrelationStrip({
           {flagged && <span className="visually-hidden">{FEW_PEOPLE_HIDDEN}</span>}
         </span>
       </span>
-      {ends && (
-        <span className={styles.ends}>
-          <span>{turned(ends[0])}</span>
-          <span>{turned(ends[1])}</span>
-        </span>
-      )}
+      {ends && <DirectionEnds ends={ends} />}
     </div>
+  )
+}
+
+/** A correlation scale's direction words, at its two ends (G9): the
+ * strip's, and over Find related's list. */
+export function DirectionEnds({ ends }: { ends: [string, string] }) {
+  return (
+    <span className={styles.ends}>
+      <span>{turned(ends[0])}</span>
+      <span>{turned(ends[1])}</span>
+    </span>
   )
 }

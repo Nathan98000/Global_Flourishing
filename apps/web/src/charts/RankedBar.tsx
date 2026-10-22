@@ -32,8 +32,10 @@ import {
   INK_SECONDARY,
   MIN_ROWS,
   ROW_HEIGHT,
+  SURFACE,
   TIP_OPTIONS,
   WHISKER,
+  isThin,
   plotCI,
   plotValue,
   tipText,
@@ -80,12 +82,9 @@ export interface Reference {
 }
 
 /** Room above the top axis for the reference label, and where it sits:
- * its baseline clears the axis's tick labels. A share chart has no top
- * axis: its label sits just over the first row. */
+ * its baseline clears the axis's tick labels (a share chart's too, G16). */
 const REFERENCE_TOP_ROOM = 18
 const REFERENCE_TOP_DY = -26
-const REFERENCE_SHARE_DY = -6
-const REFERENCE_SHARE_MARGIN = 28
 
 /** A window that is not fitted to the data: its edges, its ticks, and
  * fewer ticks on a phone. */
@@ -235,7 +234,8 @@ export function RankedBar({
   /** The hover card, in words (default: theme.ts tipText — the row,
    * its value as what it is, its CI and n). */
   tipOf?: (row: EstimateRow, label: string) => string
-  /** A row few people are behind: its value wears an asterisk. */
+  /** A row few people are behind: its mark is hollow and its value wears
+   * an asterisk (default: the server's flag, theme.ts isThin). */
   flagOf?: (row: EstimateRow) => boolean
   /** The row to pick out (the chosen country): a band behind it, label
    * and all, and its dot in ink. */
@@ -260,7 +260,13 @@ export function RankedBar({
       }
       const tags = new Set(entries.flatMap((entry) => tagOf?.(entry.row) ?? []))
       const picked = (entry: Entry) => highlightOf?.(entry.row) === true
-      const fillOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
+      const hueOf = (entry: Entry) => (picked(entry) ? INK : colorOf ? colorOf(entry.row) : color)
+      // A thin row's mark is hollow: the paper inside a ring in its hue.
+      const thinOf = (entry: Entry) => (flagOf ? flagOf(entry.row) : isThin(entry.row))
+      const fillOf = (entry: Entry) => (thinOf(entry) ? SURFACE : hueOf(entry))
+      const ringOf = (entry: Entry) => (thinOf(entry) ? hueOf(entry) : SURFACE)
+      const dotRadius = (entry: Entry) => (thinOf(entry) ? 3.75 : 4.5)
+      const ringWidth = (entry: Entry) => (thinOf(entry) ? 1.5 : 2)
       const tip = (entry: Entry) =>
         tipOf
           ? tipOf(entry.row, entry.label)
@@ -305,7 +311,7 @@ export function RankedBar({
       const valueFontSize = narrow ? 12 : 14
       const valueOf = (entry: Entry) => {
         const text = formatEstimate(entry.row.estimate, entry.row.stat)
-        return flagOf?.(entry.row) ? `${text}*` : text
+        return thinOf(entry) ? `${text}*` : text
       }
       // Nothing is measured before layout (or under jsdom): estimate.
       const measure = textMeasurer(labelFontSize, available !== null)
@@ -362,9 +368,9 @@ export function RankedBar({
               x: 'value',
               dy: 11,
               fill: fillOf,
-              r: 4.5,
-              stroke: 'var(--surface)',
-              strokeWidth: 2,
+              r: dotRadius,
+              stroke: ringOf,
+              strokeWidth: ringWidth,
             }),
             // The label on its own line; its value right-aligned.
             Plot.text(entries, {
@@ -513,9 +519,9 @@ export function RankedBar({
               y: 'label',
               x: 'value',
               fill: fillOf,
-              r: 4.5,
-              stroke: 'var(--surface)',
-              strokeWidth: 2,
+              r: dotRadius,
+              stroke: ringOf,
+              strokeWidth: ringWidth,
             }),
             Plot.text(entries, {
               y: 'label',
@@ -529,7 +535,14 @@ export function RankedBar({
             }),
             ...ends.marks,
             ...(interactive ? [] : [pointerTip(entries, tip, lo)]),
-            ...pinnedTip(entries, tip, pinnedOf, lo),
+            ...pinnedTip(
+              entries,
+              tip,
+              pinnedOf,
+              scale.domain,
+              { width, marginLeft, marginRight },
+              narrow,
+            ),
             ...referenceMarks(scale.domain),
           ],
         })
@@ -544,15 +557,19 @@ export function RankedBar({
         ...valid.map((entry) => (entry.ci?.[1] ?? entry.value ?? 0) * 1.05),
         (reference?.value ?? 0) * 1.05,
       )
+      // The axis on top, as the dot plots carry it (G16): read with the
+      // first rows, not under the last of twenty-three.
       return Plot.plot({
-        height: height + topRoom,
-        ...(reference ? { marginTop: REFERENCE_SHARE_MARGIN } : {}),
+        height: height - 44 + 34 + 8 + topRoom,
+        marginTop: 34 + topRoom,
+        marginBottom: 8,
         width,
         marginLeft,
         marginRight,
         style,
         x: {
           domain: [0, xMax],
+          axis: 'top',
           label: null,
           grid: true,
           tickFormat: (d: number) => `${d}%`,
@@ -563,7 +580,9 @@ export function RankedBar({
           Plot.barX(valid, {
             y: 'label',
             x: 'value',
-            fill: color,
+            fill: (entry: Entry) => (thinOf(entry) ? SURFACE : color),
+            stroke: (entry: Entry) => (thinOf(entry) ? color : 'none'),
+            strokeWidth: 1.5,
             rx2: BAR_RADIUS,
             insetTop: 3,
             insetBottom: 3,
@@ -589,8 +608,15 @@ export function RankedBar({
             fontWeight: 500,
           }),
           pointerTip(entries, tip, 0),
-          ...pinnedTip(entries, tip, pinnedOf, 0),
-          ...referenceMarks([0, xMax], REFERENCE_SHARE_DY),
+          ...pinnedTip(
+            entries,
+            tip,
+            pinnedOf,
+            [0, xMax],
+            { width, marginLeft, marginRight },
+            narrow,
+          ),
+          ...referenceMarks([0, xMax]),
         ],
       })
     },
@@ -632,20 +658,39 @@ function pinnedTip(
   entries: Entry[],
   tip: (entry: Entry) => string,
   pinnedOf: ((row: EstimateRow) => boolean) | undefined,
-  fallback: number,
+  domain: [number, number],
+  frame: { width: number; marginLeft: number; marginRight: number },
+  narrow: boolean,
 ) {
   if (!pinnedOf) return []
   const pinned = entries.filter((entry) => pinnedOf(entry.row))
   if (pinned.length === 0) return []
-  return [
-    Plot.tip(pinned, {
+  const [lo, hi] = domain
+  const inner = frame.width - frame.marginLeft - frame.marginRight
+  // The card opens toward the side with room for it, so it stays inside
+  // the chart (G5): beside its mark on a wide chart, under it on a phone,
+  // centred when neither side has room. Its width is estimated from its
+  // longest line at the card's 13px.
+  const anchor = (entry: Entry) => {
+    const lines = tip(entry).split('\n')
+    const card = Math.max(...lines.map((line) => line.length)) * 7.2 + 28
+    const x = frame.marginLeft + (((entry.value ?? lo) - lo) / (hi - lo || 1)) * inner
+    const [toRight, toLeft, centred] = narrow
+      ? (['top-left', 'top-right', 'top'] as const)
+      : (['left', 'right', 'top'] as const)
+    if (frame.width - x >= card) return toRight
+    if (x >= card) return toLeft
+    return centred
+  }
+  return pinned.map((entry) =>
+    Plot.tip([entry], {
       y: 'label',
-      x: (entry: Entry) => entry.value ?? fallback,
+      x: (row: Entry) => row.value ?? lo,
       title: tip,
-      anchor: 'left',
       ...TIP_OPTIONS,
+      anchor: anchor(entry),
     }),
-  ]
+  )
 }
 
 /** Plot's own pointer tip, for charts whose rows are not buttons. */

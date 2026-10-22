@@ -69,6 +69,21 @@ def _filename(query: AggregateQuery, store: DataStore) -> str:
     return "_".join(part for part in parts if part) + ".csv"
 
 
+def csv_labels(store: DataStore) -> dict[str, dict[object, str]]:
+    """The words for each group code (G8): a country's name, a breakdown
+    level's label — the catalog's, as `/v1/meta` serves them."""
+    assert store.catalog is not None
+    countries: dict[object, str] = {
+        int(row["code"]): str(row["name"]) for row in store.catalog.countries.iter_rows(named=True)
+    }
+    labels: dict[str, dict[object, str]] = {"country_code": countries}
+    for column, entry in breakdown_labels(
+        store.catalog.variables, store.catalog.value_labels
+    ).items():
+        labels[column] = {level["value"]: str(level["label"]) for level in entry["levels"]}
+    return labels
+
+
 @router.get(
     "/export.csv",
     summary="Aggregate estimates as CSV",
@@ -84,7 +99,7 @@ def export_csv(
     weight, data version and suppression rules."""
     response = run_aggregate(store, query, policy)
     return PlainTextResponse(
-        content=response_to_csv(response),
+        content=response_to_csv(response, csv_labels(store)),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{_filename(query, store)}"'},
     )

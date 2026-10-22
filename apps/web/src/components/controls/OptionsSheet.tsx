@@ -4,9 +4,13 @@
 // button. Options opens a bottom sheet holding what the chart's toolbar
 // holds on a wider screen (Show, Countries, the page's own controls).
 // The sheet is a modal dialog: focus moves into it, Tab stays inside,
-// Escape and "Done" close it, and focus returns to Options.
+// Escape and "Done" close it, and focus returns to Options. At its foot
+// sit the page's chart's "How to read this chart" and its downloads,
+// which leave the chart's header on a phone (G3, ChartActions.tsx).
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useSheetChartActions } from '../../charts/ChartActions'
+import { HowToRead, downloadCsv } from '../../charts/ChartFigure'
 import styles from './OptionsSheet.module.css'
 
 export function OptionsSheet({
@@ -25,6 +29,7 @@ export function OptionsSheet({
   const sheet = useRef<HTMLDivElement | null>(null)
   const titleId = useId()
   const sheetId = useId()
+  const chartActions = useSheetChartActions()
 
   const close = () => {
     setOpen(false)
@@ -112,6 +117,35 @@ export function OptionsSheet({
             </div>
             <div className={styles.body} data-sheet-body="">
               {children}
+              {chartActions && (
+                <div className={styles.chartActions}>
+                  <HowToRead />
+                  <span className={styles.downloads}>
+                    Download
+                    {chartActions.current.csv && (
+                      <button
+                        type="button"
+                        className={styles.link}
+                        aria-label="Download CSV"
+                        onClick={() => {
+                          const csv = chartActions.current.csv
+                          if (csv) downloadCsv(csv)
+                        }}
+                      >
+                        CSV
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.link}
+                      aria-label="Download PNG"
+                      onClick={() => chartActions.current.png()}
+                    >
+                      PNG
+                    </button>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

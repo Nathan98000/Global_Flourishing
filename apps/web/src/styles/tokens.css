@@ -43,6 +43,9 @@
 
 :root {
   color-scheme: light;
+  /* Native radios and checkboxes in the identity's teal, not the
+     browser's blue (G17). */
+  accent-color: var(--accent);
 
   /* Type */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

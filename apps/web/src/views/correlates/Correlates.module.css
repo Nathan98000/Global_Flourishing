@@ -157,6 +157,12 @@
   margin: 0;
 }
 
+/* The phone's summary line under the row note (G12): its own room, so its
+   top rule never runs through the note above it. */
+.sheetLine {
+  padding-top: var(--space-4);
+}
+
 @media (max-width: 40rem) {
   .controlCells {
     display: grid;

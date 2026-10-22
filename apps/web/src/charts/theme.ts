@@ -214,6 +214,42 @@ export function hasCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi'>): boolean {
   return row.ci_lo !== null && row.ci_hi !== null
 }
 
+/** An estimate few people are behind — the server's flag (ADR-0031: under
+ * `meta.suppression.flag_below` people, a share by its group's answerers).
+ * It is shown (ADR-0011), hollow, with an asterisk on its value. */
+export function isThin(row: Pick<EstimateRow, 'flagged' | 'estimate'>): boolean {
+  return row.flagged && row.estimate !== null
+}
+
+/** A mark's fill: its hue, or the paper for a thin estimate's hollow mark. */
+export function markFill(row: EstimateRow, color: string): string {
+  return isThin(row) ? SURFACE : color
+}
+
+/** A mark's outline: the surface ring a solid dot wears, or the hue that
+ * draws a thin estimate's hollow mark. */
+export function markStroke(row: EstimateRow, color: string): string {
+  return isThin(row) ? color : SURFACE
+}
+
+/** A value as the chart prints it, starred when few people are behind it. */
+export function starValue(text: string, row: Pick<EstimateRow, 'flagged' | 'estimate'>): string {
+  return isThin(row) ? `${text}*` : text
+}
+
+/** The hover card's line for a thin estimate. */
+export const THIN_LINE = 'Few people — treat with care'
+
+/** The key's words for the asterisk: "fewer than 30 people". */
+export function thinKey(flagBelow: number): string {
+  return `fewer than ${formatCount(flagBelow)} people`
+}
+
+/** Whether any row on a chart is thin — its key then explains the mark. */
+export function anyThin(rows: readonly Pick<EstimateRow, 'flagged' | 'estimate'>[]): boolean {
+  return rows.some(isThin)
+}
+
 /** The axis names the statistic and the range; the subtitle names the
  * scale's endpoints (labels.ts scaleSubtitle) — never "higher is
  * better" (ADR-0016). */
@@ -224,7 +260,7 @@ export function axisLabel(
 ): string {
   if (responseMeta.stat === 'proportion' || responseMeta.stat === 'distribution') {
     const of = levelLabel ? ` of “${levelLabel}”` : ''
-    return `Weighted share${of} (%)`
+    return `Share of people${of} (%)`
   }
   const range =
     variable.min !== null && variable.max !== null ? ` (${variable.min}–${variable.max})` : ''
@@ -294,9 +330,32 @@ export function valueLine(row: EstimateRow, context: TipContext = {}): string {
 export function ciLine(row: EstimateRow): string | undefined {
   if (row.estimate === null) return undefined
   if (hasCI(row)) return `${ciLabel(row.ci_level)}: ${formatCI(row)}`
-  return row.ci_method === 'none'
-    ? undefined
+  if (row.ci_method === 'none') return undefined
+  const reason = noIntervalReason(row)
+  return reason
+    ? `No ${ciLabel(row.ci_level)} — ${reason}`
     : `${ciLabel(row.ci_level)}: none (one sampling unit only)`
+}
+
+/** Why an estimate has no interval, when its SE is zero (ADR-0031): one
+ * person, or no spread to measure one from. Undefined when the reason is
+ * the design's (a lone sampling unit). */
+function noIntervalReason(row: EstimateRow): string | undefined {
+  const zeroSE = row.se !== null && row.se <= 1e-9
+  if (isShareStat(row.stat)) {
+    if (!zeroSE || row.estimate === null) return undefined
+    return row.estimate <= 0
+      ? 'nobody in this group gave this answer'
+      : 'everyone in this group gave this answer'
+  }
+  if (isShareChangeStat(row.stat)) {
+    return zeroSE ? 'nobody moved into or out of this answer' : undefined
+  }
+  if (row.n === 1) return 'one person'
+  if (!zeroSE) return undefined
+  return row.stat === 'change'
+    ? 'everyone changed by the same amount'
+    : 'everyone gave the same answer'
 }
 
 /** "1 person", "1,204 people". */
@@ -333,9 +392,16 @@ export function sizeLine(row: EstimateRow): string | undefined {
 
 /** A hover card, one line each (ADR-0022): the heading — what the mark
  * is — then the value in words, its CI, and how many people it rests
- * on. */
+ * on; a thin estimate says so last (ADR-0031). */
 export function tipText(row: EstimateRow, heading: string, context: TipContext = {}): string {
-  return [heading, context.detail, valueLine(row, context), ciLine(row), sizeLine(row)]
+  return [
+    heading,
+    context.detail,
+    valueLine(row, context),
+    ciLine(row),
+    sizeLine(row),
+    isThin(row) ? THIN_LINE : undefined,
+  ]
     .filter((line): line is string => Boolean(line))
     .join('\n')
 }
