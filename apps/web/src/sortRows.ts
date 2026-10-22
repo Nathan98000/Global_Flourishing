@@ -1,7 +1,8 @@
 // One ordering, two consumers: the chart and the CSV both render
 // rows in the order these functions produce (round-2 items 5 and 13), so
-// they cannot drift. Direction is its own URL parameter with a
-// sort-appropriate default: values read high-first, names read A→Z.
+// they cannot drift. Every chart is ordered by value (owner, 22 Oct
+// 2026; ADR-0029): highest first unless the URL's `dir` reverses it, a
+// tie falling back to name order — a tie-break, never a choice.
 
 import type { EstimateRow, Meta } from './api/types'
 import { plotValue } from './charts/theme'
@@ -9,25 +10,25 @@ import { groupValueLabel } from './labels'
 
 export type SortDir = 'asc' | 'desc'
 
-/** The direction a sort reads in when none is chosen. */
-export function defaultDir(sort: string): SortDir {
-  return sort === 'name' ? 'asc' : 'desc'
+/** The direction an order reads in when none is chosen: highest first. */
+export const DEFAULT_DIR: SortDir = 'desc'
+
+/** The two directions in words, highest first by default. */
+export const VALUE_ORDER: readonly { value: SortDir; label: string }[] = [
+  { value: 'desc', label: 'Highest first' },
+  { value: 'asc', label: 'Lowest first' },
+]
+
+/** The other direction: what a second click on a value label asks for. */
+export function reversed(dir: SortDir): SortDir {
+  return dir === 'desc' ? 'asc' : 'desc'
 }
 
-/** Atlas rows: by value (nulls last, whatever the direction) or by
- * country name. */
-export function sortAtlasRows(
-  rows: EstimateRow[],
-  meta: Meta,
-  sort: 'estimate' | 'name',
-  dir: SortDir,
-): EstimateRow[] {
+/** Atlas rows by value (nulls last, whatever the direction), ties in
+ * name order. */
+export function sortAtlasRows(rows: EstimateRow[], meta: Meta, dir: SortDir): EstimateRow[] {
   const label = (row: EstimateRow) =>
     groupValueLabel('country_code', row.group['country_code'] ?? null, meta)
-  if (sort === 'name') {
-    const sign = dir === 'asc' ? 1 : -1
-    return [...rows].sort((a, b) => sign * label(a).localeCompare(label(b)))
-  }
   const sign = dir === 'desc' ? 1 : -1
   return [...rows].sort((a, b) => {
     const va = plotValue(a)
@@ -39,7 +40,7 @@ export function sortAtlasRows(
   })
 }
 
-/** Breakdown rows: countries in the panel order (value/name/gap under
+/** Breakdown rows: countries in the panel order (value or gap under
  * the chosen direction), levels in the served display order within each
  * country — exactly the order the small-multiples panels draw. */
 export function sortBreakdownRows(

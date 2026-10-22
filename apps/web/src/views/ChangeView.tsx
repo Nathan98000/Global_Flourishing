@@ -40,7 +40,7 @@ import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { defaultLevel, outcomeLevels } from '../labels'
-import { defaultDir } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -105,7 +105,7 @@ export function ChangeView() {
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const dir = search.dir ?? defaultDir(search.sort === 'change' ? 'estimate' : 'name')
+  const dir = search.dir ?? DEFAULT_DIR
   const pair = pairTitle(search.from, search.to, search.via)
 
   const setSearch = (patch: Partial<ChangeSearch>) => {
@@ -129,12 +129,11 @@ export function ChangeView() {
     return orderChangeRows(
       isCategorical ? changeShareRows(response.rows, activeLevel) : changeRows(response.rows),
       metaData,
-      search.sort,
       dir,
       search.countries,
       legs,
     )
-  }, [response, metaData, isCategorical, activeLevel, search.sort, dir, search.countries, legs])
+  }, [response, metaData, isCategorical, activeLevel, dir, search.countries, legs])
   const chosen = search.countries.slice(0, 4)
   const distribution = useMemo(
     () =>
@@ -259,29 +258,9 @@ export function ChangeView() {
   const displayOptions = (
     <>
       <RadioRow
-        legend="Sort"
-        name="sort"
-        options={[
-          { value: 'change', label: 'By change' },
-          { value: 'name', label: 'A–Z' },
-        ]}
-        value={search.sort}
-        onChange={(sort) => setSearch({ sort, dir: undefined })}
-      />
-      <RadioRow
         legend="Order"
         name="dir"
-        options={
-          search.sort === 'name'
-            ? [
-                { value: 'asc', label: 'A to Z' },
-                { value: 'desc', label: 'Z to A' },
-              ]
-            : [
-                { value: 'desc', label: 'High to low' },
-                { value: 'asc', label: 'Low to high' },
-              ]
-        }
+        options={VALUE_ORDER}
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
       />
@@ -352,7 +331,7 @@ export function ChangeView() {
         )}
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — sort, countries</summary>
+            <summary>More options — order, countries</summary>
             <div className={styles.moreBody}>
               <OutcomePicker
                 variables={changeable}

@@ -471,7 +471,7 @@ describe('change chart helpers', () => {
       changeRow(22, 0.2, 10, { leg: 'y1_my' }),
       changeRow(22, 0.9, 10, { leg: 'y1_y2' }),
     ]
-    const ordered = orderChangeRows(rows, testMeta, 'change', 'desc', [], ['y1_my', 'y1_y2'])
+    const ordered = orderChangeRows(rows, testMeta, 'desc', [], ['y1_my', 'y1_y2'])
     expect(ordered.countryDomain).toEqual(['United States', 'Testland'])
     expect(ordered.rows.map((row) => [row.group['country_code'], row.leg])).toEqual([
       [22, 'y1_my'],

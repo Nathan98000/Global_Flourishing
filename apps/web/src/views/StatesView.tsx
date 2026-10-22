@@ -33,7 +33,7 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -57,7 +57,7 @@ export function StatesView() {
   const detailQuery = useVariable(chartable ? search.outcome : null)
   const detail = detailQuery.data?.detail
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const stat: Stat = search.stat ?? (variable?.default_stat as Stat | undefined) ?? 'mean'
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -119,9 +119,9 @@ export function StatesView() {
       const level = activeLevel ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortStateRows(rows, search.sort, dir, stateName)
+    return sortStateRows(rows, dir, stateName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [response, stat, activeLevel, search.sort, dir, served])
+  }, [response, stat, activeLevel, dir, served])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -241,35 +241,13 @@ export function StatesView() {
         onChange={(view) => setSearch({ view })}
       />
       {search.view === 'bars' && (
-        <>
-          <RadioRow
-            legend="Sort"
-            name="sort"
-            options={[
-              { value: 'estimate', label: 'By value' },
-              { value: 'name', label: 'A–Z' },
-            ]}
-            value={search.sort}
-            onChange={(sort) => setSearch({ sort, dir: undefined })}
-          />
-          <RadioRow
-            legend="Order"
-            name="dir"
-            options={
-              search.sort === 'name'
-                ? [
-                    { value: 'asc', label: 'A to Z' },
-                    { value: 'desc', label: 'Z to A' },
-                  ]
-                : [
-                    { value: 'desc', label: 'High to low' },
-                    { value: 'asc', label: 'Low to high' },
-                  ]
-            }
-            value={dir}
-            onChange={(value) => setSearch({ dir: value })}
-          />
-        </>
+        <RadioRow
+          legend="Order"
+          name="dir"
+          options={VALUE_ORDER}
+          value={dir}
+          onChange={(value) => setSearch({ dir: value })}
+        />
       )}
       {isCategorical && levels.length > 0 && (
         <RadioRow
@@ -339,7 +317,7 @@ export function StatesView() {
         />
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — view, sort, weights</summary>
+            <summary>More options — view, order, weights</summary>
             <div className={styles.moreBody}>
               <OutcomePicker
                 variables={variables.data.list}

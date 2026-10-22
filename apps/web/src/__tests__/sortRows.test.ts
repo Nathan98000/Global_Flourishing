@@ -1,11 +1,11 @@
 // One ordering, two consumers (items 5/13): these functions decide the
-// order the chart AND the data table render in, and the direction rides
-// the URL with a sort-appropriate default.
+// order the chart AND the CSV render in — by value only, never by name
+// (ADR-0029), the direction riding the URL, highest first by default.
 
 import { describe, expect, test } from 'vitest'
 import { facetOrder } from '../charts/SmallMultiples'
 import { groupValueLabel } from '../labels'
-import { defaultDir, sortAtlasRows, sortBreakdownRows } from '../sortRows'
+import { DEFAULT_DIR, reversed, sortAtlasRows, sortBreakdownRows } from '../sortRows'
 import { testMeta, testRow } from '../test-utils/fixtures'
 
 const rows = [
@@ -24,44 +24,49 @@ const names = (sorted: ReturnType<typeof sortAtlasRows>) =>
     groupValueLabel('country_code', row.group['country_code'] ?? null, metaWithHK),
   )
 
-describe('defaultDir', () => {
-  test('values read high-first, names read A→Z', () => {
-    expect(defaultDir('estimate')).toBe('desc')
-    expect(defaultDir('gap')).toBe('desc')
-    expect(defaultDir('name')).toBe('asc')
+describe('direction', () => {
+  test('highest first by default; a second click reverses it', () => {
+    expect(DEFAULT_DIR).toBe('desc')
+    expect(reversed('desc')).toBe('asc')
+    expect(reversed('asc')).toBe('desc')
   })
 })
 
 describe('sortAtlasRows', () => {
   test('by value in both directions, valueless rows always last', () => {
-    expect(names(sortAtlasRows(rows, metaWithHK, 'estimate', 'desc'))).toEqual([
+    expect(names(sortAtlasRows(rows, metaWithHK, 'desc'))).toEqual([
       'United States',
       'Testland',
       'Hong Kong',
     ])
-    expect(names(sortAtlasRows(rows, metaWithHK, 'estimate', 'asc'))).toEqual([
+    expect(names(sortAtlasRows(rows, metaWithHK, 'asc'))).toEqual([
       'Testland',
       'United States',
       'Hong Kong',
     ])
   })
 
-  test('A–Z in both directions', () => {
-    expect(names(sortAtlasRows(rows, metaWithHK, 'name', 'asc'))).toEqual([
-      'Hong Kong',
+  test('a tie in value falls back to name order, in either direction', () => {
+    const tied = [
+      testRow({ group: { country_code: 22 }, estimate: 7 }),
+      testRow({ group: { country_code: 1 }, estimate: 7 }),
+      testRow({ group: { country_code: 24 }, estimate: 6 }),
+    ]
+    expect(names(sortAtlasRows(tied, metaWithHK, 'desc'))).toEqual([
       'Testland',
       'United States',
+      'Hong Kong',
     ])
-    expect(names(sortAtlasRows(rows, metaWithHK, 'name', 'desc'))).toEqual([
-      'United States',
-      'Testland',
+    expect(names(sortAtlasRows(tied, metaWithHK, 'asc'))).toEqual([
       'Hong Kong',
+      'Testland',
+      'United States',
     ])
   })
 
   test('does not mutate its input', () => {
     const input = [...rows]
-    sortAtlasRows(input, metaWithHK, 'estimate', 'asc')
+    sortAtlasRows(input, metaWithHK, 'asc')
     expect(input).toEqual(rows)
   })
 })

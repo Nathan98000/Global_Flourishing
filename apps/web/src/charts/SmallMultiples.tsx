@@ -1,6 +1,6 @@
 // One panel per country for outcome × demographic (§2.6): faceted dot
-// plots with shared scales, sortable by estimate, name, or the gap
-// between levels. A second breakdown becomes a facet-column grid — one
+// plots with shared scales, ordered by value or by the gap between
+// levels (never by name — ADR-0029). A second breakdown becomes a facet-column grid — one
 // hue everywhere, so identity never rides on color for 4+ levels.
 // Every cell is shown (ADR-0011). The facet column defaults to country;
 // What Matters facets a single country's items by age band instead.
@@ -22,16 +22,16 @@ import {
 } from './theme'
 import { chartWidth, usePlot } from './usePlot'
 
-export type PanelSort = 'estimate' | 'name' | 'gap'
+export type PanelSort = 'estimate' | 'gap'
 
 /** Facet (country) order under each sort rule and direction — the one
- * ordering the panels and the screen-reader table both consume. */
+ * ordering the panels and the CSV both consume; ties in name order. */
 export function facetOrder(
   rows: EstimateRow[],
   meta: Meta,
   facetColumn: string,
   sort: PanelSort,
-  dir: SortDir = sort === 'name' ? 'asc' : 'desc',
+  dir: SortDir = 'desc',
 ): string[] {
   const byFacet = new Map<string, number[]>()
   for (const row of rows) {
@@ -42,10 +42,6 @@ export function facetOrder(
     byFacet.set(label, bucket)
   }
   const labels = [...byFacet.keys()]
-  if (sort === 'name') {
-    const sign = dir === 'asc' ? 1 : -1
-    return labels.sort((a, b) => sign * a.localeCompare(b))
-  }
   const score = (label: string): number => {
     const values = byFacet.get(label) ?? []
     if (values.length === 0) return -Infinity

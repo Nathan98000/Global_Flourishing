@@ -31,7 +31,7 @@ import {
   tipText,
 } from '../charts/theme'
 import { RankedBar, wrapLabel } from '../charts/RankedBar'
-import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, columnsPastEdge } from '../charts/HeatTable'
+import { HEAT_CELL_PAD, HeatTable, columnsPastEdge } from '../charts/HeatTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
@@ -2078,7 +2078,7 @@ describe('correlates helpers', () => {
     expect(formatEstimate(0, 'spearman_r')).toBe('0.00')
   })
 
-  test('HeatTable labels are sort buttons only when asked, the corner for the rows', () => {
+  test('HeatTable column labels are sort buttons only when asked; the corner never is', () => {
     const rows = [{ key: 'a', label: 'Alpha' }]
     const columns = FOUR_COLUMNS.slice(0, 2)
     const cellAt = () => ({ text: '1.00', title: 'tip', tint: 'var(--seq-100)' })
@@ -2095,16 +2095,21 @@ describe('correlates helpers', () => {
         rows={rows}
         columns={columns}
         cellAt={cellAt}
-        sort={{ column: ROW_LABELS, dir: 'desc' }}
+        sort={{ column: 'x', dir: 'desc' }}
         onSort={onSort}
       />,
     )
-    const corner = screen.getByRole('columnheader', { name: /Rows/ })
-    expect(corner).toHaveAttribute('aria-sort', 'descending')
-    expect(corner.textContent).toBe('Rows\u00a0▼')
-    fireEvent.click(screen.getByRole('button', { name: /^Rows/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'X' }))
-    expect(onSort.mock.calls).toEqual([[ROW_LABELS], ['x']])
+    // Rows are ordered by value, never by name (ADR-0029): the corner is
+    // a plain label.
+    const corner = screen.getByRole('columnheader', { name: 'Rows' })
+    expect(corner).not.toHaveAttribute('aria-sort')
+    expect(within(corner).queryByRole('button')).toBeNull()
+    expect(screen.getByRole('columnheader', { name: /X/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'W' }))
+    expect(onSort.mock.calls).toEqual([['w']])
   })
 
   test('HeatTable renders an em dash for a missing cell and the hidden n for a present one', () => {

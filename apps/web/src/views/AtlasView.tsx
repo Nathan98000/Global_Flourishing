@@ -30,7 +30,7 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir, sortAtlasRows } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
@@ -56,7 +56,7 @@ export function AtlasView() {
   }
 
   const metaForSort = meta.data?.meta
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const isCategorical = variable?.default_stat === 'proportion'
   const levels = useMemo(() => outcomeLevels(detail), [detail])
@@ -87,7 +87,7 @@ export function AtlasView() {
     let rows = response.rows
     if (allAnswers) {
       // Every answer for every country shown, countries in the order of
-      // the chosen answer's share (or their names), answers in code order.
+      // the chosen answer's share, answers in code order.
       if (search.countries.length) {
         rows = rows.filter((row) => search.countries.includes(Number(row.group['country_code'])))
       }
@@ -96,7 +96,6 @@ export function AtlasView() {
         ? sortAtlasRows(
             rows.filter((row) => row.level === level),
             metaForSort,
-            search.sort,
             dir,
           )
         : []
@@ -121,8 +120,8 @@ export function AtlasView() {
     }
     // One ordering for the chart and the CSV (items 5/13).
     if (!metaForSort) return rows
-    return sortAtlasRows(rows, metaForSort, search.sort, dir)
-  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, search.sort, dir])
+    return sortAtlasRows(rows, metaForSort, dir)
+  }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir])
   const countryOrder = useMemo(
     () =>
       metaForSort && allAnswers
@@ -211,7 +210,7 @@ export function AtlasView() {
         ? `share answering “${levelLabel}”`
         : undefined
       : allAnswers
-        ? search.sort === 'estimate' && levelLabel
+        ? levelLabel
           ? `share giving each answer · sorted by “${levelLabel}”`
           : 'share giving each answer'
         : stat === 'distribution'
@@ -241,7 +240,7 @@ export function AtlasView() {
             }
           : undefined
 
-  // Statistic, Sort, Order, Countries and Answer level fold into a
+  // Statistic, Order, Countries and Answer level fold into a
   // disclosure under 40rem (§8), Topic + search first inside it; Measure
   // and Wave stay visible so the chart starts within the first phone
   // screen.
@@ -260,42 +259,20 @@ export function AtlasView() {
         />
       )}
       {(stat !== 'distribution' || allAnswers) && (
-        <>
-          <RadioRow
-            legend="Sort"
-            name="sort"
-            options={[
-              { value: 'estimate', label: 'By value' },
-              { value: 'name', label: 'A–Z' },
-            ]}
-            value={search.sort}
-            onChange={(sort) => setSearch({ sort, dir: undefined })}
-          />
-          <RadioRow
-            legend="Order"
-            name="dir"
-            options={
-              search.sort === 'name'
-                ? [
-                    { value: 'asc', label: 'A to Z' },
-                    { value: 'desc', label: 'Z to A' },
-                  ]
-                : [
-                    { value: 'desc', label: 'High to low' },
-                    { value: 'asc', label: 'Low to high' },
-                  ]
-            }
-            value={dir}
-            onChange={(value) => setSearch({ dir: value })}
-          />
-        </>
+        <RadioRow
+          legend="Order"
+          name="dir"
+          options={VALUE_ORDER}
+          value={dir}
+          onChange={(value) => setSearch({ dir: value })}
+        />
       )}
       <CountryFilter
         countries={meta.data.meta.countries}
         selected={search.countries}
         onChange={(countries) => setSearch({ countries })}
       />
-      {isCategorical && levels.length > 0 && !(allAnswers && search.sort === 'name') && (
+      {isCategorical && levels.length > 0 && (
         <RadioRow
           legend={allAnswers ? 'Sort by answer' : 'Showing % who said'}
           name="level"
@@ -357,7 +334,7 @@ export function AtlasView() {
         />
         {narrow ? (
           <details className={styles.moreOptions}>
-            <summary>More options — chart, sort, countries</summary>
+            <summary>More options — chart, order, countries</summary>
             <div className={styles.moreBody}>
               <OutcomePicker
                 variables={variables.data.list}
@@ -445,7 +422,7 @@ export function AtlasView() {
                       answers={levels}
                       polarity={variable.polarity}
                       countryOrder={countryOrder}
-                      sortedBy={search.sort === 'estimate' ? activeLevel : undefined}
+                      sortedBy={activeLevel}
                     />
                   ) : (
                     <LoadingBlock height={420} label="Loading the answers" />

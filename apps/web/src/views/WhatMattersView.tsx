@@ -20,7 +20,7 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { RankedBar } from '../charts/RankedBar'
 import { summarizeExtremes } from '../charts/summary'
 import { SEQUENTIAL_RAMP, outcomeColor, quantizeSequential, tipText } from '../charts/theme'
-import { HEAT_CELL_PAD, HeatTable, ROW_LABELS, headerFont } from '../charts/HeatTable'
+import { HEAT_CELL_PAD, HeatTable, headerFont } from '../charts/HeatTable'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
@@ -31,7 +31,7 @@ import { downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
 import { formatEstimate } from '../format'
 import { columnLabel, groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
-import { defaultDir, sortAtlasRows, type SortDir } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER, reversed, sortAtlasRows, type SortDir } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   NO_SPLIT,
@@ -84,16 +84,6 @@ function useMatrixColumn(labels: readonly string[], narrow: boolean): number {
     return Math.ceil(text) + 2 * HEAT_CELL_PAD
   }, [labels, narrow])
 }
-
-/** The Order control's two readings: names A→Z, values high-first. */
-const NAME_ORDER: RadioOption<SortDir>[] = [
-  { value: 'asc', label: 'A to Z' },
-  { value: 'desc', label: 'Z to A' },
-]
-const VALUE_ORDER: RadioOption<SortDir>[] = [
-  { value: 'desc', label: 'High to low' },
-  { value: 'asc', label: 'Low to high' },
-]
 
 /** The in-page anchors the page had before the view switcher: an old
  * link's hash picks the matching view. */
@@ -148,23 +138,27 @@ export function WhatMattersView() {
   )
   const labels = useMemo(() => ranking.map((entry) => itemLabel(entry)), [ranking])
   const columnWidth = useMatrixColumn(labels, narrow)
-  // The country order: A–Z, or by one importance item's value (a code
-  // that names no item reads as A–Z).
-  const matrixSort = ranking.some((entry) => entry.name === search.sort) ? search.sort : 'name'
-  const sortKey = matrixSort === 'name' ? 'name' : 'estimate'
-  const dir = search.dir ?? defaultDir(sortKey)
-  // The other questions' chart keeps its own order (qsort/qdir).
-  const qdir = search.qdir ?? defaultDir(search.qsort)
+  // The country order: by one importance item's value — the first
+  // column's (the first item in the server's order) until another is
+  // chosen; a code that names no item reads as the first column too.
+  const firstColumn = ranking[0]?.name ?? ''
+  const matrixSort =
+    search.sort !== undefined && ranking.some((entry) => entry.name === search.sort)
+      ? search.sort
+      : firstColumn
+  const dir = search.dir ?? DEFAULT_DIR
+  // The other questions' chart keeps its own order (qdir).
+  const qdir = search.qdir ?? DEFAULT_DIR
 
   const setSearch = (patch: Partial<WhatMattersSearch>) => {
     void navigate(searchNavigation(whatMattersSearchParams({ ...search, ...patch })))
   }
-  // A column's label sorts the countries by it (the corner: by name); the
-  // same label again reverses the order (ADR-0026).
+  // A column's label sorts the countries by it, highest first; the same
+  // label again reverses the order (ADR-0026, ADR-0029). The first
+  // column is the default, so it leaves the URL.
   const sortMatrix = (column: string) => {
-    const next = column === ROW_LABELS ? 'name' : column
-    if (next === matrixSort) setSearch({ dir: dir === 'asc' ? 'desc' : 'asc' })
-    else setSearch({ sort: next, dir: undefined })
+    if (column === matrixSort) setSearch({ dir: reversed(dir) })
+    else setSearch({ sort: column === firstColumn ? undefined : column, dir: undefined })
   }
 
   // An old link's anchor (#within-country) selects its view; the hash
@@ -215,8 +209,8 @@ export function WhatMattersView() {
     [rankingQuery.results, ranking],
   )
   const countryOrder = useMemo(
-    () => (metaData ? matrixCountryOrder(rankingAll, metaData, search.sort, dir) : []),
-    [rankingAll, metaData, search.sort, dir],
+    () => (metaData ? matrixCountryOrder(rankingAll, metaData, matrixSort, dir) : []),
+    [rankingAll, metaData, matrixSort, dir],
   )
   const rankingOrdered = useMemo(
     () => orderMatrixRows(rankingAll, countryOrder, ranking),
@@ -260,8 +254,8 @@ export function WhatMattersView() {
       const level = search.level ?? itemLevels[0]?.value ?? highestLevel(rows)
       if (level !== undefined) rows = rows.filter((row) => row.level === level)
     }
-    return sortAtlasRows(rows, metaData, search.qsort, qdir)
-  }, [itemQuery.results, metaData, item, search.level, search.qsort, qdir, itemLevels])
+    return sortAtlasRows(rows, metaData, qdir)
+  }, [itemQuery.results, metaData, item, search.level, qdir, itemLevels])
 
   if (meta.isPending || variables.isPending) {
     return (
@@ -431,7 +425,7 @@ export function WhatMattersView() {
                 corner="Country"
                 served={served}
                 columnWidth={columnWidth}
-                sort={{ column: matrixSort === 'name' ? ROW_LABELS : matrixSort, dir }}
+                sort={{ column: matrixSort, dir }}
                 onSort={sortMatrix}
               />
               <p className={styles.hint}>
@@ -566,19 +560,9 @@ export function WhatMattersView() {
               />
             )}
             <RadioRow
-              legend="Sort"
-              name="qsort"
-              options={[
-                { value: 'estimate', label: 'By value' },
-                { value: 'name', label: 'A–Z' },
-              ]}
-              value={search.qsort}
-              onChange={(qsort) => setSearch({ qsort, qdir: undefined })}
-            />
-            <RadioRow
               legend="Order"
               name="qdir"
-              options={search.qsort === 'name' ? NAME_ORDER : VALUE_ORDER}
+              options={VALUE_ORDER}
               value={qdir}
               onChange={(value) => setSearch({ qdir: value })}
             />
@@ -698,8 +682,7 @@ function ImportanceMatrix({
   corner: string
   served: Meta
   columnWidth: number
-  /** The item the rows are ordered by (`ROW_LABELS`: their names; none:
-   * the rows' own order). */
+  /** The item the rows are ordered by (none: the rows' own order). */
   sort?: { column: string; dir: SortDir }
   /** The labels are sort buttons (the By country matrix). */
   onSort?: (column: string) => void

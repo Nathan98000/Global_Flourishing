@@ -235,13 +235,11 @@ describe('the midyear family from the catalog', () => {
     expect(splitMidyear([]).ranking).toEqual([])
   })
 
-  test('the matrix orders countries A–Z or by one item, nulls last', () => {
+  test('the matrix orders countries by one item, nulls last, ties by name — never A–Z', () => {
     const rows = rankingRows(
       [byCountry('MONEY', 0), byCountry('GOOD_RELATION', 1)],
       [money, relation],
     )
-    expect(matrixCountryOrder(rows, testMeta, 'name', 'asc')).toEqual([1, 22])
-    expect(matrixCountryOrder(rows, testMeta, 'name', 'desc')).toEqual([22, 1])
     expect(matrixCountryOrder(rows, testMeta, 'MONEY', 'desc')).toEqual([22, 1])
     expect(matrixCountryOrder(rows, testMeta, 'MONEY', 'asc')).toEqual([1, 22])
     const withNull = rows.map((row) =>
@@ -250,6 +248,10 @@ describe('the midyear family from the catalog', () => {
         : row,
     )
     expect(matrixCountryOrder(withNull, testMeta, 'MONEY', 'desc')).toEqual([1, 22])
+    // A tie (or an item no row has) reads in name order, a tie-break.
+    const tied = rows.map((row) => ({ ...row, estimate: 7 }))
+    expect(matrixCountryOrder(tied, testMeta, 'MONEY', 'desc')).toEqual([1, 22])
+    expect(matrixCountryOrder(rows, testMeta, 'NOT_AN_ITEM', 'desc')).toEqual([1, 22])
     expect(
       orderMatrixRows(rows, [22, 1], [money, relation]).map((row) => [
         row.group['country_code'],
@@ -401,7 +403,7 @@ describe('What Matters view', () => {
       within(matrix)
         .getAllByRole('columnheader')
         .map((th) => th.textContent),
-    ).toEqual(['Country\u00a0▲', 'Money', 'Good relationships'])
+    ).toEqual(['Country', 'Money\u00a0▼', 'Good relationships'])
     // One width for every column, the labels wrapping over it; the scale
     // is said once, in the subtitle.
     expect(matrix).toHaveAttribute('data-fixed')
@@ -409,16 +411,18 @@ describe('What Matters view', () => {
     expect(
       screen.getByText('How important, 0–10 · Midyear survey, Nov 2023–Dec 2024'),
     ).toBeInTheDocument()
+    // Highest first by the first column, the first item in the server's
+    // order (ADR-0029).
     expect(
       within(matrix)
         .getAllByRole('rowheader')
         .map((th) => th.textContent),
-    ).toEqual(['Testland', 'United States'])
+    ).toEqual(['United States', 'Testland'])
     const cells = within(matrix).getAllByRole('cell')
-    expect(cells.map((cell) => cell.textContent)).toEqual(['6.00', '7.00', '7.00', '8.00'])
+    expect(cells.map((cell) => cell.textContent)).toEqual(['7.00', '8.00', '6.00', '7.00'])
     // The CI and n ride in a styled hover card, at once on hover — never
     // a native title (ADR-0022).
-    const first = cells[0] as HTMLElement
+    const first = cells[2] as HTMLElement
     expect(first).not.toHaveAttribute('title')
     expect(first).not.toHaveAttribute('tabindex')
     fireEvent.pointerEnter(first)
@@ -432,14 +436,14 @@ describe('What Matters view', () => {
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
     // Each column is shaded on its own range: the same 7.00 is the low
     // end of Good relationships (7–8) and the high end of Money (6–7).
-    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[1]?.getAttribute('style')).toContain('var(--seq-100)')
-    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-700)')
-    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-700)')
+    expect(cells[2]?.getAttribute('style')).toContain('var(--seq-100)')
+    expect(cells[3]?.getAttribute('style')).toContain('var(--seq-100)')
+    expect(cells[0]?.getAttribute('style')).toContain('var(--seq-700)')
+    expect(cells[1]?.getAttribute('style')).toContain('var(--seq-700)')
     // The number wears the ink its tint step names (light ink on the
     // deep teal), never the page ink at 1.9:1.
-    expect(cells[3]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
-    expect(cells[0]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
+    expect(cells[1]?.getAttribute('style')).toContain('color: var(--seq-700-ink)')
+    expect(cells[2]?.getAttribute('style')).toContain('color: var(--seq-100-ink)')
     // A legend replaces the caption: the seven ramp tokens, lower to
     // higher (the tokens themselves), and the column rule.
     const legend = within(ranking).getByText(/· each column shaded on its own range/)
@@ -459,21 +463,27 @@ describe('What Matters view', () => {
     // No sort drop-down or order buttons: the labels sort (ADR-0026).
     expect(screen.queryByLabelText(/^Sort countries by/)).toBeNull()
     expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
-    // Sorted by name: the corner wears the arrow, no item column is marked.
-    const [corner, ...items] = within(matrix).getAllByRole('columnheader')
-    expect(corner).toHaveAttribute('aria-sort', 'ascending')
-    for (const item of items) expect(item).not.toHaveAttribute('aria-sort')
-    // An item's label sorts by it, high first; again, low first; the
-    // corner goes back to the names, and again reverses them.
-    const money = within(matrix).getByRole('button', { name: /^Money/ })
-    fireEvent.click(money)
-    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY'))
+    // Sorted by the first column: it wears the arrow; the corner is a
+    // plain label, never a sort (ADR-0029).
+    const [corner, first2, second2] = within(matrix).getAllByRole('columnheader')
+    expect(corner).not.toHaveAttribute('aria-sort')
+    expect(within(corner as HTMLElement).queryByRole('button')).toBeNull()
+    expect(first2).toHaveAttribute('aria-sort', 'descending')
+    expect(second2).not.toHaveAttribute('aria-sort')
+    // The first column's label again reverses it; another column's label
+    // sorts by that one, high first; back to the first column, the URL
+    // forgets the default.
     fireEvent.click(within(matrix).getByRole('button', { name: /^Money/ }))
-    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=MONEY&dir=asc'))
-    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?dir=asc'))
+    expect(
+      within(matrix)
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent),
+    ).toEqual(['Testland', 'United States'])
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Good relationships/ }))
+    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?sort=GOOD_RELATION'))
+    fireEvent.click(within(matrix).getByRole('button', { name: /^Money/ }))
     await waitFor(() => expect(router.state.location.href).toBe('/what-matters'))
-    fireEvent.click(within(matrix).getByRole('button', { name: /^Country/ }))
-    await waitFor(() => expect(router.state.location.href).toBe('/what-matters?dir=desc'))
     expect(
       within(matrix)
         .getAllByRole('rowheader')
@@ -629,14 +639,14 @@ describe('What Matters view', () => {
     const touch = { pointerType: 'touch' }
     fireEvent.pointerUp(second as HTMLElement, touch)
     expect(within(ranking).getByRole('tooltip').textContent).toContain(
-      'Testland · Good relationships',
+      'United States · Good relationships',
     )
     // The finger lifting off is no reason to close it.
     fireEvent.pointerLeave(second as HTMLElement, touch)
     expect(within(ranking).getByRole('tooltip')).toBeInTheDocument()
     // A tap on another cell moves it; the same cell again closes it.
     fireEvent.pointerUp(third as HTMLElement, touch)
-    expect(within(ranking).getByRole('tooltip').textContent).toContain('United States · Money')
+    expect(within(ranking).getByRole('tooltip').textContent).toContain('Testland · Money')
     fireEvent.pointerUp(third as HTMLElement, touch)
     expect(within(ranking).queryByRole('tooltip')).toBeNull()
     // A tap anywhere but a cell closes an open one.
@@ -686,29 +696,26 @@ describe('What Matters view', () => {
       'Testland',
       'United States',
     ])
-    expect(await order('/what-matters?view=questions&qsort=name')).toEqual([
-      'Testland',
+    // An old A–Z link reads as the value order, highest first (ADR-0029).
+    expect(await order('/what-matters?view=questions&qsort=name&qdir=asc')).toEqual([
       'United States',
+      'Testland',
     ])
   })
 
-  test('the other questions’ Sort and Order controls write qsort and qdir', async () => {
+  test('the other questions’ Order control writes qdir; there is no A–Z', async () => {
     mockFetch(tier)
     const router = await renderAt('/what-matters?view=questions&sort=MONEY')
     await screen.findByRole('img', { name: /Daily social media time/ })
+    expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
+    expect(screen.queryByText('A–Z')).toBeNull()
     fireEvent.click(
-      within(screen.getByRole('group', { name: 'Sort' })).getByRole('radio', { name: 'A–Z' }),
+      within(screen.getByRole('group', { name: 'Order' })).getByRole('radio', {
+        name: 'Lowest first',
+      }),
     )
     await waitFor(() =>
-      expect(router.state.location.href).toBe('/what-matters?view=questions&sort=MONEY&qsort=name'),
-    )
-    fireEvent.click(
-      within(screen.getByRole('group', { name: 'Order' })).getByRole('radio', { name: 'Z to A' }),
-    )
-    await waitFor(() =>
-      expect(router.state.location.href).toBe(
-        '/what-matters?view=questions&sort=MONEY&qsort=name&qdir=desc',
-      ),
+      expect(router.state.location.href).toBe('/what-matters?view=questions&sort=MONEY&qdir=asc'),
     )
   })
 

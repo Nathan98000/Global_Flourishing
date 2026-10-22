@@ -475,14 +475,14 @@ test('under 40rem the display options fold into a disclosure; Measure and Wave s
   mockFetch(staticTier)
   await renderAt('/')
   await screen.findByText('Mean score, 0–10 · 2023')
-  const summary = screen.getByText('More options — chart, sort, countries')
+  const summary = screen.getByText('More options — chart, order, countries')
   const details = summary.closest('details')
   expect(details).not.toBeNull()
-  // Wave stays visible outside the fold; Sort lives inside it.
+  // Year stays visible outside the fold; Order lives inside it.
   const wave = screen.getByRole('group', { name: 'Year' })
   expect(details?.contains(wave)).toBe(false)
-  const sort = screen.getByRole('group', { name: 'Sort' })
-  expect(details?.contains(sort)).toBe(true)
+  const order = screen.getByRole('group', { name: 'Order' })
+  expect(details?.contains(order)).toBe(true)
 })
 
 test('the Statistic group becomes a native select under 30rem (§8)', async () => {
@@ -605,9 +605,12 @@ test('an old Breakdowns link lands on Segments with every param it carried', asy
   for (const [path, href] of [
     ['/breakdowns?by=gender', '/segments?by=gender'],
     [
-      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
-      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=name&countries=1%2C22',
+      '/breakdowns?outcome=HAPPY&wave=Y2&by=gender&sort=gap&countries=1%2C22',
+      '/segments?outcome=HAPPY&wave=Y2&by=gender&sort=gap&countries=1%2C22',
     ],
+    // An old A–Z order opens the value order, unannounced (ADR-0029):
+    // `name` is never written again.
+    ['/breakdowns?outcome=HAPPY&by=gender&sort=name&dir=asc', '/segments?outcome=HAPPY&by=gender'],
   ] as const) {
     const router = await renderAt(path)
     expect(await screen.findByRole('heading', { name: 'Segments' })).toBeInTheDocument()

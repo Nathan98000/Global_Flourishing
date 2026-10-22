@@ -312,9 +312,12 @@ test('7 — Change with a country where fewer people answered again: the interva
   await expect(tip).toContainText('Based on 10 people who answered both times')
   await page.mouse.move(0, 0)
 
-  // The URL is the state.
-  await page.getByRole('group', { name: 'Sort' }).getByText('A–Z', { exact: true }).click()
-  await expect(page).toHaveURL(/outcome=HAPPY&sort=name$/)
+  // The URL is the state; the order is by value only (ADR-0029).
+  await page
+    .getByRole('group', { name: 'Order' })
+    .getByText('Lowest first', { exact: true })
+    .click()
+  await expect(page).toHaveURL(/outcome=HAPPY&dir=asc$/)
 })
 
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
@@ -341,16 +344,18 @@ test('8 — What Matters with a combined-midyear country: one view at a time —
   })
   await expect(matrix).toBeVisible()
   await expect(matrix.getByRole('rowheader', { name: 'United States' })).toBeVisible()
-  // Its labels sort it (ADR-0026): no drop-down, no order buttons; the
-  // same label twice reverses the order.
+  // Its labels sort it (ADR-0026): no drop-down, no order buttons. It
+  // opens sorted by its first column, highest first; that label again
+  // reverses the order. The corner names the rows and never sorts
+  // (ADR-0029).
   await expect(page.getByLabel(/Sort countries by/)).toHaveCount(0)
-  const item = matrix.locator('thead th').nth(1).getByRole('button')
-  await item.click()
-  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+$/)
-  await item.click()
-  await expect(page).toHaveURL(/\/what-matters\?sort=[A-Z_]+&dir=asc$/)
-  await matrix.getByRole('button', { name: /^Country/ }).click()
+  const head = matrix.locator('thead th').nth(1)
+  await expect(head).toHaveAttribute('aria-sort', 'descending')
+  await head.getByRole('button').click()
+  await expect(page).toHaveURL(/\/what-matters\?dir=asc$/)
+  await head.getByRole('button').click()
   await expect(page).toHaveURL(/\/what-matters$/)
+  await expect(matrix.locator('thead th').first().getByRole('button')).toHaveCount(0)
   await expect(page.locator('figure')).toHaveCount(1)
   // A switcher, not anchors; the crossings section is gone.
   await expect(page.getByRole('navigation', { name: 'On this page' })).toHaveCount(0)

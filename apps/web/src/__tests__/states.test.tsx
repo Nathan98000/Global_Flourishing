@@ -226,28 +226,19 @@ describe('the states topology', () => {
 })
 
 describe('state rows', () => {
-  test('sort by value or by name, valueless last', () => {
+  test('by value in either direction, valueless last, ties by the server’s names', () => {
     const rows = [
       stateRow('TX', 6.8),
       stateRow('CA', 7.1),
       stateRow('NY', null as unknown as number, { estimate: null }),
     ]
-    expect(sortStateRows(rows, 'estimate', 'desc').map((row) => row.group['state'])).toEqual([
-      'CA',
-      'TX',
-      'NY',
-    ])
-    expect(sortStateRows(rows, 'name', 'asc').map((row) => row.group['state'])).toEqual([
-      'CA',
-      'NY',
-      'TX',
-    ])
-    // By the server's names: Vermont after Texas, whatever its code.
-    const named = [stateRow('VT', 7.4), stateRow('TX', 6.8), stateRow('CA', 7.1)]
+    expect(sortStateRows(rows, 'desc').map((row) => row.group['state'])).toEqual(['CA', 'TX', 'NY'])
+    expect(sortStateRows(rows, 'asc').map((row) => row.group['state'])).toEqual(['TX', 'CA', 'NY'])
+    // A tie reads in the server's names: California before Vermont.
+    const tied = [stateRow('VT', 7.1), stateRow('CA', 7.1)]
     const label = (code: string) => testMeta.state_labels[code]?.name ?? code
-    expect(sortStateRows(named, 'name', 'asc', label).map((row) => row.group['state'])).toEqual([
+    expect(sortStateRows(tied, 'desc', label).map((row) => row.group['state'])).toEqual([
       'CA',
-      'TX',
       'VT',
     ])
   })
@@ -255,7 +246,7 @@ describe('state rows', () => {
   test('RankedBar labels rows by the server’s state names and draws the reference', () => {
     const { container } = render(
       <RankedBar
-        rows={sortStateRows(statesResponse.rows, 'estimate', 'desc')}
+        rows={sortStateRows(statesResponse.rows, 'desc')}
         meta={testMeta}
         responseMeta={testResponseMeta({ scope: 'us_state', by: ['state'] })}
         variable={sfiVariable}

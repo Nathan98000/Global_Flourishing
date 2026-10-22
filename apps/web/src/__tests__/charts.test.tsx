@@ -657,15 +657,16 @@ describe('SmallMultiples', () => {
     ),
   )
 
-  test('facet order follows the sort rule', () => {
+  test('facet order follows the sort rule: by value or by gap, never by name', () => {
     expect(facetOrder(cellRows, testMeta, 'country_code', 'estimate')).toEqual([
       'United States',
       'Testland',
     ])
-    expect(facetOrder(cellRows, testMeta, 'country_code', 'name')).toEqual([
+    expect(facetOrder(cellRows, testMeta, 'country_code', 'estimate', 'asc')).toEqual([
       'Testland',
       'United States',
     ])
+    expect(facetOrder(cellRows, testMeta, 'country_code', 'gap')).toHaveLength(2)
   })
 
   test('renders one panel per country with served level labels', () => {

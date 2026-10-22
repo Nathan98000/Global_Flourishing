@@ -35,7 +35,7 @@ import {
   outcomeLevels,
   scaleSubtitle,
 } from '../labels'
-import { defaultDir, sortBreakdownRows } from '../sortRows'
+import { DEFAULT_DIR, VALUE_ORDER, sortBreakdownRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import {
   BREAKDOWNS_DEFAULTS,
@@ -79,7 +79,7 @@ export function BreakdownsView() {
   const request = chartable ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
-  const dir = search.dir ?? defaultDir(search.sort)
+  const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
 
@@ -264,7 +264,6 @@ export function BreakdownsView() {
         name="sort"
         options={[
           { value: 'estimate', label: 'By value' },
-          { value: 'name', label: 'A–Z' },
           { value: 'gap', label: 'Biggest gap first' },
         ]}
         value={search.sort}
@@ -273,17 +272,7 @@ export function BreakdownsView() {
       <RadioRow
         legend="Order"
         name="dir"
-        options={
-          search.sort === 'name'
-            ? [
-                { value: 'asc', label: 'A to Z' },
-                { value: 'desc', label: 'Z to A' },
-              ]
-            : [
-                { value: 'desc', label: 'High to low' },
-                { value: 'asc', label: 'Low to high' },
-              ]
-        }
+        options={VALUE_ORDER}
         value={dir}
         onChange={(value) => setSearch({ dir: value })}
       />

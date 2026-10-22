@@ -99,9 +99,10 @@ export function rankItems(rows: readonly EstimateRow[]): EstimateRow[] {
   )
 }
 
-/** Country codes in the matrix's order: A–Z by name (`sort = 'name'`),
- * or by one item's estimate (`sort` = that item's code), countries
- * without an estimate for it last either way. */
+/** Country codes in the matrix's order: by one item's estimate (`sort`
+ * = that item's code; the view resolves an absent or unknown one to the
+ * first column), countries without an estimate for it last, ties in
+ * name order. */
 export function matrixCountryOrder(
   rows: readonly EstimateRow[],
   meta: Meta,
@@ -110,10 +111,6 @@ export function matrixCountryOrder(
 ): number[] {
   const codes = [...new Set(rows.map((row) => Number(row.group['country_code'])))]
   const name = (code: number) => groupValueLabel('country_code', code, meta)
-  if (sort === 'name') {
-    const sign = dir === 'asc' ? 1 : -1
-    return codes.sort((a, b) => sign * name(a).localeCompare(name(b)))
-  }
   const value = new Map<number, number>()
   for (const row of rows) {
     if (row.group['outcome'] === sort && row.estimate !== null)
