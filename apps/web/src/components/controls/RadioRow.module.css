@@ -104,6 +104,23 @@
   color: var(--ink-secondary);
 }
 
+/* The reason on the label's line, at its right (G14): it reads with the
+   control it explains and takes no line of its own. */
+.fieldset[data-note-beside] {
+  position: relative;
+}
+
+.noteBeside {
+  /* A fieldset's box starts under its legend: the note rises above it,
+     onto the legend's line. */
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
 /* The ring only for keyboard focus (never after a click). */
 .option:has(:focus-visible) {
   outline: 2px solid var(--focus-ring);

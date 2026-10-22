@@ -3,8 +3,8 @@
 // a button naming the chosen question by its short label, its role in
 // the accessible name ("First question: Life evaluation today") — in a
 // sentence on Correlates, or, at the head of every other page's question
-// bar (`variant="field"`), a box with the name in bold over a line of its
-// wording and "Change ▾" ("Question: Life satisfaction"). Open, it is a
+// bar (`variant="field"`), a box with the name in bold — wrapping, never
+// cut short; the chart under it gives the wording (G13) — and "Change ▾" ("Question: Life satisfaction"). Open, it is a
 // panel — a
 // popover about 660px wide on a desktop, a full-screen sheet under 600px
 // — that reaches any question three ways: search (the page search's own
@@ -259,7 +259,6 @@ export function QuestionPicker(props: QuestionPickerProps) {
     />
   )
   if (!props.multiple && props.variant === 'field') {
-    const wording = current ? wordingOf(current) : ''
     return (
       <span
         className={styles.field}
@@ -280,8 +279,9 @@ export function QuestionPicker(props: QuestionPickerProps) {
           aria-label={`${label}: ${name}`}
           onClick={() => setOpen((was) => !was)}
         >
+          {/* The name alone, wrapping, never cut short (G13): the chart's
+              own line under its title gives the wording. */}
           <span className={styles.fieldName}>{name}</span>
-          {wording && <span className={styles.fieldWording}>{wording}</span>}
           <span className={styles.fieldChange} aria-hidden="true">
             Change
             <span className={styles.chevron}>

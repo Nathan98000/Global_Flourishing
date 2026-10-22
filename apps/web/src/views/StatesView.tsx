@@ -41,7 +41,7 @@ import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
 import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
@@ -56,7 +56,6 @@ const route = getRouteApi('/states')
 export function StatesView() {
   useWarmApi()
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const boot = useBootStatus()
@@ -182,6 +181,7 @@ export function StatesView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
   const statOptions: RadioOption<string>[] | null =
     variable && (variable.scale_type === 'scale_0_10' || variable.scale_type === 'count')
       ? [
@@ -215,6 +215,12 @@ export function StatesView() {
     search.adj && 'adjusted for who answered in each state',
     waveTitle,
     search.view === 'bars' && orderPhrase(dir),
+  )
+  // On a phone the summary line says the order (G3).
+  const narrowSubtitle = stateLine(
+    subtitleBase,
+    search.adj && 'adjusted for who answered in each state',
+    waveTitle,
   )
   // One US figure (F14): the whole US on the states' own weight, the
   // line the states are read against.
@@ -373,17 +379,14 @@ export function StatesView() {
           legend="Year"
           name="wave"
           options={waveOptions}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
           value={search.wave}
           onChange={(wave) =>
             setSearch({ wave, adj: adjustedWeightsExist(wave) ? search.adj : undefined })
           }
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
       </div>
       {narrow && chartable && (
         <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
@@ -418,6 +421,7 @@ export function StatesView() {
           <ChartFigure
             title={title}
             subtitle={subtitle}
+            narrowSubtitle={narrowSubtitle}
             ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
             intro={
               <>

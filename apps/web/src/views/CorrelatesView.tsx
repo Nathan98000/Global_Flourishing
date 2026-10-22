@@ -162,8 +162,6 @@ export function CorrelatesView() {
       : country === 'all'
         ? 'all'
         : String(country)
-  const whereLabel =
-    where === EACH_COUNTRY ? WHERE_EACH : country === 'all' ? WHERE_ALL : countryName
   // A wave the view's questions were not asked in stays in the row,
   // disabled, and the line under the row says why. Midyear never is: its
   // questions are reachable from every wave (ADR-0020).
@@ -214,7 +212,9 @@ export function CorrelatesView() {
   // (its toolbar). On a phone, one line says how the chart is drawn, with
   // Options to change it.
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
-  const summary = [method?.label ?? '', whereLabel].filter(Boolean).join(' · ')
+  // The phone's line names only what its Options sheet holds (G12): Year
+  // and Where are in view right above it.
+  const summary = method ? `Measured as: ${method.label.toLowerCase()}` : ''
   // How the chart is drawn: in its header's toolbar (`inline`, ADR-0029),
   // or in the phone's options sheet — the correlation type, with what
   // tells the two apart.
@@ -285,7 +285,11 @@ export function CorrelatesView() {
       </p>
       {/* On a phone, Year and Where stay in view; how the chart is drawn
           goes in the options sheet (ADR-0029). */}
-      {narrow && <OptionsSheet summary={summary}>{methodControl(false)}</OptionsSheet>}
+      {narrow && (
+        <div className={own.sheetLine}>
+          <OptionsSheet summary={summary}>{methodControl(false)}</OptionsSheet>
+        </div>
+      )}
     </div>
   )
   const chartControls = narrow ? undefined : methodControl(true)

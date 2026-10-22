@@ -34,22 +34,25 @@ export const MIDYEAR_HINT = 'a shorter survey between the two years'
 /** That line: "Midyear: a shorter survey between the two years." */
 export const MIDYEAR_NOTE = `Midyear: ${MIDYEAR_HINT}.`
 
-/** The line under a Year control: why each unavailable year can't be
- * chosen, in view — "Midyear — not asked in the midyear survey, a
- * shorter survey between the two years." — or, all open, what Midyear
- * is. Every disabled option points to it (RadioRow's `note`). */
+/** Why each year that can't be chosen can't, short enough to sit on the
+ * Year label's own line (G14) — "Midyear: not asked", "Midyear, 2024:
+ * not asked". Every disabled option points to it (RadioRow's `note`). */
+export function yearReason(
+  options: readonly { value: string; disabled?: boolean }[],
+): string | undefined {
+  const off = options
+    .filter((option) => option.disabled)
+    .map((option) => WAVE_MOMENTS[option.value as Wave] ?? option.value)
+  return off.length > 0 ? `${off.join(', ')}: not asked` : undefined
+}
+
+/** The line under a question bar whose Year offers Midyear: what it is. */
 export function yearNote(
   options: readonly { value: string; disabled?: boolean }[],
 ): string | undefined {
-  const reasons = options
-    .filter((option) => option.disabled)
-    .map((option) =>
-      option.value === 'MY'
-        ? `Midyear — not asked in the midyear survey, ${MIDYEAR_HINT}`
-        : `${WAVE_CHIPS[option.value] ?? option.value} — not asked that year`,
-    )
-  if (reasons.length > 0) return `${reasons.join('; ')}.`
-  return options.some((option) => option.value === 'MY') ? MIDYEAR_NOTE : undefined
+  return options.some((option) => option.value === 'MY' && !option.disabled)
+    ? MIDYEAR_NOTE
+    : undefined
 }
 
 /** The moment in time, for "2023 → Midyear" style pair labels — the

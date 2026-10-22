@@ -5,7 +5,7 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo } from 'react'
+import { useMemo } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -47,7 +47,7 @@ import {
   type BreakdownsSearch,
 } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
 import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
@@ -55,7 +55,6 @@ const route = getRouteApi('/segments')
 
 export function BreakdownsView() {
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -208,6 +207,7 @@ export function BreakdownsView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
 
   // The title names the splits in words ("Life satisfaction by gender
   // and age band"); the wave rides last in the subtitle (§7).
@@ -218,18 +218,22 @@ export function BreakdownsView() {
   const stat: Stat = (variable?.default_stat as Stat | undefined) ?? 'mean'
   // The state, in the controls' words (ADR-0029): the year, the
   // countries, their order.
+  const units = isCategorical
+    ? levelLabel
+      ? `share answering “${levelLabel}”`
+      : null
+    : variable
+      ? scaleSubtitle(variable, stat, detail)
+      : null
+  const waveTitle = WAVE_TITLES[search.wave] ?? search.wave
   const subtitle = stateLine(
-    isCategorical
-      ? levelLabel
-        ? `share answering “${levelLabel}”`
-        : null
-      : variable
-        ? scaleSubtitle(variable, stat, detail)
-        : null,
-    WAVE_TITLES[search.wave] ?? search.wave,
+    units,
+    waveTitle,
     countriesPhrase(search.countries.length, meta.data.meta.countries.length),
     search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
   )
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(units, waveTitle)
 
   // What a download is called, in words (ADR-0016): the measure, then
   // `by-<breakdown>` for the split; the server names its CSV the same way.
@@ -398,13 +402,10 @@ export function BreakdownsView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
         {!narrow && countryFilter}
       </div>
       {narrow && chartable && (
@@ -446,6 +447,7 @@ export function BreakdownsView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
+                narrowSubtitle={narrowSubtitle}
                 ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
                 intro={
                   detail && (

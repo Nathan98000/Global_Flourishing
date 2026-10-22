@@ -5,7 +5,7 @@
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -38,7 +38,7 @@ import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
-import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
+import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
 import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
 
@@ -46,7 +46,6 @@ const route = getRouteApi('/')
 
 export function AtlasView() {
   const search = route.useSearch()
-  const yearNoteId = useId()
   const navigate = route.useNavigate()
   const meta = useMeta()
   const health = useHealth()
@@ -210,6 +209,7 @@ export function AtlasView() {
   }))
   // Why a year is unavailable, or what Midyear is: under the whole bar.
   const yearNoteText = yearNote(waveOptions)
+  const yearReasonText = yearReason(waveOptions)
 
   const statOptions: RadioOption<string>[] | null =
     variable && variable.scale_type === 'scale_0_10'
@@ -255,6 +255,8 @@ export function AtlasView() {
     ? 'first four countries'
     : countriesPhrase(search.countries.length, countryCount)
   const subtitle = stateLine(subtitleBase, waveTitle, countriesState, ordered && orderState)
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(subtitleBase, waveTitle)
   // The distribution's four countries, said in the header (ADR-0024: no
   // line under the chart).
   const distributionHint =
@@ -428,13 +430,10 @@ export function AtlasView() {
           options={waveOptions}
           value={search.wave}
           onChange={(wave) => setSearch({ wave })}
-          noteId={yearNoteText ? yearNoteId : undefined}
+          note={yearReasonText}
+          noteBeside
         />
-        {yearNoteText && (
-          <p id={yearNoteId} className={styles.barNote}>
-            {yearNoteText}
-          </p>
-        )}
+        {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
         {!narrow && countryFilter}
       </div>
       {narrow && chartable && (
@@ -485,6 +484,7 @@ export function AtlasView() {
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
+                narrowSubtitle={narrowSubtitle}
                 ariaLabel={
                   allAnswers
                     ? summarizeExtremes(

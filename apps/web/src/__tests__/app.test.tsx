@@ -300,10 +300,10 @@ test('the one question picker: closed, the question and its wording; open, topic
     '/data/v1/sfi/Y1/mean_by-country_code.json': sfiByCountry,
   })
   const router = await renderAt('/?level=2')
-  // Closed: one button — the short name in bold, a line of wording, and
-  // "Change"; its name says what it is.
+  // Closed: one button — the short name in bold and "Change" (the chart
+  // under it gives the wording, G13); its name says what it is.
   const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
-  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexMean of 12 questions.*Change$/)
+  expect(trigger).toHaveTextContent(/^Secure Flourishing IndexChange$/)
   expect(screen.queryByLabelText('Topic')).toBeNull()
   expect(screen.queryByLabelText('Measure')).toBeNull()
   // Open: the panel browses the question's own topic, with counts; the
@@ -434,9 +434,7 @@ test('a disabled year says why in view on Segments too (F6)', async () => {
   await renderAt('/segments')
   const midyear = await screen.findByRole('radio', { name: 'Midyear' })
   expect(midyear).toBeDisabled()
-  expect(midyear).toHaveAccessibleDescription(
-    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
-  )
+  expect(midyear).toHaveAccessibleDescription('Midyear: not asked')
 })
 
 test('a disabled year says why in view, and points to the reason (F6)', async () => {
@@ -445,14 +443,11 @@ test('a disabled year says why in view, and points to the reason (F6)', async ()
   await screen.findByText(/^Mean score, 0–10/)
   const midyear = screen.getByRole('radio', { name: 'Midyear' })
   expect(midyear).toBeDisabled()
-  expect(midyear).toHaveAccessibleDescription(
-    'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
-  )
-  expect(
-    screen.getByText(
-      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
-    ),
-  ).toBeVisible()
+  // The reason sits on the Year label's own line (G14).
+  expect(midyear).toHaveAccessibleDescription('Midyear: not asked')
+  const reason = screen.getByText('Midyear: not asked')
+  expect(reason).toBeVisible()
+  expect(reason.closest('fieldset')).toBe(screen.getByRole('group', { name: 'Year' }))
   // No hover-only reason; the open years point nowhere.
   expect(midyear.closest('label')).not.toHaveAttribute('title')
   expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
@@ -657,14 +652,16 @@ test('on a phone: the question and the year, then one line with Options; the she
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
   const router = await renderAt('/')
-  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
+  // The subtitle leaves to the summary line what it says (G3).
+  await screen.findByText('Mean score, 0–10 · 2023')
   // No fold: the bar holds the question and the year alone.
   expect(screen.queryByText(/More options/)).toBeNull()
   expect(barLabels()).toEqual(['Question', 'Year'])
-  // The chart's toolbar keeps its links; its controls wait in the sheet.
-  const toolbar = screen.getByRole('figure').querySelector('[data-toolbar]') as HTMLElement
-  expect(within(toolbar).queryByRole('group', { name: 'Show' })).toBeNull()
-  expect(within(toolbar).getByRole('link', { name: 'How to read this chart' })).toBeInTheDocument()
+  // The chart's header holds no toolbar row on a phone (G3): its controls
+  // and its links wait in the sheet, its key reads with the column labels.
+  const figure = screen.getByRole('figure')
+  expect(figure.querySelector('[data-toolbar]')).toBeNull()
+  expect(within(figure).queryByRole('link', { name: 'How to read this chart' })).toBeNull()
   // One line says how the chart is drawn, in the controls' words.
   expect(screen.getByText('Mean · all countries · highest first')).toBeInTheDocument()
   const options = screen.getByRole('button', { name: 'Options' })
@@ -678,6 +675,10 @@ test('on a phone: the question and the year, then one line with Options; the she
   // Show, then Countries, in place (no popover).
   expect(within(sheet).getByRole('radio', { name: 'All countries' })).toBeChecked()
   expect(sheet.querySelector('details')).toBeNull()
+  // At its foot, the chart's links (G3).
+  expect(within(sheet).getByRole('link', { name: 'How to read this chart' })).toBeInTheDocument()
+  expect(within(sheet).getByRole('button', { name: 'Download CSV' })).toBeInTheDocument()
+  expect(within(sheet).getByRole('button', { name: 'Download PNG' })).toBeInTheDocument()
   // Escape closes it; focus returns to Options.
   fireEvent.keyDown(sheet, { key: 'Escape' })
   expect(screen.queryByRole('dialog')).toBeNull()

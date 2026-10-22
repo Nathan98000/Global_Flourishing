@@ -9,6 +9,7 @@
 // items, the secondary three behind "More" on a phone.
 
 import { Link, Outlet, useLocation } from '@tanstack/react-router'
+import { ChartActionsProvider } from '../charts/ChartActions'
 import {
   Fragment,
   useCallback,
@@ -217,7 +218,10 @@ export function AppShell() {
       </header>
       {isDataView(pathname) && <BootBanner />}
       <main id="main" className={styles.main}>
-        <Outlet />
+        {/* One slot per page for its chart's phone actions (G3). */}
+        <ChartActionsProvider>
+          <Outlet />
+        </ChartActionsProvider>
       </main>
       <footer className={styles.footer}>
         <p className={styles.footerLine}>

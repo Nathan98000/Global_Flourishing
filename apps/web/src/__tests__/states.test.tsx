@@ -422,9 +422,7 @@ describe('US States view', () => {
       name: 'Midyear',
     })
     expect(midyear).toBeDisabled()
-    expect(midyear).toHaveAccessibleDescription(
-      'Midyear — not asked in the midyear survey, a shorter survey between the two years.',
-    )
+    expect(midyear).toHaveAccessibleDescription('Midyear: not asked')
     expect(screen.getByText(/no adjusted state weight for 2023/)).toBeInTheDocument()
     fireEvent.click(
       screen.getByRole('group', { name: 'Year' }).querySelector('input[value="Y2"]') as HTMLElement,

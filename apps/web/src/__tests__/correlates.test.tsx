@@ -1521,7 +1521,8 @@ describe('Correlates view', () => {
     // The old "Change" button is gone (it collided with the Change page).
     expect(screen.queryByRole('button', { name: /^Change wave/ })).toBeNull()
     expect(screen.queryByRole('group', { name: 'Measured as' })).toBeNull()
-    expect(screen.getByText('Straight-line · All countries, averaged')).toBeVisible()
+    // The line names only what Options holds (G12): Where is right above.
+    expect(screen.getByText('Measured as: straight-line')).toBeVisible()
     const options = screen.getByRole('button', { name: 'Options' })
     fireEvent.click(options)
     const sheet = screen.getByRole('dialog', { name: 'Chart options' })

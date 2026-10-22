@@ -358,17 +358,16 @@ export function WhatMattersView() {
   const itemStat: Stat = (item?.default_stat as Stat | undefined) ?? 'mean'
   const itemLevel = search.level ?? itemLevels[0]?.value
   const itemLevelLabel = itemLevels.find((level) => level.value === itemLevel)?.label
-  const itemSubtitle = item
-    ? stateLine(
-        itemStat === 'proportion'
-          ? itemLevelLabel
-            ? `share answering “${itemLevelLabel}”`
-            : 'weighted share'
-          : scaleSubtitle(item, itemStat, itemDetail),
-        MIDYEAR_TITLE,
-        orderPhrase(qdir),
-      )
-    : ''
+  const itemUnits = item
+    ? itemStat === 'proportion'
+      ? itemLevelLabel
+        ? `share answering “${itemLevelLabel}”`
+        : 'weighted share'
+      : scaleSubtitle(item, itemStat, itemDetail)
+    : null
+  const itemSubtitle = item ? stateLine(itemUnits, MIDYEAR_TITLE, orderPhrase(qdir)) : ''
+  // On a phone the summary line says the order (G3).
+  const itemNarrowSubtitle = item ? stateLine(itemUnits, MIDYEAR_TITLE) : ''
   const itemResponse = itemQuery.results[0]?.response
   // The answer a share counts: in the chart's toolbar (`inline`), or in
   // the phone's options sheet (ADR-0029).
@@ -601,6 +600,7 @@ export function WhatMattersView() {
             <ChartFigure
               title={item.display_name}
               subtitle={itemSubtitle}
+              narrowSubtitle={itemNarrowSubtitle}
               ariaLabel={summarizeExtremes(
                 itemRows,
                 served,

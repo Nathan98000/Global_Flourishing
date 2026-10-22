@@ -210,8 +210,32 @@
   transition: opacity 0.15s;
 }
 
-/* On a phone everything sits at the left edge. */
+/* On a phone the key reads with the column labels (G3): over the row,
+   between "Country" and the value's label, its words wrapping there. */
+.heads {
+  display: grid;
+}
+
+.heads > * {
+  grid-area: 1 / 1;
+}
+
+.headKey {
+  align-self: center;
+  justify-self: center;
+  max-width: calc(100% - 11rem);
+  padding-bottom: 2px;
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+/* On a phone everything sits at the left edge, a little closer. */
 @media (max-width: 40rem) {
+  .figure {
+    padding-top: var(--space-4);
+  }
+
   .caption {
     margin-bottom: var(--space-2);
   }

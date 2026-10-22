@@ -206,9 +206,12 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   ).toBeVisible()
 })
 
-test('3 — a small cell renders with its hover card and no flag, not a gap', async ({ page }) => {
+test('3 — a small cell renders hollow with its hover card, which says few people are behind it — not a gap', async ({
+  page,
+}) => {
   // Synthetic by-cells sit at ~27 people: under the old 50/100 rule they
-  // were withheld; since ADR-0011 every cell is shown. The page shows the
+  // were withheld; since ADR-0011 every cell is shown, and under 30 people
+  // it is drawn hollow, its card saying so (ADR-0031). The page shows the
   // chart alone (ADR-0022): no data table, each dot's card its numbers.
   await page.goto('/segments?outcome=HAPPY&by=gender')
   await expect(chartRegion(page)).toBeVisible()
@@ -216,15 +219,19 @@ test('3 — a small cell renders with its hover card and no flag, not a gap', as
   await expect(page.getByText('Data table', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('cell')).toHaveCount(0)
 
-  // A dot's hover card: the country first, set apart, then the level by
-  // its breakdown, the mean, its CI and how many people it rests on.
-  await chartRegion(page).locator('svg circle').first().hover()
+  // A thin dot's hover card (a hollow dot, ADR-0031): the country first,
+  // set apart, then the level by its breakdown, the mean, its CI, how many
+  // people it rests on, and that few people do.
+  await chartRegion(page).locator('svg circle[fill="var(--surface)"]').first().hover()
   const tip = chartRegion(page).locator('g[aria-label="tip"] text')
   await expect(tip).toContainText('Gender:')
   await expect(tip).toContainText('Mean:')
   await expect(tip).toContainText(/95% CI: (\[.+\]|none)/)
   await expect(tip).toContainText(/Based on \d[\d,]* (person|people)/)
+  await expect(tip).toContainText('Few people — treat with care')
   await expect(tip).not.toContainText(/average|likely range/i)
+  // The key says what the hollow dot means.
+  await expect(page.locator('main figure').getByText('* fewer than 30 people')).toBeVisible()
   await expect(tip.locator(':scope > tspan').first()).toHaveAttribute('font-weight', '600')
 })
 
@@ -992,7 +999,8 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await page.goto('/correlates?country=22')
   await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
   await expect(page.getByLabel('Where')).toHaveValue('22')
-  await expect(page.getByText('Straight-line · United States', { exact: true })).toBeVisible()
+  // The line names only what Options holds (G12).
+  await expect(page.getByText('Measured as: straight-line', { exact: true })).toBeVisible()
   const options = page.getByRole('button', { name: 'Options' })
   await options.click()
   const sheet = page.getByRole('dialog', { name: 'Chart options' })
@@ -1227,12 +1235,21 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
   }
 })
 
-test('13 — a phone: pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
+test('13 — a phone: the chart on the first screen; pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
   page,
 }) => {
+  // The live service up, as a visitor would have it (offline, a banner
+  // rightly stands over the page).
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await expect(page.locator('main figure').first()).toBeVisible()
+  // The chart starts on the first screen (G3): its first dot about 600 px
+  // down (594 on the real data on macOS, 757 before), held at 640 so the
+  // Linux runner's wider font has room — eight rows still in view.
+  const firstDot = page.locator('main figure [role="img"] svg circle').first()
+  await expect(firstDot).toBeVisible()
+  expect((await firstDot.boundingBox())!.y).toBeLessThanOrEqual(640)
   // The question bar: the question and the year; the picker is a sheet.
   await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
   const picker = page.getByRole('dialog', { name: 'Question' })
@@ -1252,6 +1269,9 @@ test('13 — a phone: pick a question, reverse the order, choose Distribution in
   await options.click()
   const sheet = page.getByRole('dialog', { name: 'Chart options' })
   await expect(sheet.getByRole('radio', { name: 'Mean' })).toBeFocused()
+  // The chart's links wait at the sheet's foot (G3).
+  await expect(sheet.getByRole('link', { name: 'How to read this chart' })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'Download CSV' })).toBeVisible()
   await sheet.getByText('Distribution', { exact: true }).click()
   await expect(page).toHaveURL(/\?outcome=HAPPY&stat=distribution&dir=asc$/)
   await sheet.getByRole('button', { name: 'Done' }).click()

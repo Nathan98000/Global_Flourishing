@@ -252,6 +252,14 @@ export function ChangeView() {
     countriesPhrase(search.countries.length, meta.data.meta.countries.length),
     orderPhrase(dir),
   )
+  // On a phone the summary line says the countries and the order (G3).
+  const narrowSubtitle = stateLine(
+    isCategorical
+      ? `Change in share answering “${activeLevelLabel ?? activeLevel ?? '…'}”, percentage points`
+      : `Mean change${range}, among the same people`,
+    directionNote,
+    pair,
+  )
   const color = variable ? outcomeColor(variable.name) : 'var(--series-1)'
   // What a download is called, in words (ADR-0016): the measure, the
   // figure ("Change", "Change distribution", "Transitions") and the
@@ -407,6 +415,7 @@ export function ChangeView() {
           <ChartFigure
             title={title}
             subtitle={subtitle}
+            narrowSubtitle={narrowSubtitle}
             ariaLabel={summarizeExtremes(
               legs ? display.rows.filter((row) => row.leg === 'y1_y2') : display.rows,
               meta.data.meta,

@@ -305,22 +305,23 @@ describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
     return onPick
   }
 
-  test('closed: the name in bold over a line of its wording, and Change; named "Question: …"', () => {
+  test('closed: the name in bold — no wording line, the chart gives it (G13) — and Change; named "Question: …"', () => {
     renderField()
     const trigger = screen.getByRole('button', { name: 'Question: Life evaluation today' })
-    const [name, wording, change] = [...trigger.children]
+    const [name, change] = [...trigger.children]
+    expect(trigger.children).toHaveLength(2)
     expect(name?.textContent).toBe('Life evaluation today')
-    expect(wording?.textContent).toBe(today.wording)
     expect(change?.textContent).toBe('Change')
+    expect(trigger).not.toHaveTextContent(today.wording ?? '—')
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
     // The label above it is the role, in the controls' label voice.
     expect(screen.getByText('Question')).toHaveAttribute('aria-hidden', 'true')
-    // A derived score has no wording: its description takes the line.
+    // A derived score: the name alone, too.
     cleanup()
     renderField({ value: 'phq2_score' })
     expect(
       screen.getByRole('button', { name: /^Question: Depression screening score \(PHQ-2\)/ }),
-    ).toHaveTextContent('Sum of the two PHQ-2 items; 0–6.')
+    ).not.toHaveTextContent('Sum of the two PHQ-2 items; 0–6.')
   })
 
   test('open: the question’s own topic — or the topic a link names — and a pick closes it', () => {
