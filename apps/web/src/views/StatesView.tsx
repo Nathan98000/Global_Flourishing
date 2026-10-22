@@ -4,9 +4,9 @@
 // the state-vs-national comparison. `adj` selects the adjusted weight
 // variants, which the release has no Wave 1 version of: the control is
 // unavailable there, with the reason, rather than asked for and
-// refused. States are labelled by the server's own codes (two-letter
-// states and the four pooled small-state groups); the 157 US
-// respondents without a state are simply absent.
+// refused. States are labelled by the server's own codes, every state
+// its own (ADR-0028); the 157 US respondents without a state are simply
+// absent.
 
 import { getRouteApi } from '@tanstack/react-router'
 import { Suspense, lazy, useMemo } from 'react'
@@ -300,9 +300,9 @@ export function StatesView() {
       <h2 className="visually-hidden">US States</h2>
       <p className={styles.deck}>
         <span className={styles.deckLong}>
-          The United States state by state, on weights calibrated to each state&rsquo;s adult
-          population, beside the country&rsquo;s overall figure. Small states are pooled into groups
-          so every estimate rests on enough people.
+          The United States state by state, on the survey&rsquo;s state weights, beside the
+          country&rsquo;s overall figure. Every state stands on its own; the smallest rest on fewer
+          people, so their intervals are wider.
         </span>
         <span className={styles.deckShort}>
           The United States state by state, beside the national figure.

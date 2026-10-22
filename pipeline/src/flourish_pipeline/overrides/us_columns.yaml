@@ -21,7 +21,9 @@ variables:
     notes: >-
       37 states plus 4 pooled groups (ME_NH_RI_VT, DE_MS_WV, AK_HI_MT,
       ND_SD_WY); small states are pooled so state estimates keep adequate n.
-      Blank for 157 respondents at Y1.
+      Blank for 157 respondents at Y1. The state weights are calibrated to
+      these units, but respondents are keyed by their own state (REGION1),
+      never the group (ADR-0028).
   FIPS:
     display_name: US county (FIPS)
     family: demographics

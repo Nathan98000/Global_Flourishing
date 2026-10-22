@@ -33,3 +33,4 @@ it.
 | [ADR-0025](ADR-0025-answer-distributions-on-the-atlas.md) | Every answer's share on the Atlas: a categorical question's Distribution as stacked bars, served from its share file | Accepted |
 | [ADR-0026](ADR-0026-what-matters-sorted-from-headers.md) | What Matters sorted from its column labels (the corner for country names; again to reverse); its sort drop-down and Order buttons removed | Accepted |
 | [ADR-0027](ADR-0027-change-shows-overall-change.md) | Change shows the overall change alone: the matrix of where people moved between answers removed from the page (the API still serves transitions) | Accepted |
+| [ADR-0028](ADR-0028-every-state-on-its-own.md) | Every US state on its own: respondents keyed by the state they live in (`REGION1`), not the release's four pooled small-state groups | Accepted |

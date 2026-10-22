@@ -2,8 +2,10 @@
 
 - ``respondents`` — one row per ID: country, Wave 1 baseline demographics
   (cleaned: per-variable sentinel codes → null, real answers kept), all
-  design fields and weights, and the US state file's 15 extra columns
-  joined on ID (null outside the US).
+  design fields and weights, and the US state file's extra columns
+  joined on ID (null outside the US). A US respondent's ``state`` and
+  ``state_y2`` are their own state (``REGION1``), never the release's
+  pooled analysis group (ADR-0028).
 - ``responses_long`` — (id, wave, variable, value, nonresponse) for every
   *suffixed substantive* column, demographics included. Blank cells (not
   asked / not present) are dropped; sentinel answers are kept with a null
@@ -25,6 +27,8 @@ import sys
 from pathlib import Path
 
 import polars as pl
+from flourish_stats.states import US_STATE_NAMES
+from flourish_stats.weights import US_COUNTRY_CODE
 
 from .catalog_io import (
     CatalogVariable,
@@ -47,12 +51,61 @@ def clean(column: str, variable: CatalogVariable, alias: str) -> pl.Expr:
     return expr.alias(alias)
 
 
+def us_state_codes(value_labels: pl.DataFrame) -> dict[int, str]:
+    """REGION1's US codes → postal code, from the codebook's own labels
+    (2201 "Alaska" → "AK"); a label naming no state ("Other") maps to
+    none."""
+    postal = {name: code for code, name in US_STATE_NAMES.items()}
+    rows = value_labels.filter(
+        (pl.col("variable") == "REGION1") & (pl.col("country_code") == US_COUNTRY_CODE)
+    )
+    return {
+        int(code): postal[label]
+        for code, label in rows.select("code", "label").iter_rows()
+        if label in postal
+    }
+
+
+def own_state(region: pl.Expr, group: pl.Expr, states: dict[int, str]) -> pl.Expr:
+    """A US respondent's own state (ADR-0028): REGION1's state wherever
+    the release gives an analysis group — so exactly where the state
+    weights are populated — and none elsewhere. The release's
+    ``STATE_FOR_ANALYSIS`` pools 13 small states into four groups (its
+    state weights are calibrated to them); the state each respondent
+    lives in is in ``REGION1``, and every one lies in its group
+    (``check_own_states``)."""
+    return (
+        pl.when(group.is_not_null())
+        .then(region.replace_strict(states, default=None, return_dtype=pl.String))
+        .otherwise(None)
+    )
+
+
+def check_own_states(respondents: pl.DataFrame) -> int:
+    """Respondents whose own state is missing or lies outside the
+    release's analysis group for that wave (0 on the release)."""
+    outside = pl.lit(False)
+    for state, group in (("state", "state_group"), ("state_y2", "state_group_y2")):
+        outside = outside | (
+            pl.col(group).is_not_null()
+            & (
+                pl.col(state).is_null()
+                | ~pl.col(group).str.split("_").list.contains(pl.col(state)).fill_null(False)
+            )
+        )
+    return respondents.filter(outside).height
+
+
 def build_respondents(
     wide: pl.LazyFrame,
     us_extra: pl.LazyFrame,
     variables: dict[str, CatalogVariable],
     countries: pl.DataFrame,
+    us_states: dict[int, str],
 ) -> pl.LazyFrame:
+    """One row per respondent, with ``state_group``/``state_group_y2``
+    (the release's analysis groups) kept for ``check_own_states``; the
+    caller drops them."""
     v = variables
     frame = wide.select(
         pl.col("ID").alias("id"),
@@ -90,6 +143,8 @@ def build_respondents(
         pl.col("DOI_ANNUAL_Y1").alias("doi_annual_y1"),
         pl.col("DOI_ANNUAL_Y2").alias("doi_annual_y2"),
         pl.col("DOI_MY").alias("doi_my"),
+        pl.col("REGION1_Y1").alias("_region1_y1"),
+        pl.col("REGION1_Y2").alias("_region1_y2"),
     )
     frame = frame.join(
         countries.lazy().select(
@@ -100,8 +155,8 @@ def build_respondents(
     )
     us = us_extra.select(
         pl.col("ID").alias("id"),
-        pl.col("STATE_FOR_ANALYSIS_Y1").alias("state"),
-        pl.col("STATE_FOR_ANALYSIS_Y2").alias("state_y2"),
+        pl.col("STATE_FOR_ANALYSIS_Y1").alias("state_group"),
+        pl.col("STATE_FOR_ANALYSIS_Y2").alias("state_group_y2"),
         pl.col("FIPS_Y1").alias("fips"),
         pl.col("FIPS_Y2").alias("fips_y2"),
         pl.col("ANNUAL_STATE_WEIGHT_C1").alias("w_state_c1"),
@@ -117,7 +172,19 @@ def build_respondents(
         pl.col("RETENTION_STATE_WEIGHT_ADJ_L_1M2").alias("w_state_adj_l1m2"),
     )
     columns_first = frame.join(us, on="id", how="left")
-    return columns_first.sort("id")
+    # The Wave 2 state: REGION1 at Wave 2, or — for a respondent not
+    # interviewed then, whose analysis group the release carries forward
+    # from Wave 1 — their Wave 1 state.
+    return (
+        columns_first.with_columns(
+            own_state(pl.col("_region1_y1"), pl.col("state_group"), us_states).alias("state"),
+            own_state(
+                pl.coalesce("_region1_y2", "_region1_y1"), pl.col("state_group_y2"), us_states
+            ).alias("state_y2"),
+        )
+        .drop("_region1_y1", "_region1_y2")
+        .sort("id")
+    )
 
 
 def long_columns(
@@ -179,12 +246,22 @@ def run_reshape(out_dir: Path) -> int:
             return 1
     variables = load_variables(out_dir)
     countries = countries_frame(out_dir)
+    us_states = us_state_codes(pl.read_parquet(out_dir / "catalog" / "value_labels.parquet"))
     wide = pl.scan_parquet(inter / "global_typed.parquet")
     us_extra = pl.scan_parquet(inter / "us_extra.parquet")
     parquet_dir = out_dir / "parquet"
     parquet_dir.mkdir(parents=True, exist_ok=True)
 
-    respondents = build_respondents(wide, us_extra, variables, countries).collect()
+    respondents = build_respondents(wide, us_extra, variables, countries, us_states).collect()
+    outside = check_own_states(respondents)
+    if outside:
+        print(
+            f"reshape: {outside:,} US respondents' own state is missing or outside "
+            "their analysis group",
+            file=sys.stderr,
+        )
+        return 1
+    respondents = respondents.drop("state_group", "state_group_y2")
     respondents.write_parquet(parquet_dir / "respondents.parquet", compression=PARQUET_COMPRESSION)
 
     columns = pl.scan_parquet(inter / "global_typed.parquet").collect_schema().names()

@@ -32,16 +32,7 @@ const legendShare = new Intl.NumberFormat('en-US', {
  * subtitle with min and max values only — the title and subtitle above
  * already name the measure — plus an explicit swatch for areas with no
  * estimate, bordered so it reads apart from non-study land. */
-export function MapLegend({
-  domain,
-  isShare,
-  pooled = false,
-}: {
-  domain: [number, number]
-  isShare: boolean
-  /** The US map: an entry for the outlined pooled small-state groups. */
-  pooled?: boolean
-}) {
+export function MapLegend({ domain, isShare }: { domain: [number, number]; isShare: boolean }) {
   const render = (value: number) =>
     isShare ? `${legendShare.format(value)}%` : legendScore.format(value)
   return (
@@ -73,19 +64,6 @@ export function MapLegend({
         />
         <span>no estimate</span>
       </span>
-      {pooled && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span
-            style={{
-              width: 20,
-              height: 10,
-              border: '1.5px dashed var(--ink)',
-              display: 'inline-block',
-            }}
-          />
-          <span>pooled small states (one estimate for the group)</span>
-        </span>
-      )}
     </div>
   )
 }

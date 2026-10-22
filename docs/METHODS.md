@@ -87,7 +87,14 @@ is drawn from it.
 
 US-state figures use the same table on the state-calibrated weight
 columns (`w_state_*`, and the `_adj_` variants for the post-Wave-1
-weights), restricted to US respondents with a state.
+weights), restricted to US respondents with a state. The release
+calibrates those weights to 37 states and four pooled groups of the 13
+smallest (Maine, New Hampshire, Rhode Island & Vermont; Delaware,
+Mississippi & West Virginia; Alaska, Hawaii & Montana; North Dakota,
+South Dakota & Wyoming). The app estimates each of those 13 on its own,
+from the state each respondent lives in (`REGION1`), as a domain of its
+group's weights: they match the group's population, not each member
+state's.
 
 </details>
 
@@ -184,6 +191,11 @@ protects the reader instead:
   chart lists it for every number.
 - **A number resting on a single sampling unit** has no computable
   interval, and its card says so.
+- **Every US state stands on its own.** The release pools its 13
+  smallest states into four groups; the US States page shows each one
+  separately, so North Dakota's figure rests on its own 59 to 75 people
+  and carries a wide interval, rather than borrowing its neighbours'
+  answers ([ADR-0028](adr/ADR-0028-every-state-on-its-own.md)).
 
 <details>
 <summary>For the technically minded</summary>

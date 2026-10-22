@@ -207,6 +207,18 @@ def check_demographics(ctx: ValidationContext) -> list[CheckResult]:
             ),
             0,
         ),
+        _equals(
+            "every state its own, none pooled (ADR-0028)",
+            ctx.one("SELECT count(DISTINCT state) FROM respondents"),
+            50,
+        ),
+        _equals(
+            "Wave 2 state weight present iff Wave 2 state present",
+            ctx.one(
+                "SELECT count(*) FROM respondents WHERE (state_y2 IS NULL) != (w_state_r2 IS NULL)"
+            ),
+            0,
+        ),
     ]
 
 

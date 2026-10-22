@@ -60,7 +60,9 @@ TAG=vX.Y.Z` (main only, clean tree; pushes the tag that triggers
   column each state-scope weight is calibrated to (`state` for the Wave 1
   weight, `state_y2` for every later one — `spec.state_column`), which
   spec a midyear answer paired with another wave's takes (`pairing_spec`:
-  `y1_my` for 2023, `y1_my_y2` for 2024 — never `my_y2`). No weight
+  `y1_my` for 2023, `y1_my_y2` for 2024 — never `my_y2`). A US
+  respondent's `state`/`state_y2` is the state they live in (`REGION1`),
+  never the release's pooled small-state group (ADR-0028). No weight
   pools the countries: "All countries" is the plain average of the
   countries' own estimates (`flourish_stats.averaging`, ADR-0020). Engine,
   API and docs read from it; never restate those rules elsewhere.

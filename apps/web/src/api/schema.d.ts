@@ -762,12 +762,10 @@ export interface components {
         };
         /**
          * StateLabelModel
-         * @description A US state code's display name and member states (a pooled group
-         *     of small states lists several; ``flourish_stats.states``).
+         * @description A US state code's display name (``flourish_stats.states``); every
+         *     state is its own, none pooled (ADR-0028).
          */
         StateLabelModel: {
-            /** Members */
-            members: string[];
             /** Name */
             name: string;
         };

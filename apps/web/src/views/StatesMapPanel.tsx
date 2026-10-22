@@ -53,11 +53,7 @@ export default function StatesMapPanel({
 
   return (
     <div>
-      <MapLegend
-        domain={mapDomain(rows, responseMeta)}
-        isShare={isShareStat(responseMeta.stat)}
-        pooled
-      />
+      <MapLegend domain={mapDomain(rows, responseMeta)} isShare={isShareStat(responseMeta.stat)} />
       <StateChoropleth
         rows={rows}
         responseMeta={responseMeta}

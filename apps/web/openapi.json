@@ -1304,23 +1304,15 @@
         "type": "object"
       },
       "StateLabelModel": {
-        "description": "A US state code's display name and member states (a pooled group\nof small states lists several; ``flourish_stats.states``).",
+        "description": "A US state code's display name (``flourish_stats.states``); every\nstate is its own, none pooled (ADR-0028).",
         "properties": {
-          "members": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Members",
-            "type": "array"
-          },
           "name": {
             "title": "Name",
             "type": "string"
           }
         },
         "required": [
-          "name",
-          "members"
+          "name"
         ],
         "title": "StateLabelModel",
         "type": "object"

@@ -2,7 +2,14 @@
 
 import polars as pl
 from flourish_pipeline.catalog_io import CatalogVariable
-from flourish_pipeline.reshape import build_responses_long, clean, long_columns
+from flourish_pipeline.reshape import (
+    build_responses_long,
+    check_own_states,
+    clean,
+    long_columns,
+    own_state,
+    us_state_codes,
+)
 
 
 def _variable(
@@ -85,3 +92,49 @@ def test_build_responses_long_drops_blanks_and_keeps_nonresponse() -> None:
         (3, "MY", "MONEY", 10, None),
     ]
     assert out.schema["value"] == pl.Int16
+
+
+def test_us_state_codes_come_from_the_codebooks_us_labels() -> None:
+    labels = pl.DataFrame(
+        {
+            "variable": ["REGION1", "REGION1", "REGION1", "REGION1"],
+            "country_code": [22, 22, 22, 3],
+            "code": [2201, 2246, 2251, 301],
+            "label": ["Alaska", "Vermont", "Other", "Alaska"],
+        },
+        schema={
+            "variable": pl.String,
+            "country_code": pl.Int16,
+            "code": pl.Int16,
+            "label": pl.String,
+        },
+    )
+    # US codes only; "Other" names no state.
+    assert us_state_codes(labels) == {2201: "AK", 2246: "VT"}
+
+
+def test_own_state_unpools_small_states_and_stays_inside_the_group() -> None:
+    """ADR-0028: a respondent's own state, wherever the release gives an
+    analysis group (pooled or not); none where it gives none."""
+    states = {2205: "CA", 2221: "ME", 2246: "VT", 2228: "ND"}
+    frame = pl.DataFrame(
+        {
+            "region": [2205, 2246, 2221, 2251, 2228],
+            "group": ["CA", "ME_NH_RI_VT", "ME_NH_RI_VT", None, "ND_SD_WY"],
+        },
+        schema={"region": pl.Int16, "group": pl.String},
+    )
+    out = frame.with_columns(own_state(pl.col("region"), pl.col("group"), states).alias("state"))
+    assert out["state"].to_list() == ["CA", "VT", "ME", None, "ND"]
+    checked = out.select(
+        pl.col("state"),
+        pl.col("group").alias("state_group"),
+        pl.col("state").alias("state_y2"),
+        pl.col("group").alias("state_group_y2"),
+    )
+    assert check_own_states(checked) == 0
+    # A state outside its group, or none where there is a group, is caught.
+    wrong = checked.with_columns(
+        pl.Series("state_y2", ["CA", "CA", "ME", None, None], dtype=pl.String)
+    )
+    assert check_own_states(wrong) == 2

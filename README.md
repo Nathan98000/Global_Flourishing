@@ -154,7 +154,8 @@ are **per-variable** (for `AGE`, 98 and 99 are real ages), the midyear
 survey was administered two ways — sometimes both in one country, income
 bands are country-specific and changed at Wave 2 in Argentina, Türkiye and
 Egypt, the US file is a subset missing 11 columns with 15 extras (string
-FIPS with leading zeros, pooled small states), the PHQ-2/GAD-2 items are
+FIPS with leading zeros, small states pooled into four groups — the app
+shows each state on its own, ADR-0028), the PHQ-2/GAD-2 items are
 coded in reverse of the standard direction, the whole release contains
 exactly one fractional cell, and the "rectangular" panel weight
 `ANNUAL_WEIGHT_R2` is populated for **all** 207,919 rows — including the
