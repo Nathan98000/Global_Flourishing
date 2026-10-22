@@ -7,7 +7,8 @@
 // (25 Sept fix); the panel closes on Escape (focus back to the trigger)
 // and on a click outside it (focus left alone), and anchors to the
 // trigger's right edge when a left-anchored panel would overflow the page
-// column.
+// column. In the phone's options sheet (`variant="panel"`) the same
+// choices sit in the sheet itself, under the label, with no popover.
 
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Country } from '../../api/types'
@@ -17,10 +18,13 @@ export function CountryFilter({
   countries,
   selected,
   onChange,
+  variant = 'popover',
 }: {
   countries: Country[]
   selected: readonly number[]
   onChange: (codes: number[]) => void
+  /** `panel`: the choices in place, under the label (the phone's sheet). */
+  variant?: 'popover' | 'panel'
 }) {
   const details = useRef<HTMLDetailsElement | null>(null)
   const summary = useRef<HTMLElement | null>(null)
@@ -63,6 +67,62 @@ export function CountryFilter({
   }
 
   const all = selected.length === 0 || selected.length === countries.length
+  const choices = (
+    <>
+      <fieldset className={styles.mode}>
+        <legend className="visually-hidden">Countries</legend>
+        <label className={styles.option}>
+          <input
+            type="radio"
+            name={name}
+            checked={all && !choosing}
+            onChange={() => {
+              setChoosing(false)
+              onChange([])
+            }}
+          />{' '}
+          All countries
+        </label>
+        <label className={styles.option}>
+          <input
+            type="radio"
+            name={name}
+            checked={!all || choosing}
+            onChange={() => setChoosing(true)}
+          />{' '}
+          Choose countries
+        </label>
+      </fieldset>
+      {(choosing || !all) && (
+        <ul className={styles.list} aria-label="Choose countries">
+          {[...countries]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((country) => (
+              <li key={country.code}>
+                <label className={styles.option}>
+                  <input
+                    type="checkbox"
+                    checked={set.has(country.code)}
+                    onChange={() => toggle(country.code)}
+                  />{' '}
+                  {country.name}
+                </label>
+              </li>
+            ))}
+        </ul>
+      )}
+    </>
+  )
+  if (variant === 'panel') {
+    return (
+      <div className={styles.field} data-variant="panel">
+        <span className={styles.label} aria-hidden="true">
+          Countries
+        </span>
+        {choices}
+      </div>
+    )
+  }
   return (
     <div className={styles.field}>
       <span className={styles.label} aria-hidden="true">
@@ -93,48 +153,7 @@ export function CountryFilter({
           </span>
         </summary>
         <div ref={panel} className={styles.panel} data-anchor={anchorRight ? 'right' : undefined}>
-          <fieldset className={styles.mode}>
-            <legend className="visually-hidden">Countries</legend>
-            <label className={styles.option}>
-              <input
-                type="radio"
-                name={name}
-                checked={all && !choosing}
-                onChange={() => {
-                  setChoosing(false)
-                  onChange([])
-                }}
-              />{' '}
-              All countries
-            </label>
-            <label className={styles.option}>
-              <input
-                type="radio"
-                name={name}
-                checked={!all || choosing}
-                onChange={() => setChoosing(true)}
-              />{' '}
-              Choose countries
-            </label>
-          </fieldset>
-          {(choosing || !all) && (
-            <ul className={styles.list} aria-label="Choose countries">
-              {[...countries]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((country) => (
-                  <li key={country.code}>
-                    <label className={styles.option}>
-                      <input
-                        type="checkbox"
-                        checked={set.has(country.code)}
-                        onChange={() => toggle(country.code)}
-                      />{' '}
-                      {country.name}
-                    </label>
-                  </li>
-                ))}
-            </ul>
-          )}
+          {choices}
         </div>
       </details>
     </div>

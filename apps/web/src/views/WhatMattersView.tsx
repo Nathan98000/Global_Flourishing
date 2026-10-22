@@ -29,6 +29,7 @@ import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -364,6 +365,25 @@ export function WhatMattersView() {
       )
     : ''
   const itemResponse = itemQuery.results[0]?.response
+  // The answer a share counts: in the chart's toolbar (`inline`), or in
+  // the phone's options sheet (ADR-0029).
+  const itemAnswer = (inline: boolean) =>
+    itemStat === 'proportion' &&
+    itemLevels.length > 0 && (
+      <RadioRow
+        legend="Showing % who said"
+        name="item-level"
+        inline={inline}
+        wide={!inline}
+        selectOnNarrow
+        options={itemLevels.map((entry) => ({
+          value: String(entry.value),
+          label: entry.label,
+        }))}
+        value={String(itemLevel)}
+        onChange={(value) => setSearch({ level: Number(value) })}
+      />
+    )
 
   return (
     <section>
@@ -555,6 +575,13 @@ export function WhatMattersView() {
               onPick={(name) => setSearch({ item: name, level: undefined })}
             />
           </div>
+          {narrow && itemStat === 'proportion' && itemLevels.length > 0 && (
+            <OptionsSheet
+              summary={stateLine(`Share answering “${itemLevelLabel ?? '…'}”`, orderPhrase(qdir))}
+            >
+              {itemAnswer(false)}
+            </OptionsSheet>
+          )}
           {itemQuery.isPending ? (
             <LoadingBlock height={420} label="Loading estimates" />
           ) : itemQuery.isError ? (
@@ -575,22 +602,7 @@ export function WhatMattersView() {
                   </div>
                 )
               }
-              toolbar={
-                itemStat === 'proportion' &&
-                itemLevels.length > 0 && (
-                  <RadioRow
-                    legend="Showing % who said"
-                    name="item-level"
-                    inline
-                    options={itemLevels.map((entry) => ({
-                      value: String(entry.value),
-                      label: entry.label,
-                    }))}
-                    value={String(itemLevel)}
-                    onChange={(value) => setSearch({ level: Number(value) })}
-                  />
-                )
-              }
+              toolbar={narrow ? undefined : itemAnswer(true)}
               sortHead={
                 // The order is the value label's (ADR-0029), on `qdir`.
                 <SortHead

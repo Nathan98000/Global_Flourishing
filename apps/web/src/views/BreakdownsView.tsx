@@ -24,6 +24,7 @@ import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -275,9 +276,9 @@ export function BreakdownsView() {
   // How the chart is drawn, in its header's toolbar (ADR-0029): the
   // panels have no value column to sort from, so one "Order countries"
   // select writes `sort` and `dir` — by value either way, or by the gap.
-  const chartControls = (
+  const chartControls = (inline: boolean) => (
     <>
-      <label className={styles.inlineField}>
+      <label className={inline ? styles.inlineField : styles.field}>
         <span className={styles.fieldLabel}>Order countries</span>
         <select
           value={search.sort === 'gap' ? 'gap' : dir}
@@ -302,7 +303,9 @@ export function BreakdownsView() {
         <RadioRow
           legend="Showing % who said"
           name="outcome-level"
-          inline
+          inline={inline}
+          wide={!inline}
+          selectOnNarrow
           options={outcomeLevelOptions.map((entry) => ({
             value: String(entry.value),
             label: entry.label,
@@ -312,6 +315,12 @@ export function BreakdownsView() {
         />
       )}
     </>
+  )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    isCategorical ? 'Share' : 'Mean',
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
   )
 
   return (
@@ -368,15 +377,19 @@ export function BreakdownsView() {
             {yearNoteText}
           </p>
         )}
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — countries</summary>
-            <div className={styles.moreBody}>{countryFilter}</div>
-          </details>
-        ) : (
-          countryFilter
-        )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>
+          <CountryFilter
+            variant="panel"
+            countries={meta.data.meta.countries}
+            selected={search.countries}
+            onChange={(countries) => setSearch({ countries })}
+          />
+          {chartControls(false)}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -413,7 +426,7 @@ export function BreakdownsView() {
                     </div>
                   )
                 }
-                toolbar={chartControls}
+                toolbar={narrow ? undefined : chartControls(true)}
                 chartKey={
                   <ChartKey
                     mark="dot"

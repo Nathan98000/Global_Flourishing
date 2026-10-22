@@ -5,7 +5,7 @@
 // the server; this view only chooses, filters and renders.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useId, useMemo } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import { exportCsvUrl, useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -27,6 +27,7 @@ import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -289,14 +290,15 @@ export function AtlasView() {
     />
   )
   // How the chart is drawn, in its header's toolbar (ADR-0029).
-  const chartControls = (
+  // In the toolbar (`inline`), or — on a phone — in the options sheet,
+  // full width with the Countries between them (ADR-0029).
+  const chartControls = (inline: boolean, countries?: ReactNode) => (
     <>
       {statOptions && (
         <RadioRow
           legend="Show"
           name="stat"
-          inline
-          selectOnNarrow
+          inline={inline}
           options={statOptions}
           value={medianOffline ? 'default' : (search.stat ?? 'default')}
           onChange={(value) =>
@@ -309,17 +311,34 @@ export function AtlasView() {
           }
         />
       )}
+      {countries}
       {isCategorical && levels.length > 0 && (
         <RadioRow
           legend={allAnswers ? 'Ordered by % who said' : 'Showing % who said'}
           name="level"
-          inline
+          inline={inline}
+          wide={!inline}
+          selectOnNarrow
           options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
           value={String(activeLevel)}
           onChange={(value) => setSearch({ level: Number(value) })}
         />
       )}
     </>
+  )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const showWord =
+    stat === 'proportion'
+      ? 'Share'
+      : stat === 'quantile'
+        ? 'Median'
+        : stat === 'distribution'
+          ? 'Distribution'
+          : 'Mean'
+  const phoneSummary = stateLine(
+    showWord,
+    countriesPhrase(search.countries.length, countryCount),
+    ordered && orderPhrase(dir),
   )
   // The order is the value label's (ADR-0029): a click reverses it, and
   // writes `dir` as the Order buttons did.
@@ -394,15 +413,21 @@ export function AtlasView() {
             {yearNoteText}
           </p>
         )}
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — countries</summary>
-            <div className={styles.moreBody}>{countryFilter}</div>
-          </details>
-        ) : (
-          countryFilter
-        )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>
+          {chartControls(
+            false,
+            <CountryFilter
+              variant="panel"
+              countries={meta.data.meta.countries}
+              selected={search.countries}
+              onChange={(countries) => setSearch({ countries })}
+            />,
+          )}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         // No measure is selected — the state of the data service is
@@ -430,7 +455,7 @@ export function AtlasView() {
             // No chart, no header: its controls stay reachable here, so a
             // failed statistic can be changed back.
             <>
-              <div className={styles.controls}>{chartControls}</div>
+              {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
               {estimates.error instanceof NetworkError && !boot.apiReachable ? (
                 <OfflineLine except="/" className={styles.hint} />
               ) : (
@@ -465,7 +490,7 @@ export function AtlasView() {
                     </div>
                   )
                 }
-                toolbar={chartControls}
+                toolbar={narrow ? undefined : chartControls(true)}
                 chartKey={chartKey}
                 sortHead={sortHead}
                 csv={csv}

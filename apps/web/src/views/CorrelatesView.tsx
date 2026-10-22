@@ -24,6 +24,7 @@ import { ErrorState } from '../components/ErrorState'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { Disclosure } from '../components/controls/Disclosure'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { groupValueLabel } from '../labels'
 import { searchNavigation } from '../state/navigate'
@@ -95,11 +96,8 @@ export function CorrelatesView() {
   const country = search.country ?? 'all'
   const countries = useMemo(() => (served ? countriesByName(served.countries) : []), [served])
   const noteId = useId()
-  const cellsId = useId()
-  // On a phone the shared row folds into one summary line (review M9);
-  // "Change" opens it in place.
+  // On a phone, how the chart is drawn goes in an options sheet.
   const narrow = useMediaQuery(NARROW_VIEWPORT)
-  const [changing, setChanging] = useState(false)
   // What changed without being chosen (ADR-0020), until the next change.
   const [notice, setNotice] = useState<string | undefined>()
   // The table Compare several shows before one is named (its default).
@@ -213,31 +211,37 @@ export function CorrelatesView() {
 
   // One row — Year · Where, each under its label — and, under the whole
   // row, why a wave is unavailable; the correlation type is the chart's
-  // (its toolbar). On a phone, one line says what they are set to, with
-  // "Change" to open them.
+  // (its toolbar). On a phone, one line says how the chart is drawn, with
+  // Options to change it.
   const method = METHOD_OPTIONS.find((option) => option.value === (search.method ?? 'pearson'))
-  const summary = [WAVE_CHIPS[search.wave] ?? search.wave, whereLabel, method?.label]
-    .filter(Boolean)
-    .join(' · ')
-  const folded = narrow && !changing
+  const summary = [method?.label ?? '', whereLabel].filter(Boolean).join(' · ')
+  // How the chart is drawn: in its header's toolbar (`inline`, ADR-0029),
+  // or in the phone's options sheet — the correlation type, with what
+  // tells the two apart.
+  const methodControl = (inline: boolean) => (
+    <span className={own.typeCell}>
+      <RadioRow<CorrelationMethod>
+        legend="Measured as"
+        name="method"
+        inline={inline}
+        options={METHOD_OPTIONS}
+        value={search.method ?? 'pearson'}
+        onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
+      />
+      <Disclosure variant="info" label="What’s the difference?">
+        {METHOD_DIFFERENCE.map((paragraph, index) => (
+          <p key={index} className={styles.methodHint}>
+            {paragraph.map((words, at) =>
+              typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
+            )}
+          </p>
+        ))}
+      </Disclosure>
+    </span>
+  )
   const controls = (
     <div className={own.controlRow}>
-      {narrow && (
-        <p className={own.summaryLine}>
-          <span>{summary}</span>
-          <button
-            type="button"
-            className={own.change}
-            aria-expanded={changing}
-            aria-controls={cellsId}
-            aria-label={changing ? 'Done changing' : 'Change wave, country and correlation type'}
-            onClick={() => setChanging((open) => !open)}
-          >
-            {changing ? 'Done' : 'Change'}
-          </button>
-        </p>
-      )}
-      <div id={cellsId} className={own.controlCells} hidden={folded} data-bar="question">
+      <div className={own.controlCells} data-bar="question">
         <RadioRow
           legend="Year"
           name="wave"
@@ -279,32 +283,12 @@ export function CorrelatesView() {
       <p role="status" className={own.notice}>
         {notice}
       </p>
+      {/* On a phone, Year and Where stay in view; how the chart is drawn
+          goes in the options sheet (ADR-0029). */}
+      {narrow && <OptionsSheet summary={summary}>{methodControl(false)}</OptionsSheet>}
     </div>
   )
-
-  // How the chart is drawn, in its header's toolbar (ADR-0029): the
-  // correlation type, with what tells the two apart.
-  const chartControls = (
-    <span className={own.typeCell}>
-      <RadioRow<CorrelationMethod>
-        legend="Measured as"
-        name="method"
-        inline
-        options={METHOD_OPTIONS}
-        value={search.method ?? 'pearson'}
-        onChange={(value) => setSearch({ method: value === 'spearman' ? 'spearman' : undefined })}
-      />
-      <Disclosure variant="info" label="What’s the difference?">
-        {METHOD_DIFFERENCE.map((paragraph, index) => (
-          <p key={index} className={styles.methodHint}>
-            {paragraph.map((words, at) =>
-              typeof words === 'string' ? words : <strong key={at}>{words.strong}</strong>,
-            )}
-          </p>
-        ))}
-      </Disclosure>
-    </span>
-  )
+  const chartControls = narrow ? undefined : methodControl(true)
 
   const props: ViewProps = {
     search,

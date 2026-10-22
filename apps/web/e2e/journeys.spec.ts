@@ -158,13 +158,18 @@ test('1 — Atlas: change the question through the picker and the year, share th
   expect(Math.abs((await page.evaluate<number>('window.scrollY')) - scrolled)).toBeLessThan(4)
   await expect(countries).toHaveAttribute('open', '')
 
-  // At phone width the control lives in the "More options" fold; its open
-  // panel still stays inside the column.
+  // At phone width the countries live in the options sheet, in place —
+  // the two chosen still ticked (every country of the fixture's two, so
+  // "all countries") — and the sheet stays inside the page.
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByText('More options — chart, order, countries').click()
-  await trigger.click()
-  await expect(countries).toHaveAttribute('open', '')
-  await insideColumn()
+  await expect(page.getByText('Mean · all countries · highest first')).toBeVisible()
+  await page.getByRole('button', { name: 'Options' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('radio', { name: 'Choose countries' })).toBeChecked()
+  await expect(sheet.getByRole('checkbox', { checked: true })).toHaveCount(2)
+  const sheetBox = await sheet.boundingBox()
+  expect(sheetBox!.x).toBeGreaterThanOrEqual(0)
+  expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(390)
 })
 
 test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({
@@ -956,19 +961,21 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     }),
   ).toBeVisible()
 
-  // A phone: the shared row folds into one line; Change opens it in place.
+  // A phone: Year and Where stay in view; one line says how the chart
+  // is drawn, and Options opens the sheet with the correlation type.
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/correlates?country=22')
-  await expect(
-    page.getByText('2023 · United States · Straight-line', { exact: true }),
-  ).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Year' })).toBeHidden()
-  const change = page.getByRole('button', { name: 'Change wave, country and correlation type' })
-  await change.click()
   await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Measured as' })).toBeVisible()
-  await page.getByRole('button', { name: 'Done changing' }).click()
-  await expect(page.getByRole('group', { name: 'Year' })).toBeHidden()
+  await expect(page.getByLabel('Where')).toHaveValue('22')
+  await expect(page.getByText('Straight-line · United States', { exact: true })).toBeVisible()
+  const options = page.getByRole('button', { name: 'Options' })
+  await options.click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await sheet.getByText('By rank', { exact: true }).click()
+  await expect(page).toHaveURL(/country=22&method=spearman$/)
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(options).toBeFocused()
   // No sideways scroll at phone width.
   expect(
     await page.evaluate<boolean>(
@@ -1012,12 +1019,13 @@ function sideways(page: Page): Promise<number> {
   )
 }
 
-test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
+test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook and Methods from 320 to 390 px, in a wider font too, the options sheet open; the nav keeps one row where its items fit, and "More" opens inside the page', async ({
   page,
 }) => {
-  // Thirty-two page loads, "More" opened on each: about half a second
-  // apiece on the CI runner, so twice the default allowance.
-  test.setTimeout(60_000)
+  // Thirty-two page loads, "More" (and the options sheet) opened on each:
+  // about half a second apiece on the CI runner, so three times the
+  // default allowance.
+  test.setTimeout(90_000)
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await servePairs(page)
   // Every width and font is tried, so one run names every one that fails.
@@ -1069,6 +1077,15 @@ test('11 — a phone never scrolls sideways: the Atlas, Correlates, the Codebook
           )
           .toBeLessThanOrEqual(1)
         softly(await sideways(page), `${where}, "More" open: px of sideways scroll`).toBe(0)
+
+        // The chart pages' options sheet (ADR-0029), open: still none.
+        const options = page.getByRole('button', { name: 'Options' })
+        if ((await options.count()) > 0) {
+          await page.keyboard.press('Escape')
+          await options.click()
+          await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+          softly(await sideways(page), `${where}, options open: px of sideways scroll`).toBe(0)
+        }
       }
     }
   }
@@ -1084,7 +1101,7 @@ const LONG_ANSWER =
   'Every week, or more often than that, at a church, a mosque, a temple, a shrine or another place of worship or prayer'
 const LONG_NAME = 'Marital status, or the living arrangement nearest to one, when interviewed'
 
-test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments with its options open and Change, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
+test('12 — nor does a phone scroll sideways for the longest label, answer or name: a codebook entry, Segments and Change with their options sheets open, from 320 to 390 px in both fonts — Change on a phone turned on its side too', async ({
   page,
 }) => {
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
@@ -1124,27 +1141,30 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
     route.fulfill({ json: answers }),
   )
   const softly = expect.configure({ soft: true })
-  // Each stop with what shows it has rendered, a fold to open before it
-  // is measured, and its widths where a phone's are not all.
-  const stops: { path: string; rendered: Locator; open?: string; widths?: number[] }[] = [
+  // Each stop with what shows it has rendered, whether its options sheet
+  // opens before it is measured, and its widths where a phone's are not
+  // all.
+  const stops: { path: string; rendered: Locator; open?: boolean; widths?: number[] }[] = [
     // The entry's value labels scroll in a box of their own.
     {
       path: '/codebook/MARITAL_STATUS',
       rendered: page.getByRole('cell', { name: UNBREAKABLE_LABEL }),
     },
-    // Segments' second breakdown lists every categorical question by
-    // name, inside "More options".
+    // Segments' second split ("then by") lists every categorical question
+    // by name, in the question bar; its options sheet holds the order and
+    // the countries.
     {
       path: '/segments',
       rendered: page.locator('main figure').first(),
-      open: 'More options — split, sort, countries',
+      open: true,
     },
-    // Change's answer level stands in the control row itself — tried on a
-    // phone turned on its side too (680 px), where that row wraps rather
-    // than stacks.
+    // Change's answer level is a select in the options sheet on a phone —
+    // and in the chart's toolbar on a phone turned on its side (680 px),
+    // where the toolbar wraps rather than stacks.
     {
       path: '/change?outcome=ATTEND_SVCS',
-      rendered: page.getByRole('combobox', { name: 'Showing % who said' }),
+      rendered: page.locator('main figure').first(),
+      open: true,
       widths: [...PHONE_WIDTHS, 680],
     },
   ]
@@ -1156,11 +1176,60 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
         await page.goto(path)
         await expect(rendered).toBeVisible()
         if (font.css) await page.addStyleTag({ content: font.css })
-        if (open) await page.getByText(open, { exact: true }).click()
+        const options = page.getByRole('button', { name: 'Options' })
+        if (open && (await options.count()) > 0) {
+          await options.click()
+          await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+        }
         softly(await sideways(page), `${where}: px of sideways scroll`).toBe(0)
       }
     }
   }
+})
+
+test('13 — a phone: pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(page.locator('main figure').first()).toBeVisible()
+  // The question bar: the question and the year; the picker is a sheet.
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  const picker = page.getByRole('dialog', { name: 'Question' })
+  await picker.getByRole('searchbox').fill('happi')
+  await picker
+    .getByRole('listbox', { name: 'Search results' })
+    .getByRole('option', { name: 'Happiness', exact: true })
+    .click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY$/)
+  // The value label reverses the order: a 44 px target on a phone.
+  const value = page.getByRole('button', { name: 'Mean, highest first' })
+  expect((await value.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await value.click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY&dir=asc$/)
+  // Options: the sheet takes focus; Distribution; Done gives it back.
+  const options = page.getByRole('button', { name: 'Options' })
+  await options.click()
+  const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('radio', { name: 'Mean' })).toBeFocused()
+  await sheet.getByText('Distribution', { exact: true }).click()
+  await expect(page).toHaveURL(/\?outcome=HAPPY&stat=distribution&dir=asc$/)
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(options).toBeFocused()
+  const line = page.getByText(/^Distribution · /)
+  await expect(line).toBeVisible()
+  const said = await line.textContent()
+  // Reload: the same view, from the URL alone.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByText(said ?? '', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Options' }).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Chart options' })
+      .getByRole('radio', { name: 'Distribution' }),
+  ).toBeChecked()
 })
 
 async function streamToString(download: {

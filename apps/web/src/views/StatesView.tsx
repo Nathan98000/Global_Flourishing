@@ -30,6 +30,7 @@ import { OfflineLine } from '../components/StillWorks'
 import { Skeleton } from '../components/Skeleton'
 import { Stat as StatLine } from '../components/Stat'
 import { WordingPanel } from '../components/WordingPanel'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -39,6 +40,7 @@ import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../
 import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
+import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
@@ -57,6 +59,7 @@ export function StatesView() {
   const boot = useBootStatus()
   const health = useHealth()
   const adjReasonId = useId()
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
   const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
@@ -229,14 +232,15 @@ export function StatesView() {
     return `Highest: ${stateName(String(top.group['state']))} ${formatEstimate(top.estimate, top.stat)}; lowest: ${stateName(String(bottom.group['state']))} ${formatEstimate(bottom.estimate, bottom.stat)}.`
   })()
 
-  // How the chart is drawn, in its header's toolbar (ADR-0029).
-  const chartControls = (
+  // How the chart is drawn: in its header's toolbar (`inline`), or in
+  // the phone's options sheet (ADR-0029).
+  const chartControls = (inline: boolean) => (
     <>
       {statOptions && (
         <RadioRow
           legend="Show"
           name="stat"
-          inline
+          inline={inline}
           options={statOptions}
           value={search.stat ?? 'default'}
           onChange={(value) =>
@@ -248,7 +252,7 @@ export function StatesView() {
       <RadioRow
         legend="View"
         name="view"
-        inline
+        inline={inline}
         options={[
           { value: 'map', label: 'Map' },
           { value: 'bars', label: 'Chart' },
@@ -260,14 +264,16 @@ export function StatesView() {
         <RadioRow
           legend="Showing % who said"
           name="level"
-          inline
+          inline={inline}
+          wide={!inline}
+          selectOnNarrow
           options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
           value={String(activeLevel)}
           onChange={(value) => setSearch({ level: Number(value) })}
         />
       )}
       {/* The switch with its reason in view when it is off (F6). */}
-      <span className={styles.switch}>
+      <span className={styles.switch} data-inline={inline || undefined}>
         <label className={styles.oriented}>
           <input
             type="checkbox"
@@ -285,6 +291,14 @@ export function StatesView() {
         )}
       </span>
     </>
+  )
+
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    stat === 'proportion' ? 'Share' : stat === 'quantile' ? 'Median' : 'Mean',
+    search.view === 'map' ? 'map' : 'chart',
+    search.adj && 'adjusted',
+    search.view === 'bars' && orderPhrase(dir),
   )
 
   return (
@@ -338,6 +352,9 @@ export function StatesView() {
           </p>
         )}
       </div>
+      {narrow && chartable && (
+        <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -353,7 +370,7 @@ export function StatesView() {
       ) : states.isError ? (
         // No chart, no header: its controls stay reachable here.
         <>
-          <div className={styles.controls}>{chartControls}</div>
+          {!narrow && <div className={styles.controls}>{chartControls(true)}</div>}
           {states.error instanceof NetworkError && !boot.apiReachable ? (
             <OfflineLine className={styles.hint} />
           ) : (
@@ -384,7 +401,7 @@ export function StatesView() {
                 {nationalNote && <p className={styles.national}>{nationalNote}</p>}
               </>
             }
-            toolbar={chartControls}
+            toolbar={narrow ? undefined : chartControls(true)}
             sortHead={
               // The chart's order is its value label's (ADR-0029).
               search.view === 'bars' ? (

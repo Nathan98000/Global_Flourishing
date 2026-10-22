@@ -38,6 +38,7 @@ import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
+import { OptionsSheet } from '../components/controls/OptionsSheet'
 import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { downloadTextFile, responseToCsv } from '../export/csv'
@@ -284,15 +285,26 @@ export function ChangeView() {
     />
   )
   // How the chart is drawn, in its header's toolbar (ADR-0029).
-  const chartControls = isCategorical && levels.length > 0 && (
-    <RadioRow
-      legend="Showing % who said"
-      name="level"
-      inline
-      options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
-      value={String(activeLevel)}
-      onChange={(value) => setSearch({ level: Number(value) })}
-    />
+  // In the toolbar (`inline`), or in the phone's options sheet.
+  const chartControls = (inline: boolean) =>
+    isCategorical &&
+    levels.length > 0 && (
+      <RadioRow
+        legend="Showing % who said"
+        name="level"
+        inline={inline}
+        wide={!inline}
+        selectOnNarrow
+        options={levels.map((entry) => ({ value: String(entry.value), label: entry.label }))}
+        value={String(activeLevel)}
+        onChange={(value) => setSearch({ level: Number(value) })}
+      />
+    )
+  // The phone's line: how the chart is drawn, in the controls' words.
+  const phoneSummary = stateLine(
+    isCategorical ? `Change in “${activeLevelLabel ?? '…'}”` : 'Mean change',
+    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+    orderPhrase(dir),
   )
 
   return (
@@ -348,15 +360,19 @@ export function ChangeView() {
             }}
           />
         )}
-        {narrow ? (
-          <details className={styles.moreOptions}>
-            <summary>More options — countries</summary>
-            <div className={styles.moreBody}>{countryFilter}</div>
-          </details>
-        ) : (
-          countryFilter
-        )}
+        {!narrow && countryFilter}
       </div>
+      {narrow && askedTwice && (
+        <OptionsSheet summary={phoneSummary}>
+          <CountryFilter
+            variant="panel"
+            countries={meta.data.meta.countries}
+            selected={search.countries}
+            onChange={(countries) => setSearch({ countries })}
+          />
+          {chartControls(false)}
+        </OptionsSheet>
+      )}
 
       {!chartable ? (
         <EmptyState title="Choose a measure to begin">
@@ -405,7 +421,7 @@ export function ChangeView() {
                 </div>
               )
             }
-            toolbar={chartControls}
+            toolbar={narrow ? undefined : chartControls(true)}
             sortHead={
               // The order is the value label's (ADR-0029).
               <SortHead

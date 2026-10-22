@@ -1486,7 +1486,7 @@ describe('Correlates view', () => {
     )
   })
 
-  test('on a phone the shared row folds into one line; Change opens it in place', async () => {
+  test('on a phone Year and Where stay in view; Options opens the sheet with Measured as (ADR-0029)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('40rem'),
       media: query,
@@ -1500,18 +1500,23 @@ describe('Correlates view', () => {
     mockFetch(tier)
     await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
-    expect(screen.getByText('2023 · All countries, averaged · Straight-line')).toBeVisible()
-    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
-    const change = screen.getByRole('button', { name: 'Change wave, country and correlation type' })
-    expect(change).toHaveTextContent('Change')
-    expect(change).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(change)
-    expect(screen.getByRole('group', { name: 'Year' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Measured as' })).toBeInTheDocument()
-    const done = screen.getByRole('button', { name: 'Done changing' })
-    expect(done).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(done)
-    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
+    // The question bar: Year and Where, never folded away.
+    expect(screen.getByRole('group', { name: 'Year' })).toBeVisible()
+    expect(screen.getByLabelText('Where')).toBeVisible()
+    // The old "Change" button is gone (it collided with the Change page).
+    expect(screen.queryByRole('button', { name: /^Change wave/ })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Measured as' })).toBeNull()
+    expect(screen.getByText('Straight-line · All countries, averaged')).toBeVisible()
+    const options = screen.getByRole('button', { name: 'Options' })
+    fireEvent.click(options)
+    const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+    expect(within(sheet).getByRole('group', { name: 'Measured as' })).toBeInTheDocument()
+    expect(
+      within(sheet).getByRole('button', { name: 'What’s the difference?' }),
+    ).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(options).toHaveFocus()
   })
 
   test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {

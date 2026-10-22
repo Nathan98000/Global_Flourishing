@@ -621,64 +621,44 @@ function stubViewport(matcher: (query: string) => boolean) {
   }))
 }
 
-test('under 40rem the countries fold into a disclosure; Question and Year stay out (§8)', async () => {
+test('on a phone: the question and the year, then one line with Options; the sheet holds Show and Countries (ADR-0029)', async () => {
   stubViewport((query) => query.includes('40rem'))
   mockFetch(staticTier)
-  await renderAt('/')
-  await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
-  const summary = screen.getByText('More options — countries')
-  const details = summary.closest('details')
-  expect(details).not.toBeNull()
-  // Year stays visible outside the fold; Countries lives inside it.
-  const wave = screen.getByRole('group', { name: 'Year' })
-  expect(details?.contains(wave)).toBe(false)
-  expect(details?.querySelector('summary + div details')).not.toBeNull()
-})
-
-test('the value label sorts: a click (or Enter, or Space) reverses the order and writes dir (ADR-0029)', async () => {
-  mockFetch(staticTier)
   const router = await renderAt('/')
-  const figure = await screen.findByRole('img', { name: /United States/ })
-  const order = () =>
-    [...figure.querySelectorAll('[aria-label="y-axis tick label"] text')].map(
-      (text) => text.textContent,
-    )
-  expect(order()).toEqual(['United States', 'Testland'])
-  // No Sort or Order control anywhere: the label over the values is it.
-  expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
-  expect(screen.queryByRole('group', { name: 'Sort' })).toBeNull()
-  // The names are a plain label, never a sort.
-  const names = screen.getByRole('columnheader', { name: 'Country' })
-  expect(within(names).queryByRole('button')).toBeNull()
-  expect(names).not.toHaveAttribute('aria-sort')
-  const value = screen.getByRole('columnheader', { name: /^Mean/ })
-  expect(value).toHaveAttribute('aria-sort', 'descending')
-  const button = within(value).getByRole('button', { name: 'Mean, highest first' })
-  expect(button).toHaveTextContent('Mean▼')
-  // A click: lowest first, the URL as the old "Low to high" wrote it.
-  fireEvent.click(button)
-  await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
-  expect(value).toHaveAttribute('aria-sort', 'ascending')
-  expect(button).toHaveAccessibleName('Mean, lowest first')
-  expect(order()).toEqual(['Testland', 'United States'])
-  expect(screen.getByText('Mean score, 0–10 · 2023 · all countries · lowest first')).toBeVisible()
-  // The keyboard: a native button, so Enter and Space click it.
-  button.focus()
-  fireEvent.keyDown(button, { key: 'Enter' })
-  fireEvent.click(button)
-  await waitFor(() => expect(router.state.location.searchStr).toBe(''))
-  expect(button.tagName).toBe('BUTTON')
-  expect(button).toHaveAttribute('type', 'button')
-})
-
-test('the Statistic group becomes a native select under 30rem (§8)', async () => {
-  stubViewport(() => true) // a phone matches both 30rem and 40rem
-  mockFetch(staticTier)
-  await renderAt('/')
   await screen.findByText('Mean score, 0–10 · 2023 · all countries · highest first')
-  const statistic = screen.getByLabelText('Show')
-  expect(statistic.tagName).toBe('SELECT')
-  expect(statistic).toHaveDisplayValue('Mean')
+  // No fold: the bar holds the question and the year alone.
+  expect(screen.queryByText(/More options/)).toBeNull()
+  expect(barLabels()).toEqual(['Question', 'Year'])
+  // The chart's toolbar keeps its links; its controls wait in the sheet.
+  const toolbar = screen.getByRole('figure').querySelector('[data-toolbar]') as HTMLElement
+  expect(within(toolbar).queryByRole('group', { name: 'Show' })).toBeNull()
+  expect(within(toolbar).getByRole('link', { name: 'How to read this chart' })).toBeInTheDocument()
+  // One line says how the chart is drawn, in the controls' words.
+  expect(screen.getByText('Mean · all countries · highest first')).toBeInTheDocument()
+  const options = screen.getByRole('button', { name: 'Options' })
+  expect(options).toHaveAttribute('aria-haspopup', 'dialog')
+  fireEvent.click(options)
+  const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+  expect(sheet).toHaveAttribute('aria-modal', 'true')
+  // Focus moves in, to the first control: Show's first option.
+  const show = within(sheet).getByRole('group', { name: 'Show' })
+  expect(within(show).getByRole('radio', { name: 'Mean' })).toHaveFocus()
+  // Show, then Countries, in place (no popover).
+  expect(within(sheet).getByRole('radio', { name: 'All countries' })).toBeChecked()
+  expect(sheet.querySelector('details')).toBeNull()
+  // Escape closes it; focus returns to Options.
+  fireEvent.keyDown(sheet, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(options).toHaveFocus()
+  // A choice in the sheet writes the URL as the toolbar's did; Done closes.
+  fireEvent.click(options)
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Chart options' })).getByLabelText('Distribution'),
+  )
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
+  fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Options' })).toHaveFocus()
 })
 
 test('on a phone the secondary three nav items collapse behind "More" (type unchanged)', async () => {
