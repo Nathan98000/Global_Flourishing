@@ -21,6 +21,13 @@ import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
 import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
+import {
+  CSV_SENTENCE,
+  listWords,
+  summarizeCells,
+  summarizeDistribution,
+  summarizeExtremes,
+} from '../charts/summary'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
   attendVariable,
@@ -1083,6 +1090,45 @@ describe('panelTicks', () => {
     expect(kept[0]).toBe(0)
     expect(kept[kept.length - 1]).toBe(10)
     expect(kept.length).toBeLessThan(6)
+  })
+})
+
+describe('spoken summaries (H1, H2)', () => {
+  const cells = [
+    testRow({ group: { country_code: 1, outcome: 'A' }, estimate: 9.5 }),
+    testRow({ group: { country_code: 22, outcome: 'B' }, estimate: 5.2 }),
+    testRow({ group: { country_code: 22, outcome: 'A' }, estimate: null }),
+  ]
+  test('a ranked chart names its highest and lowest country with their values', () => {
+    expect(summarizeExtremes(rows.slice(0, 2), testMeta, 'Happiness by country.')).toBe(
+      'Happiness by country. Highest: United States 7.40; lowest: Testland 6.90.',
+    )
+    expect(summarizeExtremes([], testMeta, 'Happiness by country.')).toBe(
+      'Happiness by country. No estimates to show.',
+    )
+  })
+  test('a grid names its extreme cells by row and column', () => {
+    const label = summarizeCells(
+      cells,
+      (row) => `${String(row.group['country_code'])}, item ${String(row.group['outcome'])}`,
+      'A matrix.',
+    )
+    expect(label).toBe('A matrix. Highest: 1, item A 9.50; lowest: 22, item B 5.20.')
+  })
+  test('a distribution lists its countries in order with their means, and points to the CSV', () => {
+    const means = [
+      testRow({ group: { country_code: 1 }, estimate: 7.99 }),
+      testRow({ group: { country_code: 22 }, estimate: 7.5 }),
+    ]
+    const label = summarizeDistribution('Happiness.', ['Testland', 'United States'], means)
+    expect(label).toBe(
+      `Happiness. How people in Testland and United States answered — means 7.99 and 7.50. ${CSV_SENTENCE}`,
+    )
+    // Means not loaded yet: the countries alone, never "No estimates".
+    expect(summarizeDistribution('Happiness.', ['Testland'], [undefined])).toBe(
+      `Happiness. How people in Testland answered. ${CSV_SENTENCE}`,
+    )
+    expect(listWords(['a', 'b', 'c'])).toBe('a, b and c')
   })
 })
 

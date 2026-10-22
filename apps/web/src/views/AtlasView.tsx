@@ -17,7 +17,7 @@ import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
-import { summarizeExtremes } from '../charts/summary'
+import { CSV_SENTENCE, summarizeDistribution, summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -169,6 +169,10 @@ export function AtlasView() {
     return sortAtlasRows(rows, metaForSort, dir)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir, firstFour])
+  // The distribution's panels as drawn: its countries that have rows.
+  const drawnCountries = distributionCountries.filter((code) =>
+    displayRows.some((row) => Number(row.group['country_code']) === code),
+  )
   const countryOrder = useMemo(
     () =>
       metaForSort && allAnswers
@@ -506,16 +510,28 @@ export function AtlasView() {
                 narrowSubtitle={narrowSubtitle}
                 ariaLabel={
                   allAnswers
-                    ? summarizeExtremes(
+                    ? `${summarizeExtremes(
                         displayRows.filter((row) => row.level === activeLevel),
                         meta.data.meta,
                         `${title}: the share giving each of ${levels.length} answers (${levels.map((entry) => entry.label).join(', ')}) in each of ${countryOrder.length} countries, ${waveTitle}. Answering “${levelLabel ?? activeLevel}”:`,
-                      )
-                    : summarizeExtremes(
-                        stat === 'distribution' ? [] : displayRows,
-                        meta.data.meta,
-                        `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
-                      )
+                      )} ${CSV_SENTENCE}`
+                    : stat === 'distribution'
+                      ? // The four countries drawn, in their order, with
+                        // their served means (H1) — never "No estimates".
+                        summarizeDistribution(
+                          `${title} (${subtitle}): the share of people giving each answer${variable.min !== null && variable.max !== null ? `, ${variable.min} to ${variable.max}` : ''}, one panel per country.`,
+                          drawnCountries.map((code) =>
+                            groupValueLabel('country_code', code, meta.data.meta),
+                          ),
+                          drawnCountries.map((code) =>
+                            orderRows?.find((row) => Number(row.group['country_code']) === code),
+                          ),
+                        )
+                      : summarizeExtremes(
+                          displayRows,
+                          meta.data.meta,
+                          `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
+                        )
                 }
                 intro={
                   detail && (

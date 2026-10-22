@@ -29,7 +29,7 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
-import { summarizeExtremes } from '../charts/summary'
+import { CSV_SENTENCE, summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -471,7 +471,7 @@ export function ChangeView() {
               <ChartFigure
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
-                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
+                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries. ${CSV_SENTENCE}`}
                 chartKey={
                   <ChartKey
                     mark="bar"

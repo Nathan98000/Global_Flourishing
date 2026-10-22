@@ -396,6 +396,11 @@ describe('What Matters view', () => {
     const ranking = await screen.findByRole('group', {
       name: /How important people rate 2 items in each of 2 countries, as a matrix: a row per country, a column per item, Midyear/,
     })
+    // Its spoken summary gives the extreme cells by country and item, and
+    // where every number is — no keyboard reads the grid yet (H2).
+    expect(ranking.getAttribute('aria-label')).toMatch(
+      /Highest: United States, Good relationships 8\.00; lowest: Testland, Money 6\.00\. Every number, with its 95% CI and n, is in the CSV \(Download\)\.$/,
+    )
     // One matrix: a row per country, a column per item (catalog order),
     // every cell a mean with the interval and n in its tooltip.
     const matrix = within(ranking).getByRole('table')
@@ -762,6 +767,9 @@ describe('What Matters view', () => {
       name: /United States: how important people rate 2 items, as a matrix: a row per age band, a column per item/,
     })
     expect(screen.getByText('United States by age band')).toBeInTheDocument()
+    expect(split.getAttribute('aria-label')).toMatch(
+      /Highest: 25–29, (Money|Good relationships) 6\.22; lowest: 18–24, (Money|Good relationships) 5\.22\. Every number, with its 95% CI and n, is in the CSV \(Download\)\.$/,
+    )
     const matrix = within(split).getByRole('table')
     expect(
       within(matrix)

@@ -373,6 +373,26 @@ test('Segments has the same picker; a pick keeps the split', async () => {
   await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&by=gender'))
 })
 
+test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code-gender.json': testResponse(
+      [
+        testRow({ group: { country_code: 1, gender: 1 }, estimate: 7.2 }),
+        testRow({ group: { country_code: 1, gender: 2 }, estimate: 6.1 }),
+        testRow({ group: { country_code: 22, gender: 1 }, estimate: 8.3 }),
+      ],
+      { by: ['country_code', 'gender'] },
+    ),
+  })
+  await renderAt('/segments?by=gender')
+  const chart = await screen.findByRole('img', { name: /one panel per country, a row per gender/ })
+  // The highest and lowest cell, each by its country and group.
+  expect(chart.getAttribute('aria-label')).toMatch(
+    /a row per gender\. Highest: United States, Male 8\.30; lowest: Testland, Female 6\.10\.$/,
+  )
+})
+
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {
   const calls = mockFetch(staticTier)
   await renderAt('/?outcome=NOT_A_VARIABLE')

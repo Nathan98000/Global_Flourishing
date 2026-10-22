@@ -1248,9 +1248,9 @@ describe('Correlates view', () => {
     expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
     expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
-    // The screen-reader summary ends on the stars.
+    // The screen-reader summary ends on the stars, then where every number is.
     expect(figure.getAttribute('aria-label')).toMatch(
-      / \d+ cells are starred: small sample size\.$/,
+      / \d+ cells are starred: small sample size\. Every number, with its 95% CI and n, is in the CSV \(Download\)\.$/,
     )
   })
 

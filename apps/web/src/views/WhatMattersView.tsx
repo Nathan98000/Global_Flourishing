@@ -20,7 +20,7 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { RankedBar } from '../charts/RankedBar'
-import { summarizeExtremes } from '../charts/summary'
+import { CSV_SENTENCE, summarizeCells, summarizeExtremes } from '../charts/summary'
 import {
   SEQUENTIAL_RAMP,
   THIN_LINE,
@@ -444,7 +444,11 @@ export function WhatMattersView() {
               title="What matters most, by country"
               subtitle={rankingSubtitle}
               interactive
-              ariaLabel={`How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`}
+              ariaLabel={`${summarizeCells(
+                rankingOrdered,
+                (row) => `${countryName(Number(row.group['country_code']))}, ${itemName(row)}`,
+                `How important people rate ${count(ranking.length, 'item')} in each of ${count(countryOrder.length, 'country', 'countries')}, as a matrix: a row per country, a column per item, ${MIDYEAR_TITLE}.`,
+              )} ${CSV_SENTENCE}`}
               csv={csvFor(rankingResponse, rankingName)}
               exportName={rankingName}
               isRefreshing={rankingQuery.isPlaceholderData}
@@ -550,7 +554,12 @@ export function WhatMattersView() {
               <ChartFigure
                 title={`${countryName(splitCountry)} by ${splitLabel.toLowerCase()}`}
                 subtitle={rankingSubtitle}
-                ariaLabel={`${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}.`}
+                ariaLabel={`${summarizeCells(
+                  splitOrdered,
+                  (row) =>
+                    `${groupValueLabel(search.by, row.group[search.by] ?? null, served)}, ${itemName(row)}`,
+                  `${countryName(splitCountry)}: how important people rate ${count(ranking.length, 'item')}, as a matrix: a row per ${splitLabel.toLowerCase()}, a column per item, ${MIDYEAR_TITLE}.`,
+                )} ${CSV_SENTENCE}`}
                 csv={csvFor(splitResponse, splitName)}
                 exportName={splitName}
                 isRefreshing={splitQuery.isPlaceholderData}

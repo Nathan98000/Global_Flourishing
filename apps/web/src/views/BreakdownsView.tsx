@@ -15,6 +15,7 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SmallMultiples, countryEstimates, facetOrder } from '../charts/SmallMultiples'
+import { summarizeCells } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -455,7 +456,28 @@ export function BreakdownsView() {
                     ? 'Two splits for every country make a long page — choose fewer countries in Options.'
                     : undefined
                 }
-                ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
+                ariaLabel={summarizeCells(
+                  displayRows,
+                  (row) =>
+                    [
+                      groupValueLabel(
+                        'country_code',
+                        row.group['country_code'] ?? null,
+                        meta.data.meta,
+                      ),
+                      ...[primary, secondary]
+                        .filter((column): column is string => column !== undefined)
+                        .map((column) =>
+                          groupValueLabel(
+                            column,
+                            row.group[column] ?? null,
+                            meta.data.meta,
+                            labeler,
+                          ),
+                        ),
+                    ].join(', '),
+                  `${title} (${subtitle}): one panel per country, a row per ${lowerFirst(columnLabel(primary, meta.data.meta))}${secondary ? `, a column per ${lowerFirst(columnLabel(secondary, meta.data.meta))}` : ''}.`,
+                )}
                 intro={
                   detail && (
                     <div className={styles.wording}>

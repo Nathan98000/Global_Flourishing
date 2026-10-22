@@ -21,6 +21,7 @@ import type {
 } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { CSV_SENTENCE } from '../../charts/summary'
 import { ChartKey } from '../../charts/ChartKey'
 import { CorrelationStrip } from '../../charts/CorrelationStrip'
 import {
@@ -416,7 +417,7 @@ function PairFigure({
       : flaggedCount > 1
         ? ` ${flaggedCount} cells are starred: small sample size.`
         : ''
-  }`
+  } ${CSV_SENTENCE}`
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}

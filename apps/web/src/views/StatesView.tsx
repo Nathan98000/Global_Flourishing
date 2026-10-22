@@ -21,6 +21,7 @@ import { ChartFigure } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { RankedBar, type Reference } from '../charts/RankedBar'
+import { CSV_SENTENCE } from '../charts/summary'
 import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -445,7 +446,7 @@ export function StatesView() {
             title={title}
             subtitle={subtitle}
             narrowSubtitle={narrowSubtitle}
-            ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
+            ariaLabel={`${title} by US state (${subtitle}). ${extremes}${search.view === 'map' ? ` ${CSV_SENTENCE}` : ''}`}
             intro={
               <>
                 {detail && (
