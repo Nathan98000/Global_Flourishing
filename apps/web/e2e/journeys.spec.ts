@@ -1013,9 +1013,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await page.getByRole('combobox', { name: 'Year of the other answers' }).selectOption('Y2')
   await expect(page).toHaveURL(/other=Y2/)
   await expect(
-    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
-      exact: false,
-    }),
+    caption(page).getByText(
+      'United States · Midyear survey, with 2024 answers from the same people',
+      { exact: false },
+    ),
   ).toBeVisible()
 
   // A phone: Year and Where stay in view; one line says how the chart
@@ -1349,7 +1350,11 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   await expect(rows.first()).toBeFocused()
   const card = chart.getByRole('tooltip')
   await expect(card).toBeVisible()
-  const name = async (index: number) => (await rows.nth(index).getAttribute('aria-label')) ?? ''
+  // A row is named with its value — "Indonesia, 8.10" (H3) — and its
+  // card names the country: the name up to its first comma.
+  const fullName = async (index: number) => (await rows.nth(index).getAttribute('aria-label')) ?? ''
+  const name = async (index: number) => (await fullName(index)).split(',')[0] ?? ''
+  expect(await fullName(0)).toMatch(/^[^,]+, \d+\.\d\d(, few people)?$/)
   await expect(card).toContainText(await name(0))
   await expect(card).toContainText('Mean:')
   await expect(card).toContainText(/95% CI: \[.+\]/)
@@ -1401,7 +1406,9 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   await expect(pinned).toBeVisible()
   await page.getByRole('button', { name: 'Mean, highest first' }).focus()
   await page.keyboard.press('Tab')
-  await expect(states.getByRole('listitem', { name: someState, exact: true })).toBeFocused()
+  await expect(
+    states.getByRole('listitem', { name: new RegExp(`^${someState}, \\d`) }),
+  ).toBeFocused()
   await expect(states.getByRole('tooltip')).toContainText(someState)
   await expect(pinned).toBeHidden()
   await page.keyboard.press('ArrowDown')

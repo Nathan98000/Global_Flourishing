@@ -50,7 +50,15 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/segments')
 
@@ -444,7 +452,12 @@ export function BreakdownsView() {
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
-                Updated: {title}, {displayRows.length} cells.
+                {updatedLine(
+                  title,
+                  subtitle,
+                  countOf(panelOrder?.length ?? 0, 'countries'),
+                  countOf(displayRows.length, 'groups'),
+                )}
               </p>
               <ChartFigure
                 title={title}

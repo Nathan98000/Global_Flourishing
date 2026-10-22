@@ -389,6 +389,12 @@ describe('US States view', () => {
     expect(screen.queryByText(/pooled/i)).toBeNull()
     // The aria summary names states, not codes.
     expect(figure.getAttribute('aria-label')).toContain('Highest: Vermont 7.40')
+    // The map has no keyboard reading: its summary says where the numbers
+    // are (H2); its status counts states (H3).
+    expect(figure.getAttribute('aria-label')).toMatch(/in the CSV \(Download\)\.$/)
+    expect(screen.getByText(/^Updated: /).textContent).toMatch(
+      /^Updated: Secure Flourishing Index — mean score, 0–10 · 2023\. \d+ states?\.$/,
+    )
     // No data table (ADR-0022): each state's card carries its numbers.
     expect(screen.queryByText('Data table')).toBeNull()
     // No data table: no cell anywhere — the only table is the value

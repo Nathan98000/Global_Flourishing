@@ -594,6 +594,10 @@ describe('All countries (ADR-0020)', () => {
     expect(
       screen.getByText('All countries (average of 2) · 2023 · correlation, −1 to 1'),
     ).toBeInTheDocument()
+    // Its status reads the subtitle and counts questions (H3).
+    expect(screen.getByText(/^Updated: What goes with/).textContent).toBe(
+      'Updated: What goes with Happiness — all countries (average of 2) · 2023 · correlation, −1 to 1. 2 questions.',
+    )
     const [lonely, attend] = within(figure).getAllByRole('button')
     fireEvent.focus(lonely as HTMLElement)
     // The n of an average is summed over its countries.

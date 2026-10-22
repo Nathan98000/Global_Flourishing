@@ -51,7 +51,15 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -413,7 +421,7 @@ export function ChangeView() {
       ) : response ? (
         <>
           <p role="status" className="visually-hidden">
-            Updated: {title}, {display.countryDomain.length} countries shown.
+            {updatedLine(title, subtitle, countOf(display.countryDomain.length, 'countries'))}
           </p>
           <ChartFigure
             title={title}

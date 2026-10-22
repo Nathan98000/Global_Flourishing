@@ -331,6 +331,13 @@ export function RankedBar({
         const text = formatEstimate(entry.row.estimate, entry.row.stat)
         return thinOf(entry) ? `${text}*` : text
       }
+      // A readable row says its printed value (H3, ADR-0032 revised).
+      const nameOf = (entry: Entry) =>
+        readableRowName(
+          entry.label,
+          entry.row.estimate === null ? null : formatEstimate(entry.row.estimate, entry.row.stat),
+          thinOf(entry),
+        )
       // Nothing is measured before layout (or under jsdom): estimate.
       const measure = textMeasurer(labelFontSize, available !== null)
       const interactive = onSelectRow !== undefined
@@ -421,7 +428,7 @@ export function RankedBar({
         muteTags(plot, tags)
         return interactive
           ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
-          : withReadableRows(plot, entries, tip, lo, rowFocus.current, pinnedOf)
+          : withReadableRows(plot, entries, tip, lo, rowFocus.current, nameOf, pinnedOf)
       }
 
       // The label gutter: fitted to the longest label (capped, wrapping
@@ -570,7 +577,7 @@ export function RankedBar({
         muteTags(plot, tags)
         return interactive
           ? withRowButtons(plot, entries, tip, onSelectRow, rowName)
-          : withReadableRows(plot, entries, tip, lo, rowFocus.current, pinnedOf)
+          : withReadableRows(plot, entries, tip, lo, rowFocus.current, nameOf, pinnedOf)
       }
 
       // Shares: zero-based bars (a length encoding needs its baseline).
@@ -641,7 +648,7 @@ export function RankedBar({
           ...referenceMarks([0, xMax]),
         ],
       })
-      return withReadableRows(plot, entries, tip, 0, rowFocus.current, pinnedOf)
+      return withReadableRows(plot, entries, tip, 0, rowFocus.current, nameOf, pinnedOf)
     },
     [
       rows,
@@ -948,17 +955,27 @@ function withRowButtons(
   return rows.wrap
 }
 
+/** A readable row's name (H3, ADR-0032 revised): its label, then the
+ * value the chart prints — "Indonesia, 8.10", or "Indonesia, 7.40, few
+ * people" for a thin one — so a screen reader's browse mode hears the
+ * numbers; the card, with the CI and n, stays its description on focus. */
+export function readableRowName(label: string, printed: string | null, thin: boolean): string {
+  return `${label}, ${printed ?? 'no estimate'}${thin ? ', few people' : ''}`
+}
+
 /** The rows as a list a keyboard reads one by one (G18, ADR-0032): one
  * tab stop on the chart — the found row's (US States' Find a state) or
  * where the reader left it, else the first — ↑ ↓ Home End to move it,
  * and the row it rests on opens its card, announced as its description.
- * The rows never take the pointer: hover keeps Plot's own tip. */
+ * Each row is named with its value (`nameOf`). The rows never take the
+ * pointer: hover keeps Plot's own tip. */
 function withReadableRows(
   plot: (SVGSVGElement | HTMLElement) & Plot.Plot,
   entries: Entry[],
   tip: (entry: Entry) => string,
   fallback: number,
   focus: RowFocus,
+  nameOf: (entry: Entry) => string,
   pinnedOf?: (row: EstimateRow) => boolean,
 ): HTMLElement {
   const rows = rowLayer(plot, tip, fallback)
@@ -977,7 +994,7 @@ function withReadableRows(
     item.className = [styles.row, styles.reading].filter(Boolean).join(' ')
     rows.place(item, entry)
     item.setAttribute('role', 'listitem')
-    item.setAttribute('aria-label', entry.label)
+    item.setAttribute('aria-label', nameOf(entry))
     item.tabIndex = index === start ? 0 : -1
     item.addEventListener('focus', () => {
       focus.active = entry.label

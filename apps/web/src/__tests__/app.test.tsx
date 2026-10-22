@@ -373,6 +373,26 @@ test('Segments has the same picker; a pick keeps the split', async () => {
   await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&by=gender'))
 })
 
+test("the Atlas says what changed: the subtitle's words and a count of countries (H3)", async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/')
+  const status = await screen.findByText(/^Updated: /)
+  expect(status).toHaveAttribute('role', 'status')
+  expect(status.textContent).toBe(
+    'Updated: Secure Flourishing Index — mean score, 0–10 · 2023 · all countries · highest first. 2 countries.',
+  )
+  // Reversing the order changes the words, so a listener hears it.
+  fireEvent.click(screen.getByRole('button', { name: /Mean, highest first/ }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
+  await waitFor(() => expect(status.textContent).toContain('· lowest first. 2 countries.'))
+  cleanup()
+  // One country: "1 country", never "1 rows".
+  await renderAt('/?countries=1')
+  expect((await screen.findByText(/^Updated: /)).textContent).toBe(
+    'Updated: Secure Flourishing Index — mean score, 0–10 · 2023 · 1 country · highest first. 1 country.',
+  )
+})
+
 test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
   mockFetch({
     ...staticTier,
@@ -390,6 +410,10 @@ test("Segments' spoken summary names its extreme groups with their values (H2)",
   // The highest and lowest cell, each by its country and group.
   expect(chart.getAttribute('aria-label')).toMatch(
     /a row per gender\. Highest: United States, Male 8\.30; lowest: Testland, Female 6\.10\.$/,
+  )
+  // Its status counts countries and groups, never "cells" (H3).
+  expect((await screen.findByText(/^Updated: /)).textContent).toBe(
+    'Updated: Secure Flourishing Index by gender — mean score, 0–10 · 2023 · all countries · highest first. 2 countries, 3 groups.',
   )
 })
 

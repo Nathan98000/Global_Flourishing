@@ -277,6 +277,15 @@ describe('Change view', () => {
     expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
 
+  test("its status says the view in the subtitle's words and counts countries (H3)", async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=HAPPY&dir=asc')
+    const status = await screen.findByText(/^Updated: Happiness — /)
+    expect(status).toHaveAttribute('role', 'status')
+    expect(status.textContent).toMatch(/· all countries · lowest first\. \d+ countr(y|ies)\.$/)
+    expect(status.textContent).not.toMatch(/rows|cells/)
+  })
+
   test('a chosen country adds the histogram of individual change, zero on the axis', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=HAPPY&countries=1')

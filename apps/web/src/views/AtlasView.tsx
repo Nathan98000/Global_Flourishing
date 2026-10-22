@@ -40,7 +40,15 @@ import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/sear
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/')
 
@@ -502,7 +510,18 @@ export function AtlasView() {
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
-                Updated: {title}, {displayRows.length} rows shown.
+                {updatedLine(
+                  title,
+                  subtitle,
+                  countOf(
+                    allAnswers
+                      ? countryOrder.length
+                      : stat === 'distribution'
+                        ? drawnCountries.length
+                        : displayRows.length,
+                    'countries',
+                  ),
+                )}
               </p>
               <ChartFigure
                 title={title}

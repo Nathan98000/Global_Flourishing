@@ -45,7 +45,7 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import { countOf, keyCiLevel, keyThinBelow, orderPhrase, stateLine, updatedLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
 
@@ -440,7 +440,7 @@ export function StatesView() {
       ) : response && variable ? (
         <>
           <p role="status" className="visually-hidden">
-            Updated: {title}, {displayRows.length} states shown.
+            {updatedLine(title, subtitle, countOf(displayRows.length, 'states'))}
           </p>
           <ChartFigure
             title={title}

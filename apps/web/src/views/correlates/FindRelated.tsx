@@ -52,6 +52,7 @@ import {
   statisticPhrase,
   tooFewCountries,
 } from '../correlatesRows'
+import { countOf, updatedLine } from '../viewState'
 import { midyearTag, otherWaveOf, requestOther, waveName, waveTitle } from './midyear'
 import {
   DivergingLegend,
@@ -208,7 +209,18 @@ export function FindRelated({
         ) : search.scope === 'country' ? (
           <>
             <p role="status" className="visually-hidden">
-              Updated: {title}, {predictors.length} questions ranked for {where}.
+              {updatedLine(
+                `What goes with ${title}`,
+                rankedSubtitle(
+                  pooled
+                    ? pooledPlace(rankedResponse.meta.countries, served.countries)
+                    : countryName,
+                  search.method,
+                  search.wave,
+                  otherWave,
+                ),
+                countOf(predictors.length, 'questions'),
+              )}
             </p>
             <ChartFigure
               title={`What goes with ${title}`}

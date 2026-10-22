@@ -18,7 +18,14 @@ import {
 } from '../charts/theme'
 import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
-import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
+import {
+  LABEL_CAP,
+  RankedBar,
+  rankEntries,
+  readableRowName,
+  textMeasurer,
+  wrapLabel,
+} from '../charts/RankedBar'
 import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
 import {
@@ -282,7 +289,13 @@ describe('RankedBar', () => {
     const chart = screen.getByRole('group', { name: 'chart' })
     const items = within(within(chart).getByRole('list')).getAllByRole('listitem')
     const names = rankEntries(rows, metaWithHK).map((entry) => entry.label)
-    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual(names)
+    // Each row is named with the value it prints, so browse mode hears
+    // the numbers (H3); the card stays its description.
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
+      `${names[0]}, 7.40`,
+      `${names[1]}, 6.90`,
+      `${names[2]}, 6.20`,
+    ])
     // One tab stop, on the first row.
     const stops = () => items.map((item) => item.tabIndex)
     expect(stops()).toEqual([0, -1, -1])
@@ -316,6 +329,26 @@ describe('RankedBar', () => {
     expect(within(chart).queryByRole('tooltip')).toBeNull()
     // The pointer keeps Plot's own tip.
     expect(container.querySelector('[aria-label="tip"]')).not.toBeNull()
+  })
+
+  test('a thin row is named "few people", a missing value "no estimate" (H3)', () => {
+    render(
+      <RankedBar
+        rows={[
+          testRow({ group: { country_code: 22 }, estimate: 7.4, flagged: true, n: 12 }),
+          testRow({ group: { country_code: 1 }, estimate: null, ci_lo: null, ci_hi: null }),
+        ]}
+        meta={testMeta}
+        responseMeta={testResponseMeta()}
+        variable={happyVariable}
+        color="var(--sfi-happiness)"
+      />,
+    )
+    expect(screen.getAllByRole('listitem').map((item) => item.getAttribute('aria-label'))).toEqual([
+      'United States, 7.40, few people',
+      'Testland, no estimate',
+    ])
+    expect(readableRowName('Indonesia', '8.10', false)).toBe('Indonesia, 8.10')
   })
 
   test('the tab stop starts at a found row, its pinned card steps aside, and a rebuild keeps the reader', async () => {
