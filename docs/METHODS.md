@@ -24,9 +24,11 @@ see [Verified against R](#verified-against-r) below).
 - **The value label** over the numbers ("Mean ▾", "Share ▾") orders the
   chart: every chart runs by value, highest first; select the label to
   reverse it, lowest first. Nothing is ever ordered A–Z.
-- **The toolbar** beside each chart's title holds how the chart is
+- **The toolbar** under each chart's title holds how the chart is
   drawn — a mean, a median or every answer, or the method of a
-  correlation — with a link back to this section and **Download**.
+  correlation — with the key, a link back to this section and
+  **Download**. On a phone the toolbar's controls and links sit in the
+  **Options** sheet, and the key on the row of labels over the chart.
   What is shown (the question, the year, the countries) sits in the
   question bar above the chart.
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
@@ -40,9 +42,15 @@ see [Verified against R](#verified-against-r) below).
 - **Download**, in every chart's toolbar, gives a CSV of every number
   with its weight and the number of people behind it (the *n*), or a
   PNG of the chart.
-- **An asterisk** (`+0.25*`) on the Correlates page marks a number that
-  rests on few people ([below](#few-people-behind-an-estimate)). It is
-  shown, never hidden — lean on it lightly.
+- **A hollow dot** (or bar) **and an asterisk** (`7.12*`) mark a number
+  that rests on fewer than 30 people ([below](#small-groups-shown-never-hidden));
+  its card says "Few people — treat with care", and the key names the
+  mark. It is shown, never hidden — lean on it lightly. On the
+  Correlates page the asterisk follows that page's own floors
+  ([below](#few-people-behind-an-estimate)).
+- **No line at all** through a dot means no interval could be drawn:
+  one person, or everyone in the group gave the same answer. The card
+  says which.
 
 Every figure is an **association**, never a cause
 ([below](#associations-not-causes)).
@@ -205,8 +213,24 @@ protects the reader instead:
 - **The n is a hover away**: every hover card says how many people in
   the sample a number rests on, and the CSV in every chart's Download
   menu lists it for every number.
-- **A number resting on a single sampling unit** has no computable
-  interval, and its card says so.
+- **Fewer than 30 people: a hollow mark and an asterisk.** A number
+  resting on fewer than 30 people is drawn hollow, its value starred,
+  its card ending "Few people — treat with care"
+  ([ADR-0031](adr/ADR-0031-display-fixes-from-the-22-october-review.md)).
+  For a share the 30 counts the people in the group who answered the
+  question, not those who gave that answer — 5 people out of 1,000 is
+  a small, well-measured share.
+- **No interval where there is nothing to measure it from.** A number
+  resting on one person, or on a group whose answers are all the same
+  (a share of exactly 0% or 100% among them), has no spread to make an
+  interval from: it is drawn without a line, and its card says why,
+  instead of showing an interval of zero width that would look like the
+  surest number on the page. A number resting on a single sampling unit
+  has no computable interval either, and its card says so.
+- **The order never rests on a thin group.** Segments orders its
+  countries by each country's own estimate — the Atlas's — and its
+  "Biggest gap first" leaves thin groups out, so a handful of people
+  cannot put a country at the top.
 - **Every US state stands on its own.** The release pools its 13
   smallest states into four groups; the US States page shows each one
   separately, so North Dakota's figure rests on its own 59 to 75 people
@@ -216,12 +240,19 @@ protects the reader instead:
 <details>
 <summary>For the technically minded</summary>
 
-The suppression machinery itself is intact and parameterised, not
-deleted: the engine still takes a threshold pair, and setting
-`FA_SUPPRESSION_THRESHOLD=50` / `FA_SUPPRESSION_FLAG_BELOW=100` on the
-API (and passing the same policy to the static exporter) restores the
-previous rule, under which cells below n = 50 were withheld and cells
-of 50–99 flagged.
+The serving policy is `flourish_stats.SERVING_POLICY`: a suppression
+threshold of 0 (nothing withheld) and a flag below 30. The machinery is
+parameterised, not hard-coded: setting `FA_SUPPRESSION_THRESHOLD=50` /
+`FA_SUPPRESSION_FLAG_BELOW=100` on the API (and passing the same policy
+to the static exporter) restores the pre-ADR-0011 rule, under which
+cells below n = 50 were withheld and cells of 50–99 flagged. The flag
+counts a mean's n, and a share's group of answerers (the engine's
+`n_base`, never served); the CSV's `# suppression:` line states the
+policy. An interval is left out when the SE is zero up to floating
+point (≤ 1e-9); the SE itself is served as computed. An interval that
+runs past a scale's end — two people can give [7.38, 11.50] on a 0–10
+scale — is a known limit of the normal approximation for tiny groups,
+left as it is for now.
 
 </details>
 
