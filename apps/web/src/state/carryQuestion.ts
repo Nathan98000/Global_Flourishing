@@ -10,11 +10,25 @@ import { useEstimates } from '../api/estimates'
 import type { Wave } from '../api/types'
 import { useVariables } from '../api/variables'
 import { US_COUNTRY_CODE } from '../views/stateRows'
-import { ATLAS_DEFAULTS, atlasRequest } from './search'
+import {
+  ATLAS_DEFAULTS,
+  BREAKDOWNS_DEFAULTS,
+  CHANGE_DEFAULTS,
+  STATES_DEFAULTS,
+  atlasRequest,
+} from './search'
 
-/** The pages whose URL names a question (`outcome`), and those of them
- * that name its year (`wave`). */
-const QUESTION_PAGES: readonly string[] = ['/', '/change', '/states', '/segments']
+/** The pages whose URL names a question (`outcome`), each with the
+ * question it opens on — which its URL leaves out, so a page showing it
+ * still carries its year (`/?wave=Y2` links to `/states?wave=Y2`; each
+ * route drops the default again) — and those of them that name its year
+ * (`wave`). */
+const QUESTION_PAGES: ReadonlyMap<string, string> = new Map([
+  ['/', ATLAS_DEFAULTS.outcome],
+  ['/change', CHANGE_DEFAULTS.outcome],
+  ['/states', STATES_DEFAULTS.outcome],
+  ['/segments', BREAKDOWNS_DEFAULTS.outcome],
+])
 const YEAR_PAGES: readonly string[] = ['/', '/states', '/segments']
 
 /** What a nav link to `to` carries: its search, or undefined for a plain
@@ -29,10 +43,13 @@ export function useCarriedQuestion(): CarriedSearch {
     }),
   })
   const variables = useVariables()
+  const opensOn = QUESTION_PAGES.get(pathname)
   const outcome =
-    QUESTION_PAGES.includes(pathname) && typeof search['outcome'] === 'string'
-      ? search['outcome']
-      : undefined
+    opensOn === undefined
+      ? undefined
+      : typeof search['outcome'] === 'string'
+        ? search['outcome']
+        : opensOn
   const variable = outcome !== undefined ? variables.data?.byName[outcome] : undefined
   const asked = variable?.servable ? variable.waves_available : []
   // The year in view where the question was asked then; else the first
