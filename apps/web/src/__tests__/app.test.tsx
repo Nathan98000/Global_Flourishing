@@ -444,6 +444,36 @@ test('the nav carries the question, and its year, to the pages that can show it 
   expect(within(again).getByRole('link', { name: 'US States' })).toHaveAttribute('href', '/states')
 })
 
+test('the year travels with the default question too, whose URL names only the year (H10)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y2/mean_by-country_code.json': testResponse(
+      [1, 22].map((code) => testRow({ group: { country_code: code }, estimate: 7 })),
+      { outcome: 'sfi', waves: ['Y2'] },
+    ),
+  })
+  await renderAt('/?wave=Y2')
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  const href = (name: string) => within(nav).getByRole('link', { name }).getAttribute('href')
+  await waitFor(() => expect(href('US States')).toBe('/states?wave=Y2'))
+  expect(href('Segments')).toBe('/segments?wave=Y2')
+  expect(href('Atlas')).toBe('/?wave=Y2')
+  // Change takes no year, and the default question needs no naming.
+  expect(href('Change')).toBe('/change')
+  cleanup()
+  // At the default year the links stay plain: nothing to carry.
+  await renderAt('/')
+  await screen.findAllByText('Testland')
+  const plain = screen.getByRole('navigation', { name: 'Main' })
+  for (const [name, to] of [
+    ['Atlas', '/'],
+    ['US States', '/states'],
+    ['Segments', '/segments'],
+  ]) {
+    expect(within(plain).getByRole('link', { name })).toHaveAttribute('href', to)
+  }
+})
+
 test('Segments with two splits on a phone: one country at a time, stepped from the summary line (H11)', async () => {
   stubViewport((query) => query.includes('40rem'))
   const cells = [1, 22].flatMap((code) =>
