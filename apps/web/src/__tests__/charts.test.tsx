@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 import { capitalize } from '../charts/ChartFigure'
 import { BAR_LABEL_ROOM, CrossTab, LINE, crossTabLayout, type Measurer } from '../charts/CrossTab'
+import { labelGutter } from '../charts/ChangeDots'
 import { Histogram, thinnedTicks } from '../charts/Histogram'
 import {
   TIP_OPTIONS,
@@ -19,8 +20,16 @@ import {
 import { TipCardText } from '../charts/TipCard'
 import { fillTipCard } from '../charts/tipLines'
 import { LABEL_CAP, RankedBar, rankEntries, textMeasurer, wrapLabel } from '../charts/RankedBar'
+import { readableRowName } from '../charts/readableRows'
 import { SmallMultiples, facetOrder, panelTicks } from '../charts/SmallMultiples'
 import { MAX_ANSWERS, StackedShares, answerShades } from '../charts/StackedShares'
+import {
+  CSV_SENTENCE,
+  listWords,
+  summarizeCells,
+  summarizeDistribution,
+  summarizeExtremes,
+} from '../charts/summary'
 import { chartWidth, usePlot } from '../charts/usePlot'
 import {
   attendVariable,
@@ -46,25 +55,30 @@ const rows = [
   }),
 ]
 
-/** A text's y in the SVG: the translate() of it and of its ancestors —
- * Plot positions axis labels through nested transforms. */
+/** A text's y in the outermost SVG: the translate() of it and of its
+ * ancestors — Plot positions axis labels through nested transforms — and
+ * the place of a plot nested in another (a Segments panel). */
 function absoluteY(node: Element): number {
-  let y = 0
-  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
-    const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
-    if (match) y += Number(match[2])
-  }
-  return y
+  return absolute(node, 2, 'y')
 }
 
-/** A text's x in the SVG, like absoluteY. */
+/** A text's x in the outermost SVG, like absoluteY. */
 function absoluteX(node: Element): number {
-  let x = 0
-  for (let el: Element | null = node; el && el.tagName !== 'svg'; el = el.parentElement) {
+  return absolute(node, 1, 'x')
+}
+
+function absolute(node: Element, group: 1 | 2, attribute: 'x' | 'y'): number {
+  let at = 0
+  for (let el: Element | null = node; el; el = el.parentElement) {
+    if (el.tagName === 'svg') {
+      if (el.parentElement?.closest('svg') == null) break
+      at += Number(el.getAttribute(attribute) ?? 0)
+      continue
+    }
     const match = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(el.getAttribute('transform') ?? '')
-    if (match) x += Number(match[1])
+    if (match) at += Number(match[group])
   }
-  return x
+  return at
 }
 
 /** A tick label's horizontal extent: about 6.6 px a glyph of the 11 px
@@ -275,7 +289,13 @@ describe('RankedBar', () => {
     const chart = screen.getByRole('group', { name: 'chart' })
     const items = within(within(chart).getByRole('list')).getAllByRole('listitem')
     const names = rankEntries(rows, metaWithHK).map((entry) => entry.label)
-    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual(names)
+    // Each row is named with the value it prints, so browse mode hears
+    // the numbers (H3); the card stays its description.
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
+      `${names[0]}, 7.40`,
+      `${names[1]}, 6.90`,
+      `${names[2]}, 6.20`,
+    ])
     // One tab stop, on the first row.
     const stops = () => items.map((item) => item.tabIndex)
     expect(stops()).toEqual([0, -1, -1])
@@ -311,6 +331,26 @@ describe('RankedBar', () => {
     expect(container.querySelector('[aria-label="tip"]')).not.toBeNull()
   })
 
+  test('a thin row is named "few people", a missing value "no estimate" (H3)', () => {
+    render(
+      <RankedBar
+        rows={[
+          testRow({ group: { country_code: 22 }, estimate: 7.4, flagged: true, n: 12 }),
+          testRow({ group: { country_code: 1 }, estimate: null, ci_lo: null, ci_hi: null }),
+        ]}
+        meta={testMeta}
+        responseMeta={testResponseMeta()}
+        variable={happyVariable}
+        color="var(--sfi-happiness)"
+      />,
+    )
+    expect(screen.getAllByRole('listitem').map((item) => item.getAttribute('aria-label'))).toEqual([
+      'United States, 7.40, few people',
+      'Testland, no estimate',
+    ])
+    expect(readableRowName('Indonesia', '8.10', false)).toBe('Indonesia, 8.10')
+  })
+
   test('the tab stop starts at a found row, its pinned card steps aside, and a rebuild keeps the reader', async () => {
     const props = {
       meta: metaWithHK,
@@ -339,6 +379,43 @@ describe('RankedBar', () => {
     expect(items().map((item) => item.tabIndex)).toEqual([-1, -1, 0])
     expect(items()[2]).toHaveFocus()
     expect(screen.getByRole('tooltip')).toBeInTheDocument()
+  })
+
+  test("on a phone a row's card rises over it when under it would run off the screen (H18)", () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    // The chart sits low on an 800 px screen; the card is wider than the
+    // room beside any mark, so it goes over or under its row.
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(() => ({ top: 700, width: 300, height: 0 }) as DOMRect)
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(400)
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(80)
+    vi.stubGlobal('innerHeight', 800)
+    try {
+      render(
+        <RankedBar
+          rows={rows}
+          meta={metaWithHK}
+          responseMeta={testResponseMeta()}
+          variable={happyVariable}
+          color="var(--sfi-happiness)"
+        />,
+      )
+      const first = screen.getAllByRole('listitem')[0] as HTMLElement
+      act(() => first.focus())
+      expect(parseFloat(screen.getByRole('tooltip').style.top)).toBeLessThan(0)
+    } finally {
+      rect.mockRestore()
+      width.mockRestore()
+      height.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 
   test('quantile rows render without whiskers (no CIs yet, per METHODS)', () => {
@@ -477,6 +554,27 @@ describe('RankedBar, the Correlates list (ADR-0018)', () => {
     expect(within(chart).queryByRole('tooltip')).toBeNull()
     // The buttons carry the tip; Plot's pointer tip is not drawn twice.
     expect(container.querySelector('[aria-label="tip"]')).toBeNull()
+  })
+
+  test('the row buttons are one tab stop, ↑ ↓ Home End between them (H18)', () => {
+    render(
+      <div role="group" aria-label="chart">
+        <RankedBar {...props} onSelectRow={() => undefined} />
+      </div>,
+    )
+    const buttons = within(screen.getByRole('group', { name: 'chart' })).getAllByRole('button')
+    expect(buttons.map((button) => button.tabIndex)).toEqual([0, -1, -1])
+    const [first, second, last] = buttons as [HTMLElement, HTMLElement, HTMLElement]
+    act(() => first.focus())
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(second).toHaveFocus()
+    expect(buttons.map((button) => button.tabIndex)).toEqual([-1, 0, -1])
+    fireEvent.keyDown(second, { key: 'End' })
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last, { key: 'Home' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first, { key: 'ArrowUp' })
+    expect(first).toHaveFocus()
   })
 
   test('on a phone each label sits on its own line over a full-width dot track, three ticks', () => {
@@ -919,10 +1017,11 @@ describe('SmallMultiples', () => {
     expect(style?.getAttribute('text-anchor')).toBe('start')
     // At the chart's left edge, where the row labels start…
     for (const title of titles) expect(absoluteX(title)).toBeLessThan(8)
-    // …and above its own panel's frame and first row label.
-    const frames = [...svg.querySelectorAll('[aria-label="frame"] rect')].map(
-      (rect) => absoluteY(rect) + Number(rect.getAttribute('y')),
-    )
+    // …and above its own panel's frame and first row label. (An unfaceted
+    // plot's frame is the rect itself; a faceted one's, a group's rects.)
+    const frames = [
+      ...svg.querySelectorAll('[aria-label="frame"] rect, rect[aria-label="frame"]'),
+    ].map((rect) => absoluteY(rect) + Number(rect.getAttribute('y')))
     const rowLabels = [...svg.querySelectorAll('[aria-label="y-axis tick label"] text')]
       .filter((node) => node.textContent === 'Male')
       .map(absoluteY)
@@ -1083,6 +1182,84 @@ describe('panelTicks', () => {
     expect(kept[0]).toBe(0)
     expect(kept[kept.length - 1]).toBe(10)
     expect(kept.length).toBeLessThan(6)
+  })
+})
+
+describe('spoken summaries (H1, H2)', () => {
+  const cells = [
+    testRow({ group: { country_code: 1, outcome: 'A' }, estimate: 9.5 }),
+    testRow({ group: { country_code: 22, outcome: 'B' }, estimate: 5.2 }),
+    testRow({ group: { country_code: 22, outcome: 'A' }, estimate: null }),
+  ]
+  test('a ranked chart names its highest and lowest country with their values', () => {
+    expect(summarizeExtremes(rows.slice(0, 2), testMeta, 'Happiness by country.')).toBe(
+      'Happiness by country. Highest: United States 7.40; lowest: Testland 6.90.',
+    )
+    expect(summarizeExtremes([], testMeta, 'Happiness by country.')).toBe(
+      'Happiness by country. No estimates to show.',
+    )
+  })
+  test('a grid names its extreme cells by row and column', () => {
+    const label = summarizeCells(
+      cells,
+      (row) => `${String(row.group['country_code'])}, item ${String(row.group['outcome'])}`,
+      'A matrix.',
+    )
+    expect(label).toBe('A matrix. Highest: 1, item A 9.50; lowest: 22, item B 5.20.')
+  })
+  test('a distribution lists its countries in order with their means, and points to the CSV', () => {
+    const means = [
+      testRow({ group: { country_code: 1 }, estimate: 7.99 }),
+      testRow({ group: { country_code: 22 }, estimate: 7.5 }),
+    ]
+    const label = summarizeDistribution('Happiness.', ['Testland', 'United States'], means)
+    expect(label).toBe(
+      `Happiness. How people in Testland and United States answered — means 7.99 and 7.50. ${CSV_SENTENCE}`,
+    )
+    // Means not loaded yet: the countries alone, never "No estimates".
+    expect(summarizeDistribution('Happiness.', ['Testland'], [undefined])).toBe(
+      `Happiness. How people in Testland answered. ${CSV_SENTENCE}`,
+    )
+    expect(listWords(['a', 'b', 'c'])).toBe('a, b and c')
+  })
+})
+
+describe('phone headers that collided (H15)', () => {
+  test("Change's label gutter fits its longest name, with a reader's own text spacing", () => {
+    const measure = (text: string) => text.length * 7
+    const gutter = labelGutter(['Japan', 'United Kingdom'], measure)
+    // 14 letters at 7 px, 0.12 em each more, one word gap 0.16 em more.
+    expect(gutter).toBe(Math.ceil(14 * 7 + 14 * 0.12 * 13.5 + 0.16 * 13.5 + 12))
+    expect(labelGutter(['Peru'], measure)).toBe(76)
+  })
+
+  test("a distribution's panel names sit close over their panels, under the axis title", () => {
+    const panels = [1, 22].flatMap((code) =>
+      [0, 5, 10].map((level) =>
+        testRow({ group: { country_code: code }, stat: 'distribution', level, estimate: 0.3 }),
+      ),
+    )
+    const { container } = render(
+      <Histogram
+        rows={panels}
+        meta={testMeta}
+        responseMeta={testResponseMeta({ stat: 'distribution' })}
+        variable={happyVariable}
+        color="var(--series-1)"
+      />,
+    )
+    const svg = container.querySelector('svg') as SVGSVGElement
+    const lift = (label: string) =>
+      Number(
+        /translate\([-\d.]+,\s*([-\d.]+)\)/.exec(
+          svg.querySelector(`[aria-label="${label}"]`)?.getAttribute('transform') ?? '',
+        )?.[1],
+      )
+    // The y title's line ends about 15 px above the frame; the panel
+    // names (an 11 px line) start below that.
+    expect(svg.querySelector('[aria-label="fx-axis tick"]')).toBeNull()
+    expect(lift('fx-axis tick label')).toBeGreaterThan(-4)
+    expect(lift('y-axis label')).toBeLessThan(-20)
   })
 })
 

@@ -16,13 +16,17 @@
 // summary line what it already says.
 
 import { Link, useRouter } from '@tanstack/react-router'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ProgressBar, useDelayedFlags } from '../components/Loading'
+import { usePopupDismiss } from '../components/controls/usePopupDismiss'
 import { exportFilename, type ExportName } from '../export/filename'
 import { downloadChartPng, keyFromFigure } from '../export/png'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { useChartActionsInSheet, type ChartActions } from './ChartActions'
 import styles from './ChartFigure.module.css'
+
+/** The least room between the key and either column label, in px. */
+const HEAD_GAP = 12
 
 /** A subtitle starts with a capital, whatever clause leads it. */
 export function capitalize(text: string): string {
@@ -68,37 +72,23 @@ export function HowToRead() {
   )
 }
 
+/** What a chart drawn in HTML (a grid) says in its PNG's place (H13):
+ * the chart's limit, never the browser's. */
+export const NO_PICTURE = 'This chart can’t be saved as a picture — the CSV has the same numbers.'
+
 /** One "Download ▾" (F17): a disclosure whose panel holds the CSV and the
- * PNG. It closes on a choice, on Escape (focus back to the button) and on
- * a press outside it. */
-function DownloadMenu({ csv, onPng }: { csv?: CsvExport; onPng: () => void }) {
+ * PNG (or, for a chart drawn in HTML, why there is none). It closes on a choice, on Escape from anywhere (focus back to the
+ * button), when focus leaves it and on a press outside it
+ * (usePopupDismiss, H12). */
+function DownloadMenu({ csv, onPng }: { csv?: CsvExport; onPng?: () => void }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement | null>(null)
   const button = useRef<HTMLButtonElement | null>(null)
   const panelId = useId()
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && root.current?.contains(event.target)) return
-      setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
-  const close = () => setOpen(false)
+  const close = useCallback(() => setOpen(false), [])
+  usePopupDismiss(open, root, button, close)
   return (
-    // The keydown is the menu's bubbling Escape-to-close.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-    <div
-      ref={root}
-      className={styles.download}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && open) {
-          setOpen(false)
-          button.current?.focus()
-        }
-      }}
-    >
+    <div ref={root} className={styles.download}>
       <button
         ref={button}
         type="button"
@@ -139,17 +129,21 @@ function DownloadMenu({ csv, onPng }: { csv?: CsvExport; onPng: () => void }) {
               CSV <span className={styles.itemNote}>the numbers</span>
             </button>
           ))}
-        <button
-          type="button"
-          className={styles.item}
-          aria-label="Download PNG"
-          onClick={() => {
-            close()
-            onPng()
-          }}
-        >
-          PNG <span className={styles.itemNote}>the picture</span>
-        </button>
+        {onPng ? (
+          <button
+            type="button"
+            className={styles.item}
+            aria-label="Download PNG"
+            onClick={() => {
+              close()
+              onPng()
+            }}
+          >
+            PNG <span className={styles.itemNote}>the picture</span>
+          </button>
+        ) : (
+          <p className={styles.menuNote}>{NO_PICTURE}</p>
+        )}
       </div>
     </div>
   )
@@ -172,6 +166,7 @@ export function ChartFigure({
   isRefreshing = false,
   wide = false,
   interactive = false,
+  picture = true,
   children,
 }: {
   title: string
@@ -218,6 +213,10 @@ export function ChartFigure({
    * labelled group, not an image, so they stay in the a11y tree
    * (ADR-0018, ADR-0032). */
   interactive?: boolean
+  /** The chart is an SVG a PNG can be made from; false for one drawn in
+   * HTML (What Matters' grids, Compare several), whose downloads offer
+   * the CSV alone (H13). */
+  picture?: boolean
   children: ReactNode
 }) {
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -246,8 +245,9 @@ export function ChartFigure({
   }
 
   // Handed to the page's Options sheet, read when used (never stale).
-  const actions = useRef<ChartActions>({ csv, png: () => void exportPng() })
-  actions.current = { csv, png: () => void exportPng() }
+  const png = picture ? () => void exportPng() : undefined
+  const actions = useRef<ChartActions>({ csv, png })
+  actions.current = { csv, png }
   const narrow = useMediaQuery(NARROW_VIEWPORT)
   const inSheet = useChartActionsInSheet(actions) && narrow
   const shownSubtitle =
@@ -255,13 +255,36 @@ export function ChartFigure({
   // On a phone the key reads with the column labels when there are some.
   const keyInHead = narrow && sortHead !== undefined && chartKey !== undefined
   const asideKey = keyInHead ? undefined : chartKey
+  // The key sits centred between the column labels when it fits there;
+  // when it doesn't, it takes its own line above them (H15) — decided by
+  // measuring, on every page.
+  const heads = useRef<HTMLDivElement | null>(null)
+  const [keyAbove, setKeyAbove] = useState(false)
+  useLayoutEffect(() => {
+    const host = heads.current
+    if (!keyInHead || !host || typeof ResizeObserver === 'undefined') return
+    const measure = () => {
+      const key = host.querySelector<HTMLElement>('[data-head-key]')
+      const names = host.querySelector<HTMLElement>('[data-sort-names]')
+      const value = host.querySelector<HTMLElement>('[data-sort-value]')
+      if (!key || !names || !value || host.clientWidth === 0) return
+      const beside = Math.max(names.offsetWidth, value.offsetWidth) + HEAD_GAP
+      setKeyAbove(key.offsetWidth > host.clientWidth - 2 * beside)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [keyInHead])
   const hasAside = asideKey !== undefined || !inSheet
 
   return (
     <figure ref={figureRef} className={styles.figure} aria-busy={isRefreshing || undefined}>
       {showProgress && <ProgressBar className={styles.progress} />}
       <figcaption className={styles.caption}>
-        <span className={styles.title}>{title}</span>
+        {/* A heading (H16): a screen reader's list of headings lands on
+            every chart. */}
+        <h3 className={styles.title}>{title}</h3>
         {shownSubtitle && <span className={styles.subtitle}>{capitalize(shownSubtitle)}</span>}
       </figcaption>
       {/* One row under the title (G4): how it's drawn on the left; the
@@ -276,7 +299,7 @@ export function ChartFigure({
                 <span className={styles.links}>
                   <HowToRead />
                   <span aria-hidden="true">·</span>
-                  <DownloadMenu csv={csv} onPng={() => void exportPng()} />
+                  <DownloadMenu csv={csv} onPng={png} />
                 </span>
               )}
             </div>
@@ -287,14 +310,23 @@ export function ChartFigure({
       {hint && <p className={styles.hint}>{hint}</p>}
       {pngFailed && (
         <p role="status" className={styles.exportNote}>
-          PNG export isn&rsquo;t available in this browser — the CSV has the same numbers.
+          {NO_PICTURE}
         </p>
       )}
       {intro}
       {keyInHead ? (
-        <div className={styles.heads}>
+        <div ref={heads} className={styles.heads} data-key-above={keyAbove || undefined}>
+          {keyAbove && (
+            <div className={styles.headKey} data-head-key="">
+              {chartKey}
+            </div>
+          )}
           {sortHead}
-          <div className={styles.headKey}>{chartKey}</div>
+          {!keyAbove && (
+            <div className={styles.headKey} data-head-key="">
+              {chartKey}
+            </div>
+          )}
         </div>
       ) : (
         sortHead
@@ -305,6 +337,7 @@ export function ChartFigure({
         aria-label={ariaLabel}
         className={styles.chart}
         data-chart=""
+        data-interactive={interactive || undefined}
         data-refreshing={isRefreshing || undefined}
         data-wide={wide || undefined}
       >

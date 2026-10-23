@@ -76,7 +76,8 @@ def test_detail_for_derived_outcome(client: TestClient) -> None:
     assert body["is_derived"] is True
     assert body["direction"] == "lower_better"
     assert body["value_labels"] == [] and body["missingness"] == []
-    assert body["label"].startswith("PHQ-2 score")
+    # The screener line in plain words (owner decision 8): the two questions, then the cut-off.
+    assert body["label"].startswith("Screens positive when the answers to “DEPRESSED”")
 
 
 def test_unknown_variable_404(client: TestClient) -> None:

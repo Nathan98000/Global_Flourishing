@@ -4,15 +4,17 @@
 // then "Choose countries" with a tick per country, so "all" is never
 // shown as nothing ticked. An empty selection means all countries. The
 // trigger keeps a minimum width, so a selection change never moves it
-// (25 Sept fix); the panel closes on Escape (focus back to the trigger)
-// and on a click outside it (focus left alone), and anchors to the
+// (25 Sept fix); the panel closes on Escape from anywhere (focus back to
+// the trigger), when focus leaves it and on a click outside it
+// (usePopupDismiss, H12), and anchors to the
 // trigger's right edge when a left-anchored panel would overflow the page
 // column. In the phone's options sheet (`variant="panel"`) the same
 // choices sit in the sheet itself, under the label, with no popover.
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import type { Country } from '../../api/types'
 import styles from './CountryFilter.module.css'
+import { usePopupDismiss } from './usePopupDismiss'
 
 export function CountryFilter({
   countries,
@@ -45,21 +47,16 @@ export function CountryFilter({
     onChange([...next].sort((a, b) => a - b))
   }
 
-  // Close on an outside pointerdown, leaving focus wherever it was.
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      const host = details.current
-      if (!host?.open) return
-      if (event.target instanceof Node && host.contains(event.target)) return
-      host.open = false
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => {
+    if (details.current) details.current.open = false
   }, [])
+  usePopupDismiss(open, details, summary, close)
 
   const onToggle = () => {
     const host = details.current
     const box = panel.current
+    setOpen(host?.open ?? false)
     if (!host?.open || !box) return
     setChoosing(selected.length > 0)
     const column = host.closest('main')?.getBoundingClientRect().right ?? window.innerWidth
@@ -128,21 +125,7 @@ export function CountryFilter({
       <span className={styles.label} aria-hidden="true">
         Countries
       </span>
-      {/* The keydown is a bubbling Escape-to-close for the disclosure
-          (focus returns to the trigger) — not a fake interactive element,
-          which is what the a11y rule guards against. */}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-      <details
-        ref={details}
-        className={styles.details}
-        onToggle={onToggle}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && details.current?.open) {
-            details.current.open = false
-            summary.current?.focus()
-          }
-        }}
-      >
+      <details ref={details} className={styles.details} onToggle={onToggle}>
         <summary ref={summary} className={styles.summary}>
           <span className="visually-hidden">Countries: </span>
           <span>{countryTriggerText(selected.length, countries.length)}</span>

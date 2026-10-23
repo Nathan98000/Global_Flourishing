@@ -10,7 +10,8 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
 import { useMeta } from '../api/meta'
 import type { MissingnessRow, ValueLabel, VariableDetail } from '../api/types'
-import { useVariable } from '../api/variables'
+import { useVariable, useVariables } from '../api/variables'
+import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
 import { Skeleton } from '../components/Skeleton'
 import { formatCount, formatPercent } from '../format'
@@ -162,8 +163,24 @@ export function whyNotChartable(detail: VariableDetail): string {
 export function CodebookDetailView() {
   const { name } = route.useParams()
   const meta = useMeta()
-  const detailQuery = useVariable(name)
+  const variables = useVariables()
+  // A name the release's catalog doesn't have says so in words (H14),
+  // with the way back to the list — never a request's failure.
+  const unknown = variables.isSuccess && variables.data.byName[name] === undefined
+  const detailQuery = useVariable(unknown ? null : name)
 
+  if (unknown) {
+    return (
+      <section>
+        <h2 className="visually-hidden">Codebook</h2>
+        <EmptyState title={`There’s no question called ${name} in this release`}>
+          <p>
+            <Link to="/codebook">Browse the Codebook</Link> for every question it does have.
+          </p>
+        </EmptyState>
+      </section>
+    )
+  }
   if (meta.isPending || detailQuery.isPending) {
     return (
       <section>

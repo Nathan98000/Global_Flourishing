@@ -162,9 +162,10 @@ export function acrossSubtitle(
   method?: CorrelationMethod,
   other?: OtherWave,
 ): string {
-  const questions = count === 1 ? 'The 1 question' : `The ${count} questions`
+  const questions = count === 1 ? 'the 1 question' : `the ${count} questions`
   const place = countryName === ALL_COUNTRIES ? 'all countries' : countryName
-  return `${questions} ranked for ${place}, country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`
+  // One order for every subtitle (H17): statistic · year · place.
+  return `${statisticPhrase(method)} · ${waveTitle(wave, other)} · ${questions} ranked for ${place}, country by country`
 }
 
 /** Whether a correlation rests on fewer people than the ranking floor
@@ -188,11 +189,14 @@ export function fewPeople(
 /** A cell with no value at all, in its tooltip. */
 export const NO_ESTIMATE = 'No estimate: too few people answered both.'
 
-/** The asterisk's key, wherever the page shows one (ADR-0020). */
-export const FEW_PEOPLE_KEY = '* small sample size'
+/** The asterisk's key, wherever the page shows one (ADR-0020): the same
+ * mark as the estimate charts' "* fewer than 30 people", with this
+ * page's own floors, said so (H17). */
+export const FEW_PEOPLE_KEY = '* few people (Correlates’ own rule)'
 
-/** What a screen reader hears after a flagged value, in place of "*". */
-export const FEW_PEOPLE_HIDDEN = ', small sample size'
+/** What a screen reader hears after a flagged value, in place of "*" —
+ * as a ranked row says it (H3). */
+export const FEW_PEOPLE_HIDDEN = ', few people'
 
 /** A value, with its asterisk when few people are behind it. */
 export function starred(text: string, flagged: boolean): string {
@@ -240,15 +244,21 @@ export function statisticPhrase(method: CorrelationMethod | undefined): string {
   return method === 'spearman' ? 'correlation by rank, −1 to 1' : 'correlation, −1 to 1'
 }
 
-/** Subtitle for the ranked list: where, when (at Midyear, beside which
- * year's answers), what. */
+/** A place where a subtitle names it, mid-line: "all countries
+ * (average of 23)", a country by its name. */
+export function placeWords(place: string): string {
+  return place.startsWith(ALL_COUNTRIES) ? `all${place.slice(3)}` : place
+}
+
+/** Subtitle for the ranked list, in every subtitle's order (H17): what,
+ * when (at Midyear, beside which year's answers), where. */
 export function rankedSubtitle(
   countryName: string,
   method: CorrelationMethod | undefined,
   wave: Wave,
   other?: OtherWave,
 ): string {
-  return `${countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`
+  return `${statisticPhrase(method)} · ${waveTitle(wave, other)} · ${placeWords(countryName)}`
 }
 
 /** The ranked list's fixed window: a correlation always spans −1 to 1,

@@ -1964,7 +1964,7 @@
     },
     "/v1/change": {
       "get": {
-        "description": "Within-person change with a design-based CI. Numeric scales (0–10,\ncounts) report the mean change on values aligned so higher means more\nof what the measure names (``stat = \"change\"``), plus the distribution\nof individual change; categorical items report the change in the\nshare answering each level (``stat = \"change_share\"``, a fraction —\n× 100 for percentage points) plus the transition matrix.\n``from=Y1&via=MY&to=Y2`` returns the three panel legs under the\nthree-point weight (numeric scales only).",
+        "description": "Within-person change with a design-based CI. Numeric scales (0–10,\ncounts) report the mean change on values aligned so higher means more\nof what the measure names (``stat = \"change\"``), plus the distribution\nof individual change; categorical items report the change in the\nshare answering each level (``stat = \"change_share\"``, a fraction —\n× 100 for percentage points), plus the transition matrix with\n``include=transitions``.\n``from=Y1&via=MY&to=Y2`` returns the three panel legs under the\nthree-point weight (numeric scales only).",
         "operationId": "change_v1_change_get",
         "parameters": [
           {
@@ -2067,6 +2067,25 @@
               "default": "Y1",
               "title": "From",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
             }
           }
         ],

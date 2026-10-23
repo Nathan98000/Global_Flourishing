@@ -5,7 +5,7 @@
 // by the live service only (the static tier facets by one demographic).
 
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useEstimates } from '../api/estimates'
 import { NetworkError } from '../api/errors'
 import { useBootStatus, useMeta } from '../api/meta'
@@ -15,13 +15,14 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import type { LevelLabeler } from '../charts/DotPlot'
 import { SmallMultiples, countryEstimates, facetOrder } from '../charts/SmallMultiples'
+import { summarizeCells } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
-import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
@@ -40,6 +41,7 @@ import {
 } from '../labels'
 import { DEFAULT_DIR, VALUE_ORDER, sortBreakdownRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import {
   BREAKDOWNS_DEFAULTS,
   breakdownsRequest,
@@ -49,7 +51,17 @@ import {
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  noAnswers,
+  noAnswersLine,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/segments')
 
@@ -79,7 +91,18 @@ export function BreakdownsView() {
   const activeLevel = search.level ?? outcomeLevelOptions[0]?.value
   const levelLabel = outcomeLevelOptions.find((entry) => entry.value === activeLevel)?.label
 
-  const request = chartable ? breakdownsRequest(search, variable) : null
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(
+        searchNavigation(breakdownsSearchParams({ ...search, wave }), { replace: true }),
+      ),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked ? breakdownsRequest(search, variable) : null
   const estimates = useEstimates(request)
   const response = estimates.data?.response
   // Each country's own estimate, the same question, year and statistic —
@@ -91,6 +114,9 @@ export function BreakdownsView() {
   const dir = search.dir ?? DEFAULT_DIR
   const metaForSort = meta.data?.meta
   const narrow = useMediaQuery(NARROW_VIEWPORT)
+  // On a phone with two splits, one country at a time (H11): the one in
+  // view, stepped from the summary line — view state, not in the URL.
+  const [stepCountry, setStepCountry] = useState<string | undefined>()
 
   // Level labels for a variable-valued second dimension come from that
   // variable's own value labels (server truth, fetched once).
@@ -153,11 +179,25 @@ export function BreakdownsView() {
     ]
   }, [displayRows, metaForSort])
 
+  // The countries one at a time on a phone with two splits, in the
+  // chosen order (H11): about 22 screens became one country's panel.
+  const stepped = narrow && secondary !== undefined && (panelOrder?.length ?? 0) > 1
+  const stepAt = stepped ? Math.max(0, panelOrder?.indexOf(stepCountry ?? '') ?? 0) : 0
+  const shownCountry = stepped ? panelOrder?.[stepAt] : undefined
+  const chartRows =
+    shownCountry !== undefined && metaForSort
+      ? displayRows.filter(
+          (row) =>
+            groupValueLabel('country_code', row.group['country_code'] ?? null, metaForSort) ===
+            shownCountry,
+        )
+      : displayRows
+
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Segments</h2>
-        <Skeleton height={420} label="Loading segments" />
+        <h2 className="visually-hidden">Segments</h2>
+        <PagePlaceholder label="Loading segments" />
       </section>
     )
   }
@@ -303,29 +343,33 @@ export function BreakdownsView() {
   // How the chart is drawn, in its header's toolbar (ADR-0029): the
   // panels have no value column to sort from, so one "Order countries"
   // select writes `sort` and `dir` — by value either way, or by the gap.
+  // One country needs no order (H17).
+  const oneCountry = (panelOrder?.length ?? 0) === 1
   const chartControls = (inline: boolean) => (
     <>
-      <label className={inline ? styles.inlineField : styles.field}>
-        <span className={styles.fieldLabel}>Order countries</span>
-        <select
-          value={search.sort === 'gap' ? 'gap' : dir}
-          onChange={(event) => {
-            const value = event.target.value
-            setSearch(
-              value === 'gap'
-                ? { sort: 'gap', dir: undefined }
-                : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
-            )
-          }}
-        >
-          {VALUE_ORDER.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          <option value="gap">Biggest gap first</option>
-        </select>
-      </label>
+      {!oneCountry && (
+        <label className={inline ? styles.inlineField : styles.field}>
+          <span className={styles.fieldLabel}>Order countries</span>
+          <select
+            value={search.sort === 'gap' ? 'gap' : dir}
+            onChange={(event) => {
+              const value = event.target.value
+              setSearch(
+                value === 'gap'
+                  ? { sort: 'gap', dir: undefined }
+                  : { sort: 'estimate', dir: value === 'asc' ? 'asc' : undefined },
+              )
+            }}
+          >
+            {VALUE_ORDER.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="gap">Biggest gap first</option>
+          </select>
+        </label>
+      )}
       {isCategorical && outcomeLevelOptions.length > 0 && (
         <RadioRow
           legend="Showing % who said"
@@ -343,12 +387,41 @@ export function BreakdownsView() {
       )}
     </>
   )
-  // The phone's line: how the chart is drawn, in the controls' words.
-  const phoneSummary = stateLine(
-    isCategorical ? 'Share' : 'Mean',
-    countriesPhrase(search.countries.length, meta.data.meta.countries.length),
-    search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
-  )
+  // The phone's line: how the chart is drawn, in the controls' words —
+  // or, with two splits, which country is in view, stepped from it.
+  const panels = panelOrder ?? []
+  const phoneSummary =
+    stepped && shownCountry !== undefined ? (
+      <span className={styles.stepper}>
+        <button
+          type="button"
+          className={styles.step}
+          aria-label="Previous country"
+          disabled={stepAt === 0}
+          onClick={() => setStepCountry(panels[stepAt - 1])}
+        >
+          ‹
+        </button>
+        <span aria-live="polite">
+          {shownCountry} · {stepAt + 1} of {panels.length}
+        </span>
+        <button
+          type="button"
+          className={styles.step}
+          aria-label="Next country"
+          disabled={stepAt === panels.length - 1}
+          onClick={() => setStepCountry(panels[stepAt + 1])}
+        >
+          ›
+        </button>
+      </span>
+    ) : (
+      stateLine(
+        isCategorical ? 'Share' : 'Mean',
+        countriesPhrase(search.countries.length, meta.data.meta.countries.length),
+        search.sort === 'gap' ? 'biggest gap first' : orderPhrase(dir),
+      )
+    )
 
   return (
     <section>
@@ -364,15 +437,16 @@ export function BreakdownsView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               breakdownsSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {/* The question bar (ADR-0029): what — the question and its split —
           then when and where. */}
@@ -440,22 +514,52 @@ export function BreakdownsView() {
             ) : (
               <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
             )
+          ) : response && variable && noAnswers(search.countries, displayRows) ? (
+            <EmptyState
+              title={noAnswersLine(
+                search.countries.map((code) =>
+                  groupValueLabel('country_code', code, meta.data.meta),
+                ),
+              )}
+            >
+              <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+            </EmptyState>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
-                Updated: {title}, {displayRows.length} cells.
+                {updatedLine(
+                  title,
+                  subtitle,
+                  countOf(panelOrder?.length ?? 0, 'countries'),
+                  countOf(displayRows.length, 'groups'),
+                )}
               </p>
               <ChartFigure
                 title={title}
                 subtitle={subtitle}
                 narrowSubtitle={narrowSubtitle}
-                hint={
-                  // Two splits on a phone run long: a way to shorten it (G6).
-                  narrow && secondary !== undefined && search.countries.length === 0
-                    ? 'Two splits for every country make a long page — choose fewer countries in Options.'
-                    : undefined
-                }
-                ariaLabel={`${title}: one panel per country, ${levelDomain(primary, meta.data.meta).length} levels each.`}
+                ariaLabel={summarizeCells(
+                  displayRows,
+                  (row) =>
+                    [
+                      groupValueLabel(
+                        'country_code',
+                        row.group['country_code'] ?? null,
+                        meta.data.meta,
+                      ),
+                      ...[primary, secondary]
+                        .filter((column): column is string => column !== undefined)
+                        .map((column) =>
+                          groupValueLabel(
+                            column,
+                            row.group[column] ?? null,
+                            meta.data.meta,
+                            labeler,
+                          ),
+                        ),
+                    ].join(', '),
+                  `${title} (${subtitle}): one panel per country, a row per ${lowerFirst(columnLabel(primary, meta.data.meta))}${secondary ? `, a column per ${lowerFirst(columnLabel(secondary, meta.data.meta))}` : ''}.`,
+                )}
                 intro={
                   detail && (
                     <div className={styles.wording}>
@@ -476,9 +580,11 @@ export function BreakdownsView() {
                 csv={csv}
                 exportName={exportName}
                 isRefreshing={estimates.isPlaceholderData}
+                // Each panel's groups are read by keyboard (ADR-0032, ADR-0033).
+                interactive
               >
                 <SmallMultiples
-                  rows={displayRows}
+                  rows={chartRows}
                   meta={meta.data.meta}
                   responseMeta={response.meta}
                   variable={variable}
@@ -489,7 +595,7 @@ export function BreakdownsView() {
                   seriesDomain={
                     secondary ? levelDomain(secondary, meta.data.meta, secondaryDetail) : undefined
                   }
-                  facetDomain={panelOrder}
+                  facetDomain={shownCountry !== undefined ? [shownCountry] : panelOrder}
                   sort={search.sort}
                   dir={dir}
                   labeler={labeler}

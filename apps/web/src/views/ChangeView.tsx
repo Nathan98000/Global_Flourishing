@@ -29,10 +29,11 @@ import { ChartFigure, type CsvExport } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
-import { summarizeExtremes } from '../charts/summary'
+import { CSV_SENTENCE, summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
@@ -43,7 +44,7 @@ import { QuestionPicker } from '../components/controls/QuestionPicker'
 import { RadioRow, type RadioOption } from '../components/controls/RadioRow'
 import { csvLabels, downloadTextFile, responseToCsv } from '../export/csv'
 import { exportFilename, type ExportName } from '../export/filename'
-import { defaultLevel, outcomeLevels } from '../labels'
+import { defaultLevel, groupValueLabel, outcomeLevels } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
 import { changeRequest, changeSearchParams, type ChangeSearch } from '../state/search'
@@ -51,7 +52,17 @@ import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_MOMENTS, WAVE_NAMES, WAVE_TITLES, pairTitle } from '../waves'
 import { changeLevels, orderChangeRows, shareRiseIsBetter, signedLevel } from './changeOrder'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  noAnswers,
+  noAnswersLine,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/change')
 
@@ -156,8 +167,8 @@ export function ChangeView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Change</h2>
-        <LoadingBlock height={420} label="Loading the Change view" />
+        <h2 className="visually-hidden">Change</h2>
+        <PagePlaceholder label="Loading the Change view" />
       </section>
     )
   }
@@ -410,10 +421,18 @@ export function ChangeView() {
         ) : (
           <ErrorState apiReachable={boot.apiReachable} error={change.error} />
         )
+      ) : response && noAnswers(search.countries, display.rows) ? (
+        <EmptyState
+          title={noAnswersLine(
+            search.countries.map((code) => groupValueLabel('country_code', code, meta.data.meta)),
+          )}
+        >
+          <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+        </EmptyState>
       ) : response ? (
         <>
           <p role="status" className="visually-hidden">
-            Updated: {title}, {display.countryDomain.length} countries shown.
+            {updatedLine(title, subtitle, countOf(display.countryDomain.length, 'countries'))}
           </p>
           <ChartFigure
             title={title}
@@ -455,6 +474,8 @@ export function ChangeView() {
             csv={csvFor(display.rows, nameFor('Change'))}
             exportName={nameFor('Change')}
             isRefreshing={change.isPlaceholderData}
+            // Its rows are read by keyboard (ADR-0032, ADR-0033).
+            interactive
           >
             <ChangeDots
               rows={display.rows}
@@ -471,7 +492,7 @@ export function ChangeView() {
               <ChartFigure
                 title="How individual answers moved"
                 subtitle={`Share of people by the change in their own answer · ${pair}`}
-                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries.`}
+                ariaLabel={`${title}: the share of people at each change in their own answer, ${pair}, for ${display.countryDomain.length ? chosen.length : 0} countries. ${CSV_SENTENCE}`}
                 chartKey={
                   <ChartKey
                     mark="bar"

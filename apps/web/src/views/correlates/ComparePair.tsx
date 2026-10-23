@@ -21,6 +21,7 @@ import type {
 } from '../../api/types'
 import { useVariable } from '../../api/variables'
 import { ChartFigure } from '../../charts/ChartFigure'
+import { CSV_SENTENCE } from '../../charts/summary'
 import { ChartKey } from '../../charts/ChartKey'
 import { CorrelationStrip } from '../../charts/CorrelationStrip'
 import {
@@ -62,6 +63,7 @@ import {
   pairCellTip,
   rankedTip,
   statisticPhrase,
+  placeWords,
 } from '../correlatesRows'
 import {
   otherWaveOf,
@@ -168,7 +170,8 @@ export function ComparePair({
   return (
     <>
       <div className={own.sentenceRow}>
-        <p className={own.sentence}>
+        {/* A div, not a <p>: its picker opens a panel inside it (H18). */}
+        <div className={own.sentence}>
           How do answers to{' '}
           <QuestionPicker
             label="First question"
@@ -205,10 +208,11 @@ export function ComparePair({
               className={own.swap}
               onClick={() => setSearch({ a: bName, b: aName })}
             >
-              <span aria-hidden="true">⇄ </span>Swap
+              <span aria-hidden="true">⇄</span>
+              <span className={own.swapWord}> Swap</span>
             </button>
           </span>
-        </p>
+        </div>
       </div>
       {controls}
       {problem || !a || !b ? (
@@ -412,15 +416,15 @@ function PairFigure({
   const place = pooled ? pooledPlace(pair.shares.meta.countries, served.countries) : countryName
   const ariaLabel = `${a.display_name} and ${b.display_name}${pooled ? `, ${averagedOver(pair.shares.meta.countries, served.countries)}` : ` in ${countryName}`}: for each of ${pair.columns.length} answers to ${a.display_name}, the share who gave each of ${pair.rows.length} answers to ${b.display_name}, each column adding to 100%; bars above show how many gave each answer to ${a.display_name}. Correlation ${formatEstimate(pair.correlation.estimate, pair.correlation.stat)}.${
     flaggedCount === 1
-      ? ' 1 cell is starred: small sample size.'
+      ? ' 1 cell is starred: few people.'
       : flaggedCount > 1
-        ? ` ${flaggedCount} cells are starred: small sample size.`
+        ? ` ${flaggedCount} cells are starred: few people.`
         : ''
-  }`
+  } ${CSV_SENTENCE}`
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`${place} · ${waveTitle(wave, other)}`}
+      subtitle={`Share of each column, % · ${waveTitle(wave, other)} · ${placeWords(place)}`}
       ariaLabel={ariaLabel}
       intro={header}
       legend={<ShareLegend />}
@@ -518,7 +522,7 @@ function EveryCountry({
   return (
     <ChartFigure
       title={`${a.display_name} and ${b.display_name}`}
-      subtitle={`Country by country · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
+      subtitle={`${statisticPhrase(method)} · ${waveTitle(wave, other)} · country by country`}
       ariaLabel={ariaLabel}
       intro={header}
       toolbar={toolbar}

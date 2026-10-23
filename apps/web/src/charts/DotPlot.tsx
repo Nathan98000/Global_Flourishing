@@ -43,7 +43,7 @@ export interface DotEntry {
 }
 
 /** A dot's hover card: what it is, then its value, CI and n. */
-function dotTip(entry: DotEntry, context: TipContext): string {
+export function dotTip(entry: DotEntry, context: TipContext = {}): string {
   const heading =
     entry.heading ?? [entry.facet, entry.column, entry.level].filter(Boolean).join(' · ')
   return tipText(entry.row, heading, { ...context, detail: entry.detail })

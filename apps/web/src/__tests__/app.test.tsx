@@ -302,7 +302,9 @@ test('the one question picker: closed, the question and its wording; open, topic
   const router = await renderAt('/?level=2')
   // Closed: one button — the short name in bold and "Change" (the chart
   // under it gives the wording, G13); its name says what it is.
-  const trigger = await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' })
+  const trigger = await screen.findByRole('button', {
+    name: 'Question: Secure Flourishing Index — change',
+  })
   expect(trigger).toHaveTextContent(/^Secure Flourishing IndexChange$/)
   expect(screen.queryByLabelText('Topic')).toBeNull()
   expect(screen.queryByLabelText('Measure')).toBeNull()
@@ -327,7 +329,7 @@ test('the one question picker: closed, the question and its wording; open, topic
   await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY'))
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(await screen.findByText('Happiness', { selector: 'figcaption *' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Question: Happiness' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: 'Question: Happiness — change' })).toHaveFocus()
 })
 
 test('the question bar: the same order on every page — what, then when and where (ADR-0029)', async () => {
@@ -351,7 +353,9 @@ test('the question bar: the same order on every page — what, then when and whe
 test('a topic in the URL opens the picker on that topic; a pick clears it', async () => {
   mockFetch(staticTier)
   const router = await renderAt('/?topic=wellbeing')
-  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
+  )
   const dialog = screen.getByRole('dialog', { name: 'Question' })
   expect(within(dialog).getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
     'aria-selected',
@@ -366,11 +370,218 @@ test('a topic in the URL opens the picker on that topic; a pick clears it', asyn
 test('Segments has the same picker; a pick keeps the split', async () => {
   mockFetch(staticTier)
   const router = await renderAt('/segments?by=gender')
-  fireEvent.click(await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
+  )
   const dialog = screen.getByRole('dialog', { name: 'Question' })
   fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
   fireEvent.click(within(dialog).getByRole('option', { name: /^Happiness/ }))
   await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&by=gender'))
+})
+
+test("the Atlas says what changed: the subtitle's words and a count of countries (H3)", async () => {
+  mockFetch(staticTier)
+  const router = await renderAt('/')
+  const status = await screen.findByText(/^Updated: /)
+  expect(status).toHaveAttribute('role', 'status')
+  expect(status.textContent).toBe(
+    'Updated: Secure Flourishing Index — mean score, 0–10 · 2023 · all countries · highest first. 2 countries.',
+  )
+  // Reversing the order changes the words, so a listener hears it.
+  fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean, highest first' }))
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
+  await waitFor(() => expect(status.textContent).toContain('· lowest first. 2 countries.'))
+  cleanup()
+  // One country: "1 country", never "1 rows".
+  await renderAt('/?countries=1')
+  expect((await screen.findByText(/^Updated: /)).textContent).toBe(
+    'Updated: Secure Flourishing Index — mean score, 0–10 · 2023 · 1 country · highest first. 1 country.',
+  )
+})
+
+test('the nav carries the question, and its year, to the pages that can show it (H10)', async () => {
+  const byCountry = (codes: number[]) =>
+    testResponse(
+      codes.map((code) => testRow({ group: { country_code: code }, estimate: 7 })),
+      { outcome: 'HAPPY', waves: ['Y2'] },
+    )
+  const onceOnly = {
+    ...happyVariable,
+    name: 'ONCE',
+    display_name: 'Asked once',
+    waves_available: ['Y2'],
+  }
+  mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, onceOnly] },
+    '/data/v1/HAPPY/Y2/mean_by-country_code.json': byCountry([1, 22]),
+    '/data/v1/ONCE/Y2/mean_by-country_code.json': byCountry([1]),
+  })
+  await renderAt('/?outcome=HAPPY&wave=Y2')
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  const href = (name: string) => within(nav).getByRole('link', { name }).getAttribute('href')
+  await waitFor(() => expect(href('US States')).toBe('/states?outcome=HAPPY&wave=Y2'))
+  expect(href('Atlas')).toBe('/?outcome=HAPPY&wave=Y2')
+  expect(href('Segments')).toBe('/segments?outcome=HAPPY&wave=Y2')
+  // Change takes no year; Correlates, What Matters and Methods stay plain.
+  expect(href('Change')).toBe('/change?outcome=HAPPY')
+  expect(href('Correlates')).toBe('/correlates')
+  expect(href('What Matters')).toBe('/what-matters')
+  expect(href('Methods')).toBe('/methods')
+  cleanup()
+  // A question asked once has no Change to show, and one the United States
+  // did not answer has no US States: those links carry nothing.
+  await renderAt('/?outcome=ONCE&wave=Y2')
+  const again = screen.getByRole('navigation', { name: 'Main' })
+  await waitFor(() =>
+    expect(within(again).getByRole('link', { name: 'Atlas' })).toHaveAttribute(
+      'href',
+      '/?outcome=ONCE&wave=Y2',
+    ),
+  )
+  await screen.findAllByText('Testland')
+  expect(within(again).getByRole('link', { name: 'Change' })).toHaveAttribute('href', '/change')
+  expect(within(again).getByRole('link', { name: 'US States' })).toHaveAttribute('href', '/states')
+})
+
+test('Segments with two splits on a phone: one country at a time, stepped from the summary line (H11)', async () => {
+  stubViewport((query) => query.includes('40rem'))
+  const cells = [1, 22].flatMap((code) =>
+    [1, 2].flatMap((gender) =>
+      ['18-24', '25-29'].map((band) =>
+        testRow({
+          group: { country_code: code, gender, age_band: band },
+          estimate: code === 22 ? 8 : 6,
+        }),
+      ),
+    ),
+  )
+  mockFetch({
+    ...staticTier,
+    '/v1/aggregate': testResponse(cells, { by: ['country_code', 'gender', 'age_band'] }),
+  })
+  const router = await renderAt('/segments?by=gender&by=age_band')
+  // The order the panels take (by each country's own estimate).
+  const step = await screen.findByText(/ · 1 of 2$/)
+  const first = step.textContent?.split(' · ')[0] ?? ''
+  const panels = () =>
+    [...document.querySelectorAll('[aria-description="panel title"] text')].map(
+      (node) => node.textContent,
+    )
+  expect(panels()).toEqual([first])
+  expect(screen.getByRole('button', { name: 'Previous country' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Next country' }))
+  const second = await screen.findByText(/ · 2 of 2$/)
+  expect(second.textContent?.split(' · ')[0]).not.toBe(first)
+  expect(panels()).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Next country' })).toBeDisabled()
+  // View state: the URL keeps what it had.
+  expect(router.state.location.searchStr).toBe('?by=gender&by=age_band')
+})
+
+test('Segments with one country offers no order for the countries (H17)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code-gender.json': testResponse(
+      [
+        testRow({ group: { country_code: 1, gender: 1 }, estimate: 7.2 }),
+        testRow({ group: { country_code: 22, gender: 1 }, estimate: 8.3 }),
+      ],
+      { by: ['country_code', 'gender'] },
+    ),
+  })
+  await renderAt('/segments?by=gender&countries=1')
+  await screen.findByRole('group', { name: /one panel per country/ })
+  expect(screen.queryByLabelText('Order countries')).toBeNull()
+  cleanup()
+  await renderAt('/segments?by=gender')
+  await screen.findByRole('group', { name: /one panel per country/ })
+  expect(screen.getByLabelText('Order countries')).toBeInTheDocument()
+})
+
+test('a year the question was not asked opens the nearest year it was, with the link notice (H14)', async () => {
+  const onceOnly = {
+    ...happyVariable,
+    name: 'ONCE',
+    display_name: 'Asked once',
+    waves_available: ['Y1'],
+  }
+  const calls = mockFetch({
+    ...staticTier,
+    '/data/variables.json': { variables: [sfiVariable, happyVariable, onceOnly] },
+    '/data/v1/ONCE/Y1/mean_by-country_code.json': testResponse(
+      [testRow({ group: { country_code: 1 } })],
+      { outcome: 'ONCE' },
+    ),
+  })
+  const router = await renderAt('/?outcome=ONCE&wave=Y2')
+  await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=ONCE'))
+  expect(await screen.findByText(/This link asked for something we can’t show/)).toHaveAttribute(
+    'data-params',
+    'wave',
+  )
+  expect(await screen.findByText(/^Mean score, 0–10 .*· 2023/)).toBeInTheDocument()
+  // No request for the year it lacks, so no refusal to show.
+  expect(calls.some((url) => url.includes('ONCE/Y2') || url.includes('wave=Y2'))).toBe(false)
+  expect(screen.queryByText(/rejected/)).toBeNull()
+  // Choosing another year — or Dismiss — retires the notice.
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+  expect(screen.queryByText(/This link asked for something/)).toBeNull()
+})
+
+test('an unknown Codebook name says so in words, with the way back (H14)', async () => {
+  mockFetch(staticTier)
+  await renderAt('/codebook/NOPE')
+  expect(
+    await screen.findByText('There’s no question called NOPE in this release'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Browse the Codebook' })).toHaveAttribute(
+    'href',
+    '/codebook',
+  )
+  expect(screen.queryByText(/HTTP|404|v1\/variables/)).toBeNull()
+})
+
+test('chosen countries with no answers say so in place of the chart (H14)', async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/HAPPY/Y1/mean_by-country_code.json': testResponse(
+      [
+        testRow({ group: { country_code: 1 }, estimate: null, ci_lo: null, ci_hi: null, n: 0 }),
+        testRow({ group: { country_code: 22 }, estimate: 7 }),
+      ],
+      { outcome: 'HAPPY' },
+    ),
+  })
+  await renderAt('/?outcome=HAPPY&countries=1')
+  expect(await screen.findByText('Testland has no answers to this question')).toBeInTheDocument()
+  expect(screen.queryByRole('figure')).toBeNull()
+})
+
+test("Segments' spoken summary names its extreme groups with their values (H2)", async () => {
+  mockFetch({
+    ...staticTier,
+    '/data/v1/sfi/Y1/mean_by-country_code-gender.json': testResponse(
+      [
+        testRow({ group: { country_code: 1, gender: 1 }, estimate: 7.2 }),
+        testRow({ group: { country_code: 1, gender: 2 }, estimate: 6.1 }),
+        testRow({ group: { country_code: 22, gender: 1 }, estimate: 8.3 }),
+      ],
+      { by: ['country_code', 'gender'] },
+    ),
+  })
+  await renderAt('/segments?by=gender')
+  const chart = await screen.findByRole('group', {
+    name: /one panel per country, a row per gender/,
+  })
+  // The highest and lowest cell, each by its country and group.
+  expect(chart.getAttribute('aria-label')).toMatch(
+    /a row per gender\. Highest: United States, Male 8\.30; lowest: Testland, Female 6\.10\.$/,
+  )
+  // Its status counts countries and groups, never "cells" (H3).
+  expect((await screen.findByText(/^Updated: /)).textContent).toBe(
+    'Updated: Secure Flourishing Index by gender — mean score, 0–10 · 2023 · all countries · highest first. 2 countries, 3 groups.',
+  )
 })
 
 test('an unknown measure gets the empty state, not an API error (F4)', async () => {
@@ -385,26 +596,65 @@ test('an unknown measure gets the empty state, not an API error (F4)', async () 
   )
 })
 
-test('with the API down the Atlas still renders, with the plain-words banner', async () => {
-  mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
+test('with the API down the Atlas renders with nothing above it; the nav marks the pages that need the service (H6)', async () => {
+  const calls = mockFetch({ ...staticTier, '/health': new TypeError('fetch failed') })
   await renderAt('/')
-  const banner = await screen.findByText(/Some views need the live data service, which is/)
-  // What still works, by name, each a link — and no claim that filters
-  // are unavailable (the country filter works offline, F13).
-  expect(banner).toHaveTextContent(
-    'Some views need the live data service, which is offline. The Atlas, Segments and What Matters still work.',
-  )
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  // Each page that needs the live service says so in its link: a compact
+  // mark, the reason in full in the link's name.
   expect(
-    within(banner)
-      .getAllByRole('link')
-      .map((link) => [link.textContent, link.getAttribute('href')]),
-  ).toEqual([
-    ['Atlas', '/'],
-    ['Segments', '/segments'],
-    ['What Matters', '/what-matters'],
-  ])
+    await within(nav).findByRole('link', {
+      name: 'Change — needs the live data service, offline right now',
+    }),
+  ).toHaveTextContent('Changeoffline')
+  for (const name of ['Correlates', 'US States']) {
+    expect(
+      within(nav).getByRole('link', {
+        name: `${name} — needs the live data service, offline right now`,
+      }),
+    ).toBeInTheDocument()
+  }
+  for (const name of ['Atlas', 'What Matters', 'Segments', 'Methods']) {
+    expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+  }
+  // Nothing is inserted above the page (it pushed the page down), and no
+  // band repeats the pages' own messages.
+  expect(screen.getByRole('main').previousElementSibling?.tagName).toBe('HEADER')
+  expect(screen.queryByText(/Some views need the live data service/)).toBeNull()
   expect(screen.queryByText(/filters (and medians )?are unavailable/)).toBeNull()
   expect((await screen.findAllByText('United States')).length).toBeGreaterThan(0)
+  // The health check was tried twice before the service counted as down.
+  expect(calls.filter((url) => url.endsWith('/health')).length).toBeGreaterThanOrEqual(2)
+})
+
+test('the health check is retried once: a blip does not mark the service offline (H6)', async () => {
+  let attempts = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const json = (value: unknown) =>
+        new Response(JSON.stringify(value), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      if (url.endsWith('/health')) {
+        attempts += 1
+        if (attempts === 1) throw new TypeError('blip')
+        return json(okHealth)
+      }
+      for (const [needle, value] of Object.entries(staticTier)) {
+        if (url.includes(needle)) return json(value)
+      }
+      return new Response('not found', { status: 404 })
+    }),
+  )
+  await renderAt('/')
+  await waitFor(() => expect(attempts).toBe(2))
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  await waitFor(() => expect(within(nav).getByRole('link', { name: 'Change' })).toBeInTheDocument())
+  expect(within(nav).queryByText('offline')).toBeNull()
+  expect(await screen.findByRole('radio', { name: 'Median' })).not.toBeDisabled()
 })
 
 test('offline, Median says why it is unavailable, and a median link shows the mean without blame', async () => {
@@ -453,10 +703,16 @@ test('a disabled year says why in view, and points to the reason (F6)', async ()
   expect(screen.getByRole('radio', { name: '2023' })).not.toHaveAttribute('aria-describedby')
 })
 
-test('an API without a data build is its own banner', async () => {
+test('an API without a data build marks the nav, with no band above the page', async () => {
   mockFetch({ ...staticTier, '/health': { ...okHealth, data: 'absent', data_version: null } })
   await renderAt('/')
-  expect(await screen.findByText(/no data yet/)).toBeInTheDocument()
+  const nav = screen.getByRole('navigation', { name: 'Main' })
+  expect(
+    await within(nav).findByRole('link', {
+      name: 'Change — needs the live data service, which has no data yet',
+    }),
+  ).toHaveTextContent('Changeno data')
+  expect(screen.getByRole('main').previousElementSibling?.tagName).toBe('HEADER')
 })
 
 test('with no data source at all the shell renders honestly', async () => {
@@ -482,6 +738,14 @@ test('Methods leads in plain words: a 95% CI and the people behind each number; 
   // "Survey-weighted, design-based" lives in the Confidence intervals
   // section's "For the technically minded" fold, not in the lead.
   expect(lead).not.toHaveTextContent(/survey-weighted|design-based/)
+  // The thin mark is taught where the lead says every cell is shown.
+  expect(lead).toHaveTextContent(
+    'a hollow dot (or bar) and an asterisk mark a number few people are behind; its interval runs long',
+  )
+  // The sidebar speaks of years, not waves.
+  expect(
+    screen.getByText(/how many people answered it in each country and year\./),
+  ).toBeInTheDocument()
   const fold = screen.getByText(/survey-weighted estimate/).closest('details')
   expect(fold?.querySelector('summary')).toHaveTextContent('For the technically minded')
   expect(screen.queryByText(/likely range/)).toBeNull()
@@ -630,7 +894,7 @@ test('the chart header: the state in the subtitle, the key, and a toolbar — Sh
   await waitFor(() => expect(router.state.location.searchStr).toBe('?stat=distribution'))
 })
 
-test('the codebook table wears topic names, hides the Chartable header, links "Chart it →" (§6)', async () => {
+test('the codebook table wears topic names, hides the Chartable header, links "Chart it" by question (§6, H16)', async () => {
   mockFetch(staticTier)
   await renderAt('/codebook')
   await screen.findByText(/\d+ questions/)
@@ -639,7 +903,12 @@ test('the codebook table wears topic names, hides the Chartable header, links "C
   expect(screen.queryByText('wellbeing')).toBeNull()
   // The header text survives for screen readers (visually hidden).
   expect(screen.getByText('Chartable')).toBeInTheDocument()
-  expect(screen.getAllByRole('link', { name: 'Chart it →' }).length).toBeGreaterThan(0)
+  // Each "Chart it →" is named by its question, not 161 times the same.
+  expect(screen.getByRole('link', { name: 'Chart it: Happiness' })).toHaveTextContent('Chart it →')
+  expect(screen.queryByRole('link', { name: 'Chart it →' })).toBeNull()
+  // The page's title is its h2 (one h1 per page: the wordmark).
+  expect(screen.getByRole('heading', { level: 2, name: 'Codebook' })).toBeInTheDocument()
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
 })
 
 function stubViewport(matcher: (query: string) => boolean) {
@@ -744,19 +1013,20 @@ test('on a phone the secondary three nav items collapse behind "More" (type unch
   expect(within(nav).getByRole('link', { name: 'Atlas' }).closest('details')).toBeNull()
 })
 
-test('entering an API-only view fires one warm-up ping; the Atlas does not', async () => {
+test('one /health per page load: an API-only view warms the instance with the boot check itself (H18)', async () => {
   const atlasCalls = mockFetch(staticTier)
   await renderAt('/')
   await screen.findAllByText(/rate their own lives/)
   await waitFor(() => expect(atlasCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
+  cleanup()
 
   const changeCalls = mockFetch(staticTier)
   await renderAt('/change')
   expect(await screen.findByRole('heading', { name: 'Change' })).toBeInTheDocument()
-  // The boot ping (useBootStatus) plus the route's own warm-up.
-  await waitFor(() =>
-    expect(changeCalls.filter((url) => url.endsWith('/health')).length).toBeGreaterThanOrEqual(2),
-  )
+  // The boot check is the warm-up: no second request beside it.
+  await waitFor(() => expect(changeCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1))
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(changeCalls.filter((url) => url.endsWith('/health'))).toHaveLength(1)
   // The outage banner is scoped to data views: the new routes count.
   expect(screen.queryByText(/Every view on this deployment/)).toBeNull()
 })

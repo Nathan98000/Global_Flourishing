@@ -137,16 +137,21 @@ export function exportCsvUrl(request: AggregateRequest): string {
   return `${API_BASE_URL}/v1/export.csv?${canonicalParams(request).toString()}`
 }
 
-export function useEstimates(request: AggregateRequest | null) {
+/** `cachedOnly`: read what is already loaded, never fetch (the nav's
+ * look at a question's by-country file — H10). */
+export function useEstimates(
+  request: AggregateRequest | null,
+  { cachedOnly = false }: { cachedOnly?: boolean } = {},
+) {
   const meta = useMeta()
   const variables = useVariables()
   const dataVersion = meta.data?.meta.data_version ?? null
   return useQuery({
     queryKey: ['estimates', dataVersion, request === null ? 'none' : canonicalKey(request)],
-    enabled: request !== null && meta.isSuccess && variables.isSuccess,
+    enabled: request !== null && meta.isSuccess && variables.isSuccess && !cachedOnly,
     // Refetch keeps the frame: the previous render holds (dimmed by the
-    // view) instead of a skeleton flash.
-    placeholderData: keepPreviousData,
+    // view) instead of a skeleton flash — never for a cached-only look.
+    placeholderData: cachedOnly ? undefined : keepPreviousData,
     queryFn: () => {
       if (request === null || meta.data === undefined || variables.data === undefined)
         throw new Error('estimates query ran before its inputs')

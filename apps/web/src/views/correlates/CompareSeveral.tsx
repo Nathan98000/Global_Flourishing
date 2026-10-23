@@ -46,6 +46,7 @@ import {
   starred,
   statisticPhrase,
   withCoverage,
+  placeWords,
 } from '../correlatesRows'
 import { QuestionSet } from './QuestionSet'
 import {
@@ -336,7 +337,9 @@ function TableFigure({
   return (
     <ChartFigure
       title={`Correlations among ${order.length} questions`}
-      subtitle={`${pooled ? pooledPlace(table.meta.countries, served.countries) : countryName} · ${waveTitle(wave, other)} · ${statisticPhrase(method)}`}
+      // A grid drawn in HTML: the CSV, no PNG (H13).
+      picture={false}
+      subtitle={`${statisticPhrase(method)} · ${waveTitle(wave, other)} · ${placeWords(pooled ? pooledPlace(table.meta.countries, served.countries) : countryName)}`}
       ariaLabel={`Correlations among ${order.length} questions ${pooled ? averagedOver(table.meta.countries, served.countries) : `in ${countryName}`}, as a table: ${order
         .map(nameOf)
         .join('; ')}.${

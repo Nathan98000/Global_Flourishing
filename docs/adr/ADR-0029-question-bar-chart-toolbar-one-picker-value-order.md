@@ -104,3 +104,17 @@ arrow and the subtitle's "highest first" say it. An old Correlates link
 with no `country` now shows the average of every country, not the United
 States. Revisit if the picker's weight on the first load matters more
 than the pages it serves.
+
+## Revised (third design review, 22 October 2026 — ADR-0033)
+
+For Correlates on a phone only (under 40rem), the question bar keeps
+the question sentence alone: Year and Where move into the Options sheet
+with the correlation type, Year's note with them, and the summary line
+names all three — "2023 · all countries, averaged · straight-line". The
+help line under the switcher goes there (the sentence says it), Swap is
+a 44 px icon at the sentence's end, and the chart's title takes the
+deck's size, so the strip's number lands at 571 px on a 390 × 844
+screen (933 before). From 40rem up, and on every other page, the
+question bar is as decided above. The column labels' wrapper is no
+longer a one-row table; its button is named "Sort: Mean, highest first"
+(H16).

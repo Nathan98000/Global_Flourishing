@@ -266,6 +266,11 @@ def parse_aggregate_query(
     )
 
 
+#: What ``/v1/change`` adds on request (``include=``): the transition matrix
+#: (a categorical item's 1,000-odd cells) is no longer sent by default.
+CHANGE_INCLUDES = ("transitions",)
+
+
 @dataclass(frozen=True)
 class ChangeQuery:
     """A validated /v1/change request: the same people at two (or three)
@@ -279,6 +284,9 @@ class ChangeQuery:
     filters: tuple[DomainFilter, ...]
     scope: str
     rect: bool
+    #: ``include=transitions``: the transition matrix rides along only when
+    #: asked — the Change page draws none (ADR-0027, revised by ADR-0033).
+    transitions: bool = False
 
     @property
     def is_three_point(self) -> bool:
@@ -296,6 +304,7 @@ def parse_change_query(
     filters: list[str],
     scope: str,
     rect: bool,
+    include: list[str] | None = None,
 ) -> ChangeQuery:
     """Validate a change request. The outcome must be asked at every
     requested wave; the weight comes from ``resolve``/``get`` only, and the
@@ -404,6 +413,10 @@ def parse_change_query(
     if scope != "global" and countries and countries != [22]:
         problems.add(f"scope {scope!r} is US-only; drop the country filter {countries}")
 
+    for extra in include or []:
+        if extra not in CHANGE_INCLUDES:
+            problems.add(f"include must be one of {list(CHANGE_INCLUDES)}, got {extra!r}")
+
     problems.raise_if_any()
     return ChangeQuery(
         outcome=info,
@@ -416,6 +429,7 @@ def parse_change_query(
         ),
         scope=scope,
         rect=rect,
+        transitions="transitions" in (include or []),
     )
 
 

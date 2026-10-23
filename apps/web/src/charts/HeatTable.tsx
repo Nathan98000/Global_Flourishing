@@ -145,6 +145,7 @@ export function columnsPastEdge(rights: readonly number[], edge: number): number
  * intervals). */
 export function HeatTable({
   caption,
+  label,
   corner,
   rows,
   columns,
@@ -159,6 +160,9 @@ export function HeatTable({
 }: {
   /** Above the table: what the tints mean (words, or a legend). */
   caption: ReactNode
+  /** The table's name, when the caption is a key rather than words that
+   * name it (What Matters' grids, named by their title — H16). */
+  label?: string
   /** The corner label naming both axes ("First answer ↓ · later answer →");
    * absent, the corner is empty and unshaded (Compare several, review M7). */
   corner?: string
@@ -285,14 +289,23 @@ export function HeatTable({
         {caption}
       </p>
       <div className={styles.frame}>
+        {/* A box that scrolls sideways takes the keyboard's focus, so its
+            arrows can scroll it (H16, axe scrollable-region-focusable). */}
         <div
           className={styles.scroll}
           ref={scroller}
           data-overflow={hiddenColumns > 0 || undefined}
+          {...(hiddenColumns > 0
+            ? {
+                tabIndex: 0,
+                role: 'region',
+                'aria-label': label ? `${label}, scrolls sideways` : 'The table, scrolls sideways',
+              }
+            : {})}
         >
           <table
             className={styles.table}
-            aria-labelledby={captionId}
+            {...(label ? { 'aria-label': label } : { 'aria-labelledby': captionId })}
             data-fixed={columnWidth !== undefined || undefined}
             data-fill={fill || undefined}
             data-rows-wrap={rowsWrap || undefined}

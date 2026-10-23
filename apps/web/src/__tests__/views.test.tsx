@@ -181,6 +181,14 @@ describe('the Atlas Distribution, no countries chosen (F9)', () => {
     for (const name of ['Country 5', 'Country 4', 'Country 3', 'Country 2'])
       expect(text).toContain(name)
     expect(text).not.toContain('Country 1')
+    // Its spoken summary names the four in that order with their served
+    // means — never "No estimates to show" while panels are drawn (H1).
+    const label = chart.getAttribute('aria-label') ?? ''
+    expect(label).not.toContain('No estimates')
+    expect(label).toContain(
+      'How people in Country 5, Country 4, Country 3 and Country 2 answered — means 9.00, 8.00, 7.00 and 6.00.',
+    )
+    expect(label).toMatch(/Every number, with its 95% CI and n, is in the CSV \(Download\)\.$/)
     // The URL still names no country.
     expect(router.state.location.searchStr).toBe('?outcome=HAPPY&stat=distribution')
   })

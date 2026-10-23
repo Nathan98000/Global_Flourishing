@@ -34,29 +34,34 @@ see [Verified against R](#verified-against-r) below).
 - **Hover over** (or tap) any dot, bar, state or cell for its card: what
   it is, its value in words (a mean, a median or a share), its CI
   written as `95% CI: [low, high]`, and how many people in the sample it
-  rests on. **By keyboard**, on the Atlas, US States, What Matters and
+  rests on. **By keyboard**, on the Atlas, US States, What Matters' Other
+  questions (and a country's own ranking), Change, Segments and
   Correlates' country-by-country chart, Tab into the chart and move
-  between its rows with ↑ and ↓ (Home and End for the ends): the row in
-  focus shows its card.
+  between its rows with ↑ and ↓ (Home and End for the ends; on Segments,
+  Page Down and Page Up from one country to the next): each row is named
+  with its value, and the row in focus shows its card. Compare several's
+  cells and Find related's rows are buttons. For the rest — What
+  Matters' grids, Compare two's grid, the distributions and the map —
+  the CSV holds every number with its 95% CI and n.
 - **Distribution**, for a question with answer options ("A lot / Some /
   Not very much / Not at all"), shows every answer's share as one bar
   per country, the deeper shades for more of what the question names;
   the bars can be sorted by any answer's share.
 - **Download**, in every chart's toolbar, gives a CSV of every number
   with its weight and the number of people behind it (the *n*), or a
-  PNG of the chart.
+  PNG of the chart (a grid drawn as a table has the CSV alone).
 - **A hollow dot** (or bar) **and an asterisk** (`7.12*`) mark a number
-  that rests on fewer than 30 people ([below](#small-groups-shown-never-hidden));
+  that rests on fewer than 30 people (see [Small groups: shown, never hidden](#small-groups-shown-never-hidden) below);
   its card says "Few people — treat with care", and the key names the
   mark. It is shown, never hidden — lean on it lightly. On the
-  Correlates page the asterisk follows that page's own floors
-  ([below](#few-people-behind-an-estimate)).
+  Correlates page the asterisk follows that page's own floors (see
+  [Few people behind an estimate](#few-people-behind-an-estimate) below).
 - **No line at all** through a dot means no interval could be drawn:
   one person, or everyone in the group gave the same answer. The card
   says which.
 
-Every figure is an **association**, never a cause
-([below](#associations-not-causes)).
+Every figure is an **association**, never a cause (see
+[Associations, not causes](#associations-not-causes) below).
 
 ## Survey weights: why every number carries one
 
@@ -77,8 +82,9 @@ person stands for.
   United States' 38,312.
 - Figures are therefore per country. On the Correlates page, **All
   countries** is the average of the countries' own figures, never one
-  figure over everyone
-  ([below](#all-countries-the-average-of-the-countries)).
+  figure over everyone (see
+  [All countries: the average of the countries](#all-countries-the-average-of-the-countries)
+  below).
 
 ## Which weight, when
 
@@ -166,7 +172,9 @@ downstream can trip on them:
 
 Every number in the app is a **survey-weighted estimate** with a
 **design-based** 95% confidence interval: the weights make it describe
-the population ([above](#survey-weights-why-every-number-carries-one)),
+the population (see
+[Survey weights: why every number carries one](#survey-weights-why-every-number-carries-one)
+above),
 and its standard error comes from the survey's own strata and PSUs.
 
 The estimator assumes a stratified design with PSUs sampled with
@@ -405,12 +413,13 @@ rules in the engine).
 - This is a deliberate exception to the "every number shown" rule: the
   list is an ordering, and an ordering of noise misleads.
 - The numbers themselves are still served — the cross-country matrix
-  shows each with its value and an asterisk
-  ([below](#few-people-behind-an-estimate)).
+  shows each with its value and an asterisk (see
+  [Few people behind an estimate](#few-people-behind-an-estimate) below).
 - For All countries the floor reads the complete cases summed over the
   countries in the average, and the list ranks only questions whose
-  average covers at least half the countries
-  ([below](#all-countries-the-average-of-the-countries)); a ranked row
+  average covers at least half the countries (see
+  [All countries: the average of the countries](#all-countries-the-average-of-the-countries)
+  below); a ranked row
   that covers fewer countries than all says how many asked it.
 
 ### One construct, once
@@ -509,7 +518,7 @@ weights calibrate to the Wave 1 population:
   between the two answers for the country on screen, from each country's
   own split.
 - That is why the midyear → Wave 2 *change* is restricted to standalone
-  midyear interviews ([above](#which-weight-when)), and why a
+  midyear interviews (see [Which weight, when](#which-weight-when) above), and why a
   *correlation* is not: two answers given the same day go together or
   not like any others.
 - A table of several questions at the midyear survey takes every pair

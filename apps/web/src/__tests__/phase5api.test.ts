@@ -17,7 +17,6 @@ import {
 import { ApiError } from '../api/errors'
 import { adjustedWeightsExist, canonicalStatesParams, fetchStates } from '../api/states'
 import { isStat } from '../api/types'
-import { warmApi } from '../api/warm'
 import { testResponse, testRow } from '../test-utils/fixtures'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -141,28 +140,6 @@ describe('states requests', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(
       /\/v1\/states\?outcome=sfi&wave=Y1&stat=mean$/,
     )
-  })
-})
-
-describe('warmApi', () => {
-  test('one GET /health, errors swallowed, concurrent calls share the request', async () => {
-    let resolveFetch: (value: Response) => void = () => undefined
-    const fetchMock = vi.fn(
-      (_input: RequestInfo | URL) =>
-        new Promise<Response>((resolve) => {
-          resolveFetch = resolve
-        }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-    const first = warmApi()
-    const second = warmApi()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/health$/)
-    resolveFetch(new Response('ok'))
-    await Promise.all([first, second])
-    // After it settles, the next entry pings again.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('down')))
-    await expect(warmApi()).resolves.toBeUndefined()
   })
 })
 

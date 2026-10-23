@@ -13,6 +13,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth } from '../api/types'
+import { holdPointerTips } from '../charts/pointerHold'
 import { RankedBar } from '../charts/RankedBar'
 import { StateChoropleth, stateTipText } from '../charts/StateChoropleth'
 import { POSTAL_TO_FIPS, featuresFromUsTopology, joinStates } from '../charts/usTopology'
@@ -315,14 +316,13 @@ describe('US States view', () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars')
     await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.getByRole('columnheader', { name: 'State' })).toBeInTheDocument()
-    const value = screen.getByRole('columnheader', { name: /^Mean/ })
-    fireEvent.click(within(value).getByRole('button', { name: 'Mean, highest first' }))
+    expect(screen.getByText('State', { selector: '[data-sort-names]' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean, highest first' }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?dir=asc'))
     cleanup()
     await renderAt('/states?view=map')
     await screen.findByRole('img', { name: /Secure Flourishing Index by US state/ })
-    expect(screen.queryByRole('columnheader')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Sort: / })).toBeNull()
   })
 
   test('the question bar: Question, then Year (ADR-0029)', async () => {
@@ -344,7 +344,7 @@ describe('US States view', () => {
     mockFetch(tier)
     const router = await renderAt('/states?view=bars&level=2')
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index' }),
+      await screen.findByRole('button', { name: 'Question: Secure Flourishing Index — change' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: 'happi' } })
@@ -374,7 +374,7 @@ describe('US States view', () => {
     // The legend row says what the colours can't, beside the ramp.
     expect(
       await screen.findByText(
-        /Smaller states rest on fewer people — the Chart shows each state’s 95% CI/,
+        /Smaller states rest on fewer people — the chart shows each state’s 95% CI/,
       ),
     ).toBeInTheDocument()
     expect(calls.some((url) => url.includes('/v1/states?outcome=sfi&wave=Y1&stat=mean'))).toBe(true)
@@ -389,6 +389,12 @@ describe('US States view', () => {
     expect(screen.queryByText(/pooled/i)).toBeNull()
     // The aria summary names states, not codes.
     expect(figure.getAttribute('aria-label')).toContain('Highest: Vermont 7.40')
+    // The map has no keyboard reading: its summary says where the numbers
+    // are (H2); its status counts states (H3).
+    expect(figure.getAttribute('aria-label')).toMatch(/in the CSV \(Download\)\.$/)
+    expect(screen.getByText(/^Updated: /).textContent).toMatch(
+      /^Updated: Secure Flourishing Index — mean score, 0–10 · 2023\. \d+ states?\.$/,
+    )
     // No data table (ADR-0022): each state's card carries its numbers.
     expect(screen.queryByText('Data table')).toBeNull()
     // No data table: no cell anywhere — the only table is the value
@@ -458,6 +464,67 @@ describe('US States view', () => {
     expect(text).toContain('United States overall')
     // By value, highest first: Vermont (7.40) before California.
     expect(text.indexOf('Vermont')).toBeLessThan(text.indexOf('California'))
+  })
+
+  test('on a phone, Find a state moves the page once the sheet has closed — at once with reduced motion (H4)', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('40rem') || query.includes('reduce'),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+    try {
+      mockFetch(tier)
+      await renderAt('/states')
+      await screen.findByRole('group', { name: /Secure Flourishing Index by US state/ })
+      const options = screen.getByRole('button', { name: 'Options' })
+      fireEvent.click(options)
+      const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+      fireEvent.change(within(sheet).getByLabelText('Find a state'), { target: { value: 'TX' } })
+      // Nothing moves under the open sheet…
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(scrolled).not.toHaveBeenCalled()
+      // …Done closes it, focus goes back to Options without scrolling
+      // there, and only then does the page move, at once.
+      fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+      expect(options).toHaveFocus()
+      expect(focus).toHaveBeenLastCalledWith({ preventScroll: true })
+      await waitFor(() =>
+        expect(scrolled).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' }),
+      )
+    } finally {
+      focus.mockRestore()
+    }
+  })
+
+  test('after a find, a resting mouse opens no second card until it moves (H4)', () => {
+    const move = (x: number, y: number, target: EventTarget = window) => {
+      const event = new MouseEvent('pointermove', { clientX: x, clientY: y, bubbles: true })
+      Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+      target.dispatchEvent(event)
+    }
+    const chart = document.createElement('div')
+    document.body.append(chart)
+    const seen = vi.fn()
+    chart.addEventListener('pointermove', seen)
+    move(40, 60, chart)
+    expect(seen).toHaveBeenCalledTimes(1)
+    holdPointerTips()
+    // The page scrolled: the browser reports the same point again.
+    move(40, 60, chart)
+    expect(seen).toHaveBeenCalledTimes(1)
+    // A real move lets the pointer through again.
+    move(41, 60, chart)
+    move(42, 60, chart)
+    expect(seen).toHaveBeenCalledTimes(3)
+    chart.remove()
   })
 
   test('Find a state picks it out on the chart and the map and holds its card open, until cleared', async () => {

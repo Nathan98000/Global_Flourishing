@@ -27,6 +27,7 @@
 }
 
 .title {
+  margin: 0;
   font-family: var(--font-serif);
   font-weight: 600;
   font-size: var(--text-h1);
@@ -174,6 +175,15 @@
   font-size: var(--text-xs);
 }
 
+/* Why a chart drawn in HTML offers no PNG (H13), in the PNG's place. */
+.menuNote {
+  max-width: 16rem;
+  margin: var(--space-1) var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
 .key {
   color: var(--ink-secondary);
   font-size: var(--text-xs);
@@ -200,6 +210,13 @@
   overflow-x: visible;
 }
 
+/* Rows a keyboard reads: their card may rise over the chart's top edge
+   (a phone's first row, H18) — the plot never runs wider than the column,
+   and a grid among them scrolls in its own box. */
+.chart[data-interactive] {
+  overflow: visible;
+}
+
 /* Every numeric surface is tabular (§2): value labels and axis ticks. */
 .chart :global(svg) {
   font-variant-numeric: tabular-nums;
@@ -223,11 +240,22 @@
 .headKey {
   align-self: center;
   justify-self: center;
-  max-width: calc(100% - 11rem);
+  /* Its own width, never squeezed: when that doesn't fit between the
+     labels, it takes the line above them (H15). */
+  width: max-content;
   padding-bottom: 2px;
   color: var(--ink-secondary);
   font-size: var(--text-xs);
   pointer-events: none;
+}
+
+.heads[data-key-above] {
+  display: block;
+}
+
+.heads[data-key-above] > .headKey {
+  justify-self: start;
+  margin-bottom: var(--space-1);
 }
 
 /* On a phone everything sits at the left edge, a little closer. */

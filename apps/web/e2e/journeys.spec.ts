@@ -53,12 +53,10 @@ async function serveApi(page: Page, routes: Record<string, unknown>) {
 
 const JARGON = /retention|attrition|panel|longitudinal|cohort|wave pair|coverage/i
 
-// The Atlas's ranked chart is a group, its rows read by keyboard
-// (ADR-0032); Segments' panels are an image.
+// The Atlas's ranked chart and Segments' panels are groups, their rows
+// read by keyboard (ADR-0032, ADR-0033).
 const chartRegion = (page: Page) =>
-  page
-    .getByRole('group', { name: /by country/ })
-    .or(page.getByRole('img', { name: /panel per country/ }))
+  page.getByRole('group', { name: /by country|panel per country/ })
 // The chart title is the measure alone since §7 (the wave rides last in
 // the subtitle), so title assertions scope to the figure's caption — the
 // bare measure name also labels the question picker's button.
@@ -79,7 +77,7 @@ test('1 — Atlas: change the question through the picker and the year, share th
 
   // One question picker (ADR-0029): the question bar's button opens the
   // panel — browse a topic, pick a question — and a pick closes it.
-  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index — change' }).click()
   const picker = page.getByRole('dialog', { name: 'Question' })
   await picker.getByRole('option', { name: /^Wellbeing/ }).click()
   await picker
@@ -87,7 +85,7 @@ test('1 — Atlas: change the question through the picker and the year, share th
     .getByRole('option', { name: /^Happiness/ })
     .click()
   await expect(picker).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Question: Happiness — change' })).toBeVisible()
   await page.getByRole('group', { name: 'Year' }).getByText('2024', { exact: true }).click()
   await expect(caption(page).getByText('Happiness', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2024/)).toBeVisible()
@@ -119,10 +117,11 @@ test('1 — Atlas: change the question through the picker and the year, share th
   // A control moved: the URL changes, the page stays put (ADR-0016) — and
   // the country popover stays open while several countries are ticked in
   // a row.
-  // (The question bar is one row now: the fixture page scrolls less.)
-  await page.evaluate('window.scrollTo(0, 120)')
+  // (The question bar is one row now, and no band stands above the page
+  // offline (H6): the fixture page scrolls less.)
+  await page.evaluate('window.scrollTo(0, 50)')
   const scrolled = await page.evaluate<number>('window.scrollY')
-  expect(scrolled).toBeGreaterThan(100)
+  expect(scrolled).toBeGreaterThan(30)
   // The control's own <details> — not the "More options" fold that wraps
   // it at phone width.
   const countries = page.locator('details', {
@@ -175,6 +174,25 @@ test('1 — Atlas: change the question through the picker and the year, share th
   const sheetBox = await sheet.boundingBox()
   expect(sheetBox!.x).toBeGreaterThanOrEqual(0)
   expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(390)
+
+  // The question travels (H10): from the Atlas with Happiness for 2024,
+  // the nav takes it, and its year, to the pages that can show it —
+  // Change opens on Happiness.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/?outcome=HAPPY&wave=Y2')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  await expect(nav.getByRole('link', { name: 'Segments', exact: true })).toHaveAttribute(
+    'href',
+    '/segments?outcome=HAPPY&wave=Y2',
+  )
+  // (Offline here: the live-only pages' names say so — H6.)
+  await expect(nav.getByRole('link', { name: /^Correlates\b/ })).toHaveAttribute(
+    'href',
+    '/correlates',
+  )
+  await nav.getByRole('link', { name: /^Change\b/ }).click()
+  await expect(page).toHaveURL(/\/change\?outcome=HAPPY$/)
+  await expect(page.getByRole('button', { name: /^Question: Happiness/ })).toBeVisible()
 })
 
 test('2 — Codebook: reached from Methods, search, open the entry, chart it, read the wording', async ({
@@ -191,7 +209,7 @@ test('2 — Codebook: reached from Methods, search, open the entry, chart it, re
   await page.getByLabel('Search name, label or wording').fill('service attendance')
   await expect(page.getByText(/1 of \d+ questions/)).toBeVisible()
 
-  await page.getByRole('link', { name: 'Service attendance' }).click()
+  await page.getByRole('link', { name: 'Service attendance', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Service attendance/ })).toBeVisible()
   await expect(page.getByText('How would you rate: service attendance?')).toBeVisible()
 
@@ -283,28 +301,44 @@ test('5 — one light theme, whatever the OS prefers', async ({ page }) => {
   ).toBe('light')
 })
 
-test('6 — with the API blocked at the network level, the Atlas still renders and says so', async ({
+test('6 — with the API blocked at the network level, the Atlas still renders, nothing moves, and the nav says which pages need the service', async ({
   page,
 }) => {
   await page.route('http://localhost:8080/**', (route) => route.abort())
+  // Every layout shift the page makes, as Lighthouse counts them.
+  await page.addInitScript(`
+    window.__layoutShift = 0
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (!entry.hadRecentInput) window.__layoutShift += entry.value
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  `)
 
   await page.goto('/')
   // The chart renders from the static tier…
   await expect(caption(page).getByText('Secure Flourishing Index', { exact: true })).toBeVisible()
   await expect(caption(page).getByText(/· 2023/)).toBeVisible()
   await expect(chartRegion(page)).toBeVisible()
-  // …and the app says so in plain words, naming what still works, each
-  // a link (F13).
-  const banner = page.getByText(/Some views need the live data service, which is offline/)
-  await expect(banner).toBeVisible()
-  for (const [name, href] of [
-    ['Atlas', '/'],
-    ['Segments', '/segments'],
-    ['What Matters', '/what-matters'],
-  ] as const) {
-    await expect(banner.getByRole('link', { name, exact: true })).toHaveAttribute('href', href)
+  // …and once the health check has failed twice (H6), the nav marks the
+  // pages that need the live service, the reason in each link's name.
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  for (const name of ['Change', 'Correlates', 'US States']) {
+    await expect(
+      nav.getByRole('link', { name: `${name} — needs the live data service, offline right now` }),
+    ).toBeVisible()
   }
+  await expect(nav.getByRole('link', { name: 'Segments', exact: true })).toBeVisible()
+  // Nothing is inserted above the page: the page never moves for it.
+  expect(await page.evaluate('document.querySelector("main").previousElementSibling.tagName')).toBe(
+    'HEADER',
+  )
+  await expect(page.getByText(/Some views need the live data service/)).toHaveCount(0)
   await expect(page.getByText(/filters (and medians )?are unavailable/)).toHaveCount(0)
+  // Median keeps its own reason, in its line held from the first failed
+  // check — the chart drawn meanwhile does not move down for it.
+  await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
+  expect(await page.evaluate<number>('window.__layoutShift')).toBeLessThan(0.1)
 
   // A median link offline shows the mean, says why, and blames no one:
   // Median is unavailable, with its reason in view.
@@ -318,8 +352,14 @@ test('6 — with the API blocked at the network level, the Atlas still renders a
   await expect(caption(page).getByText(/^Mean score, 0–10/)).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Median' })).toBeDisabled()
   await expect(page.getByText('Median — needs the live data service.')).toBeVisible()
-  await banner.getByRole('link', { name: 'Segments', exact: true }).click()
-  await expect(page).toHaveURL(/\/segments$/)
+  // A page that needs the service says so itself, once, with what still
+  // works.
+  await nav.getByRole('link', { name: /^Change — / }).click()
+  await expect(page).toHaveURL(/\/change$/)
+  await expect(
+    page.getByText(/This view needs the live data service, which is offline right now/),
+  ).toBeVisible()
+  await expect(page.getByText(/Some views need/)).toHaveCount(0)
 })
 
 test('7 — Change with a country where fewer people answered again: the interval and n carry it, no sentence, no rate', async ({
@@ -343,7 +383,7 @@ test('7 — Change with a country where fewer people answered again: the interva
       .first()
       .getByText(/2023 → 2024/),
   ).toBeVisible()
-  const figure = page.getByRole('img', { name: /mean change among the same people/ })
+  const figure = page.getByRole('group', { name: /mean change among the same people/ })
   await expect(figure).toBeVisible()
 
   // The withdrawn sentence is absent, and nothing shaped like it.
@@ -378,9 +418,9 @@ test('7 — Change with a country where fewer people answered again: the interva
 
   // The URL is the state; the order is by value only, and the value
   // label over the column reverses it (ADR-0029).
-  await page.getByRole('button', { name: 'Mean change, highest first' }).click()
+  await page.getByRole('button', { name: 'Sort: Mean change, highest first' }).click()
   await expect(page).toHaveURL(/outcome=HAPPY&dir=asc$/)
-  await expect(page.getByRole('button', { name: 'Mean change, lowest first' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sort: Mean change, lowest first' })).toBeVisible()
 })
 
 test('8 — What Matters with a combined-midyear country: one view at a time — the matrix, the split, the other questions — no jargon', async ({
@@ -547,7 +587,7 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   await expect(map.locator('svg path').first()).toBeVisible()
   await expect(page.getByText('no estimate', { exact: true })).toBeVisible()
   await expect(
-    page.getByText(/Smaller states rest on fewer people — the Chart shows each state’s 95% CI/),
+    page.getByText(/Smaller states rest on fewer people — the chart shows each state’s 95% CI/),
   ).toBeVisible()
   await expect(map.locator('g[aria-label="tip"]', { hasText: someState })).toBeVisible()
   await expect(map.locator('[stroke="var(--ink)"]').first()).toBeAttached()
@@ -568,6 +608,24 @@ test('9 — US States: opens on the chart beside one US figure, finds a state, a
   const cardBox = (await card.boundingBox())!
   expect(cardBox.x).toBeGreaterThanOrEqual(0)
   expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(390)
+
+  // With reduced motion, the page moves at once — once the sheet has
+  // closed, never under it (H4): the found state's row is on the screen.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/states?outcome=HAPPY')
+  await page.getByRole('button', { name: 'Options' }).click()
+  await sheet.getByLabel('Find a state').selectOption({ label: lastState })
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('button', { name: 'Options' })).toBeFocused()
+  const row = page
+    .getByRole('group', { name: /Happiness by US state/ })
+    .getByRole('listitem', { name: new RegExp(`^${lastState}, `) })
+  await expect
+    .poll(async () => {
+      const rowBox = await row.boundingBox()
+      return rowBox !== null && rowBox.y >= 0 && rowBox.y + rowBox.height <= 844
+    })
+    .toBe(true)
 })
 
 /** A fixture by name, or a 404 the page will show — never a silent stand-in. */
@@ -624,28 +682,10 @@ function servePairs(page: Page) {
   })
 }
 
-/** The tooltip of a Compare two grid's first cell, its lines as one: the
- * pointer goes to the cell (its share label sits on top of it) and the
- * chart draws the tip. */
-async function cellTip(chart: Locator): Promise<string> {
-  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
-    force: true,
-  })
-  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
-  // (Plot starts each line with a zero-width space.)
-  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
-}
-
-test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
-  page,
-}) => {
-  // Every request is answered by the synthetic response made for it,
-  // named from the request's own parameters; scripts/web_fixtures.py
-  // plans the path and writes it down (journey-10.json).
-  const plan = JSON.parse(
-    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', 'journey-10.json'), 'utf8'),
-  ) as JourneyPlan
-  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+/** Every Correlates request — Find related's lists, Compare two's pairs,
+ * Compare several's tables — answered by the synthetic response made
+ * for it. */
+async function serveCorrelates(page: Page) {
   await page.route(`${API}/v1/correlates**`, (route) => {
     const url = new URL(route.request().url())
     const outcome = url.searchParams.get('outcome')
@@ -669,6 +709,31 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
       )
     },
   )
+}
+
+/** The tooltip of a Compare two grid's first cell, its lines as one: the
+ * pointer goes to the cell (its share label sits on top of it) and the
+ * chart draws the tip. */
+async function cellTip(chart: Locator): Promise<string> {
+  await chart.locator('svg g[aria-label="rect"]').nth(1).locator('rect').first().hover({
+    force: true,
+  })
+  const lines = await chart.locator('svg g[aria-label="tip"] text tspan').allTextContents()
+  // (Plot starts each line with a zero-width space.)
+  return lines.map((line) => line.replace(/\u200b/g, '')).join(' ')
+}
+
+test('10 — Correlates by task: Compare two and its picker, Swap, country by country and its average, Compare several, Find related, old links, All countries and the question too few countries asked, Midyear through the note, the phone line', async ({
+  page,
+}) => {
+  // Every request is answered by the synthetic response made for it,
+  // named from the request's own parameters; scripts/web_fixtures.py
+  // plans the path and writes it down (journey-10.json).
+  const plan = JSON.parse(
+    readFileSync(join(process.cwd(), 'public', 'data', '_fixtures', 'journey-10.json'), 'utf8'),
+  ) as JourneyPlan
+  await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
+  await serveCorrelates(page)
   const views = page.getByRole('group', { name: 'View' })
 
   // A first visit lands on Compare two with the default pair, on All
@@ -858,7 +923,11 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
 
   // All countries (ADR-0020): every view averages the countries.
   await page.goto('/correlates?country=all')
-  await expect(page.getByText('All countries (average of 2) · 2023', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Share of each column, % · 2023 · all countries (average of 2)', {
+      exact: true,
+    }),
+  ).toBeVisible()
   const where = page.getByLabel('Where')
   await expect(where).toHaveValue('all')
   await expect(
@@ -952,9 +1021,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     ),
   ).toBeVisible()
   await expect(
-    page.getByText('United States · Midyear survey, with 2023 answers from the same people', {
-      exact: true,
-    }),
+    page.getByText(
+      'Share of each column, % · Midyear survey, with 2023 answers from the same people · United States',
+      { exact: true },
+    ),
   ).toBeVisible()
   // The year of the other answers is chosen in the note's own sentence,
   // worded for the country on screen (the synthetic US took the midyear
@@ -969,9 +1039,10 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
     'answers, from the same interview for some people, about six months later for others.',
   )
   await expect(
-    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
-      exact: true,
-    }),
+    page.getByText(
+      'Share of each column, % · Midyear survey, with 2024 answers from the same people · United States',
+      { exact: true },
+    ),
   ).toBeVisible()
   await expect(
     page.getByRole('img', {
@@ -989,6 +1060,7 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   // Midyear from the picker: a midyear question picked at 2023 takes the
   // page to Midyear.
   await page.goto('/correlates?view=related&outcome=HAPPY&country=22')
+  // (Find related's picker sits in a sentence: no "change" beside it.)
   await page.getByRole('button', { name: 'Question: Happiness' }).click()
   const questionPicker = page.getByRole('dialog', { name: 'Question' })
   await questionPicker.getByRole('searchbox').fill('social')
@@ -1013,22 +1085,35 @@ test('10 — Correlates by task: Compare two and its picker, Swap, country by co
   await page.getByRole('combobox', { name: 'Year of the other answers' }).selectOption('Y2')
   await expect(page).toHaveURL(/other=Y2/)
   await expect(
-    page.getByText('United States · Midyear survey, with 2024 answers from the same people', {
-      exact: false,
-    }),
+    caption(page).getByText(
+      'Midyear survey, with 2024 answers from the same people · United States',
+      { exact: false },
+    ),
   ).toBeVisible()
 
-  // A phone: Year and Where stay in view; one line says how the chart
-  // is drawn, and Options opens the sheet with the correlation type.
+  // A phone (H8): Year and Where join the correlation type in the
+  // Options sheet, one line naming all three, so the answer — the
+  // strip's number — is on the first screen.
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/correlates')
+  // H8 aims for about 600 px (933 before). Linux's sans font wraps the
+  // question names a line more than macOS's, so CI puts the number's top
+  // at 621 px; its foot within 680 leaves that headroom and still catches
+  // a slide back down.
+  const answer = page.getByText(/^All countries: [+−]\d/)
+  await expect(answer).toBeVisible()
+  const answerBox = (await answer.boundingBox())!
+  expect(answerBox.y + answerBox.height).toBeLessThanOrEqual(680)
   await page.goto('/correlates?country=22')
-  await expect(page.getByRole('group', { name: 'Year' })).toBeVisible()
-  await expect(page.getByLabel('Where')).toHaveValue('22')
-  // The line names only what Options holds (G12).
-  await expect(page.getByText('Measured as: straight-line', { exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Year' })).toHaveCount(0)
+  await expect(
+    page.getByText('2023 · United States · straight-line', { exact: true }),
+  ).toBeVisible()
   const options = page.getByRole('button', { name: 'Options' })
   await options.click()
   const sheet = page.getByRole('dialog', { name: 'Chart options' })
+  await expect(sheet.getByRole('group', { name: 'Year' })).toBeVisible()
+  await expect(sheet.getByLabel('Where')).toHaveValue('22')
   await sheet.getByText('By rank', { exact: true }).click()
   await expect(page).toHaveURL(/country=22&method=spearman$/)
   await sheet.getByRole('button', { name: 'Done' }).click()
@@ -1267,13 +1352,34 @@ test('12 — nor does a phone scroll sideways for the longest label, answer or n
       }
     }
   }
+
+  // Change's key never runs into its column labels (H15): beside them
+  // where it fits, else on its own line above — at 320 px too.
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.goto('/change?outcome=ATTEND_SVCS')
+  await expect(page.locator('main figure').first()).toBeVisible()
+  const key = page.locator('[data-head-key]')
+  const sortLabel = page.locator('[data-sort-value]')
+  const names = page.locator('[data-sort-names]')
+  const [keyBox, labelBox, namesBox] = await Promise.all([
+    key.boundingBox(),
+    sortLabel.boundingBox(),
+    names.boundingBox(),
+  ])
+  for (const other of [labelBox!, namesBox!]) {
+    const apart =
+      keyBox!.x + keyBox!.width <= other.x ||
+      other.x + other.width <= keyBox!.x ||
+      keyBox!.y + keyBox!.height <= other.y ||
+      other.y + other.height <= keyBox!.y
+    expect(apart, 'the key clear of the column labels at 320 px').toBe(true)
+  }
 })
 
 test('13 — a phone: the chart on the first screen; pick a question, reverse the order, choose Distribution in Options, reload — the same view', async ({
   page,
 }) => {
-  // The live service up, as a visitor would have it (offline, a banner
-  // rightly stands over the page).
+  // The live service up, as a visitor would have it.
   await page.route(`${API}/health`, (route) => route.fulfill({ json: okHealth }))
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
@@ -1285,7 +1391,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
   await expect(firstDot).toBeVisible()
   expect((await firstDot.boundingBox())!.y).toBeLessThanOrEqual(640)
   // The question bar: the question and the year; the picker is a sheet.
-  await page.getByRole('button', { name: 'Question: Secure Flourishing Index' }).click()
+  await page.getByRole('button', { name: 'Question: Secure Flourishing Index — change' }).click()
   const picker = page.getByRole('dialog', { name: 'Question' })
   await picker.getByRole('searchbox').fill('happi')
   await picker
@@ -1294,7 +1400,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
     .click()
   await expect(page).toHaveURL(/\?outcome=HAPPY$/)
   // The value label reverses the order: a 44 px target on a phone.
-  const value = page.getByRole('button', { name: 'Mean, highest first' })
+  const value = page.getByRole('button', { name: 'Sort: Mean, highest first' })
   expect((await value.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   await value.click()
   await expect(page).toHaveURL(/\?outcome=HAPPY&dir=asc$/)
@@ -1316,7 +1422,7 @@ test('13 — a phone: the chart on the first screen; pick a question, reverse th
   const said = await line.textContent()
   // Reload: the same view, from the URL alone.
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Question: Happiness' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Question: Happiness — change' })).toBeVisible()
   await expect(page.getByText(said ?? '', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Options' }).click()
   await expect(
@@ -1344,12 +1450,16 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
 
   // Into the chart from its value label: one stop, on the first row,
   // its card open beside it and read out as its description.
-  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.getByRole('button', { name: 'Sort: Mean, highest first' }).focus()
   await page.keyboard.press('Tab')
   await expect(rows.first()).toBeFocused()
   const card = chart.getByRole('tooltip')
   await expect(card).toBeVisible()
-  const name = async (index: number) => (await rows.nth(index).getAttribute('aria-label')) ?? ''
+  // A row is named with its value — "Indonesia, 8.10" (H3) — and its
+  // card names the country: the name up to its first comma.
+  const fullName = async (index: number) => (await rows.nth(index).getAttribute('aria-label')) ?? ''
+  const name = async (index: number) => (await fullName(index)).split(',')[0] ?? ''
+  expect(await fullName(0)).toMatch(/^[^,]+, \d+\.\d\d(, few people)?$/)
   await expect(card).toContainText(await name(0))
   await expect(card).toContainText('Mean:')
   await expect(card).toContainText(/95% CI: \[.+\]/)
@@ -1399,14 +1509,54 @@ test('14 — a keyboard reads a chart row by row: one tab stop, ↑ ↓ Home End
   await find.selectOption({ label: someState })
   const pinned = states.locator('g[aria-label="tip"]', { hasText: someState })
   await expect(pinned).toBeVisible()
-  await page.getByRole('button', { name: 'Mean, highest first' }).focus()
+  await page.getByRole('button', { name: 'Sort: Mean, highest first' }).focus()
   await page.keyboard.press('Tab')
-  await expect(states.getByRole('listitem', { name: someState, exact: true })).toBeFocused()
+  await expect(
+    states.getByRole('listitem', { name: new RegExp(`^${someState}, \\d`) }),
+  ).toBeFocused()
   await expect(states.getByRole('tooltip')).toContainText(someState)
   await expect(pinned).toBeHidden()
   await page.keyboard.press('ArrowDown')
   await expect(pinned).toBeVisible()
   await expect(states.getByRole('tooltip')).not.toContainText(someState)
+
+  // Change reads the same way (H2, ADR-0033): each country named with its
+  // change, its card on focus.
+  await serveApi(page, { '/v1/change': apiFixture('change-HAPPY-Y1-Y2.json') })
+  await page.goto('/change?outcome=HAPPY')
+  const change = page.getByRole('group', { name: /mean change among the same people/ })
+  const changeRows = change.getByRole('listitem')
+  await expect(changeRows.first()).toBeAttached()
+  expect(await changeRows.first().getAttribute('aria-label')).toMatch(/^[^,]+, [+−]\d+\.\d\d/)
+  await page.getByRole('button', { name: 'Sort: Mean change, highest first' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(changeRows.first()).toBeFocused()
+  await expect(change.getByRole('tooltip')).toContainText(/95% CI: \[.+\]/)
+  await page.keyboard.press('ArrowDown')
+  await expect(changeRows.nth(1)).toBeFocused()
+
+  // Segments by gender: one tab stop for every panel; ↑ ↓ within a
+  // country, Page Down to the next; the card names the country and group.
+  await page.goto('/segments?outcome=HAPPY&by=gender')
+  const segments = page.getByRole('group', { name: /panel per country/ })
+  const panels = segments.getByRole('list')
+  await expect(panels.first()).toBeAttached()
+  expect(await panels.count()).toBeGreaterThanOrEqual(2)
+  const firstCountry = (await panels.first().getAttribute('aria-label')) ?? ''
+  const secondCountry = (await panels.nth(1).getAttribute('aria-label')) ?? ''
+  // Into the chart from the link just above it (the question's wording).
+  await page.getByRole('link', { name: /The exact question and answers/ }).focus()
+  await page.keyboard.press('Tab')
+  await expect(panels.first().getByRole('listitem').first()).toBeFocused()
+  const segmentCard = segments.getByRole('tooltip')
+  await expect(segmentCard).toContainText(firstCountry)
+  await expect(segmentCard).toContainText('Gender:')
+  await expect(segmentCard).toContainText(/95% CI: (\[.+\]|none)/)
+  await page.keyboard.press('ArrowDown')
+  await expect(panels.first().getByRole('listitem').nth(1)).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect(panels.nth(1).getByRole('listitem').nth(1)).toBeFocused()
+  await expect(segmentCard).toContainText(secondCountry)
 })
 
 async function streamToString(download: {
@@ -1417,3 +1567,78 @@ async function streamToString(download: {
   for await (const chunk of stream) chunks.push(Buffer.from(chunk as Buffer))
   return Buffer.concat(chunks).toString('utf8')
 }
+
+/** The controls on the screen (and in an open dialog) shorter than a
+ * finger's 44 px: buttons, selects, fold summaries, text fields, and the
+ * labels a radio or checkbox is chosen by — not links in running text,
+ * not a chart's marks. In-page code, as a string (the e2e files are
+ * type-checked without the DOM library). */
+const SMALL_CONTROLS = `(() => {
+  const scope = document.querySelector('[role="dialog"]') ?? document.querySelector('main')
+  const controls = scope.querySelectorAll(
+    'button, select, summary, input[type="search"], input[type="text"],' +
+      ' label:has(> input[type="radio"]), label:has(> input[type="checkbox"])',
+  )
+  const small = []
+  for (const control of controls) {
+    if (control.closest('svg, [hidden], .visually-hidden')) continue
+    const fold = control.closest('details')
+    if (fold && !fold.open && control.tagName !== 'SUMMARY') continue
+    const box = control.getBoundingClientRect()
+    if (box.width <= 1 || box.height <= 1) continue
+    if (box.height < 43.5) {
+      const name = (control.getAttribute('aria-label') || control.textContent || control.tagName)
+        .trim()
+        .replace(/\\s+/g, ' ')
+        .slice(0, 40)
+      small.push(control.tagName.toLowerCase() + ' "' + name + '" ' + Math.round(box.height))
+    }
+  }
+  return small
+})()`
+
+test('15 — on a phone every control is a finger’s target: 44 px tall at 390 px, the options sheets open too — in Chromium and WebKit', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await serveApi(page, {
+    '/v1/states': apiFixture('states-HAPPY-Y1.json'),
+    '/v1/aggregate': apiFixture('states-HAPPY-Y1-overall.json'),
+    '/v1/change': apiFixture('change-HAPPY-Y1-Y2.json'),
+  })
+  await serveCorrelates(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  const softly = expect.configure({ soft: true })
+  const pages: [string, (page: Page) => Locator][] = [
+    ['/', (page) => page.locator('main figure').first()],
+    ['/change?outcome=HAPPY', (page) => page.locator('main figure').first()],
+    ['/states?outcome=HAPPY', (page) => page.locator('main figure').first()],
+    ['/segments?outcome=HAPPY&by=gender', (page) => page.locator('main figure').first()],
+    ['/what-matters', (page) => page.locator('main figure').first()],
+    ['/what-matters?view=within', (page) => page.locator('main figure').first()],
+    ['/what-matters?view=questions', (page) => page.locator('main figure').first()],
+    ['/correlates', (page) => page.locator('main figure').first()],
+    ['/correlates?view=matrix', (page) => page.locator('main figure').first()],
+    ['/correlates?view=related', (page) => page.locator('main figure').first()],
+    ['/codebook', (page) => page.getByRole('columnheader', { name: 'Chartable' })],
+    ['/codebook/HAPPY', (page) => page.getByRole('heading', { level: 2 }).first()],
+    ['/methods', (page) => page.locator('[data-figure] svg').first()],
+  ]
+  for (const [path, rendered] of pages) {
+    await page.goto(path)
+    await expect(rendered(page)).toBeVisible()
+    softly(await page.evaluate<string[]>(SMALL_CONTROLS), `${path}: controls under 44 px`).toEqual(
+      [],
+    )
+    const options = page.getByRole('button', { name: 'Options' })
+    if ((await options.count()) > 0) {
+      await options.click()
+      await expect(page.getByRole('dialog', { name: 'Chart options' })).toBeVisible()
+      softly(
+        await page.evaluate<string[]>(SMALL_CONTROLS),
+        `${path}, options open: controls under 44 px`,
+      ).toEqual([])
+      await page.keyboard.press('Escape')
+    }
+  }
+})

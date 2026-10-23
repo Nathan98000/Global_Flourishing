@@ -141,8 +141,19 @@ export function Histogram({
           grid: true,
           tickFormat: (d: number) => `${scale.format(d)}%`,
         },
+        // The panel names sit close over their panels, no tick between,
+        // so the y-axis title above them never runs into the first (H15).
         ...(faceted
-          ? { fx: { domain: facets, label: null, axis: 'top', paddingInner: FACET_PADDING } }
+          ? {
+              fx: {
+                domain: facets,
+                label: null,
+                axis: 'top',
+                paddingInner: FACET_PADDING,
+                tickSize: 0,
+                tickPadding: 2,
+              },
+            }
           : {}),
         marks: [
           // A country few people answered in: its bars hollow (ADR-0031).

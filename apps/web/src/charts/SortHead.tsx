@@ -2,10 +2,10 @@
 // the rows' names — a plain label, never a sort — and the value column by
 // its statistic's own word ("Mean", "Median", "Share", "Mean change"),
 // a button that reverses the order (highest first ↔ lowest first), with
-// an arrow and `aria-sort`. A column header is the only element
-// `aria-sort` belongs on, so the two labels are a one-row table header:
-// the chart under them is its body, drawn. Outside the chart node, so
-// assistive tech reaches the button where that node is an image.
+// an arrow. Presentational (H16): no one-row table with no data — the
+// button says what it does and the order it is in ("Sort: Mean, highest
+// first"). Outside the chart node, so assistive tech reaches the button
+// where that node is an image.
 
 import type { SortDir } from '../sortRows'
 import { orderPhrase } from '../views/viewState'
@@ -27,29 +27,21 @@ export function SortHead({
   onToggle?: () => void
 }) {
   return (
-    <div
-      role="table"
-      aria-label={`${value} by ${names.toLowerCase()}: the order`}
-      className={styles.head}
-    >
-      <div role="row" className={styles.row}>
-        <span role="columnheader" className={styles.names}>
+    <div className={styles.head}>
+      <div className={styles.row}>
+        <span className={styles.names} data-sort-names="">
           {names}
         </span>
         {onToggle === undefined ? (
-          <span role="columnheader" className={`${styles.value} ${styles.plain}`}>
+          <span className={`${styles.value} ${styles.plain}`} data-sort-value="">
             {value}
           </span>
         ) : (
-          <span
-            role="columnheader"
-            aria-sort={dir === 'desc' ? 'descending' : 'ascending'}
-            className={styles.value}
-          >
+          <span className={styles.value} data-sort-value="">
             <button
               type="button"
               className={styles.button}
-              aria-label={`${value}, ${orderPhrase(dir)}`}
+              aria-label={`Sort: ${value}, ${orderPhrase(dir)}`}
               onClick={onToggle}
             >
               {value}

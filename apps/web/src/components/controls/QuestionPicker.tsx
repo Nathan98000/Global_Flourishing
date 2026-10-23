@@ -43,10 +43,12 @@ import styles from './QuestionPicker.module.css'
  * four letters. */
 export function stemOf(needle: string): string {
   for (const ending of [
+    'action',
     'ation',
     'ition',
     'ness',
     'ment',
+    'ion',
     'ing',
     'ied',
     'ies',
@@ -63,31 +65,65 @@ export function stemOf(needle: string): string {
   return needle
 }
 
-/** Where a search lands in a text: the words as typed, else their stem
- * (−1 when neither). */
+/** The forms a search is tried in (H9): as typed, its stem, and — where
+ * the stem came from a "y" (loneliness → loneli) — that "y" back, so the
+ * stems work both ways: lonely and loneliness, depressed and depression,
+ * satisfied and satisfaction find each other. */
+export function formsOf(needle: string): string[] {
+  const stem = stemOf(needle)
+  const forms = [needle]
+  if (stem !== needle) forms.push(stem)
+  if (stem.endsWith('i') && stem.length > 4) forms.push(`${stem.slice(0, -1)}y`)
+  return forms
+}
+
+/** Where a search lands in a text: the words as typed, else their other
+ * forms (−1 when none). */
 export function findNeedle(text: string, needle: string): { at: number; length: number } {
   if (!needle) return { at: -1, length: 0 }
   const lower = text.toLowerCase()
-  const exact = lower.indexOf(needle)
-  if (exact >= 0) return { at: exact, length: needle.length }
-  const stem = stemOf(needle)
-  return { at: stem === needle ? -1 : lower.indexOf(stem), length: stem.length }
+  for (const form of formsOf(needle)) {
+    const at = lower.indexOf(form)
+    if (at >= 0) return { at, length: form.length }
+  }
+  return { at: -1, length: 0 }
 }
 
-/** The servable questions a search matches: name, display name, label
- * or wording, case-insensitive, by the words or their stem. */
+/** How well a question matches a search (H9), lower first: a word of its
+ * name that is the search in one of its forms (0); a word of its name
+ * that starts with one (1); its name otherwise, or its code (2); its
+ * wording or description (3); no match (Infinity). */
+export function matchRank(variable: VariableSummary, needle: string): number {
+  const forms = formsOf(needle)
+  const stem = stemOf(needle)
+  const words = variable.display_name.toLowerCase().split(/[^\p{L}\p{N}]+/u)
+  if (words.some((word) => forms.includes(word) || stemOf(word) === stem)) return 0
+  if (words.some((word) => forms.some((form) => word.startsWith(form)))) return 1
+  if (findNeedle(variable.display_name, needle).at >= 0) return 2
+  if (findNeedle(variable.name, needle).at >= 0) return 2
+  if (findNeedle(variable.label ?? '', needle).at >= 0) return 3
+  if (findNeedle(variable.wording ?? '', needle).at >= 0) return 3
+  return Infinity
+}
+
+/** The servable questions a search matches — name, display name, label
+ * or wording, case-insensitive, by the words or their other forms — best
+ * first (`matchRank`; shorter names first among equals). This orders the
+ * server's list; it adds no label. */
 export function searchMeasures(variables: VariableSummary[], query: string): VariableSummary[] {
   const needle = query.trim().toLowerCase()
   if (!needle) return []
-  const hit = (text: string | null) => findNeedle(text ?? '', needle).at >= 0
-  return variables.filter(
-    (variable) =>
-      variable.servable &&
-      (hit(variable.name) ||
-        hit(variable.display_name) ||
-        hit(variable.label) ||
-        hit(variable.wording)),
-  )
+  return variables
+    .filter((variable) => variable.servable)
+    .map((variable, index) => ({ variable, index, rank: matchRank(variable, needle) }))
+    .filter((entry) => entry.rank !== Infinity)
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        a.variable.display_name.length - b.variable.display_name.length ||
+        a.index - b.index,
+    )
+    .map((entry) => entry.variable)
 }
 
 /** How many recently used questions the panel keeps and lists. */
@@ -314,7 +350,9 @@ export function QuestionPicker(props: QuestionPickerProps) {
           className={styles.fieldTrigger}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label={`${label}: ${name}`}
+          // Its visible "Change" in its name (H16, WCAG 2.5.3): a voice
+          // user saying "click Change" reaches it.
+          aria-label={`${label}: ${name} — change`}
           onClick={() => setOpen((was) => !was)}
         >
           {/* The name alone, wrapping, never cut short (G13): the chart's
@@ -416,15 +454,19 @@ function Panel(
   const visibleShelves = shelves.filter(
     (entry) => entry.depth === 0 || entry.family === activeShelf?.family,
   )
+  // A search lists its matches by topic, best first (H9): each topic in
+  // the order of its best match, and within it its matches in theirs.
   const sections: Section[] = useMemo(() => {
     if (!needle) return activeShelf?.sections ?? []
-    const matches = new Set(searchMeasures([...variables], needle).map((v) => v.name))
+    const order = new Map(searchMeasures([...variables], needle).map((v, at) => [v.name, at]))
+    const at = (variable: VariableSummary) => order.get(variable.name) ?? Infinity
     return topicsOf([...variables])
       .map((topic) => ({
         title: topicName(topic.family),
-        items: topic.measures.filter((v) => matches.has(v.name)),
+        items: topic.measures.filter((v) => order.has(v.name)).sort((a, b) => at(a) - at(b)),
       }))
       .filter((section) => section.items.length > 0)
+      .sort((a, b) => at(a.items[0] as VariableSummary) - at(b.items[0] as VariableSummary))
   }, [needle, activeShelf, variables])
   const flat = useMemo(() => sections.flatMap((section) => section.items), [sections])
   const activeName =

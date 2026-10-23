@@ -98,7 +98,9 @@ export function formatCI(row: Pick<EstimateRow, 'ci_lo' | 'ci_hi' | 'stat'>): st
   if (row.ci_lo === null || row.ci_hi === null) return '—'
   // A share change's ends are bare points: its value line names the unit.
   if (isShareChangeStat(row.stat)) return `[${signedPoints(row.ci_lo)}, ${signedPoints(row.ci_hi)}]`
-  return `[${formatEstimate(row.ci_lo, row.stat)}, ${formatEstimate(row.ci_hi, row.stat)}]`
+  // A true minus, as every other signed number prints (H17): "[−0.53, 9.02]".
+  const bound = (value: number) => formatEstimate(value, row.stat).replace(/^-/, '−')
+  return `[${bound(row.ci_lo)}, ${bound(row.ci_hi)}]`
 }
 
 /** A chart's value column: the estimate as formatEstimate gives it, a

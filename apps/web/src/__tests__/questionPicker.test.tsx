@@ -307,7 +307,7 @@ describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
 
   test('closed: the name in bold — no wording line, the chart gives it (G13) — and Change; named "Question: …"', () => {
     renderField()
-    const trigger = screen.getByRole('button', { name: 'Question: Life evaluation today' })
+    const trigger = screen.getByRole('button', { name: 'Question: Life evaluation today — change' })
     const [name, change] = [...trigger.children]
     expect(trigger.children).toHaveLength(2)
     expect(name?.textContent).toBe('Life evaluation today')
@@ -326,7 +326,9 @@ describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
 
   test('open: the question’s own topic — or the topic a link names — and a pick closes it', () => {
     const onPick = renderField({ topic: 'religion' })
-    fireEvent.click(screen.getByRole('button', { name: 'Question: Life evaluation today' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Question: Life evaluation today — change' }),
+    )
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     const topics = within(dialog).getByRole('listbox', { name: 'Topics' })
     expect(within(topics).getByRole('option', { name: /^Religion/ })).toHaveAttribute(
@@ -346,7 +348,9 @@ describe('QuestionPicker in the question bar (variant field, ADR-0029)', () => {
     // An unknown topic opens on the question's own.
     cleanup()
     renderField({ topic: 'not_a_topic' })
-    fireEvent.click(screen.getByRole('button', { name: 'Question: Life evaluation today' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Question: Life evaluation today — change' }),
+    )
     expect(screen.getByRole('option', { name: /^Wellbeing/ })).toHaveAttribute(
       'aria-selected',
       'true',

@@ -87,20 +87,36 @@
   margin: 0 0 var(--space-4);
 }
 
-/* A phone: the last picker fills its line, so Swap takes the group's
-   second row — the "?" still beside the picker — at a full tap target. */
+/* A phone (H8): Swap is its arrows alone, a 44 px square at the
+   sentence's end beside the "?" (its word stays its name); the chart's
+   title takes the deck's size — the sentence above already names both
+   questions — so the answer lands on the first screen. */
 @media (max-width: 40rem) {
-  .sentenceEnd {
-    display: inline-grid;
-    grid-template-columns: minmax(0, auto) auto;
-    align-items: baseline;
+  .sentenceEnd > .swap {
+    min-width: 44px;
+    min-height: 44px;
+    margin-left: var(--space-2);
+    padding: 0;
+    font-size: var(--text-deck);
   }
 
-  .sentenceEnd > .swap {
-    grid-column: 1 / -1;
-    justify-self: start;
-    min-height: 44px;
-    margin: var(--space-2) 0 0;
+  .swapWord {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .page figcaption > :first-child {
+    font-size: var(--text-deck);
+  }
+
+  /* The sentence takes the help line's place, tucked under the switcher
+     as that was. */
+  .sentenceRow {
+    margin: calc(-1 * var(--space-3)) 0 var(--space-2);
   }
 }
 
@@ -135,10 +151,13 @@
 /* At Midyear, the year of the other answers is chosen inside the row
    note's sentence (review M3): a select in the note's own type. */
 .inlineSelect {
-  padding: 1px 4px;
+  padding: 1px 22px 1px 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 4px);
-  background: var(--surface);
+  background-color: var(--surface);
+  background-position:
+    right 12px center,
+    right 7px center;
   color: var(--ink);
   font: inherit;
   font-weight: 600;
@@ -164,6 +183,17 @@
 }
 
 @media (max-width: 40rem) {
+  /* No note between the sentence and the summary line (it is in the
+     sheet), and the chart's top rule closes that line from below, as on
+     every other page (G3): one rule, not two a gap apart. */
+  .sheetLine {
+    padding-top: 0;
+  }
+
+  .controlRow {
+    margin-bottom: 0;
+  }
+
   .controlCells {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

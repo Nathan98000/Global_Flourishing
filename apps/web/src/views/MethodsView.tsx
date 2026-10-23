@@ -122,8 +122,16 @@ export function MethodsView() {
           {/* In plain words first; the survey-weighted, design-based
               sentence sits in the first fold (Confidence intervals). */}
           Every number here is estimated from a survey, so each comes with a{' '}
-          <strong>{ciLevel !== undefined ? `${Math.round(ciLevel * 100)}% CI` : 'CI'}</strong> — the
-          band drawn through each dot — and the number of people behind it.
+          {ciLevel !== undefined ? (
+            <strong>{`${Math.round(ciLevel * 100)}% CI`}</strong>
+          ) : (
+            // Until the served level arrives its words keep their room, so
+            // the lead never reflows under the reader (H7).
+            <strong className={styles.pending} aria-hidden="true">
+              00% CI
+            </strong>
+          )}{' '}
+          — the band drawn through each dot — and the number of people behind it.
           {suppression && suppression.threshold > 0 ? (
             <>
               {' '}
@@ -134,8 +142,12 @@ export function MethodsView() {
           ) : (
             <>
               {' '}
-              Every cell is shown, however small — a long interval is the sign that few people are
-              behind a number, and each one&rsquo;s hover card says how many.
+              Every cell is shown, however small: a hollow dot (or bar) and an asterisk mark a
+              number few people are behind
+              {suppression && suppression.flag_below > 0
+                ? ` (fewer than ${formatCount(suppression.flag_below)})`
+                : ''}
+              ; its interval runs long, and its hover card says how many.
             </>
           )}
         </p>
@@ -157,7 +169,7 @@ export function MethodsView() {
             <h3 className={styles.asideHeading}>The questions</h3>
             <p>
               Every question&rsquo;s exact wording, its answers, and how many people answered it in
-              each country and wave.
+              each country and year.
             </p>
             <Link to="/codebook" className={styles.codebookLink}>
               Browse the Codebook →

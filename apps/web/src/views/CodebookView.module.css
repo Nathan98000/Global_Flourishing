@@ -101,6 +101,17 @@
   text-align: right;
 }
 
+/* A finger's target on a phone (H5): each row's name, its link to the
+   entry, and "Chart it →", 44 px tall. */
+@media (max-width: 40rem) {
+  .nameCell a,
+  .chartCell a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 .nameCell {
   display: flex;
   flex-direction: column;

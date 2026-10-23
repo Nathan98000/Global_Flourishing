@@ -17,7 +17,16 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // WebKit (Safari's engine) runs the touch-target journey only: it draws
+  // native selects its own way (H5); the rest is Chromium's.
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      grep: /15 — on a phone every control/,
+    },
+  ],
   webServer: {
     command: 'pnpm build && pnpm preview --port 4173 --strictPort',
     url: 'http://localhost:4173',

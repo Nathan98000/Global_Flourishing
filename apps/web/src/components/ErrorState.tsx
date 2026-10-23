@@ -3,17 +3,21 @@
 // deployment has no data build", 429 as "slow down", network failure as
 // its own state — but only when /health also fails: a service that
 // answers its health check and then fails one request has returned an
-// error, not gone offline. Never a spinner, never a blank.
+// error, not gone offline. Any other failure is ours, said in plain words
+// with a way to try again (H14) — never an HTTP status or a server's
+// message. Never a spinner, never a blank.
 
+import { QueryClientContext } from '@tanstack/react-query'
+import { useContext } from 'react'
 import { ApiError, NetworkError } from '../api/errors'
 import styles from './ErrorState.module.css'
 
-const SERVICE_ERROR = "Couldn't load this view — the data service returned an error."
+const SERVICE_ERROR = 'Something went wrong on our side.'
 
 function body(
   error: unknown,
   apiReachable: boolean | undefined,
-): { title: string; lines: string[] } {
+): { title: string; lines: string[]; retry?: boolean } {
   if (error instanceof ApiError) {
     switch (error.kind) {
       case 'validation':
@@ -38,16 +42,11 @@ function body(
       case 'not-implemented':
         return { title: 'Not available yet', lines: error.details }
       default:
-        return {
-          title: SERVICE_ERROR,
-          lines: [`HTTP ${error.status}${error.details.length ? `: ${error.details[0]}` : ''}`],
-        }
+        return { title: SERVICE_ERROR, lines: [], retry: true }
     }
   }
   if (error instanceof NetworkError) {
-    if (apiReachable) {
-      return { title: SERVICE_ERROR, lines: ['The request did not complete; try again shortly.'] }
-    }
+    if (apiReachable) return { title: SERVICE_ERROR, lines: [], retry: true }
     return {
       title: 'Live data service is offline',
       lines: [
@@ -55,7 +54,7 @@ function body(
       ],
     }
   }
-  return { title: 'Something went wrong', lines: [String(error)] }
+  return { title: SERVICE_ERROR, lines: [], retry: true }
 }
 
 export function ErrorState({
@@ -67,7 +66,14 @@ export function ErrorState({
    * the service's error, not an outage. */
   apiReachable?: boolean
 }) {
-  const { title, lines } = body(error, apiReachable)
+  const { title, lines, retry } = body(error, apiReachable)
+  // Try again: every request that failed asks once more (where the app's
+  // query client is at hand), else the page reloads.
+  const client = useContext(QueryClientContext)
+  const tryAgain = () => {
+    if (client) void client.refetchQueries({ predicate: (query) => query.state.status === 'error' })
+    else window.location.reload()
+  }
   return (
     <div role="alert" className={styles.panel}>
       <p className={styles.title}>{title}</p>
@@ -80,6 +86,11 @@ export function ErrorState({
           ))}
         </ul>
       ) : null}
+      {retry && (
+        <button type="button" className={styles.retry} onClick={tryAgain}>
+          Try again
+        </button>
+      )}
     </div>
   )
 }

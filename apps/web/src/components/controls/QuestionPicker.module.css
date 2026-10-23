@@ -69,7 +69,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--ink-secondary);
-  font-size: 0.6em;
+  /* Never under the type scale's least step (H17). */
+  font-size: max(var(--text-xs), 0.6em);
   font-weight: 550;
   line-height: 1.5;
 }
@@ -473,6 +474,16 @@
   }
 }
 
+/* Closed, on a phone, a finger's target (H5): Correlates' question
+   buttons and Compare several's "Add questions", 44 px tall. */
+@media (max-width: 40rem) {
+  .trigger,
+  .addTrigger {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
 /* An option's tag ("Midyear", "2023 answers", ADR-0020): beside its
    name, small, never wrapping inside itself. */
 .tag {
@@ -539,7 +550,8 @@
   grid-column: 1;
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 1.0625rem;
+  /* On the type scale (H17): the deck's step. */
+  font-size: var(--text-deck);
   font-weight: 600;
   line-height: 1.3;
 }

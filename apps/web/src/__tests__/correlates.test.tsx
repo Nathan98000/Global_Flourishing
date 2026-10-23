@@ -35,6 +35,7 @@ import { HEAT_CELL_PAD, HeatTable, columnsPastEdge } from '../charts/HeatTable'
 import { pairToCsv } from '../export/csv'
 import { formatEstimate } from '../format'
 import { createAppRouter } from '../router'
+import { MIDYEAR_NOTE } from '../waves'
 import { headingColumnWidth } from '../views/correlates/CompareSeveral'
 import {
   attendVariable,
@@ -570,7 +571,9 @@ describe('All countries (ADR-0020)', () => {
     const request = calls.filter((url) => url.includes('/v1/correlations/pair')).pop() as string
     expect(request).toContain('pooled=average')
     expect(request).not.toContain('filter=country_code')
-    expect(screen.getByText('All countries (average of 2) · 2023')).toBeInTheDocument()
+    expect(
+      screen.getByText('Share of each column, % · 2023 · all countries (average of 2)'),
+    ).toBeInTheDocument()
     // No second place control: the scope toggle is gone.
     expect(screen.queryByRole('group', { name: 'Where' })).toBeNull()
     // Under the grid, its key and nothing else (ADR-0024).
@@ -592,8 +595,12 @@ describe('All countries (ADR-0020)', () => {
     })
     expect(calls.some((url) => url.includes('outcome=HAPPY&wave=Y1&pooled=average'))).toBe(true)
     expect(
-      screen.getByText('All countries (average of 2) · 2023 · correlation, −1 to 1'),
+      screen.getByText('Correlation, −1 to 1 · 2023 · all countries (average of 2)'),
     ).toBeInTheDocument()
+    // Its status reads the subtitle and counts questions (H3).
+    expect(screen.getByText(/^Updated: What goes with/).textContent).toBe(
+      'Updated: What goes with Happiness — correlation, −1 to 1 · 2023 · all countries (average of 2). 2 questions.',
+    )
     const [lonely, attend] = within(figure).getAllByRole('button')
     fireEvent.focus(lonely as HTMLElement)
     // The n of an average is summed over its countries.
@@ -623,7 +630,7 @@ describe('All countries (ADR-0020)', () => {
     expect(headers.some((th) => th.hasAttribute('data-highlight'))).toBe(false)
     expect(
       screen.getByText(
-        'The 2 questions ranked for all countries, country by country · 2023 · correlation, −1 to 1',
+        'Correlation, −1 to 1 · 2023 · the 2 questions ranked for all countries, country by country',
       ),
     ).toBeInTheDocument()
   })
@@ -648,7 +655,7 @@ describe('All countries (ADR-0020)', () => {
       name: /Correlations among 3 questions averaged over 2 countries/,
     })
     expect(
-      screen.getByText('All countries (average of 2) · 2023 · correlation, −1 to 1'),
+      screen.getByText('Correlation, −1 to 1 · 2023 · all countries (average of 2)'),
     ).toBeInTheDocument()
     const lonely = within(figure).getByRole('button', {
       name: 'Loneliness with Happiness, −0.52: see the two questions together',
@@ -812,7 +819,9 @@ describe('Midyear (ADR-0020)', () => {
     expect(request).toContain('y=INCOME_FEELINGS&x=TIME_MEDIA&wave=MY')
     expect(request).toContain('other_wave=Y1')
     expect(
-      screen.getByText('United States · Midyear survey, with 2023 answers from the same people'),
+      screen.getByText(
+        'Share of each column, % · Midyear survey, with 2023 answers from the same people · United States',
+      ),
     ).toBeInTheDocument()
     // The other wave's question wears its year: on its trigger, its axis.
     expect(
@@ -842,7 +851,7 @@ describe('Midyear (ADR-0020)', () => {
     )
     expect(
       await screen.findByText(
-        'United States · Midyear survey, with 2024 answers from the same people',
+        'Share of each column, % · Midyear survey, with 2024 answers from the same people · United States',
       ),
     ).toBeInTheDocument()
   })
@@ -899,7 +908,7 @@ describe('Midyear (ADR-0020)', () => {
     )
     expect(
       screen.getByText(
-        'United States · Midyear survey, with 2023 answers from the same people · correlation, −1 to 1',
+        'Correlation, −1 to 1 · Midyear survey, with 2023 answers from the same people · United States',
       ),
     ).toBeInTheDocument()
     // Its picker tags the others by their answers' year.
@@ -984,7 +993,7 @@ describe('Correlates view', () => {
     expect(figure.innerHTML).not.toMatch(/#[0-9a-f]{6}/i)
     expect(ruleLines(figure)).toBe(1)
     expect(screen.getByText('What goes with Happiness')).toBeInTheDocument()
-    expect(screen.getByText('United States · 2023 · correlation, −1 to 1')).toBeInTheDocument()
+    expect(screen.getByText('Correlation, −1 to 1 · 2023 · United States')).toBeInTheDocument()
     const ticks = [...figure.querySelectorAll('[aria-label="x-axis tick label"] text')].map(
       (node) => node.textContent,
     )
@@ -1076,7 +1085,7 @@ describe('Correlates view', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual([
       '−0.40',
       '−0.52',
-      '+0.05*, small sample size',
+      '+0.05*, few people',
       '+0.31',
     ])
     expect(cells[2]).toHaveAttribute('data-flagged')
@@ -1088,13 +1097,13 @@ describe('Correlates view', () => {
       'Service attendance · United States',
       'Correlation: +0.05*',
       'Based on 7 people who answered both',
-      '* small sample size',
+      '* few people (Correlates’ own rule)',
     ])
     const tip = lines.join('\n')
     expect(tip).not.toMatch(/Few people|less reliable/)
     expect(tip).not.toMatch(/n =|Too few/)
     fireEvent.pointerLeave(cells[2] as HTMLElement)
-    expect(within(matrix).getByText('* small sample size')).toBeInTheDocument()
+    expect(within(matrix).getByText('* few people (Correlates’ own rule)')).toBeInTheDocument()
     expect(figureNote(matrix)).toBe('')
     // The legend's turning words, in <em>.
     const legendWords = within(matrix).getByText(
@@ -1164,7 +1173,7 @@ describe('Correlates view', () => {
     expect(
       within(caption).getByText('Service attendance and Feelings about household income'),
     ).toBeInTheDocument()
-    expect(screen.getByText('United States · 2023')).toBeInTheDocument()
+    expect(screen.getByText('Share of each column, % · 2023 · United States')).toBeInTheDocument()
     // The header: the correlation strip alone. Where is chosen outside
     // the figure, under the shared control row, as in Find related.
     const strip = screen.getByText(/^Correlation/, { selector: 'span' })
@@ -1190,7 +1199,7 @@ describe('Correlates view', () => {
     expect(shared.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The legend: how to read it, the fixed bins, and the asterisk.
     const key = screen.getByText('Share of each column (columns add to 100%)')
-    expect(screen.getByText('* small sample size')).toBeInTheDocument()
+    expect(screen.getByText('* few people (Correlates’ own rule)')).toBeInTheDocument()
     // Its nine steps, the grid's own ramp, each over the bin it starts at.
     const swatches = [...(key.parentElement as HTMLElement).querySelectorAll('span[style]')]
     expect(swatches.map((swatch) => swatch.getAttribute('style'))).toEqual(
@@ -1248,9 +1257,9 @@ describe('Correlates view', () => {
     expect(main).not.toContain('Hover a cell for its 95% confidence interval')
     expect(main).not.toMatch(/cause/i)
     expect(screen.queryByRole('link', { name: 'How these numbers are made' })).toBeNull()
-    // The screen-reader summary ends on the stars.
+    // The screen-reader summary ends on the stars, then where every number is.
     expect(figure.getAttribute('aria-label')).toMatch(
-      / \d+ cells are starred: small sample size\.$/,
+      / \d+ cells are starred: few people\. Every number, with its 95% CI and n, is in the CSV \(Download\)\.$/,
     )
   })
 
@@ -1267,7 +1276,7 @@ describe('Correlates view', () => {
     })
     // Only this chart: the grid has left.
     expect(screen.queryByText('Share of each column (columns add to 100%)')).toBeNull()
-    expect(screen.getByText('Country by country · 2023 · correlation, −1 to 1')).toBeInTheDocument()
+    expect(screen.getByText('Correlation, −1 to 1 · 2023 · country by country')).toBeInTheDocument()
     const request = calls.find((url) => url.includes('by=country_code')) as string
     expect(request).toContain('outcome=ATTEND_SVCS&wave=Y1&against=INCOME_FEELINGS&by=country_code')
     // Strongest first; Testland rests on few people.
@@ -1473,13 +1482,15 @@ describe('Correlates view', () => {
       '−0.52',
       '',
       '·, built from the same answers',
-      '+0.20*, small sample size',
+      '+0.20*, few people',
     ])
     // The tint is on a fixed −1 to 1: −0.52 is the middle rust step, not the deepest.
     expect(cells[0]?.getAttribute('style')).toContain('var(--div-n3)')
     // One line of legend: the ramp's ends, the asterisk, the dot — no numbers of questions.
     const legend = figure.querySelector('[class*=legendRow]') as HTMLElement
-    expect(legend.textContent).toBe('−1+1* small sample size· built from the same answers')
+    expect(legend.textContent).toBe(
+      '−1+1* few people (Correlates’ own rule)· built from the same answers',
+    )
     // The hover card: the row with the column, then the value (starred,
     // with the asterisk's words, when flagged).
     const lonely = within(table).getByRole('button', {
@@ -1492,12 +1503,12 @@ describe('Correlates view', () => {
       'Based on 54 people who answered both',
     ])
     fireEvent.blur(lonely)
-    const flagged = within(table).getByRole('button', { name: /\+0\.20, small sample size/ })
+    const flagged = within(table).getByRole('button', { name: /\+0\.20, few people/ })
     fireEvent.focus(flagged)
     expect(tipLines(within(figure).getByRole('tooltip')).slice(1)).toEqual([
       'Correlation: +0.20*',
       'Based on 7 people who answered both',
-      '* small sample size',
+      '* few people (Correlates’ own rule)',
     ])
     fireEvent.blur(flagged)
     expect(figureNote(figure)).toBe('')
@@ -1511,7 +1522,7 @@ describe('Correlates view', () => {
     )
   })
 
-  test('on a phone Year and Where stay in view; Options opens the sheet with Measured as (ADR-0029)', async () => {
+  test('on a phone Year and Where join Measured as in the Options sheet, the line naming all three (H8, ADR-0033)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('40rem'),
       media: query,
@@ -1523,26 +1534,31 @@ describe('Correlates view', () => {
       dispatchEvent: () => false,
     }))
     mockFetch(tier)
-    await renderAt('/correlates')
+    const router = await renderAt('/correlates')
     await screen.findByRole('img', { name: /Life evaluation today and Feelings about household/ })
-    // The question bar: Year and Where, never folded away.
-    expect(screen.getByRole('group', { name: 'Year' })).toBeVisible()
-    expect(screen.getByLabelText('Where')).toBeVisible()
-    // The old "Change" button is gone (it collided with the Change page).
-    expect(screen.queryByRole('button', { name: /^Change wave/ })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Measured as' })).toBeNull()
-    // The line names only what Options holds (G12): Where is right above.
-    expect(screen.getByText('Measured as: straight-line')).toBeVisible()
+    // The answer first: no help line (the question sentence says it), and
+    // Year and Where wait in the sheet; the line says all three.
+    expect(screen.queryByText(/^Pick two questions to see/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Year' })).toBeNull()
+    expect(screen.queryByLabelText('Where')).toBeNull()
+    expect(screen.getByText('2023 · all countries, averaged · straight-line')).toBeVisible()
+    // Swap is its arrows at the sentence's end, its word still its name.
+    expect(screen.getByRole('button', { name: 'Swap' })).toHaveTextContent('⇄ Swap')
     const options = screen.getByRole('button', { name: 'Options' })
     fireEvent.click(options)
     const sheet = screen.getByRole('dialog', { name: 'Chart options' })
+    expect(within(sheet).getByRole('group', { name: 'Year' })).toBeInTheDocument()
+    expect(within(sheet).getByText(MIDYEAR_NOTE)).toBeInTheDocument()
     expect(within(sheet).getByRole('group', { name: 'Measured as' })).toBeInTheDocument()
     expect(
       within(sheet).getByRole('button', { name: 'What’s the difference?' }),
     ).toBeInTheDocument()
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }))
+    fireEvent.change(within(sheet).getByLabelText('Where'), { target: { value: '22' } })
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?country=22'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(options).toHaveFocus()
+    expect(screen.getByText('2023 · United States · straight-line')).toBeVisible()
   })
 
   test('Compare several on a phone (or past six questions): numbered columns, the same numbers before the rows', async () => {
@@ -1902,9 +1918,9 @@ describe('correlates helpers', () => {
   test('the legend and subtitle say the window in words', () => {
     expect(legendEnds(0.52, 'pearson_r')).toEqual(['−0.52', '+0.52'])
     expect(acrossSubtitle(20, 'Japan', 'Y2')).toBe(
-      'The 20 questions ranked for Japan, country by country · 2024 · correlation, −1 to 1',
+      'correlation, −1 to 1 · 2024 · the 20 questions ranked for Japan, country by country',
     )
-    expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('The 1 question ranked for Japan')
+    expect(acrossSubtitle(1, 'Japan', 'Y1')).toContain('the 1 question ranked for Japan')
     const countries = [
       { code: 22, name: 'United States', iso3: 'USA' },
       { code: 30, name: 'China', iso3: 'CHN' },
@@ -1945,7 +1961,7 @@ describe('correlates helpers', () => {
   test('plain words for the method and the waves', () => {
     expect(statisticPhrase(undefined)).toBe('correlation, −1 to 1')
     expect(statisticPhrase('spearman')).toBe('correlation by rank, −1 to 1')
-    expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe('Japan · 2024 · correlation, −1 to 1')
+    expect(rankedSubtitle('Japan', undefined, 'Y2')).toBe('correlation, −1 to 1 · 2024 · Japan')
     expect(axisEnds('Happiness', 'Life satisfaction')).toEqual([
       '← higher answers to Life satisfaction go with lower answers to Happiness',
       'higher answers to Life satisfaction go with higher answers to Happiness →',
@@ -1956,7 +1972,7 @@ describe('correlates helpers', () => {
       'Gratitude\nCorrelation: +0.41',
     )
     expect(rankedTip({ estimate: 0.412, stat: 'pearson_r' }, 'Gratitude', true)).toBe(
-      'Gratitude\nCorrelation: +0.41*\n* small sample size',
+      'Gratitude\nCorrelation: +0.41*\n* few people (Correlates’ own rule)',
     )
     expect(starred('+0.41', true)).toBe('+0.41*')
     expect(starred('+0.41', false)).toBe('+0.41')

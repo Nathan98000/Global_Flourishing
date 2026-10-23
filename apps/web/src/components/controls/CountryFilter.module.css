@@ -120,7 +120,16 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  /* Rows 28 px apart, so each checkbox has a 24 px target's room (axe
+     target-size; H5). */
+  min-height: 26px;
   cursor: pointer;
+}
+
+.option input {
+  width: 16px;
+  height: 16px;
+  margin: 0 var(--space-1) 0 0;
 }
 
 /* Touch targets on small screens (F9): 44px rows. */

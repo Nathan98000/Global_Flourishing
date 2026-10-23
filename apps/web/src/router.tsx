@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { AppShell } from './components/AppShell'
+import { PagePlaceholder } from './components/PagePlaceholder'
 import {
   atlasSearchParams,
   breakdownsSearchParams,
@@ -202,5 +203,8 @@ export function createAppRouter(history?: RouterHistory) {
     history,
     parseSearch: parseSearchString,
     stringifySearch,
+    // While a page's code arrives (a slow phone): the page's shape, not
+    // blank paper (F21, H7).
+    defaultPendingComponent: () => <PagePlaceholder />,
   })
 }

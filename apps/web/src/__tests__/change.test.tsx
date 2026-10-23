@@ -7,7 +7,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { resetNegativePathCache } from '../api/estimates'
 import type { ApiHealth, EstimateRow, VariableDetail, VariableSummary } from '../api/types'
@@ -237,7 +237,7 @@ describe('Change view', () => {
   test('default output: no follow-up rate, no coverage figure, no jargon, no caution sentence', async () => {
     const calls = mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
-    const figure = await screen.findByRole('img', { name: /mean change among the same people/ })
+    const figure = await screen.findByRole('group', { name: /mean change among the same people/ })
     expect(figure).toBeInTheDocument()
     const text = visibleText(screen.getByRole('main'))
     // The guard: no percentage other than the interval level, no jargon,
@@ -277,13 +277,44 @@ describe('Change view', () => {
     expect(screen.queryByText(/Pick up to four countries/)).toBeNull()
   })
 
+  test("its status says the view in the subtitle's words and counts countries (H3)", async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=HAPPY&dir=asc')
+    const status = await screen.findByText(/^Updated: Happiness — /)
+    expect(status).toHaveAttribute('role', 'status')
+    expect(status.textContent).toMatch(/· all countries · lowest first\. \d+ countr(y|ies)\.$/)
+    expect(status.textContent).not.toMatch(/rows|cells/)
+  })
+
+  test('a keyboard reads the change row by row: one tab stop, each row named with its change, the card on focus (H2)', async () => {
+    mockFetch(tier)
+    await renderAt('/change?outcome=HAPPY')
+    const chart = await screen.findByRole('group', { name: /mean change among the same people/ })
+    const items = within(within(chart).getByRole('list')).getAllByRole('listitem')
+    expect(items.length).toBeGreaterThanOrEqual(2)
+    expect(items.filter((item) => item.tabIndex === 0)).toHaveLength(1)
+    const [first, second] = items as [HTMLElement, HTMLElement]
+    expect(first.getAttribute('aria-label')).toMatch(/^[^,]+, [+−]\d+\.\d\d$/)
+    act(() => first.focus())
+    const card = within(chart).getByRole('tooltip')
+    expect(card).toHaveTextContent(first.getAttribute('aria-label')?.split(',')[0] ?? '')
+    expect(card).toHaveTextContent(/95% CI: \[/)
+    expect(first).toHaveAccessibleDescription(/95% CI/)
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(second).toHaveFocus()
+    fireEvent.keyDown(second, { key: 'Escape' })
+    expect(within(chart).queryByRole('tooltip')).toBeNull()
+    // The pointer keeps Plot's own tip.
+    expect(chart.querySelector('[aria-label="tip"]')).not.toBeNull()
+  })
+
   test('a chosen country adds the histogram of individual change, zero on the axis', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=HAPPY&countries=1')
     const bins = await screen.findByRole('img', { name: /change in their own answer/ })
     expect(bins.querySelector('svg')?.textContent).toContain('Change in the answer')
     // The dots chart's axis carries a labelled zero and signed ticks.
-    const dots = screen.getByRole('img', { name: /mean change among the same people/ })
+    const dots = screen.getByRole('group', { name: /mean change among the same people/ })
     const ticks = [...(dots.querySelectorAll('[aria-label="x-axis tick label"] text') ?? [])].map(
       (node) => node.textContent,
     )
@@ -294,7 +325,7 @@ describe('Change view', () => {
   test('a categorical item charts the share change at a chosen level, in percentage points', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=ATTEND_SVCS')
-    const figure = await screen.findByRole('img', {
+    const figure = await screen.findByRole('group', {
       name: /change in the share of the same people/,
     })
     const caption = figure.closest('figure') as HTMLElement
@@ -320,7 +351,7 @@ describe('Change view', () => {
   test('a directional yes/no item says whether a rise in the share is better', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=CLOSE_TO')
-    const figure = await screen.findByRole('img', {
+    const figure = await screen.findByRole('group', {
       name: /change in the share of the same people/,
     })
     const caption = figure.closest('figure') as HTMLElement
@@ -345,7 +376,9 @@ describe('Change view', () => {
     mockFetch(tier)
     await renderAt('/change?outcome=ATTEND_SVCS&countries=1')
     expect(
-      await screen.findByRole('img', { name: /change in the share of the same people answering/ }),
+      await screen.findByRole('group', {
+        name: /change in the share of the same people answering/,
+      }),
     ).toBeInTheDocument()
     // No matrix of moves between answers, served rows or not.
     expect(document.querySelectorAll('figure')).toHaveLength(1)
@@ -372,10 +405,11 @@ describe('Change view', () => {
   test('the value label — "Mean change" — reverses the order and writes dir (ADR-0029)', async () => {
     mockFetch(tier)
     const router = await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /mean change among the same people/ })
-    const value = screen.getByRole('columnheader', { name: /^Mean change/ })
-    expect(value).toHaveAttribute('aria-sort', 'descending')
-    fireEvent.click(within(value).getByRole('button'))
+    await screen.findByRole('group', { name: /mean change among the same people/ })
+    // A button that says what it does and the order (H16): no one-row
+    // table over the chart.
+    expect(screen.queryByRole('columnheader')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Mean change, highest first' }))
     await waitFor(() => expect(router.state.location.searchStr).toBe('?outcome=HAPPY&dir=asc'))
     expect(screen.queryByRole('group', { name: 'Order' })).toBeNull()
   })
@@ -383,7 +417,7 @@ describe('Change view', () => {
   test('the question bar: Question, then Countries — the years are fixed (ADR-0029)', async () => {
     mockFetch(tier)
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('button', { name: 'Question: Happiness' })
+    await screen.findByRole('button', { name: 'Question: Happiness — change' })
     expect(barLabels()).toEqual(['Question', 'Countries'])
   })
 
@@ -400,7 +434,7 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /mean change among the same people/ })
+    await screen.findByRole('group', { name: /mean change among the same people/ })
     // No measure spans the midyear survey: no pair control at all, and no
     // sentence about it (25 Sept); the multi-pair path keeps its control.
     expect(screen.queryByRole('group', { name: 'Compare' })).toBeNull()
@@ -409,7 +443,7 @@ describe('Change view', () => {
     // The one picker (ADR-0029): Loneliness (asked once) stays in view,
     // disabled, with the reason in words; the counts count what Change
     // can compare.
-    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Question: Happiness — change' }))
     const dialog = screen.getByRole('dialog', { name: 'Question' })
     const lonely = within(dialog).getByRole('option', { name: /^Loneliness/ })
     expect(lonely).toHaveAttribute('aria-disabled', 'true')
@@ -440,7 +474,7 @@ describe('Change view', () => {
       },
     })
     await renderAt('/change?outcome=HAPPY')
-    await screen.findByRole('img', { name: /mean change among the same people/ })
+    await screen.findByRole('group', { name: /mean change among the same people/ })
     const compare = screen.getByRole('group', { name: 'Compare' })
     const midyear = within(compare).getByLabelText('2023 → Midyear') as HTMLInputElement
     expect(midyear).toBeDisabled()

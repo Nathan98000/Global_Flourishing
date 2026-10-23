@@ -10,14 +10,17 @@ export interface NavItem {
   label: string
   /** Other paths the item stands for (its pages reached from it). */
   covers?: readonly string[]
+  /** Its page needs the live data service: while that is offline the
+   * link wears a mark saying so (H6). */
+  live?: true
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Atlas' },
-  { to: '/change', label: 'Change' },
+  { to: '/change', label: 'Change', live: true },
   { to: '/what-matters', label: 'What Matters' },
-  { to: '/correlates', label: 'Correlates' },
-  { to: '/states', label: 'US States' },
+  { to: '/correlates', label: 'Correlates', live: true },
+  { to: '/states', label: 'US States', live: true },
   { to: '/segments', label: 'Segments' },
   { to: '/methods', label: 'Methods', covers: ['/codebook'] },
 ]

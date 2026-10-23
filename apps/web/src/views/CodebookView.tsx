@@ -101,11 +101,14 @@ export function CodebookView() {
 
   const families = [...meta.data.meta.families, 'derived'].sort()
   const total = variables.data.list.length
+  // The picker searches the chartable ones ("Search 154 questions"); the
+  // Codebook lists them all and says how the two counts meet (H18).
+  const chartable = variables.data.list.filter((variable) => variable.servable).length
   const isFiltered = Boolean(draft.trim() || search.family || search.wave || search.scale)
 
   return (
     <section>
-      <h1>Codebook</h1>
+      <h2>Codebook</h2>
       <p className={styles.deck}>
         Every question in the study, with its exact wording, its answer options and how many people
         answered it.
@@ -184,7 +187,7 @@ export function CodebookView() {
       <p role="status" className={styles.count}>
         {isFiltered
           ? `${formatCount(rows.length)} of ${formatCount(total)} questions`
-          : `${formatCount(total)} questions`}
+          : `${formatCount(total)} questions, ${formatCount(chartable)} of them chartable`}
       </p>
 
       {rows.length === 0 ? (
@@ -230,7 +233,10 @@ export function CodebookView() {
                           } as never
                         }
                       >
-                        Chart it →
+                        {/* Named by its question (H16): 161 links, each its own,
+                            the visible words leading the name. */}
+                        <span className="visually-hidden">Chart it: {variable.display_name}</span>
+                        <span aria-hidden="true">Chart it →</span>
                       </Link>
                     ) : (
                       <span className={styles.code}>not yet</span>

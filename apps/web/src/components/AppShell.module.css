@@ -53,6 +53,23 @@
   color: var(--ink);
 }
 
+/* A page that needs the live service while it is down (H6): a compact
+   word under its name, smaller, in the link's own ink — out of the flow,
+   so it arrives without moving the row or the page (no layout shift). */
+.nav a {
+  position: relative;
+}
+
+.navMark {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
 .nav a[data-status='active'] {
   color: var(--ink);
   text-decoration: underline;
@@ -85,6 +102,12 @@
     min-height: 44px;
     display: inline-flex;
     align-items: center;
+  }
+
+  /* In the link's own room on its row: under the name, above the rule. */
+  .navMark {
+    top: auto;
+    bottom: 0;
   }
 
   /* The least the row leaves between two items. */

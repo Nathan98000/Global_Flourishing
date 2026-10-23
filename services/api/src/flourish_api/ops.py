@@ -1,4 +1,5 @@
-"""Operational middleware: ETag/Cache-Control, in-process LRU, rate limit, logs.
+"""Operational middleware: ETag/Cache-Control, in-process LRU, rate limit,
+gzip, logs.
 
 The data is immutable per deployment, so every /v1 GET response is a pure
 function of (build, data_version, canonical query). That gives two cheap
@@ -7,6 +8,8 @@ wins (ADR-0008): the **ETag is computed from the request alone** — a matching
 **in-process LRU** keyed the same way serves repeat queries without
 touching DuckDB. Rate limiting is a per-IP token bucket, per instance
 (acceptable at Cloud Run max-2 instances, and documented as such).
+Responses of 1 kB or more are gzipped for clients that accept it
+(ADR-0033); the ETag names the uncompressed body, so it is sent weak.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from dataclasses import dataclass
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import ASGIApp
 
 from flourish_api.config import Settings
@@ -36,6 +40,11 @@ logger = logging.getLogger("flourish_api.access")
 # (ADR-0008, revised 24 Sept).
 CACHE_CONTROL = "public, no-cache"
 
+#: Responses this size or larger are gzipped (Starlette's GZipMiddleware,
+#: which then adds ``Vary: Accept-Encoding`` itself); smaller ones go as
+#: they are, and the cache middleware adds the Vary.
+GZIP_MINIMUM_SIZE = 1024
+
 
 def canonical_key(request: Request, data_version: str | None, build: str = "dev") -> str:
     """The cache key and ETag source. ``build`` is the deployed commit, so a
@@ -45,8 +54,14 @@ def canonical_key(request: Request, data_version: str | None, build: str = "dev"
     return f"{build}:{data_version or 'absent'}:{request.url.path}?{query}"
 
 
-def etag_for(key: str) -> str:
+def opaque_tag(key: str) -> str:
     return '"' + hashlib.sha256(key.encode()).hexdigest()[:20] + '"'
+
+
+def etag_for(key: str) -> str:
+    """Weak (``W/``): the tag names the uncompressed body, and one tag
+    covers it gzipped or not, so a gzipped client's 304 still matches."""
+    return "W/" + opaque_tag(key)
 
 
 @dataclass
@@ -83,6 +98,15 @@ class ResponseCache:
             self._entries.popitem(last=False)
 
 
+VARY = {"Vary": "Accept-Encoding"}
+
+
+def vary_for(body: bytes) -> dict[str, str]:
+    """The Vary header a body below the gzip threshold needs; a larger one
+    gets it from GZipMiddleware, which would otherwise repeat it."""
+    return VARY if len(body) < GZIP_MINIMUM_SIZE else {}
+
+
 class CacheMiddleware(BaseHTTPMiddleware):
     """ETag + Cache-Control + LRU for GET /v1/*."""
 
@@ -99,13 +123,19 @@ class CacheMiddleware(BaseHTTPMiddleware):
         store = request.app.state.store
         key = canonical_key(request, store.data_version, self.build)
         etag = etag_for(key)
-        if etag in request.headers.get("if-none-match", ""):
-            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": CACHE_CONTROL})
+        # Weak comparison (RFC 9110 §13.1.2): a client or proxy may send the
+        # tag back with or without its W/ prefix.
+        if opaque_tag(key) in request.headers.get("if-none-match", ""):
+            return Response(
+                status_code=304,
+                headers={"ETag": etag, "Cache-Control": CACHE_CONTROL, **VARY},
+            )
 
         cached = self.cache.get(key)
         if cached is not None:
             headers = {
                 **cached.headers,
+                **vary_for(cached.body),
                 "ETag": etag,
                 "Cache-Control": CACHE_CONTROL,
                 "X-Cache": "hit",
@@ -121,7 +151,13 @@ class CacheMiddleware(BaseHTTPMiddleware):
             k: v for k, v in response.headers.items() if k.lower() in ("content-disposition",)
         }
         self.cache.put(key, CachedResponse(body=body, media_type=media_type, headers=passthrough))
-        headers = {**passthrough, "ETag": etag, "Cache-Control": CACHE_CONTROL, "X-Cache": "miss"}
+        headers = {
+            **passthrough,
+            **vary_for(body),
+            "ETag": etag,
+            "Cache-Control": CACHE_CONTROL,
+            "X-Cache": "miss",
+        }
         return Response(content=body, status_code=200, media_type=media_type, headers=headers)
 
 
@@ -241,8 +277,10 @@ class JsonErrorMiddleware(BaseHTTPMiddleware):
 
 
 def install_middleware(app: FastAPI, settings: Settings) -> None:
-    """Order (outermost first): access log → rate limit → cache/ETag →
-    JSON errors (innermost, so the others see a real response)."""
+    """Order (outermost first): access log → gzip → rate limit → cache/ETag
+    → JSON errors (innermost, so the others see a real response). Gzip sits
+    outside the cache, so the LRU holds plain bodies and one entry serves
+    clients that do and don't accept gzip."""
     app.add_middleware(JsonErrorMiddleware)
     # The deployed commit (FA_GIT_SHA) keys every ETag; without one (local
     # dev), each process start does, so a restart never replays old shapes.
@@ -250,6 +288,7 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
     app.add_middleware(CacheMiddleware, cache=ResponseCache(settings.cache_size), build=build)
     if settings.env == "prod" and settings.rate_limit_per_minute > 0:
         app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
+    app.add_middleware(GZipMiddleware, minimum_size=GZIP_MINIMUM_SIZE)
     app.add_middleware(AccessLogMiddleware, settings=settings)
 
 

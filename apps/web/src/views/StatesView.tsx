@@ -9,7 +9,7 @@
 // absent.
 
 import { getRouteApi } from '@tanstack/react-router'
-import { Suspense, lazy, useId, useMemo, useState } from 'react'
+import { Suspense, lazy, useId, useMemo, useRef, useState } from 'react'
 import { NetworkError } from '../api/errors'
 import { useEstimates } from '../api/estimates'
 import { useBootStatus, useHealth, useMeta } from '../api/meta'
@@ -20,10 +20,13 @@ import { useWarmApi } from '../api/warm'
 import { ChartFigure } from '../charts/ChartFigure'
 import { ChartKey } from '../charts/ChartKey'
 import { SortHead } from '../charts/SortHead'
+import { holdPointerTips } from '../charts/pointerHold'
 import { RankedBar, type Reference } from '../charts/RankedBar'
+import { CSV_SENTENCE } from '../charts/summary'
 import { outcomeColor, people, plotValue } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
@@ -39,12 +42,13 @@ import { ciLabel, formatCI, formatEstimate } from '../format'
 import { groupValueLabel, highestLevel, outcomeLevels, scaleSubtitle } from '../labels'
 import { DEFAULT_DIR, reversed } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import { statesRequest, statesSearchParams, type StatesSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import { US_COUNTRY_CODE, sortStateRows } from './stateRows'
 import styles from './AtlasView.module.css'
-import { keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import { countOf, keyCiLevel, keyThinBelow, orderPhrase, stateLine, updatedLine } from './viewState'
 
 const StatesMapPanel = lazy(() => import('./StatesMapPanel'))
 
@@ -63,12 +67,15 @@ export function StatesView() {
   const adjReasonId = useId()
   // Find a state: the state picked out, until cleared.
   const [found, setFound] = useState<string | undefined>()
+  const narrow = useMediaQuery(NARROW_VIEWPORT)
   // Finding a state shows it (G5): once the chart has drawn its pinned
   // card (or the map its outline), that part of the chart comes to the
-  // middle of the screen — smoothly, unless motion is reduced.
-  const find = (code: string | undefined) => {
-    setFound(code)
-    if (code === undefined) return
+  // middle of the screen — smoothly, unless motion is reduced, when it is
+  // there at once. On a phone the state is found in the Options sheet:
+  // the page moves once the sheet has closed (H4), never under it.
+  const scrollPending = useRef(false)
+  const showFound = () => {
+    scrollPending.current = false
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         const chart = document.querySelector('main figure [data-chart]')
@@ -78,11 +85,21 @@ export function StatesView() {
         )
         const target = pinned ?? chart
         const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        // The page moves under a resting mouse: no second card (H4).
+        holdPointerTips()
         target?.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
       }),
     )
   }
-  const narrow = useMediaQuery(NARROW_VIEWPORT)
+  const find = (code: string | undefined) => {
+    setFound(code)
+    if (code === undefined) return
+    if (narrow) scrollPending.current = true
+    else showFound()
+  }
+  const sheetClosed = () => {
+    if (scrollPending.current) showFound()
+  }
   // Every state figure is the live service's: while it is down (or has
   // no data) the page says so, and Median says why it can't be chosen.
   const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
@@ -102,7 +119,16 @@ export function StatesView() {
     void navigate(searchNavigation(statesSearchParams({ ...search, ...patch })))
   }
 
-  const request = chartable ? statesRequest(search, variable) : null
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(searchNavigation(statesSearchParams({ ...search, wave }), { replace: true })),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked ? statesRequest(search, variable) : null
   const states = useStates(request)
   const response = states.data
   // The US overall figure the states are read against: the whole US on
@@ -111,7 +137,7 @@ export function StatesView() {
   // weight. The national-weight figure (the Atlas's, from the static
   // tier) goes in the footnote.
   const overall = useEstimates(
-    chartable
+    yearAsked
       ? {
           outcome: search.outcome,
           wave: search.wave,
@@ -122,7 +148,7 @@ export function StatesView() {
       : null,
   )
   const national = useEstimates(
-    chartable ? { outcome: search.outcome, wave: search.wave, stat, by: ['country_code'] } : null,
+    yearAsked ? { outcome: search.outcome, wave: search.wave, stat, by: ['country_code'] } : null,
   )
   const pickLevel = (rows: readonly EstimateRow[]) => {
     const level = isCategorical ? (activeLevel ?? highestLevel([...rows])) : undefined
@@ -160,8 +186,8 @@ export function StatesView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>US States</h2>
-        <LoadingBlock height={420} label="Loading the US States view" />
+        <h2 className="visually-hidden">US States</h2>
+        <PagePlaceholder label="Loading the US States view" />
       </section>
     )
   }
@@ -374,15 +400,16 @@ export function StatesView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               statesSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {/* The question bar (ADR-0029): what, then when (one country). */}
       <div className={styles.questionBar} data-bar="question">
@@ -409,7 +436,9 @@ export function StatesView() {
         {yearNoteText && <p className={styles.barNote}>{yearNoteText}</p>}
       </div>
       {narrow && chartable && (
-        <OptionsSheet summary={phoneSummary}>{chartControls(false)}</OptionsSheet>
+        <OptionsSheet summary={phoneSummary} onClosed={sheetClosed}>
+          {chartControls(false)}
+        </OptionsSheet>
       )}
 
       {!chartable ? (
@@ -439,13 +468,13 @@ export function StatesView() {
       ) : response && variable ? (
         <>
           <p role="status" className="visually-hidden">
-            Updated: {title}, {displayRows.length} states shown.
+            {updatedLine(title, subtitle, countOf(displayRows.length, 'states'))}
           </p>
           <ChartFigure
             title={title}
             subtitle={subtitle}
             narrowSubtitle={narrowSubtitle}
-            ariaLabel={`${title} by US state (${subtitle}). ${extremes}`}
+            ariaLabel={`${title} by US state (${subtitle}). ${extremes}${search.view === 'map' ? ` ${CSV_SENTENCE}` : ''}`}
             intro={
               <>
                 {detail && (

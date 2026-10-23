@@ -10,17 +10,22 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useSheetChartActions } from '../../charts/ChartActions'
-import { HowToRead, downloadCsv } from '../../charts/ChartFigure'
+import { HowToRead, NO_PICTURE, downloadCsv } from '../../charts/ChartFigure'
 import styles from './OptionsSheet.module.css'
 
 export function OptionsSheet({
   summary,
   title = 'Chart options',
+  onClosed,
   children,
 }: {
-  /** The chart's state in the controls' words. */
-  summary: string
+  /** The chart's state in the controls' words (or, on Segments with two
+   * splits, its country stepper — H11). */
+  summary: ReactNode
   title?: string
+  /** Once the sheet has closed and focus is back on Options (US States'
+   * Find a state scrolls to its state then — H4). */
+  onClosed?: () => void
   /** The controls, in their full-width phone layout. */
   children: ReactNode
 }) {
@@ -31,9 +36,12 @@ export function OptionsSheet({
   const sheetId = useId()
   const chartActions = useSheetChartActions()
 
+  // Focus goes back to Options without scrolling to it: a page that
+  // moved while the sheet was open (Find a state) stays where it went.
   const close = () => {
     setOpen(false)
-    button.current?.focus()
+    button.current?.focus({ preventScroll: true })
+    onClosed?.()
   }
 
   // Open: focus moves to the sheet's first control.
@@ -135,15 +143,18 @@ export function OptionsSheet({
                         CSV
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={styles.link}
-                      aria-label="Download PNG"
-                      onClick={() => chartActions.current.png()}
-                    >
-                      PNG
-                    </button>
+                    {chartActions.current.png && (
+                      <button
+                        type="button"
+                        className={styles.link}
+                        aria-label="Download PNG"
+                        onClick={() => chartActions.current.png?.()}
+                      >
+                        PNG
+                      </button>
+                    )}
                   </span>
+                  {!chartActions.current.png && <p className={styles.note}>{NO_PICTURE}</p>}
                 </div>
               )}
             </div>

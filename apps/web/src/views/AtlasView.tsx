@@ -17,14 +17,14 @@ import { SortHead } from '../charts/SortHead'
 import { Histogram } from '../charts/Histogram'
 import { RankedBar } from '../charts/RankedBar'
 import { MAX_ANSWERS, StackedShares } from '../charts/StackedShares'
-import { summarizeExtremes } from '../charts/summary'
+import { CSV_SENTENCE, summarizeDistribution, summarizeExtremes } from '../charts/summary'
 import { outcomeColor } from '../charts/theme'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
+import { PagePlaceholder } from '../components/PagePlaceholder'
 import { LoadingBlock } from '../components/Loading'
 import { InvalidParamsNotice, StatusNotice } from '../components/Notice'
 import { OfflineLine } from '../components/StillWorks'
-import { Skeleton } from '../components/Skeleton'
 import { WordingPanel } from '../components/WordingPanel'
 import { CountryFilter } from '../components/controls/CountryFilter'
 import { OptionsSheet } from '../components/controls/OptionsSheet'
@@ -36,11 +36,22 @@ import { formatCount } from '../format'
 import { defaultLevel, groupValueLabel, outcomeLevels, scaleSubtitle } from '../labels'
 import { DEFAULT_DIR, reversed, sortAtlasRows } from '../sortRows'
 import { searchNavigation } from '../state/navigate'
+import { useNearestAskedYear, withMovedYear } from '../state/nearestYear'
 import { atlasRequest, atlasSearchParams, type AtlasSearch } from '../state/search'
 import { NARROW_VIEWPORT, useMediaQuery } from '../useMediaQuery'
 import { WAVE_CHIPS, WAVE_TITLES, yearNote, yearReason } from '../waves'
 import styles from './AtlasView.module.css'
-import { countriesPhrase, keyCiLevel, keyThinBelow, orderPhrase, stateLine } from './viewState'
+import {
+  countOf,
+  countriesPhrase,
+  keyCiLevel,
+  keyThinBelow,
+  noAnswers,
+  noAnswersLine,
+  orderPhrase,
+  stateLine,
+  updatedLine,
+} from './viewState'
 
 const route = getRouteApi('/')
 
@@ -75,6 +86,10 @@ export function AtlasView() {
   // data) a median link shows the mean, and says why (F13) — no fault of
   // the link's. Still deciding (health pending) keeps the link's ask.
   const liveDown = health.isError || (health.isSuccess && health.data.data !== 'ok')
+  // The first check failed and its retry is pending (H6): Median's reason
+  // may be about to show, so its line is held from now — the chart drawn
+  // meanwhile never moves down for it.
+  const liveDoubtful = health.isPending && health.failureCount > 0
   const medianOffline = search.stat === 'quantile' && liveDown
   const defaultStat = (variable?.default_stat as Stat | undefined) ?? 'mean'
   const requested: Stat = medianOffline ? defaultStat : (search.stat ?? defaultStat)
@@ -89,7 +104,16 @@ export function AtlasView() {
   const binLabel = (level: number) => levels.find((entry) => entry.value === level)?.label
   const derivedBins = variable?.is_derived && levels.length > 0
 
-  const request = chartable
+  // A link's year the question wasn't asked in opens the nearest one it
+  // was, with the link notice (H14) — no request for the year it lacks.
+  const yearMove = useNearestAskedYear(
+    search.wave,
+    chartable ? variable.waves_available : undefined,
+    (wave) =>
+      void navigate(searchNavigation(atlasSearchParams({ ...search, wave }), { replace: true })),
+  )
+  const yearAsked = chartable && variable.waves_available.includes(search.wave)
+  const request = yearAsked
     ? atlasRequest(medianOffline ? { ...search, stat: undefined } : search, variable)
     : null
   const estimates = useEstimates(request)
@@ -103,7 +127,7 @@ export function AtlasView() {
   // never A–Z (G10).
   const numericDistribution = stat === 'distribution' && !allAnswers
   const orderEstimates = useEstimates(
-    chartable && numericDistribution
+    yearAsked && numericDistribution
       ? atlasRequest({ ...search, countries: [], stat: undefined }, variable)
       : null,
   )
@@ -169,6 +193,10 @@ export function AtlasView() {
     return sortAtlasRows(rows, metaForSort, dir)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response, stat, allAnswers, activeLevel, search.countries, metaForSort, dir, firstFour])
+  // The distribution's panels as drawn: its countries that have rows.
+  const drawnCountries = distributionCountries.filter((code) =>
+    displayRows.some((row) => Number(row.group['country_code']) === code),
+  )
   const countryOrder = useMemo(
     () =>
       metaForSort && allAnswers
@@ -186,8 +214,8 @@ export function AtlasView() {
   if (meta.isPending || variables.isPending) {
     return (
       <section>
-        <h2>Atlas</h2>
-        <Skeleton height={420} label="Loading the Atlas" />
+        <h2 className="visually-hidden">Atlas</h2>
+        <PagePlaceholder label="Loading the Atlas" />
       </section>
     )
   }
@@ -258,7 +286,8 @@ export function AtlasView() {
       : allAnswers
         ? 'share giving each answer'
         : stat === 'distribution'
-          ? undefined
+          ? // The statistic first, as every subtitle has it (H17).
+            'share of people at each answer'
           : variable
             ? scaleSubtitle(variable, stat, detail)
             : undefined
@@ -356,7 +385,9 @@ export function AtlasView() {
           note={
             statOptions.some((option) => option.disabled)
               ? 'Median — needs the live data service.'
-              : undefined
+              : liveDoubtful
+                ? '\u00a0'
+                : undefined
           }
         />
       )}
@@ -416,15 +447,16 @@ export function AtlasView() {
         </span>
       </p>
       <InvalidParamsNotice
-        invalid={search.invalid}
-        onDismiss={() =>
+        invalid={withMovedYear(search.invalid, yearMove.moved)}
+        onDismiss={() => {
+          yearMove.dismiss()
           void navigate(
             searchNavigation(
               atlasSearchParams({ ...search, invalid: undefined, invalidRaw: undefined }),
               { replace: true },
             ),
           )
-        }
+        }}
       />
       {medianOffline && (
         <StatusNotice>
@@ -495,10 +527,31 @@ export function AtlasView() {
                 <ErrorState apiReachable={boot.apiReachable} error={estimates.error} />
               )}
             </>
+          ) : response && variable && noAnswers(search.countries, displayRows) ? (
+            <EmptyState
+              title={noAnswersLine(
+                search.countries.map((code) =>
+                  groupValueLabel('country_code', code, meta.data.meta),
+                ),
+              )}
+            >
+              <p>Choose other countries with Countries{narrow ? ' in Options' : ''}.</p>
+            </EmptyState>
           ) : response && variable ? (
             <>
               <p role="status" className="visually-hidden">
-                Updated: {title}, {displayRows.length} rows shown.
+                {updatedLine(
+                  title,
+                  subtitle,
+                  countOf(
+                    allAnswers
+                      ? countryOrder.length
+                      : stat === 'distribution'
+                        ? drawnCountries.length
+                        : displayRows.length,
+                    'countries',
+                  ),
+                )}
               </p>
               <ChartFigure
                 title={title}
@@ -506,16 +559,28 @@ export function AtlasView() {
                 narrowSubtitle={narrowSubtitle}
                 ariaLabel={
                   allAnswers
-                    ? summarizeExtremes(
+                    ? `${summarizeExtremes(
                         displayRows.filter((row) => row.level === activeLevel),
                         meta.data.meta,
                         `${title}: the share giving each of ${levels.length} answers (${levels.map((entry) => entry.label).join(', ')}) in each of ${countryOrder.length} countries, ${waveTitle}. Answering “${levelLabel ?? activeLevel}”:`,
-                      )
-                    : summarizeExtremes(
-                        stat === 'distribution' ? [] : displayRows,
-                        meta.data.meta,
-                        `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
-                      )
+                      )} ${CSV_SENTENCE}`
+                    : stat === 'distribution'
+                      ? // The four countries drawn, in their order, with
+                        // their served means (H1) — never "No estimates".
+                        summarizeDistribution(
+                          `${title} (${subtitle}): the share of people giving each answer${variable.min !== null && variable.max !== null ? `, ${variable.min} to ${variable.max}` : ''}, one panel per country.`,
+                          drawnCountries.map((code) =>
+                            groupValueLabel('country_code', code, meta.data.meta),
+                          ),
+                          drawnCountries.map((code) =>
+                            orderRows?.find((row) => Number(row.group['country_code']) === code),
+                          ),
+                        )
+                      : summarizeExtremes(
+                          displayRows,
+                          meta.data.meta,
+                          `${title}${subtitle ? ` (${subtitle})` : ''} by country.`,
+                        )
                 }
                 intro={
                   detail && (

@@ -2,6 +2,8 @@
 // defaults stay out of the URL, invalid values degrade with a notice.
 
 import { describe, expect, test } from 'vitest'
+import type { VariableSummary } from '../api/types'
+import { formsOf, matchRank, searchMeasures, stemOf } from '../components/controls/QuestionPicker'
 import {
   ATLAS_DEFAULTS,
   CHANGE_DEFAULTS,
@@ -625,5 +627,85 @@ describe('correlates search (ADR-0019)', () => {
       by: ['country_code'],
       method: 'spearman',
     })
+  })
+})
+
+describe("the question picker's search ranking (H9)", () => {
+  // The release's own names (and a line of wording each), in catalog order.
+  const question = (name: string, display_name: string, wording: string | null = null) =>
+    ({ name, display_name, wording, label: null, servable: true }) as VariableSummary
+  const catalog = [
+    question('sfi_relationships', 'SFI: close social relationships', null),
+    question('sfi_happiness', 'SFI: happiness & life satisfaction', null),
+    question('sfi_meaning', 'SFI: meaning & purpose', null),
+    question('sfi_character', 'SFI: character & virtue', null),
+    question(
+      'SAT_RELATNSHP',
+      'Satisfying relationships',
+      'My relationships are as satisfying as I would want them to be.',
+    ),
+    question(
+      'LIFE_SAT',
+      'Life satisfaction',
+      'Overall, how satisfied are you with life as a whole these days?',
+    ),
+    question(
+      'GIVE_UP',
+      'Delaying happiness for later gain',
+      'I am always able to give up some happiness now for greater happiness later.',
+    ),
+    question('HAPPY', 'Happiness', 'In general, how happy or unhappy do you usually feel?'),
+    question(
+      'SAT_LIVE',
+      'Satisfied with where you live',
+      'Are you satisfied with the city or area where you live?',
+    ),
+    question(
+      'MEANINGFUL',
+      'Importance: a meaningful life',
+      'How important is a meaningful life to you?',
+    ),
+    question(
+      'WORTHWHILE',
+      'Doing worthwhile things',
+      'Overall, to what extent do you feel the things you do in your life are worthwhile?',
+    ),
+    question(
+      'DEPRESSED',
+      'Feeling down or depressed',
+      'Over the last two weeks, how often have you been bothered by feeling down, depressed or hopeless?',
+    ),
+    question('LONELY', 'Not feeling lonely', 'How often do you feel lonely?'),
+  ]
+  const names = (query: string) => searchMeasures(catalog, query).map((entry) => entry.name)
+
+  test('a match in the name comes first: a whole word, in any of its forms, then shorter names', () => {
+    expect(names('satisfied')[0]).toBe('LIFE_SAT')
+    expect(names('happiness')[0]).toBe('HAPPY')
+    expect(names('meaning').slice(0, 2)).toContain('sfi_meaning')
+    // A name before a line of wording that says the same.
+    expect(names('worthwhile')).toEqual(['WORTHWHILE'])
+    expect(names('happiness')).toEqual(['HAPPY', 'GIVE_UP', 'sfi_happiness'])
+    expect(names('satisfied')).toEqual(['LIFE_SAT', 'SAT_LIVE', 'sfi_happiness', 'SAT_RELATNSHP'])
+  })
+
+  test('the stems work both ways', () => {
+    expect(names('depression')).toContain('DEPRESSED')
+    expect(names('loneliness')).toContain('LONELY')
+    expect(names('lonely')).toContain('LONELY')
+    expect(stemOf('depression')).toBe('depress')
+    expect(formsOf('loneliness')).toEqual(['loneliness', 'loneli', 'lonely'])
+  })
+
+  test('a whole word before the start of a word, and the name before the wording', () => {
+    const list = [
+      question('A', 'Meaningful work', null),
+      question('B', 'Meaning in life', null),
+      question('C', 'Purpose', 'What gives your life meaning?'),
+    ]
+    expect(searchMeasures(list, 'meaning').map((entry) => entry.name)).toEqual(['B', 'A', 'C'])
+    expect(matchRank(list[0] as VariableSummary, 'meaning')).toBe(1)
+    expect(matchRank(list[1] as VariableSummary, 'meaning')).toBe(0)
+    expect(matchRank(list[2] as VariableSummary, 'meaning')).toBe(3)
   })
 })
